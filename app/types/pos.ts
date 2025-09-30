@@ -20,6 +20,10 @@ export type POSOrder = {
   amount_return: number;
   session_id: [number, string]; // Tuple of [id, name]
   lines: POSOrderLine[];
+  config_id: [number, string]; // Tuple of [id, name]
+  partner_id: [number, string] | null; // Tuple of [id, name] or null if no customer
+  state: "draft" | "paid" | "done" | "invoiced" | "cancelled";
+  create_date: string; // ISO date string
 };
 
 export type POSSession = {

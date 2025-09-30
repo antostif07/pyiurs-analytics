@@ -1,4 +1,4 @@
-import { POSOrderLine } from "../types/pos";
+import { POSConfig, POSOrder, POSOrderLine } from "../types/pos";
 import { mapOdooProduct, Product } from "../types/product_template";
 import { isBeauty } from "@/lib/is_beauty";
 import DailySalesClient from "./components/daily-sales.client";
@@ -15,6 +15,12 @@ export interface DailySaleData {
   beautyAmount: number;
   dailyGoal: number;
   progress: number;
+}
+
+interface PageProps {
+  searchParams: Promise<{
+    boutique?: string;
+  }>;
 }
 
 
@@ -35,32 +41,51 @@ async function getPOSConfig() {
   return res.json();
 }
 
-// async function getPOSOrders() {
-//   const res = await fetch(
-//     `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.order?fields=id,config_id,create_date&domain=[["create_date", ">", "2025-09-01 00:00:01"], ["create_date", "<=", "2025-09-30 23:59:59"]]`,
-//     { 
-//       next: { 
-//         revalidate: 300 // 5 minutes
-//       } 
-//     }
-//   );
+async function getPOSOrders(boutiqueId?: string) {
+    const date = new Date()
+    let domain = `[["create_date", ">", "2025-09-01 00:00:01"], ["create_date", "<=", "2025-09-30 23:59:59"]]`;
 
-//   if (!res.ok) {
-//     throw new Error("Erreur API Odoo - Ventes POS");
-//   }
-
-//   return res.json();
-// }
-
-async function getPOSOrderLines() {
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.order.line?fields=id,qty,product_id,qty,create_date,price_unit&domain=[["create_date", ">", "2025-09-01 00:00:01"], ["create_date", "<=", "2025-09-30 23:59:59"]]`,
+    if (boutiqueId) {
+        domain = `[["config_id", "=", ${boutiqueId}], ["create_date", ">", "2025-09-01 00:00:01"], ["create_date", "<=", "2025-09-30 23:59:59"]]`;
+    }
+    
+    const res = await fetch(
+    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.order?fields=id,config_id,create_date&domain=${encodeURIComponent(domain)}`,
     { 
       next: { 
         revalidate: 300 // 5 minutes
       } 
     }
   );
+
+  if (!res.ok) {
+    throw new Error("Erreur API Odoo - Ventes POS");
+  }
+
+  return res.json();
+}
+
+async function getPOSOrderLines(boutiqueId?: string) {
+    let domain = '[["create_date", ">", "2025-09-01 00:00:01"], ["create_date", "<=", "2025-09-30 23:59:59"]]';
+    if (boutiqueId) {
+        const orders = await getPOSOrders(boutiqueId);
+        const orderIds = orders.records.map((order: POSOrder) => order.id);
+        
+        if (orderIds.length === 0) {
+        return { records: [] };
+        }
+        
+        domain = `[["order_id", "in", [${orderIds.join(',')}]]]`;
+    }
+    
+    const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.order.line?fields=id,qty,product_id,qty,create_date,price_unit,order_id&domain=${encodeURIComponent(domain)}`,
+        { 
+        next: { 
+            revalidate: 300 // 5 minutes
+        } 
+        }
+    );
 
   if (!res.ok) {
     console.log(res.statusText);
@@ -96,33 +121,48 @@ async function getProductsFromPOSLines(posLines: POSOrderLine[]) {
     return res.json();
 }
 
-async function getPOSDataWithProducts() {
+async function getPOSDataWithProducts(boutiqueId?: string) {
   try {
     // Récupérer les lignes POS
     const [posData, posConfigData] = await Promise.all([
-      getPOSOrderLines(),
+      getPOSOrderLines(boutiqueId),
       getPOSConfig()
     ]);
     const posLines = posData.records;
     const posConfigs = posConfigData.records;
-
-    console.log(posConfigs);
-    
     
     // Récupérer les produits associés
     const productsData = await getProductsFromPOSLines(posLines);
     const products = productsData.records.map(mapOdooProduct);
     
+    const ordersData = await getPOSOrders(boutiqueId);
+    const orders = ordersData.records;
+
+    // Mapper les IDs de configuration aux noms de boutique
+    const orderToBoutiqueMap = new Map();
+
+    orders.forEach((order: POSOrder) => {
+        const config = posConfigs.find((c: POSConfig) => c.id === order.config_id[0]);
+        if (config) {
+            orderToBoutiqueMap.set(order.id, {
+                id: config.id,
+                name: config.name
+            });
+        }
+    })
     // Combiner les données
     const enrichedData = posLines.map((line: POSOrderLine) => {
-      const product = products.find((p: Product) => p.productVariantId === line.product_id[0]);
+        const product = products.find((p: Product) => p.productVariantId === line.product_id[0]);
+        const boutiqueInfo = orderToBoutiqueMap.get(line.order_id[0]);
 
       return {
             ...line,
             product_name: product?.name || 'Produit inconnu',
             product_category: product?.categoryName || 'Non catégorisé',
             product_price: product?.price_unit || 0,
-            total_amount: (line.qty * (line.price_unit || 0))
+            total_amount: (line.qty * (line.price_unit || 0)),
+            boutique_id: boutiqueInfo?.id || null,
+            boutique_name: boutiqueInfo?.name || 'Inconnue'
         };
     });
     
@@ -145,7 +185,7 @@ function calculateDailySales(data: any[]): DailySaleData[] {
             salesByDate[date] = {
                 id: date,
                 date: date,
-                boutique: "Pyiurs",
+                boutique: item.boutique_name || "Pyiurs",
                 totalSales: 0,
                 rentAmount: 0,
                 safeAmount: 0,
@@ -157,6 +197,7 @@ function calculateDailySales(data: any[]): DailySaleData[] {
         }
 
         const beautyAmount = isBeauty(item.product_category) ? (item.total_amount || 0) : 0;
+        
         // Ajouter au total des ventes
         salesByDate[date].totalSales += (item.total_amount) || 0;
         salesByDate[date].beautyAmount += beautyAmount;
@@ -167,7 +208,6 @@ function calculateDailySales(data: any[]): DailySaleData[] {
     Object.values(salesByDate).forEach((day: DailySaleData) => {
         // Calcul des épargnes basé sur le total des ventes beauty
         day.rentAmount = day.totalSales * 0.25; // 25% pour le loyer
-        day.safeAmount = day.totalSales * 0.15; // 15% pour le coffre fort
         day.ceoAmount = day.totalSales * 0.10; // 10% pour le CEO
         day.progress = (day.totalSales / day.dailyGoal) * 100;
     });
@@ -177,11 +217,20 @@ function calculateDailySales(data: any[]): DailySaleData[] {
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) as DailySaleData[];
 }
 
-export default async function DailySalesTablePage() {
-    const posDataWithProducts = await getPOSDataWithProducts();
+export default async function DailySalesTablePage({searchParams}: PageProps) {
+    const params = await searchParams;
+    const boutiqueId = params.boutique || undefined;
+
+    const posDataWithProducts = await getPOSDataWithProducts(boutiqueId);
     const salesData = calculateDailySales(posDataWithProducts);
 
+    const posConfigData = await getPOSConfig();
+    const boutiques = posConfigData.records.map((config: POSConfig) => ({
+        id: config.id,
+        name: config.name
+    }));
+
   return (
-    <DailySalesClient initialData={salesData} boutiques={[]} />
+    <DailySalesClient initialData={salesData} boutiques={boutiques} selectedBoutiqueId={boutiqueId} />
   );
 }

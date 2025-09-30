@@ -2,8 +2,13 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DailySaleData } from "../page";
-import { useState } from "react";
 import { BoutiqueSelector } from "@/components/boutique-selector";
+import { useRouter, useSearchParams } from "next/navigation";
+
+export interface Boutique {
+  id: number;
+  name: string;
+}
 
 function SalesTable({ data }: { data: DailySaleData[],  }) {
   // Extraire toutes les dates uniques
@@ -140,11 +145,29 @@ function SalesTable({ data }: { data: DailySaleData[],  }) {
   );
 }
 
-export default function DailySalesClient({initialData, boutiques}: {initialData: DailySaleData[], boutiques: string[]}) {
-    const [selectedBoutique, setSelectedBoutique] = useState<string>('all');
-    const filteredData = selectedBoutique === 'all' 
-    ? initialData 
-    : initialData.filter(item => item.boutique === selectedBoutique);
+export default function DailySalesClient({initialData, boutiques, selectedBoutiqueId}: {initialData: DailySaleData[], boutiques: Boutique[], selectedBoutiqueId?: string}) {
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    
+    const handleBoutiqueChange = (boutiqueId: string) => {
+        const params = new URLSearchParams(searchParams.toString());
+
+        console.log(boutiqueId);
+        
+        
+        if (boutiqueId === 'all') {
+            params.delete('boutique');
+        } else {
+            params.set('boutique', boutiqueId);
+        }
+        
+        // Naviguer vers la même page avec les nouveaux paramètres
+        router.push(`?${params.toString()}`);
+    };
+
+    const selectedBoutique = selectedBoutiqueId 
+    ? boutiques.find(b => b.id.toString() === selectedBoutiqueId)?.name 
+    : 'Toutes les boutiques';
     
     return (
     <main className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
@@ -165,7 +188,7 @@ export default function DailySalesClient({initialData, boutiques}: {initialData:
               <div className="bg-white dark:bg-slate-700 rounded-xl p-4 border border-gray-200 dark:border-slate-600">
                 <p className="text-sm text-gray-600 dark:text-gray-400">Période analysée</p>
                 <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {filteredData.length} jours
+                  {initialData.length} jours
                 </p>
               </div>
             </div>
@@ -176,42 +199,10 @@ export default function DailySalesClient({initialData, boutiques}: {initialData:
       {/* Main Content */}
       <div className="container mx-auto px-6 py-8">
         <div className="py-8">
-            <BoutiqueSelector boutiques={[]} selectedBoutique={""} onBoutiqueChange={function (boutique: string): void {
-                        throw new Error("Function not implemented.");
-                    } } />
+            <BoutiqueSelector boutiques={boutiques} selectedBoutique={selectedBoutiqueId} onBoutiqueChange={handleBoutiqueChange} />
         </div>
         {/* Tableau principal avec jours en colonnes */}
-        <SalesTable data={filteredData} />
-
-        {/* Informations complémentaires */}
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
-            <CardContent className="p-4">
-              <h3 className="font-semibold text-blue-800 dark:text-blue-300 mb-2">
-                📊 Nouvelle Vue
-              </h3>
-              <ul className="text-sm text-blue-700 dark:text-blue-400 space-y-1">
-                <li>• <strong>Lignes :</strong> Types de valeurs (CA, Loyer, etc.)</li>
-                <li>• <strong>Colonnes :</strong> Jours de la période</li>
-                <li>• <strong>Dernière colonne :</strong> Totaux par type</li>
-                <li>• <strong>Dernière ligne :</strong> Totaux par jour</li>
-              </ul>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
-            <CardContent className="p-4">
-              <h3 className="font-semibold text-green-800 dark:text-green-300 mb-2">
-                💡 Lecture du Tableau
-              </h3>
-              <div className="text-sm text-green-700 dark:text-green-400">
-                <p>• Couleurs indiquent le type de valeur</p>
-                <p>• Pourcentages vert/jaune/rouge sous le CA</p>
-                <p>• Colonne fixe à gauche pour navigation</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        <SalesTable data={initialData} />
       </div>
     </main>
   );

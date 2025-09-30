@@ -1,30 +1,38 @@
 // components/boutique-selector.tsx
 'use client';
 
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "./ui/select";
+import { Boutique } from "@/app/manager-kpis/components/daily-sales.client";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
 interface BoutiqueSelectorProps {
-  boutiques: string[];
-  selectedBoutique: string;
+  boutiques: Boutique[];
+  selectedBoutique?: string | number;
   onBoutiqueChange: (boutique: string) => void;
 }
 
 export function BoutiqueSelector({ boutiques, selectedBoutique, onBoutiqueChange }: BoutiqueSelectorProps) {
+  const value = selectedBoutique !== undefined && selectedBoutique !== null 
+    ? selectedBoutique.toString() 
+    : 'all';
+
   return (
-    <Select>
-      <SelectTrigger className="w-[180px]">
-        <SelectValue placeholder="Select a fruit" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectGroup>
-          <SelectLabel>Fruits</SelectLabel>
-          <SelectItem value="apple">Apple</SelectItem>
-          <SelectItem value="banana">Banana</SelectItem>
-          <SelectItem value="blueberry">Blueberry</SelectItem>
-          <SelectItem value="grapes">Grapes</SelectItem>
-          <SelectItem value="pineapple">Pineapple</SelectItem>
-        </SelectGroup>
-      </SelectContent>
-    </Select>
+    <div className="flex flex-col space-y-2">
+      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+        Filtrer par boutique
+      </label>
+      <Select value={value} onValueChange={onBoutiqueChange}>
+        <SelectTrigger className="w-[200px]">
+          <SelectValue placeholder="Sélectionner une boutique" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Toutes les boutiques</SelectItem>
+          {boutiques.map((boutique) => (
+            <SelectItem key={boutique.id} value={boutique.id.toString()}>
+              {boutique.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   );
 }
