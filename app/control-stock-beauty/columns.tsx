@@ -62,7 +62,14 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockBeautyModel>[] = [
         </Button>
       )
     },
-    // cell: info => info.getValue(),
+    cell: ({ getValue }) => {
+      const value = getValue<number>();
+      return (
+        <span className={value > 0 ? "bg-red-500 text-white px-2 py-1 rounded" : ""}>
+          {value}
+        </span>
+      );
+    },
   },
   {
     accessorKey: "qty_sold",

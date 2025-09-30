@@ -4,6 +4,6 @@ export type ControlStockBeautyModel = {
   product_qty: number;
   qty_received: number;
   not_received: number;
-  qty_sold?: number;
+  qty_sold: number;
   qty_available: number;
 };
