@@ -63,6 +63,7 @@ export class CustomerGrouper {
         const category: CustomerCategory = averageOrderValue >= 280 ? "GOLD" : (
             averageOrderValue < 280 && averageOrderValue >= 100 ? "SILVER" : averageOrderValue < 100 && averageOrderValue >= 45 ? "PYIURS" : "NORMAL"
         )
+
         groups.set(phoneKey, {
           phoneKey,
           displayPhone,
@@ -109,6 +110,11 @@ export class CustomerGrouper {
         existingGroup.totalOrderCount += customer.orderCount;
         existingGroup.totalAmountSpent += customer.totalSpent;
 
+        const averageOrderValue = existingGroup.totalOrderCount > 0 ? existingGroup.totalAmountSpent / existingGroup.totalOrderCount : 0
+        const category: CustomerCategory = averageOrderValue >= 280 ? "GOLD" : (
+            averageOrderValue < 280 && averageOrderValue >= 100 ? "SILVER" : averageOrderValue < 100 && averageOrderValue >= 45 ? "PYIURS" : "NORMAL"
+        )
+
         // Mettre à jour les dates
         if (customer.firstOrderDate < existingGroup.firstOrderDate) {
           existingGroup.firstOrderDate = customer.firstOrderDate;
@@ -118,6 +124,7 @@ export class CustomerGrouper {
         }
 
         existingGroup.mergedProfiles++;
+        existingGroup.category = category;
       }
     });
 

@@ -23,6 +23,22 @@ interface PageProps {
   }>;
 }
 
+function getCurrentMonthDates() {
+  const now = new Date();
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  
+  // Format YYYY-MM-DD HH:MM:SS pour Odoo
+  const formatDate = (date: Date) => {
+    return date.toISOString().slice(0, 19).replace('T', ' ');
+  };
+  
+  return {
+    firstDay: formatDate(firstDay),
+    lastDay: formatDate(lastDay)
+  };
+}
+
 async function getPOSConfig() {
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.config?fields=id,name`,
@@ -41,11 +57,11 @@ async function getPOSConfig() {
 }
 
 async function getPOSOrders(boutiqueId?: string) {
-    const date = new Date()
-    let domain = `[["create_date", ">", "2025-09-01 00:00:01"], ["create_date", "<=", "2025-09-30 23:59:59"]]`;
+    const { firstDay, lastDay } = getCurrentMonthDates();
+    let domain = `[["create_date", ">", "${firstDay}"], ["create_date", "<=", "${lastDay}"]]`;
 
     if (boutiqueId) {
-        domain = `[["config_id", "=", ${boutiqueId}], ["create_date", ">", "2025-09-01 00:00:01"], ["create_date", "<=", "2025-09-30 23:59:59"]]`;
+        domain = `[["config_id", "=", ${boutiqueId}], ["create_date", ">", "${firstDay}"], ["create_date", "<=", "${lastDay}"]]`;
     }
     
     const res = await fetch(
@@ -65,7 +81,8 @@ async function getPOSOrders(boutiqueId?: string) {
 }
 
 async function getPOSOrderLines(boutiqueId?: string) {
-    let domain = '[["create_date", ">", "2025-09-01 00:00:01"], ["create_date", "<=", "2025-09-30 23:59:59"]]';
+    const { firstDay, lastDay } = getCurrentMonthDates();
+    let domain = `[["create_date", ">", "${firstDay}"], ["create_date", "<=", "${lastDay}"]]`;
     if (boutiqueId) {
         const orders = await getPOSOrders(boutiqueId);
         const orderIds = orders.records.map((order: POSOrder) => order.id);
