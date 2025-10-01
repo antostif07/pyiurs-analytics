@@ -23,7 +23,6 @@ interface PageProps {
   }>;
 }
 
-
 async function getPOSConfig() {
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.config?fields=id,name`,

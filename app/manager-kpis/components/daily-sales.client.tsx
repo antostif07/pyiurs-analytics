@@ -166,7 +166,7 @@ export default function DailySalesClient({initialData, boutiques, selectedBoutiq
     };
 
     const selectedBoutique = selectedBoutiqueId 
-    ? boutiques.find(b => b.id.toString() === selectedBoutiqueId)?.name 
+    ? boutiques.find(b => b.id.toString() === selectedBoutiqueId)?.name
     : 'Toutes les boutiques';
     
     return (
