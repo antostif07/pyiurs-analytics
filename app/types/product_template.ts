@@ -35,5 +35,29 @@ export function mapOdooProduct(product: OdooProductTemplate): Product {
     productVariantId: product.product_variant_id ? product.product_variant_id[0] : undefined,
     taille: product.x_studio_many2one_field_QyelN ? product.x_studio_many2one_field_QyelN[1] : undefined,
     couleur: product.x_studio_many2one_field_Arl5D ? product.x_studio_many2one_field_Arl5D[1] : undefined,
+    marque: product.x_studio_many2one_field_21bvh ? product.x_studio_many2one_field_21bvh[1] : undefined,
   };
+}
+
+// Types pour les données structurées
+export interface BrandData {
+  id: string;
+  name: string;
+  type: 'brand' | 'product';
+  parentId?: string;
+  dailySales: {
+    [date: string]: {
+      amount: number;
+      quantity: number;
+    }
+  };
+  totalAmount: number;
+  totalQuantity: number;
+  subRows?: BrandData[];
+}
+
+export interface BeautyBrandsData {
+  brands: BrandData[];
+  products: BrandData[];
+  dateRange: string[];
 }

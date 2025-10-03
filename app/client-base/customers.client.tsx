@@ -2,7 +2,6 @@
 'use client';
 
 import { useMemo, useState, useCallback } from 'react';
-import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { 
   useReactTable, 
@@ -16,7 +15,7 @@ import {
   ColumnFiltersState,
 } from '@tanstack/react-table';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Customer, CustomerCategory } from '../types/partner';
+import { CustomerCategory } from '../types/partner';
 import { GroupedCustomer } from '@/lib/customer-grouping';
 
 interface CustomersClientProps {
@@ -79,9 +78,6 @@ function calculateAverageOrderValue(totalAmount: number, orderCount: number): nu
 }
 
 export default function CustomersClient({ initialCustomers, searchParams }: CustomersClientProps) {
-  const router = useRouter();
-  const urlSearchParams = useSearchParams();
-  
   // États pour react-table
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'totalAmountSpent', desc: true }

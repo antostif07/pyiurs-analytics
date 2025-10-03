@@ -1,4 +1,5 @@
 import { Card } from "@/components/ui/card";
+import { BarChart4, Contact, Flower } from "lucide-react";
 import Link from "next/link";
 
 export default function Home() {
@@ -28,9 +29,7 @@ export default function Home() {
               <div className="relative z-10 h-full flex flex-col">
                 {/* Icon */}
                 <div className="mb-4 p-3 w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl shadow-lg flex items-center justify-center">
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                  </svg>
+                  <BarChart4 />
                 </div>
 
                 {/* Text Content */}
@@ -64,9 +63,7 @@ export default function Home() {
               <div className="relative z-10 h-full flex flex-col">
                 {/* Icon */}
                 <div className="mb-4 p-3 w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl shadow-lg flex items-center justify-center">
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                  </svg>
+                  <Flower className="text-white" />
                 </div>
 
                 {/* Text Content */}
@@ -92,6 +89,41 @@ export default function Home() {
             </Card>
           </Link>
 
+          <Link href="/control-revenue-beauty">
+            <Card className="group relative p-6 h-48 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 hover:scale-105 hover:border-blue-300 dark:hover:border-blue-600 overflow-hidden">
+              {/* Background Gradient Effect */}
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              
+              {/* Content */}
+              <div className="relative z-10 h-full flex flex-col">
+                {/* Icon */}
+                <div className="mb-4 p-3 w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl shadow-lg flex items-center justify-center">
+                  <Flower className="text-white" />
+                </div>
+
+                {/* Text Content */}
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                    Suivi Vente Beauty
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+                    Suivi des ventes pour produits de beauté avec indicateurs en temps réel
+                  </p>
+                </div>
+
+                {/* Arrow Indicator */}
+                <div className="flex justify-between items-center mt-2">
+                  <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+                    Accéder au module
+                  </span>
+                  <svg className="w-4 h-4 text-gray-400 group-hover:text-blue-500 group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </div>
+            </Card>
+          </Link>
+
           <Link href="/client-base">
             <Card className="group relative p-6 h-48 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 hover:scale-105 hover:border-blue-300 dark:hover:border-blue-600 overflow-hidden">
               {/* Background Gradient Effect */}
@@ -101,9 +133,7 @@ export default function Home() {
               <div className="relative z-10 h-full flex flex-col">
                 {/* Icon */}
                 <div className="mb-4 p-3 w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl shadow-lg flex items-center justify-center">
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                  </svg>
+                  <Contact className="text-white" />
                 </div>
 
                 {/* Text Content */}

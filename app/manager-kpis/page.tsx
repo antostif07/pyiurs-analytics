@@ -2,6 +2,7 @@ import { POSConfig, POSOrder, POSOrderLine } from "../types/pos";
 import { mapOdooProduct, Product } from "../types/product_template";
 import { isBeauty } from "@/lib/is_beauty";
 import DailySalesClient from "./components/daily-sales.client";
+import { getMonthDates } from "@/lib/date-utils";
 
 // Types
 export interface DailySaleData {
@@ -20,23 +21,9 @@ export interface DailySaleData {
 interface PageProps {
   searchParams: Promise<{
     boutique?: string;
+    month?: string;
+    year?: string;
   }>;
-}
-
-function getCurrentMonthDates() {
-  const now = new Date();
-  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  
-  // Format YYYY-MM-DD HH:MM:SS pour Odoo
-  const formatDate = (date: Date) => {
-    return date.toISOString().slice(0, 19).replace('T', ' ');
-  };
-  
-  return {
-    firstDay: formatDate(firstDay),
-    lastDay: formatDate(lastDay)
-  };
 }
 
 async function getPOSConfig() {
@@ -56,8 +43,8 @@ async function getPOSConfig() {
   return res.json();
 }
 
-async function getPOSOrders(boutiqueId?: string) {
-    const { firstDay, lastDay } = getCurrentMonthDates();
+async function getPOSOrders(boutiqueId?: string, month?: string, year?: string) {
+    const { firstDay, lastDay } = getMonthDates(month, year);
     let domain = `[["create_date", ">", "${firstDay}"], ["create_date", "<=", "${lastDay}"]]`;
 
     if (boutiqueId) {
@@ -80,15 +67,15 @@ async function getPOSOrders(boutiqueId?: string) {
   return res.json();
 }
 
-async function getPOSOrderLines(boutiqueId?: string) {
-    const { firstDay, lastDay } = getCurrentMonthDates();
+async function getPOSOrderLines(boutiqueId?: string, month?: string, year?: string) {
+    const { firstDay, lastDay } = getMonthDates(month, year);
     let domain = `[["create_date", ">", "${firstDay}"], ["create_date", "<=", "${lastDay}"]]`;
     if (boutiqueId) {
-        const orders = await getPOSOrders(boutiqueId);
+        const orders = await getPOSOrders(boutiqueId, month, year);
         const orderIds = orders.records.map((order: POSOrder) => order.id);
         
         if (orderIds.length === 0) {
-        return { records: [] };
+          return { records: [] };
         }
         
         domain = `[["order_id", "in", [${orderIds.join(',')}]]]`;
@@ -137,11 +124,11 @@ async function getProductsFromPOSLines(posLines: POSOrderLine[]) {
     return res.json();
 }
 
-async function getPOSDataWithProducts(boutiqueId?: string) {
+async function getPOSDataWithProducts(boutiqueId?: string, month?: string, year?: string) {
   try {
     // Récupérer les lignes POS
     const [posData, posConfigData] = await Promise.all([
-      getPOSOrderLines(boutiqueId),
+      getPOSOrderLines(boutiqueId, month, year),
       getPOSConfig()
     ]);
     const posLines = posData.records;
@@ -236,8 +223,10 @@ function calculateDailySales(data: any[]): DailySaleData[] {
 export default async function DailySalesTablePage({searchParams}: PageProps) {
     const params = await searchParams;
     const boutiqueId = params.boutique || undefined;
+    const month = params.month || undefined;
+    const year = params.year || undefined;
 
-    const posDataWithProducts = await getPOSDataWithProducts(boutiqueId);
+    const posDataWithProducts = await getPOSDataWithProducts(boutiqueId, params.month, params.year);
     const salesData = calculateDailySales(posDataWithProducts);
 
     const posConfigData = await getPOSConfig();
@@ -247,6 +236,12 @@ export default async function DailySalesTablePage({searchParams}: PageProps) {
     }));
 
   return (
-    <DailySalesClient initialData={salesData} boutiques={boutiques} selectedBoutiqueId={boutiqueId} />
+    <DailySalesClient
+      initialData={salesData}
+      boutiques={boutiques}
+      selectedBoutiqueId={boutiqueId}
+      selectedMonth={month}
+      selectedYear={year}
+    />
   );
 }

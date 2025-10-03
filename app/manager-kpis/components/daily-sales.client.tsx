@@ -4,10 +4,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DailySaleData } from "../page";
 import { BoutiqueSelector } from "@/components/boutique-selector";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 
 export interface Boutique {
   id: number;
   name: string;
+}
+
+interface DailySalesClientProps {
+  initialData: DailySaleData[];
+  boutiques: Boutique[];
+  selectedBoutiqueId?: string;
+  selectedMonth?: string;
+  selectedYear?: string;
 }
 
 function SalesTable({ data }: { data: DailySaleData[],  }) {
@@ -145,15 +154,12 @@ function SalesTable({ data }: { data: DailySaleData[],  }) {
   );
 }
 
-export default function DailySalesClient({initialData, boutiques, selectedBoutiqueId}: {initialData: DailySaleData[], boutiques: Boutique[], selectedBoutiqueId?: string}) {
+export default function DailySalesClient({initialData, boutiques, selectedBoutiqueId, selectedMonth, selectedYear}: DailySalesClientProps) {
     const router = useRouter();
     const searchParams = useSearchParams();
     
     const handleBoutiqueChange = (boutiqueId: string) => {
         const params = new URLSearchParams(searchParams.toString());
-
-        console.log(boutiqueId);
-        
         
         if (boutiqueId === 'all') {
             params.delete('boutique');
@@ -161,13 +167,54 @@ export default function DailySalesClient({initialData, boutiques, selectedBoutiq
             params.set('boutique', boutiqueId);
         }
         
-        // Naviguer vers la même page avec les nouveaux paramètres
+        if (selectedMonth) params.set('month', selectedMonth);
+        if (selectedYear) params.set('year', selectedYear);
+        
         router.push(`?${params.toString()}`);
     };
 
-    const selectedBoutique = selectedBoutiqueId 
-    ? boutiques.find(b => b.id.toString() === selectedBoutiqueId)?.name
-    : 'Toutes les boutiques';
+    const handleMonthChange = (month: string) => {
+        const params = new URLSearchParams(searchParams.toString());
+        
+        if (month) {
+            params.set('month', month);
+        } else {
+            params.delete('month');
+        }
+        
+        // Conserver les autres paramètres
+        if (selectedBoutiqueId) params.set('boutique', selectedBoutiqueId);
+        if (selectedYear) params.set('year', selectedYear);
+        
+        router.push(`?${params.toString()}`);
+    };
+
+    const handleYearChange = (year: string) => {
+        const params = new URLSearchParams(searchParams.toString());
+        
+        if (year) {
+            params.set('year', year);
+        } else {
+            params.delete('year');
+        }
+        
+        // Conserver les autres paramètres
+        if (selectedBoutiqueId) params.set('boutique', selectedBoutiqueId);
+        if (selectedMonth) params.set('month', selectedMonth);
+        
+        router.push(`?${params.toString()}`);
+    };
+
+    const handleCurrentMonth = () => {
+        const currentDate = new Date();
+        const params = new URLSearchParams();
+        
+        if (selectedBoutiqueId) params.set('boutique', selectedBoutiqueId);
+        params.set('month', (currentDate.getMonth() + 1).toString());
+        params.set('year', currentDate.getFullYear().toString());
+        
+        router.push(`?${params.toString()}`);
+    };
     
     return (
     <main className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
@@ -175,6 +222,17 @@ export default function DailySalesClient({initialData, boutiques, selectedBoutiq
       <div className="border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
         <div className="container mx-auto px-6 py-8">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center space-x-4">
+                  <Link 
+                    href="/"
+                    className="inline-flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors duration-200"
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                    </svg>
+                    Retour
+                  </Link>
+            </div>
             <div>
               <h1 className="text-3xl lg:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 Tableau des Ventes Quotidiennes
@@ -198,9 +256,77 @@ export default function DailySalesClient({initialData, boutiques, selectedBoutiq
 
       {/* Main Content */}
       <div className="container mx-auto px-6 py-8">
-        <div className="py-8">
-            <BoutiqueSelector boutiques={boutiques} selectedBoutique={selectedBoutiqueId} onBoutiqueChange={handleBoutiqueChange} />
-        </div>
+        <Card className="mb-8">
+          <CardContent className="p-6">
+            <div className="flex flex-col space-y-4">
+              <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
+                {/* Période et Boutique */}
+                <div className="flex flex-col lg:flex-row gap-4 items-center">
+                  {/* Période */}
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Période:</span>
+                    <select 
+                      value={selectedMonth || new Date().getMonth() + 1}
+                      onChange={(e) => handleMonthChange(e.target.value)}
+                      className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-700 text-sm"
+                    >
+                      <option value="1">Janvier</option>
+                      <option value="2">Février</option>
+                      <option value="3">Mars</option>
+                      <option value="4">Avril</option>
+                      <option value="5">Mai</option>
+                      <option value="6">Juin</option>
+                      <option value="7">Juillet</option>
+                      <option value="8">Août</option>
+                      <option value="9">Septembre</option>
+                      <option value="10">Octobre</option>
+                      <option value="11">Novembre</option>
+                      <option value="12">Décembre</option>
+                    </select>
+
+                    <select 
+                      value={selectedYear || new Date().getFullYear()}
+                      onChange={(e) => handleYearChange(e.target.value)}
+                      className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-700 text-sm"
+                    >
+                      <option value="2023">2017</option>
+                      <option value="2023">2018</option>
+                      <option value="2023">2019</option>
+                      <option value="2023">2020</option>
+                      <option value="2023">2021</option>
+                      <option value="2023">2022</option>
+                      <option value="2023">2023</option>
+                      <option value="2024">2024</option>
+                      <option value="2025">2025</option>
+                      <option value="2026">2026</option>
+                    </select>
+                  </div>
+
+                  {/* Boutique */}
+                  <BoutiqueSelector 
+                    boutiques={boutiques} 
+                    selectedBoutique={selectedBoutiqueId} 
+                    onBoutiqueChange={handleBoutiqueChange} 
+                  />
+                </div>
+
+                {/* Bouton période actuelle */}
+                <div className="flex items-center space-x-4">
+                  <button
+                    onClick={handleCurrentMonth}
+                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors duration-200 text-sm"
+                  >
+                    📅 Mois actuel
+                  </button>
+                  
+                  <div className="text-sm text-gray-500 whitespace-nowrap">
+                    {initialData.length} jours affichés
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
         {/* Tableau principal avec jours en colonnes */}
         <SalesTable data={initialData} />
       </div>
