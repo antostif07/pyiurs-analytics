@@ -5,6 +5,14 @@ import { ControlStockBeautyModel } from "../types/ControlStockBeautyModel";
 import { Button } from "@/components/ui/button";
 import { ArrowUpDown } from "lucide-react";
 
+// Fonction pour déterminer la couleur en fonction du stock
+function getStockColor(qty: number): string {
+  if (qty <= 0) return 'bg-black text-white';
+  if (qty <= 5) return 'bg-red-500 text-white';
+  if (qty <= 11) return 'bg-yellow-500 text-black';
+  return 'bg-green-500 text-white';
+}
+
 export const controlStockBeautyColumns: ColumnDef<ControlStockBeautyModel>[] = [
   {
     accessorKey: "name",
@@ -13,12 +21,32 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockBeautyModel>[] = [
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="p-2 h-auto text-xs font-semibold"
         >
-          Nom
-          <ArrowUpDown className="ml-2 h-4 w-4" />
+          Produit
+          <ArrowUpDown className="ml-1 h-3 w-3" />
         </Button>
       )
     },
+    cell: ({ row }) => {
+      const brand = row.original.brand;
+      const color = row.original.color;
+      return (
+        <div className="py-2">
+          <div className="font-medium text-sm">{row.getValue("name")}</div>
+          <div className="text-xs text-gray-500 flex items-center space-x-1 mt-1">
+            <span>{brand}</span>
+            {color && color !== 'Non spécifié' && (
+              <>
+                <span>•</span>
+                <span className="text-blue-600">{color}</span>
+              </>
+            )}
+          </div>
+        </div>
+      );
+    },
+    size: 250,
   },
   {
     accessorKey: "product_qty",
@@ -27,12 +55,22 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockBeautyModel>[] = [
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="p-2 h-auto text-xs font-semibold"
         >
-          Achts
-          <ArrowUpDown className="ml-2 h-4 w-4" />
+          Commandé
+          <ArrowUpDown className="ml-1 h-3 w-3" />
         </Button>
       )
     },
+    cell: ({ getValue }) => {
+      const value = getValue<number>();
+      return (
+        <span className="font-medium text-blue-600 text-sm">
+          {value}
+        </span>
+      );
+    },
+    size: 80,
   },
   {
     accessorKey: "qty_received",
@@ -41,13 +79,22 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockBeautyModel>[] = [
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="p-2 h-auto text-xs font-semibold"
         >
-          Recu
-          <ArrowUpDown className="ml-2 h-4 w-4" />
+          Reçu
+          <ArrowUpDown className="ml-1 h-3 w-3" />
         </Button>
       )
     },
-    // cell: info => info.getValue(),
+    cell: ({ getValue }) => {
+      const value = getValue<number>();
+      return (
+        <span className="font-medium text-green-600 text-sm">
+          {value}
+        </span>
+      );
+    },
+    size: 80,
   },
   {
     accessorKey: "not_received",
@@ -56,20 +103,22 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockBeautyModel>[] = [
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="p-2 h-auto text-xs font-semibold"
         >
-          Rlq
-          <ArrowUpDown className="ml-2 h-4 w-4" />
+          En attente
+          <ArrowUpDown className="ml-1 h-3 w-3" />
         </Button>
       )
     },
     cell: ({ getValue }) => {
       const value = getValue<number>();
       return (
-        <span className={value > 0 ? "bg-red-500 text-white px-2 py-1 rounded" : ""}>
+        <span className={value > 0 ? "bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs font-medium" : "text-gray-400 text-sm"}>
           {value}
         </span>
       );
     },
+    size: 90,
   },
   {
     accessorKey: "qty_sold",
@@ -78,13 +127,22 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockBeautyModel>[] = [
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="p-2 h-auto text-xs font-semibold"
         >
           Vendu
-          <ArrowUpDown className="ml-2 h-4 w-4" />
+          <ArrowUpDown className="ml-1 h-3 w-3" />
         </Button>
       )
     },
-    // cell: info => info.getValue(),
+    cell: ({ getValue }) => {
+      const value = getValue<number>();
+      return (
+        <span className="font-medium text-purple-600 text-sm">
+          {value}
+        </span>
+      );
+    },
+    size: 80,
   },
   {
     accessorKey: "qty_available",
@@ -93,18 +151,22 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockBeautyModel>[] = [
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="p-2 h-auto text-xs font-semibold"
         >
-          Dispo
-          <ArrowUpDown className="ml-2 h-4 w-4" />
+          Stock
+          <ArrowUpDown className="ml-1 h-3 w-3" />
         </Button>
       )
     },
-    // cell: info => info.getValue(),
+    cell: ({ getValue }) => {
+      const value = getValue<number>();
+      const colorClass = getStockColor(value);
+      return (
+        <span className={`px-2 py-1 rounded-full text-xs font-bold text-center min-w-10 inline-block ${colorClass}`}>
+          {value}
+        </span>
+      );
+    },
+    size: 80,
   }
 ]
-//   {
-//     accessorKey: "default_code",
-//     header: "Code Produit",
-//     cell: info => info.getValue(),
-//   },
-//   {
