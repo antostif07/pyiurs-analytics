@@ -2,6 +2,19 @@
 import { CustomerCategory } from '@/app/types/partner';
 import { PhoneNormalizer } from './phone-normalization';
 
+export interface OrderDetail {
+  order_id: number;
+  order_date: string;
+  order_name: string;
+  amount_paid: number;
+  lines?: {
+    product_name: string;
+    price_unit?: number;
+    price_subtotal_incl?: number;
+    qty: number;
+  }[]
+}
+
 interface Customer {
   id: number;
   name: string;
@@ -11,6 +24,7 @@ interface Customer {
   totalSpent: number;
   firstOrderDate: string;
   lastOrderDate: string;
+  orderDetails?: OrderDetail[];
 }
 
 export interface GroupedCustomer {
@@ -37,6 +51,7 @@ export interface GroupedCustomer {
   // Nombre de profils fusionnés
   mergedProfiles: number;
   averageOrderValue: number;
+  orderDetails?: OrderDetail[];
 }
 
 export class CustomerGrouper {
@@ -63,7 +78,7 @@ export class CustomerGrouper {
         const category: CustomerCategory = averageOrderValue >= 280 ? "GOLD" : (
             averageOrderValue < 280 && averageOrderValue >= 100 ? "SILVER" : averageOrderValue < 100 && averageOrderValue >= 45 ? "PYIURS" : "NORMAL"
         )
-
+        
         groups.set(phoneKey, {
           phoneKey,
           displayPhone,
@@ -79,6 +94,7 @@ export class CustomerGrouper {
           mergedProfiles: 1,
           category: category,
           averageOrderValue: averageOrderValue,
+          orderDetails: customer.orderDetails
         });
       } else {
         // Fusion avec un groupe existant

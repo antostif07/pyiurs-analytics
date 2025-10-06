@@ -1,3 +1,4 @@
+// 
 // app/customers/components/customers.client.tsx
 'use client';
 
@@ -16,16 +17,19 @@ import {
 } from '@tanstack/react-table';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CustomerCategory } from '../types/partner';
-import { GroupedCustomer } from '@/lib/customer-grouping';
+import { GroupedCustomer, OrderDetail } from '@/lib/customer-grouping';
+
 
 interface CustomersClientProps {
-  initialCustomers: GroupedCustomer[];
+  initialCustomers: (GroupedCustomer & { orderDetails?: OrderDetail[] })[];
   searchParams: {
     boutique?: string;
     page?: string;
     category?: CustomerCategory | 'ALL';
     search?: string;
   };
+  title?: string;
+  description?: string;
 }
 
 const categoryColors: Record<CustomerCategory, string> = {
@@ -77,34 +81,214 @@ function calculateAverageOrderValue(totalAmount: number, orderCount: number): nu
   return orderCount > 0 ? totalAmount / orderCount : 0;
 }
 
-export default function CustomersClient({ initialCustomers, searchParams }: CustomersClientProps) {
+// Composant pour la ligne expandable
+function OrderDetails({ orderDetails }: { orderDetails: OrderDetail[] }) {
+  return (
+    <div className="p-4 bg-gray-50 dark:bg-slate-700/30 border-t border-gray-200 dark:border-slate-600">
+      <h4 className="font-semibold text-gray-900 dark:text-white mb-3">Historique des commandes beauté</h4>
+      <div className="space-y-3">
+        {orderDetails.map((order, index) => (
+          <div key={order.order_id || index} className="border border-gray-200 dark:border-slate-600 rounded-lg p-3">
+            <div className="flex justify-between items-start mb-2">
+              <div>
+                <p className="font-medium text-gray-900 dark:text-white">{order.order_name || 'Commande sans nom'}</p>
+                <p className="text-sm text-gray-500">
+                  {new Date(order.order_date).toLocaleDateString('fr-FR')} • 
+                  Total: {order.amount_paid?.toLocaleString('fr-FR') || '0'}$
+                </p>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              {order.lines?.map((line, lineIndex: number) => (
+                <div key={lineIndex} className="flex justify-between items-center py-1 px-2 bg-white dark:bg-slate-600 rounded">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{line.product_name || 'Produit inconnu'}</p>
+                    <p className="text-xs text-gray-500">
+                      Prix unitaire: {line.price_unit?.toLocaleString('fr-FR') || '0'}$
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      {line.qty} x {line.price_unit?.toLocaleString('fr-FR') || '0'}$
+                    </p>
+                    <p className="text-sm text-green-600 dark:text-green-400">
+                      Sous-total: {line.price_subtotal_incl?.toLocaleString('fr-FR') || '0'}$
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Composant pour le select de produits
+function ProductSelect({ 
+  products, 
+  selectedProducts, 
+  onProductChange 
+}: { 
+  products: string[];
+  selectedProducts: string[];
+  onProductChange: (products: string[]) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const filteredProducts = products.filter(product =>
+    product.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const toggleProduct = (product: string) => {
+    const newSelected = selectedProducts.includes(product)
+      ? selectedProducts.filter(p => p !== product)
+      : [...selectedProducts, product];
+    onProductChange(newSelected);
+  };
+
+  const clearSelection = () => {
+    onProductChange([]);
+    setSearchTerm('');
+  };
+
+  return (
+    <div className="relative">
+      <div className="flex flex-wrap gap-2 mb-2">
+        {selectedProducts.map(product => (
+          <span
+            key={product}
+            className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 text-sm rounded-full"
+          >
+            {product}
+            <button
+              onClick={() => toggleProduct(product)}
+              className="ml-1 text-blue-600 hover:text-blue-800"
+            >
+              ×
+            </button>
+          </span>
+        ))}
+      </div>
+      
+      <div className="relative">
+        <input
+          type="text"
+          placeholder="Rechercher un produit..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          onFocus={() => setIsOpen(true)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500"
+        />
+        {selectedProducts.length > 0 && (
+          <button
+            onClick={clearSelection}
+            className="absolute right-10 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+          >
+            ×
+          </button>
+        )}
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500"
+        >
+          {isOpen ? '▲' : '▼'}
+        </button>
+      </div>
+
+      {isOpen && (
+        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+          {filteredProducts.length === 0 ? (
+            <div className="px-3 py-2 text-gray-500">Aucun produit trouvé</div>
+          ) : (
+            filteredProducts.map(product => (
+              <label
+                key={product}
+                className="flex items-center px-3 py-2 hover:bg-gray-100 cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedProducts.includes(product)}
+                  onChange={() => toggleProduct(product)}
+                  className="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm">{product}</span>
+              </label>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function CustomersClient({ 
+  initialCustomers, 
+  searchParams, 
+  title = "Gestion des Clients",
+  description = "Base de données clients"
+}: CustomersClientProps) {
   // États pour react-table
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'totalAmountSpent', desc: true }
   ]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState(searchParams.search || '');
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   
   // États pour les filtres combinés
   const [selectedCategories, setSelectedCategories] = useState<CustomerCategory[]>([]);
   const [selectedStatuses, setSelectedStatuses] = useState<('ACTIF' | 'INACTIF' | 'TRES_INACTIF')[]>([]);
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+
+  // Extraire tous les produits uniques des clients
+  const allProducts = useMemo(() => {
+    const products = new Set<string>();
+    initialCustomers.forEach(customer => {
+      customer.orderDetails?.forEach(order => {
+        order.lines?.forEach((line: {product_name: string}) => {
+          if (line.product_name && line.product_name !== 'Produit inconnu') {
+            products.add(line.product_name);
+          }
+        });
+      });
+    });
+    return Array.from(products).sort();
+  }, [initialCustomers]);
 
   // Préparer les données avec les statuts calculés
   const preparedCustomers = useMemo(() => {
-    return initialCustomers.map(customer => {
+    return initialCustomers.map((customer, index) => {
       const statusInfo = getCustomerStatus(customer.lastOrderDate);
       const averageOrderValue = calculateAverageOrderValue(customer.totalAmountSpent, customer.totalOrderCount);
       
+      // Extraire les produits achetés par ce client
+      const customerProducts = new Set<string>();
+      customer.orderDetails?.forEach(order => {
+        order.lines?.forEach((line: {product_name: string}) => {
+          if (line.product_name && line.product_name !== 'Produit inconnu') {
+            customerProducts.add(line.product_name);
+          }
+        });
+      });
+      
       return {
         ...customer,
+        // Créer un ID unique pour chaque ligne
+        rowId: `${customer.phoneKey}-${index}`,
         statusInfo,
         averageOrderValue,
-        daysSinceLastOrder: statusInfo.days
+        daysSinceLastOrder: statusInfo.days,
+        // Stocker les produits pour la recherche
+        products: Array.from(customerProducts)
       };
     });
   }, [initialCustomers]);
 
-  // Filtrer par catégories et statuts
+  // Filtrer par catégories, statuts et produits
   const filteredCustomers = useMemo(() => {
     let filtered = preparedCustomers;
 
@@ -122,8 +306,43 @@ export default function CustomersClient({ initialCustomers, searchParams }: Cust
       );
     }
 
+    // Filtre par produits
+    if (selectedProducts.length > 0) {
+      filtered = filtered.filter(customer => 
+        selectedProducts.some(product => 
+          customer.products.includes(product)
+        )
+      );
+    }
+
+    // Filtre global (recherche texte)
+    if (globalFilter) {
+      const searchLower = globalFilter.toLowerCase();
+      filtered = filtered.filter(customer => 
+        customer.primaryName?.toLowerCase().includes(searchLower) ||
+        customer.primaryEmail?.toLowerCase().includes(searchLower) ||
+        customer.displayPhone?.toLowerCase().includes(searchLower) ||
+        customer.products.some(product => 
+          product.toLowerCase().includes(searchLower)
+        )
+      );
+    }
+
     return filtered;
-  }, [preparedCustomers, selectedCategories, selectedStatuses]);
+  }, [preparedCustomers, selectedCategories, selectedStatuses, selectedProducts, globalFilter]);
+
+  // Gestion de l'expansion des lignes
+  const toggleRowExpansion = useCallback((rowId: string) => {
+    setExpandedRows(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(rowId)) {
+        newSet.delete(rowId);
+      } else {
+        newSet.add(rowId);
+      }
+      return newSet;
+    });
+  }, []);
 
   // Gestion des sélections de catégories
   const toggleCategory = useCallback((category: CustomerCategory) => {
@@ -143,11 +362,18 @@ export default function CustomersClient({ initialCustomers, searchParams }: Cust
     );
   }, []);
 
+  // Gestion des sélections de produits
+  const handleProductChange = useCallback((products: string[]) => {
+    setSelectedProducts(products);
+  }, []);
+
   // Réinitialiser tous les filtres
   const resetFilters = useCallback(() => {
     setSelectedCategories([]);
     setSelectedStatuses([]);
+    setSelectedProducts([]);
     setGlobalFilter('');
+    setExpandedRows(new Set());
   }, []);
 
   // Statistiques pour les compteurs de filtres
@@ -162,16 +388,36 @@ export default function CustomersClient({ initialCustomers, searchParams }: Cust
       TRES_INACTIF: 0
     };
 
+    const productCounts: Record<string, number> = {};
+    allProducts.forEach(product => {
+      productCounts[product] = preparedCustomers.filter(customer => 
+        customer.products.includes(product)
+      ).length;
+    });
+
     preparedCustomers.forEach(customer => {
       categoryCounts[customer.category]++;
       statusCounts[customer.statusInfo.status]++;
     });
 
-    return { categoryCounts, statusCounts };
-  }, [preparedCustomers]);
+    return { categoryCounts, statusCounts, productCounts };
+  }, [preparedCustomers, allProducts]);
 
   // Définition des colonnes
   const columns = useMemo<ColumnDef<typeof preparedCustomers[0]>[]>(() => [
+    {
+      id: 'expand',
+      header: '',
+      cell: ({ row }) => (
+        <button
+          onClick={() => toggleRowExpansion(row.original.rowId)}
+          className="p-1 rounded hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
+        >
+          {expandedRows.has(row.original.rowId) ? '▼' : '►'}
+        </button>
+      ),
+      size: 40,
+    },
     {
       accessorKey: 'primaryName',
       header: 'Client',
@@ -184,9 +430,26 @@ export default function CustomersClient({ initialCustomers, searchParams }: Cust
               <span className="ml-2 text-blue-600">({row.original.mergedProfiles} profils fusionnés)</span>
             )}
           </p>
+          {row.original.products.length > 0 && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {row.original.products.slice(0, 3).map((product: string) => (
+                <span
+                  key={product}
+                  className="inline-block px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full"
+                >
+                  {product}
+                </span>
+              ))}
+              {row.original.products.length > 3 && (
+                <span className="inline-block px-2 py-1 bg-gray-200 text-gray-600 text-xs rounded-full">
+                  +{row.original.products.length - 3}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       ),
-      size: 250,
+      size: 300,
     },
     {
       accessorKey: 'contact',
@@ -274,7 +537,7 @@ export default function CustomersClient({ initialCustomers, searchParams }: Cust
       ),
       size: 150,
     },
-  ], []);
+  ], [expandedRows, toggleRowExpansion]);
 
   // Configuration de la table
   const table = useReactTable({
@@ -305,7 +568,7 @@ export default function CustomersClient({ initialCustomers, searchParams }: Cust
       'Nom', 'Email', 'Téléphone', 'Catégorie', 'Statut', 
       'Jours inactifs', 'CA Total', 'Nombre de commandes', 
       'Panier moyen', 'Première commande', 'Dernière commande',
-      'Profils fusionnés'
+      'Profils fusionnés', 'Produits achetés'
     ];
     
     const csvData = preparedCustomers.map(customer => [
@@ -320,7 +583,8 @@ export default function CustomersClient({ initialCustomers, searchParams }: Cust
       customer.averageOrderValue.toFixed(2),
       customer.firstOrderDate,
       customer.lastOrderDate,
-      customer.mergedProfiles.toString()
+      customer.mergedProfiles.toString(),
+      customer.products.join('; ')
     ]);
 
     const csvContent = [
@@ -333,7 +597,7 @@ export default function CustomersClient({ initialCustomers, searchParams }: Cust
     const url = URL.createObjectURL(blob);
     
     link.setAttribute('href', url);
-    link.setAttribute('download', `clients_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `clients_beaute_${new Date().toISOString().split('T')[0]}.csv`);
     link.style.visibility = 'hidden';
     
     document.body.appendChild(link);
@@ -395,11 +659,15 @@ export default function CustomersClient({ initialCustomers, searchParams }: Cust
               
               <div>
                 <h1 className="text-3xl lg:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  Gestion des Clients
+                  {title}
                 </h1>
                 <p className="text-gray-600 dark:text-gray-300 mt-2">
-                  {preparedCustomers.length.toLocaleString()} clients • 
+                  {preparedCustomers.length.toLocaleString()} clients beauté • 
+                  {allProducts.length} produits • 
                   Taux d&apos;activation: {stats.activeRate.toFixed(1)}%
+                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {description}
                 </p>
               </div>
             </div>
@@ -425,7 +693,7 @@ export default function CustomersClient({ initialCustomers, searchParams }: Cust
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
             <CardContent className="p-4">
-              <p className="text-sm opacity-90">Total Clients</p>
+              <p className="text-sm opacity-90">Total Clients Beauté</p>
               <p className="text-2xl font-bold">{stats.totalCustomers.toLocaleString()}</p>
               <p className="text-xs opacity-80 mt-1">
                 {stats.customersByStatus.ACTIF.toLocaleString()} actifs
@@ -445,17 +713,17 @@ export default function CustomersClient({ initialCustomers, searchParams }: Cust
 
           <Card className="bg-gradient-to-br from-yellow-500 to-yellow-600 text-white">
             <CardContent className="p-4">
-              <p className="text-sm opacity-90">Clients Gold</p>
-              <p className="text-2xl font-bold">{stats.customersByCategory.GOLD.toLocaleString()}</p>
+              <p className="text-sm opacity-90">Produits Différents</p>
+              <p className="text-2xl font-bold">{allProducts.length.toLocaleString()}</p>
               <p className="text-xs opacity-80 mt-1">
-                {((stats.customersByCategory.GOLD / stats.totalCustomers) * 100).toFixed(1)}%
+                {selectedProducts.length} sélectionné(s)
               </p>
             </CardContent>
           </Card>
 
           <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white">
             <CardContent className="p-4">
-              <p className="text-sm opacity-90">CA Total</p>
+              <p className="text-sm opacity-90">CA Total Beauté</p>
               <p className="text-2xl font-bold">{stats.totalRevenue.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}$</p>
               <p className="text-xs opacity-80 mt-1">
                 Panier moyen: {stats.averageOrderValue.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}$
@@ -473,7 +741,7 @@ export default function CustomersClient({ initialCustomers, searchParams }: Cust
                 <div className="flex-1">
                   <input
                     type="text"
-                    placeholder="Rechercher un client..."
+                    placeholder="Rechercher un client, email, téléphone ou produit..."
                     value={globalFilter ?? ''}
                     onChange={(e) => setGlobalFilter(e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
@@ -481,7 +749,7 @@ export default function CustomersClient({ initialCustomers, searchParams }: Cust
                 </div>
 
                 {/* Bouton reset */}
-                {(selectedCategories.length > 0 || selectedStatuses.length > 0 || globalFilter) && (
+                {(selectedCategories.length > 0 || selectedStatuses.length > 0 || selectedProducts.length > 0 || globalFilter) && (
                   <button
                     onClick={resetFilters}
                     className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors duration-200"
@@ -493,6 +761,21 @@ export default function CustomersClient({ initialCustomers, searchParams }: Cust
                 <div className="text-sm text-gray-500">
                   {filteredCustomers.length.toLocaleString()} résultats
                 </div>
+              </div>
+
+              {/* Filtre par produits */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Produits :</h3>
+                <ProductSelect
+                  products={allProducts}
+                  selectedProducts={selectedProducts}
+                  onProductChange={handleProductChange}
+                />
+                {selectedProducts.length > 0 && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    {selectedProducts.length} produit(s) sélectionné(s)
+                  </p>
+                )}
               </div>
 
               {/* Filtres par catégorie */}
@@ -553,7 +836,7 @@ export default function CustomersClient({ initialCustomers, searchParams }: Cust
               </div>
 
               {/* Résumé des filtres actifs */}
-              {(selectedCategories.length > 0 || selectedStatuses.length > 0) && (
+              {(selectedCategories.length > 0 || selectedStatuses.length > 0 || selectedProducts.length > 0) && (
                 <div className="mt-2">
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     Filtres actifs : 
@@ -567,6 +850,12 @@ export default function CustomersClient({ initialCustomers, searchParams }: Cust
                         Statuts: {selectedStatuses.join(', ')}
                       </span>
                     )}
+                    {selectedProducts.length > 0 && (
+                      <span className="ml-2">
+                        Produits: {selectedProducts.slice(0, 3).join(', ')}
+                        {selectedProducts.length > 3 && `... (+${selectedProducts.length - 3})`}
+                      </span>
+                    )}
                   </p>
                 </div>
               )}
@@ -578,7 +867,7 @@ export default function CustomersClient({ initialCustomers, searchParams }: Cust
         <Card>
           <CardHeader>
             <CardTitle className="flex justify-between items-center">
-              <span>Liste des Clients</span>
+              <span>Liste des Clients Beauté</span>
               <span className="text-sm font-normal text-gray-500">
                 Page {table.getState().pagination.pageIndex + 1} sur {table.getPageCount().toLocaleString()}
               </span>
@@ -622,17 +911,26 @@ export default function CustomersClient({ initialCustomers, searchParams }: Cust
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-slate-700">
                   {table.getRowModel().rows.map(row => (
-                    <tr key={row.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/50">
-                      {row.getVisibleCells().map(cell => (
-                        <td 
-                          key={cell.id} 
-                          className="py-4 px-6"
-                          style={{ width: cell.column.getSize() }}
-                        >
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </td>
-                      ))}
-                    </tr>
+                    <>
+                      <tr key={row.original.rowId} className="hover:bg-gray-50 dark:hover:bg-slate-700/50">
+                        {row.getVisibleCells().map(cell => (
+                          <td 
+                            key={cell.id} 
+                            className="py-4 px-6"
+                            style={{ width: cell.column.getSize() }}
+                          >
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </td>
+                        ))}
+                      </tr>
+                      {expandedRows.has(row.original.rowId) && (
+                        <tr key={`${row.original.rowId}-expanded`}>
+                          <td colSpan={columns.length} className="p-0">
+                            <OrderDetails orderDetails={row.original.orderDetails || []} />
+                          </td>
+                        </tr>
+                      )}
+                    </>
                   ))}
                 </tbody>
               </table>
