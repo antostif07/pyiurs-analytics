@@ -52,14 +52,14 @@ function getCustomerStatus(lastOrderDate: string): { status: 'ACTIF' | 'INACTIF'
   const now = new Date();
   const daysSinceLastOrder = Math.floor((now.getTime() - lastOrder.getTime()) / (1000 * 60 * 60 * 24));
 
-  if (daysSinceLastOrder <= 90) {
+  if (daysSinceLastOrder <= 30) {
     return { 
       status: 'ACTIF', 
       days: daysSinceLastOrder, 
       color: 'bg-green-100 text-green-800 border-green-200',
       label: '🟢 Actif'
     };
-  } else if (daysSinceLastOrder <= 180) {
+  } else if (daysSinceLastOrder <= 90) {
     return { 
       status: 'INACTIF', 
       days: daysSinceLastOrder, 
