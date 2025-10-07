@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
         const payload = {
             messaging_product: "whatsapp",
             recipient_type: "individual",
-            to: "+243985976862", // ✅ sans "+"
+            to: "+243985976862",
             type: "template",
             template: {
                 name: "promo_deux_achat_un_ajout",
@@ -24,15 +24,15 @@ export async function POST(req: NextRequest) {
                     {
                         type: "header",
                         parameters: [
-                            { type: "text", text: "Facture test" }
+                            { type: "text", text: "Facture test", parameter_name: "nom_de_la_promo" }
                         ]
                     },
                     {
                         type: "body",
                         parameters: [
-                            { type: "text", text: partner_id || "Client" },
-                            { type: "text", text: `${amount_paid} $` },
-                            { type: "text", text: partner_id || "Client" },
+                            { type: "text", text: partner_id || "Client", parameter_name: "date_debut" },
+                            { type: "text", text: `${amount_paid} $`, parameter_name: "prix_de_depart" },
+                            { type: "text", text: partner_id || "Client", parameter_name: "date_fin" },
                         ]
                     }
                 ]
