@@ -6,16 +6,16 @@ export async function POST(req: NextRequest) {
         console.log("📩 Webhook reçu:", body);
 
         // Vérifie le modèle
-        if (body._model !== "pos.order" || !body.data) {
-            return NextResponse.json({ message: "Not a POS event" }, { status: 200 });
-        }
+        // if (body._model !== "pos.order" || !body.data) {
+        //     return NextResponse.json({ message: "Not a POS event" }, { status: 200 });
+        // }
 
         const { amount_paid, partner_id } = body.data || body;
 
         const payload = {
             messaging_product: "whatsapp",
             recipient_type: "individual",
-            to: "243985976862", // ✅ sans "+"
+            to: "+243985976862", // ✅ sans "+"
             type: "template",
             template: {
                 name: "promo_deux_achat_un_ajout",
