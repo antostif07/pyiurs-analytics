@@ -1,3 +1,5 @@
+const processedOrders = new Set<string>();
+
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {
@@ -10,12 +12,19 @@ export async function POST(req: NextRequest) {
         //     return NextResponse.json({ message: "Not a POS event" }, { status: 200 });
         // }
 
-        const { amount_paid, partner_id } = body.data || body;
+        const { amount_paid, partner_id, id: orderId } = body.data || body;
+
+        if (processedOrders.has(orderId)) {
+            console.log(`⚠️ Commande ${orderId} déjà traitée, on ignore.`);
+            return NextResponse.json({ success: false, duplicate: true, orderId });
+        }
+
+        processedOrders.add(orderId);
 
         const payload = {
             messaging_product: "whatsapp",
             recipient_type: "individual",
-            to: "+243985976862",
+            to: "+243841483052",
             type: "template",
             template: {
                 name: "promo_deux_achat_un_ajout",
