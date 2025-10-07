@@ -1,7 +1,6 @@
 'use client'
 
 import { ColumnDef } from "@tanstack/react-table";
-import { ControlStockBeautyModel } from "../types/ControlStockBeautyModel";
 import { Button } from "@/components/ui/button";
 import { ArrowUpDown } from "lucide-react";
 import { ControlStockFemmeModel } from "./page";
