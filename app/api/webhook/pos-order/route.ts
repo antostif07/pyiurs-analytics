@@ -8,6 +8,8 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
 
         console.log(body);
+        console.log(processedOrders);
+        
 
         if (body._model !== "pos.order" || !body.data) {
             return NextResponse.json({ message: "Not a POS event" }, { status: 200 });
