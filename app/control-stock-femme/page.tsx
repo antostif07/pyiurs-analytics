@@ -8,6 +8,7 @@ import { DataTable } from "./data-table";
 import { Suspense } from "react";
 import { TableSkeleton } from "./table-skeleton";
 import { endOfMonth, format, startOfMonth } from "date-fns";
+import Link from "next/link";
 
 export const dynamic = 'force-dynamic'
 
@@ -403,15 +404,26 @@ export default async function ControlStockBeautyPage({ searchParams }: PageProps
     <main className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
       {/* Header */}
       <div className="border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-        <div className="container mx-auto px-6 py-6">
+        <div className="container mx-auto px-6 py-8">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex-1 min-w-0">
-              <h1 className="text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent truncate">
-                Control Stock Femme
-              </h1>
-              <p className="text-gray-600 dark:text-gray-300 mt-1 text-sm truncate">
-                {activeFilters.length > 0 ? `Filtres: ${activeFilters.join(' • ')}` : 'Tous les produits'}
-              </p>
+            <div className="flex items-center space-x-4">
+                <Link 
+                  href="/"
+                  className="inline-flex items-center px-4 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors duration-200"
+                >
+                  ← Retour
+                </Link>
+
+                <div className="flex items-center space-x-3">
+                  <div className="px-2">
+                    <h1 className="text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent truncate">
+                  Control Stock Femme
+                </h1>
+                <p className="text-gray-600 dark:text-gray-300 mt-1 text-sm truncate">
+                  {activeFilters.length > 0 ? `Filtres: ${activeFilters.join(' • ')}` : 'Tous les produits'}
+                </p>
+                  </div>
+                </div>
             </div>
             
             {/* Stats principales compactes */}

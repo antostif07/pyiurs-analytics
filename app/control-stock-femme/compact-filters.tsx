@@ -62,7 +62,7 @@ export function CompactFilters({
   // Synchroniser l'état local avec les props (URL)
   useEffect(() => {
     setDate(getInitialDateRange());
-  }, [startDate, endDate, getInitialDateRange]);
+  }, [startDate, endDate,]);
 
   // Initialiser tempDate quand le popover s'ouvre
   useEffect(() => {

@@ -7,6 +7,7 @@ import { CompactFilters } from "./compact-filters";
 import { DataTable } from "./data-table";
 import { Suspense } from "react";
 import { TableSkeleton } from "./table-skeleton";
+import Link from "next/link";
 
 export const dynamic = 'force-dynamic'
 
@@ -275,13 +276,21 @@ export default async function ControlStockBeautyPage({ searchParams }: PageProps
       <div className="border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
         <div className="container mx-auto px-6 py-6">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex-1 min-w-0">
-              <h1 className="text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent truncate">
-                Control Stock Beauty
-              </h1>
-              <p className="text-gray-600 dark:text-gray-300 mt-1 text-sm truncate">
-                {activeFilters.length > 0 ? `Filtres: ${activeFilters.join(' • ')}` : 'Tous les produits'}
-              </p>
+            <div className="flex-1 flex min-w-0">
+              <Link 
+                href="/"
+                className="inline-flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors duration-200"
+              >
+                ← Retour
+              </Link>
+              <div className="flex-1 min-w-0">
+                <h1 className="text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent truncate">
+                  Control Stock Beauty
+                </h1>
+                <p className="text-gray-600 dark:text-gray-300 mt-1 text-sm truncate">
+                  {activeFilters.length > 0 ? `Filtres: ${activeFilters.join(' • ')}` : 'Tous les produits'}
+                </p>
+              </div>
             </div>
             
             {/* Stats principales compactes */}
