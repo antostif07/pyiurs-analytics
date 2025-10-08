@@ -31,17 +31,27 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
     cell: ({ row }) => {
       const brand = row.original.brand;
       const color = row.original.color;
+      const imageUrl = row.original.imageUrl;
+      
       return (
-        <div className="py-2">
-          <div className="font-medium text-sm">{row.getValue("name")}</div>
-          <div className="text-xs text-gray-500 flex items-center space-x-1 mt-1">
-            <span>{brand}</span>
-            {color && color !== 'Non spécifié' && (
-              <>
-                <span>•</span>
-                <span className="text-blue-600">{color}</span>
-              </>
-            )}
+        <div className="flex space-x-2">
+          <img
+            src={imageUrl}
+            alt={row.getValue("name")}
+            className="w-12 h-12 object-cover rounded"
+            onError={(e) => (e.currentTarget.src = "/file.svg")}
+          />
+          <div className="py-2">
+            <div className="font-medium text-sm">{row.getValue("name")}</div>
+            <div className="text-xs text-gray-500 flex items-center space-x-1 mt-1">
+              <span>{brand}</span>
+              {color && color !== 'Non spécifié' && (
+                <>
+                  <span>•</span>
+                  <span className="text-blue-600">{color}</span>
+                </>
+              )}
+            </div>
           </div>
         </div>
       );
@@ -168,5 +178,70 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
       );
     },
     size: 80,
-  }
+  },
+  {
+    accessorKey: "age",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="p-2 h-auto text-xs font-semibold"
+        >
+          Age
+          <ArrowUpDown className="ml-1 h-3 w-3" />
+        </Button>
+      )
+    },
+    cell: ({ getValue }) => {
+      const value = getValue<number>();
+      return (
+        <span className={value > 0 ? "bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs font-medium" : "text-gray-400 text-sm"}>
+          {value}
+        </span>
+      );
+    },
+    size: 90,
+  },
+  {
+    id: "perf",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="p-2 h-auto text-xs font-semibold"
+        >
+          Perf
+          <ArrowUpDown className="ml-1 h-3 w-3" />
+        </Button>
+      )
+    },
+    cell: ({ row }) => {
+      const qty_received = row.original.qty_received || 0;
+      const qty_sold = row.original.qty_sold || 0;
+      const perf = qty_received > 0 ? ((qty_sold / qty_received) * 100).toFixed(2) : "0.00";
+      return (
+        <span className={"text-gray-400 text-sm"}>
+          {`${perf}%`}
+        </span>
+      );
+    },
+    sortingFn: (rowA, rowB) => {
+      const perfA = (rowA.original.qty_sold / (rowA.original.qty_received || 1)) * 100;
+      const perfB = (rowB.original.qty_sold / (rowB.original.qty_received || 1)) * 100;
+      return perfA - perfB;
+    },
+    filterFn: (row, columnId, filterValue) => {
+      const qty_received = row.original.qty_received || 0;
+      const qty_sold = row.original.qty_sold || 0;
+      const perf = qty_received > 0 ? (qty_sold / qty_received) * 100 : 0;
+
+      // ✅ Exemple : filtrer les produits dont la perf ≥ filtre choisi
+      return perf >= Number(filterValue);
+    },
+    enableSorting: true,
+    enableColumnFilter: true,
+    size: 90,
+  },
 ]

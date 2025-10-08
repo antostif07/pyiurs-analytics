@@ -1,6 +1,6 @@
 import { ControlStockBeautyModel } from "../types/ControlStockBeautyModel";
 import { POSOrderLine } from "../types/pos";
-import { mapOdooProduct, OdooProductTemplate } from "../types/product_template";
+import { OdooProductTemplate } from "../types/product_template";
 import { PurchaseOrder, PurchaseOrderLine } from "../types/purchase";
 import { controlStockBeautyColumns } from "./columns";
 import { CompactFilters } from "./compact-filters";
@@ -9,6 +9,7 @@ import { Suspense } from "react";
 import { TableSkeleton } from "./table-skeleton";
 import { endOfMonth, format, startOfMonth } from "date-fns";
 import Link from "next/link";
+import { formatTimeShort } from "@/lib/format-time-short";
 
 export const dynamic = 'force-dynamic'
 
@@ -21,15 +22,9 @@ export interface ControlStockFemmeModel {
   not_received: number;
   qty_sold: number;
   qty_available: number;
+  imageUrl: string;
+  age: string
 }
-
-// Cache en mémoire avec invalidation après 5 minutes
-const cachedData: {
-  data: ControlStockBeautyModel[];
-  brands: string[];
-  colors: string[];
-  timestamp: number;
-} | null = null;
 
 // const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
@@ -84,7 +79,7 @@ async function getPurchaseOrderLinesByIds(purchaseOrderIds: number[]) {
   const domain = `[["order_id", "in", [${purchaseOrderIds.join(',')}]]]`;
   
   const res = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/purchase.order.line?fields=id,order_id,product_id,product_qty,qty_received,price_unit,product_uom&domain=${domain}`,
+    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/purchase.order.line?fields=id,order_id,product_id,product_qty,qty_received,price_unit,product_uom,write_date&domain=${domain}`,
     { 
       next: { 
         revalidate: 300
@@ -129,9 +124,14 @@ async function transformToControlStockModel(
     productNames: Set<string>;
     brands: Set<string>;
     colors: Set<string>;
+    category: string;
+    price: string;
+    imageUrl: string;
+    age: string;
   }>();
 
   purchaseOrderLines.forEach((line: PurchaseOrderLine) => {
+    let age = "";
     const productId = line.product_id?.[0];
     if (!productId) return;
     
@@ -139,14 +139,25 @@ async function transformToControlStockModel(
     
     if (!product) return;
     
+    if(line.qty_received > 0) {
+      age = formatTimeShort(line.write_date)
+    }
     const hsCode = product.hs_code || 'UNKNOWN';
+    const categ_id = product?.categ_id?.[1] ?? "";
+    const category = categ_id.split("/").pop()?.trim() ?? "";
+    const price = product.list_price;
+    const imageUrl = `https://images.pyiurs.com/images/${hsCode}_${product.x_studio_many2one_field_Arl5D![1]}.jpg`;
     
     if (!linesByHsCode.has(hsCode)) {
       linesByHsCode.set(hsCode, {
         lines: [],
         productNames: new Set<string>(),
         brands: new Set<string>(),
-        colors: new Set<string>()
+        colors: new Set<string>(),
+        category: category,
+        price: `${price} $`,
+        imageUrl: imageUrl,
+        age
       });
     }
 
@@ -163,7 +174,7 @@ async function transformToControlStockModel(
       hsCodeGroup.brands.add(brand);
     }
     
-    const color = product.x_studio_many2one_field_QyelN?.[1];
+    const color = product.x_studio_many2one_field_Arl5D?.[1];
     if (color) {
       hsCodeGroup.colors.add(color);
     }
@@ -171,7 +182,7 @@ async function transformToControlStockModel(
 
   // Transformer les données groupées par hs_code
   const result: ControlStockFemmeModel[] = [];
-
+  
   linesByHsCode.forEach((group, hsCode) => {
     // Calculer les quantités totales pour ce hs_code
     const product_qty = group.lines.reduce((sum, line) => sum + (line.product_qty || 0), 0);
@@ -189,12 +200,6 @@ async function transformToControlStockModel(
 
     const qty_available = qty_received - qty_sold;
 
-    // Préparer les noms pour l'affichage
-    const productNames = Array.from(group.productNames);
-    const displayName = productNames.length > 0 
-      ? `${productNames[0]}${productNames.length > 1 ? ` +${productNames.length - 1} autres` : ''}`
-      : 'Produit sans nom';
-
     // Gérer les marques et couleurs multiples
     const brands = Array.from(group.brands);
     const colors = Array.from(group.colors);
@@ -208,7 +213,7 @@ async function transformToControlStockModel(
       : 'Non spécifié';
 
     result.push({
-      name: hsCode, // Utiliser le hs_code comme nom principal
+      name: `${group.category} - ${hsCode} (${group.price})`, // Utiliser le hs_code comme nom principal
       brand,
       color,
       product_qty,
@@ -216,15 +221,22 @@ async function transformToControlStockModel(
       not_received,
       qty_sold,
       qty_available,
+      imageUrl: group.imageUrl,
+      age: group.age,
     });
   });
 
   return result;
 }
 
-async function getPOSOrderLines(startDate?: string, endDate?: string) {
+async function getPOSOrderLines(productIds: number[]) {
+  if (productIds.length === 0) {
+    return { records: [] };
+  }
+
+  const domain = `[["product_id", "in", [${productIds.join(',')}]]]`;
   const res = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.order.line?fields=id,qty,product_id,qty`,
+    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.order.line?fields=id,qty,product_id,qty&domain=${domain}`,
     { 
       next: { 
         revalidate: 300
@@ -276,7 +288,7 @@ async function getData(start_date?: string, end_date?: string): Promise<{
   const products = await getProductsByIds([productIds]);
 
   // 6. Récupérer les POS Order Lines pour les ventes
-  const posOrderLines = await getPOSOrderLines(startDate, endDate);
+  const posOrderLines = await getPOSOrderLines(productIds);
   // console.log(`🛒 POS Order Lines récupérés: ${posOrderLines.records.length}`);
 
   // 7. Transformer les données en ControlStockFemmeModel

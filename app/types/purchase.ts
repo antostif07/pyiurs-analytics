@@ -7,6 +7,8 @@ export type PurchaseOrderLine = {
   price_subtotal: number;
   qty_received: number;
   order_id: [number, string]; // Tuple of [id, name]
+  create_date: string;
+  write_date: string;
 };
 
 export type PurchaseOrder = {
