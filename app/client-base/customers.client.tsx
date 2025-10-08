@@ -308,7 +308,7 @@ export default function CustomersClient({ initialCustomers, searchParams }: Cust
       'Profils fusionnés'
     ];
     
-    const csvData = preparedCustomers.map(customer => [
+    const csvData = filteredCustomers.map(customer => [
       customer.primaryName,
       customer.primaryEmail || '',
       customer.displayPhone,
@@ -343,38 +343,40 @@ export default function CustomersClient({ initialCustomers, searchParams }: Cust
 
   // Statistiques
   const stats = useMemo(() => {
-    const customersByCategory: Record<CustomerCategory, number> = {
-      GOLD: 0, SILVER: 0, PYIURS: 0, NORMAL: 0
-    };
+  const customersByCategory: Record<CustomerCategory, number> = {
+    GOLD: 0, SILVER: 0, PYIURS: 0, NORMAL: 0
+  };
 
-    const customersByStatus = {
-      ACTIF: 0,
-      INACTIF: 0,
-      TRES_INACTIF: 0
-    };
+  const customersByStatus = {
+    ACTIF: 0,
+    INACTIF: 0,
+    TRES_INACTIF: 0
+  };
 
-    let totalRevenue = 0;
-    let totalOrders = 0;
+  let totalRevenue = 0;
+  let totalOrders = 0;
 
-    preparedCustomers.forEach(customer => {
-      customersByCategory[customer.category]++;
-      customersByStatus[customer.statusInfo.status]++;
-      totalRevenue += customer.totalAmountSpent;
-      totalOrders += customer.totalOrderCount;
-    });
+  filteredCustomers.forEach(customer => {
+    customersByCategory[customer.category]++;
+    customersByStatus[customer.statusInfo.status]++;
+    totalRevenue += customer.totalAmountSpent;
+    totalOrders += customer.totalOrderCount;
+  });
 
-    const activeRate = (customersByStatus.ACTIF / preparedCustomers.length) * 100;
+  const activeRate = filteredCustomers.length > 0 
+    ? (customersByStatus.ACTIF / filteredCustomers.length) * 100 
+    : 0;
 
-    return {
-      totalCustomers: preparedCustomers.length,
-      customersByCategory,
-      customersByStatus,
-      totalRevenue,
-      totalOrders,
-      averageOrderValue: totalOrders > 0 ? totalRevenue / totalOrders : 0,
-      activeRate
-    };
-  }, [preparedCustomers]);
+  return {
+    totalCustomers: filteredCustomers.length,
+    customersByCategory,
+    customersByStatus,
+    totalRevenue,
+    totalOrders,
+    averageOrderValue: totalOrders > 0 ? totalRevenue / totalOrders : 0,
+    activeRate
+  };
+}, [filteredCustomers]);
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
@@ -413,7 +415,7 @@ export default function CustomersClient({ initialCustomers, searchParams }: Cust
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                Exporter Excel ({preparedCustomers.length.toLocaleString()})
+                Exporter Excel ({filteredCustomers.length.toLocaleString()})
               </button>
             </div>
           </div>

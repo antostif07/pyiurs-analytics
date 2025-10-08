@@ -1,278 +1,106 @@
-import { Card } from "@/components/ui/card";
-import { BarChart4, Contact, Flower, ShoppingBag } from "lucide-react";
+"use client";
+
+import { motion } from "framer-motion";
 import Link from "next/link";
+import { useState } from "react";
+import { Moon, Sun, User, Store, TrendingUp, Package, BarChart2, Users, FileText } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 
 export default function Home() {
+  const [darkMode, setDarkMode] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const modules = [
+    { name: "KPI Manager", icon: BarChart2, color: "from-blue-500 to-purple-600", href: "/manager-kpis" },
+    { name: "Suivi des Ventes", icon: TrendingUp, color: "from-emerald-500 to-teal-600", href: "/control-revenue-beauty" },
+    { name: "Suivi du Stock Beauty", icon: Package, color: "from-orange-500 to-yellow-500", href: "/control-stock-beauty" },
+    { name: "Suivi du Stock Femme", icon: Package, color: "from-yellow-500 to-teal-500", href: "/control-stock-femme" },
+    // { name: "Points de Vente", icon: Store, color: "from-pink-500 to-rose-600", href: "/shops" },
+    { name: "Gestion des Clients", icon: Users, color: "from-indigo-500 to-blue-700", href: "/client-base" },
+    { name: "Gestion des Clients Beauty", icon: Users, color: "from-blue-500 to-indigo-700", href: "/client-base-beauty" },
+    // { name: "Rapports & Export", icon: FileText, color: "from-sky-500 to-cyan-600", href: "/reports" },
+  ];
+
+  const filteredModules = modules.filter(m =>
+    m.name.toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
-      {/* Header Section */}
-      <div className="container mx-auto px-4 pt-16 pb-8ß text-center">
-        <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-4">
+    <div className={`${darkMode ? "dark" : ""} min-h-screen bg-gradient-to-br from-gray-50 to-gray-200 dark:from-slate-900 dark:to-slate-950 transition-all`}>
+      
+      {/* ✅ Header */}
+      <header className="flex justify-between items-center px-6 py-4 bg-white/70 dark:bg-slate-900/70 backdrop-blur-lg shadow-sm sticky top-0 z-50">
+        <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
           Pyiurs Analytics
         </h1>
-        {/* <p className="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
-          Plateforme d'analyse de données et de gestion business intelligente
-        </p> */}
-      </div>
-
-      {/* Main Content Grid */}
-      <div className="container mx-auto px-4 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 max-w-6xl mx-auto">
-          
-          {/* Control Stock Beauty Card */}
-          <Link href="/manager-kpis">
-            <Card className="group relative p-6 h-48 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 hover:scale-105 hover:border-blue-300 dark:hover:border-blue-600 overflow-hidden">
-              {/* Background Gradient Effect */}
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              
-              {/* Content */}
-              <div className="relative z-10 h-full flex flex-col">
-                {/* Icon */}
-                <div className="mb-4 p-3 w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl shadow-lg flex items-center justify-center">
-                  <BarChart4 />
-                </div>
-
-                {/* Text Content */}
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                    KPIS Manager
-                  </h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
-                    Suivi des depenses et epargnes
-                  </p>
-                </div>
-
-                {/* Arrow Indicator */}
-                <div className="flex justify-between items-center mt-2">
-                  <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">
-                    Accéder au module
-                  </span>
-                  <svg className="w-4 h-4 text-gray-400 group-hover:text-blue-500 group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </div>
-              </div>
-            </Card>
-          </Link>
-          <Link href="/control-stock-beauty">
-            <Card className="group relative p-6 h-48 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 hover:scale-105 hover:border-blue-300 dark:hover:border-blue-600 overflow-hidden">
-              {/* Background Gradient Effect */}
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              
-              {/* Content */}
-              <div className="relative z-10 h-full flex flex-col">
-                {/* Icon */}
-                <div className="mb-4 p-3 w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl shadow-lg flex items-center justify-center">
-                  <Flower className="text-white" />
-                </div>
-
-                {/* Text Content */}
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                    Control Stock Beauty
-                  </h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
-                    Gestion et analyse du stock pour produits de beauté avec indicateurs en temps réel
-                  </p>
-                </div>
-
-                {/* Arrow Indicator */}
-                <div className="flex justify-between items-center mt-2">
-                  <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">
-                    Accéder au module
-                  </span>
-                  <svg className="w-4 h-4 text-gray-400 group-hover:text-blue-500 group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </div>
-              </div>
-            </Card>
-          </Link>
-
-          <Link href="/control-stock-femme">
-            <Card className="group relative p-6 h-48 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 hover:scale-105 hover:border-blue-300 dark:hover:border-blue-600 overflow-hidden">
-              {/* Background Gradient Effect */}
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              
-              {/* Content */}
-              <div className="relative z-10 h-full flex flex-col">
-                {/* Icon */}
-                <div className="mb-4 p-3 w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl shadow-lg flex items-center justify-center">
-                  <ShoppingBag className="text-white" />
-                </div>
-
-                {/* Text Content */}
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                    Control Stock Femme
-                  </h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
-                    Gestion et analyse du stock pour produits femme avec indicateurs en temps réel
-                  </p>
-                </div>
-
-                {/* Arrow Indicator */}
-                <div className="flex justify-between items-center mt-2">
-                  <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">
-                    Accéder au module
-                  </span>
-                  <svg className="w-4 h-4 text-gray-400 group-hover:text-blue-500 group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </div>
-              </div>
-            </Card>
-          </Link>
-
-          <Link href="/control-revenue-beauty">
-            <Card className="group relative p-6 h-48 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 hover:scale-105 hover:border-blue-300 dark:hover:border-blue-600 overflow-hidden">
-              {/* Background Gradient Effect */}
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              
-              {/* Content */}
-              <div className="relative z-10 h-full flex flex-col">
-                {/* Icon */}
-                <div className="mb-4 p-3 w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl shadow-lg flex items-center justify-center">
-                  <Flower className="text-white" />
-                </div>
-
-                {/* Text Content */}
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                    Suivi Vente Beauty
-                  </h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
-                    Suivi des ventes pour produits de beauté avec indicateurs en temps réel
-                  </p>
-                </div>
-
-                {/* Arrow Indicator */}
-                <div className="flex justify-between items-center mt-2">
-                  <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">
-                    Accéder au module
-                  </span>
-                  <svg className="w-4 h-4 text-gray-400 group-hover:text-blue-500 group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </div>
-              </div>
-            </Card>
-          </Link>
-
-          <Link href="/client-base">
-            <Card className="group relative p-6 h-48 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 hover:scale-105 hover:border-blue-300 dark:hover:border-blue-600 overflow-hidden">
-              {/* Background Gradient Effect */}
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              
-              {/* Content */}
-              <div className="relative z-10 h-full flex flex-col">
-                {/* Icon */}
-                <div className="mb-4 p-3 w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl shadow-lg flex items-center justify-center">
-                  <Contact className="text-white" />
-                </div>
-
-                {/* Text Content */}
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                    Base Client
-                  </h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
-                    Categorisation et Suivi des clients
-                  </p>
-                </div>
-
-                {/* Arrow Indicator */}
-                <div className="flex justify-between items-center mt-2">
-                  <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">
-                    Accéder au module
-                  </span>
-                  <svg className="w-4 h-4 text-gray-400 group-hover:text-blue-500 group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </div>
-              </div>
-            </Card>
-          </Link>
-
-          <Link href="/client-base-beauty">
-            <Card className="group relative p-6 h-48 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 hover:scale-105 hover:border-blue-300 dark:hover:border-blue-600 overflow-hidden">
-              {/* Background Gradient Effect */}
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              
-              {/* Content */}
-              <div className="relative z-10 h-full flex flex-col">
-                {/* Icon */}
-                <div className="mb-4 p-3 w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl shadow-lg flex items-center justify-center">
-                  <Contact className="text-white" />
-                </div>
-
-                {/* Text Content */}
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                    Base Client Beauty
-                  </h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
-                    Categorisation et Suivi des clients Beauty
-                  </p>
-                </div>
-
-                {/* Arrow Indicator */}
-                <div className="flex justify-between items-center mt-2">
-                  <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">
-                    Accéder au module
-                  </span>
-                  <svg className="w-4 h-4 text-gray-400 group-hover:text-blue-500 group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </div>
-              </div>
-            </Card>
-          </Link>
-
-          {/* Additional Cards - Exemples pour d'autres modules */}
-          <Card className="group p-6 h-48 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-2xl shadow-sm opacity-70 hover:opacity-100 transition-all duration-300">
-            <div className="h-full flex flex-col items-center justify-center text-gray-400 dark:text-gray-500">
-              <div className="w-12 h-12 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl flex items-center justify-center mb-4">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-              </div>
-              <p className="text-sm font-medium">Nouveau module à venir</p>
-            </div>
-          </Card>
-
-          {/* Plus de cartes vides pour le layout */}
-          <Card className="p-6 h-48 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-2xl shadow-sm opacity-50">
-            <div className="h-full flex flex-col items-center justify-center text-gray-300 dark:text-gray-600">
-              <div className="w-12 h-12 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl flex items-center justify-center mb-4">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-              </div>
-              <p className="text-sm">Module en développement</p>
-            </div>
-          </Card>
-
-          <Card className="p-6 h-48 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-2xl shadow-sm opacity-50">
-            <div className="h-full flex flex-col items-center justify-center text-gray-300 dark:text-gray-600">
-              <div className="w-12 h-12 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl flex items-center justify-center mb-4">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-              </div>
-              <p className="text-sm">Module en développement</p>
-            </div>
-          </Card>
-
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setDarkMode(!darkMode)}
+            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition"
+          >
+            {darkMode ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5 text-gray-600" />}
+          </button>
+          <button className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+            <User className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+          </button>
         </div>
-      </div>
+      </header>
 
-      {/* Footer */}
-      <div className="container mx-auto px-4 py-8 text-center">
-        <p className="text-gray-500 dark:text-gray-400 text-sm">
-          © 2025 Pyiurs Analytics. Tous droits réservés.
-        </p>
-      </div>
-    </main>
+      {/* ✅ Main content */}
+      <main className="max-w-6xl mx-auto px-6 py-10">
+        <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-6">Tableau de bord</h2>
+
+        {/* Barre de recherche */}
+        <input
+          type="text"
+          placeholder="🔍 Rechercher un module..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="mb-10 w-full max-w-md block px-4 py-2 rounded-xl border border-gray-200 dark:border-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-200"
+        />
+
+        {/* Section */}
+        {/* <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-4">Modules disponibles</h3> */}
+
+        {/* ✅ Cartes animées */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredModules.map((mod, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: i * 0.05 }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.97 }}
+            >
+              <Link href={mod.href}>
+                <Card className="group relative p-6 h-44 bg-white dark:bg-slate-800 rounded-2xl shadow-md hover:shadow-2xl transition-all duration-300 cursor-pointer">
+                  <div className={`absolute inset-0 bg-gradient-to-r ${mod.color} opacity-0 group-hover:opacity-10 rounded-2xl transition-all duration-300`} />
+                  <CardContent className="flex flex-col justify-center items-center h-full space-y-4">
+                    <div className={`p-4 rounded-full bg-gradient-to-r ${mod.color} text-white shadow-lg group-hover:scale-110 transition-transform`}>
+                      <mod.icon className="w-6 h-6" />
+                    </div>
+                    <h4 className="font-semibold text-gray-800 dark:text-gray-100 text-center">
+                      {mod.name}
+                    </h4>
+                  </CardContent>
+                </Card>
+              </Link>
+            </motion.div>
+          ))}
+        </div>
+
+        {/* Si aucun résultat */}
+        {filteredModules.length === 0 && (
+          <p className="text-center text-gray-500 dark:text-gray-400 mt-10">Aucun module trouvé.</p>
+        )}
+      </main>
+
+      {/* ✅ Footer */}
+      <footer className="text-center py-6 text-sm text-gray-500 dark:text-gray-400 border-t border-gray-100 dark:border-slate-800">
+        <p>Conçu avec ❤️ par <span className="text-blue-500 font-medium">Ushindi</span></p>
+        <p className="mt-1">© {new Date().getFullYear()} Tous droits réservés</p>
+      </footer>
+    </div>
   );
 }
