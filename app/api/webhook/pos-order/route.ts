@@ -140,7 +140,7 @@ export async function POST(req: NextRequest) {
         }
 
         // ✅ Marquer la commande comme traitée pour 10 minutes
-        await redis.set(`order:${orderId}`, "processed", { ex: 1200 });
+        await redis.set(`pyiurs-order:${orderId}`, "processed", { ex: 1200 });
 
         const [posConfigData, partnerData] = await Promise.all([
             getPOSConfig(config_id),
@@ -176,7 +176,7 @@ export async function POST(req: NextRequest) {
                             { type: "text", text: ` ${boutique?.name}`, parameter_name: "shop_name" },
                             { type: "text", text: name, parameter_name: "numero_commande" },
                             { type: "text", text: format(create_date, "dd MMM yyyy"), parameter_name: "date_commande" },
-                            { type: "text", text: amount_paid, parameter_name: "montant_total" },
+                            { type: "text", text: `${amount_paid}$`, parameter_name: "montant_total" },
                             { type: "text", text: "Espèces", parameter_name: "mode_paiement" },
                             { type: "text", text: ` ${boutique?.name}`, parameter_name: "shop_name_2" },
                             { type: "text", text: ` ${boutique?.phone}`, parameter_name: "shop_number" },
