@@ -18,6 +18,7 @@ export default function Home() {
     // { name: "Points de Vente", icon: Store, color: "from-pink-500 to-rose-600", href: "/shops" },
     { name: "Gestion des Clients", icon: Users, color: "from-indigo-500 to-blue-700", href: "/client-base" },
     { name: "Gestion des Clients Beauty", icon: Users, color: "from-blue-500 to-indigo-700", href: "/client-base-beauty" },
+    { name: "Parc Client", icon: Users, color: "from-emerald-500 to-indigo-700", href: "/parc-client" },
     // { name: "Rapports & Export", icon: FileText, color: "from-sky-500 to-cyan-600", href: "/reports" },
   ];
 

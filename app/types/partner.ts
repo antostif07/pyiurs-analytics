@@ -12,4 +12,6 @@ export interface Customer {
     name: string
     category: CustomerCategory;
     phone: string;
+    create_date: string;
+    email?: string;
 }
