@@ -117,6 +117,8 @@ async function sendMessage(payload: PayloadWhatsappMessage) {
         const errorMessage = typeof error === 'object' && error !== null && 'message' in error
             ? (error as { message: string }).message
             : String(error);
+        console.log(errorMessage);
+        
     }
 }
 
@@ -188,8 +190,8 @@ export async function POST(req: NextRequest) {
             }
         };
         
-        const result = await sendMessage(payload_client)
-        const resultAdmin = await sendMessage({...payload_client, to: "+243841483052"} as PayloadWhatsappMessage)
+        await sendMessage(payload_client)
+        await sendMessage({...payload_client, to: "+243841483052"} as PayloadWhatsappMessage)
 
         return NextResponse.json({
             success: true,

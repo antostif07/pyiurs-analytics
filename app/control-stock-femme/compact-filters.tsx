@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -43,26 +43,27 @@ export function CompactFilters({
   const [tempDate, setTempDate] = useState<DateRange | undefined>(undefined);
 
   // Initialiser les dates à partir de l'URL ou utiliser le mois actuel
-  const getInitialDateRange = (): DateRange => {
-    if (startDate && endDate) {
-      return {
-        from: new Date(startDate),
-        to: new Date(endDate),
-      }
-    }
-    const today = new Date();
+  const getInitialDateRange = useCallback((): DateRange => {
+  if (startDate && endDate) {
     return {
-      from: startOfMonth(today),
-      to: endOfMonth(today),
+      from: new Date(startDate),
+      to: new Date(endDate),
     }
-  };
+  }
+  const today = new Date();
+  return {
+    from: startOfMonth(today),
+    to: endOfMonth(today),
+  }
+}, [startDate, endDate]);
 
-  const [date, setDate] = useState<DateRange | undefined>(getInitialDateRange);
+// Initialisation directe sans appel supplémentaire
+const [date, setDate] = useState<DateRange | undefined>(() => getInitialDateRange());
 
-  // Synchroniser l'état local avec les props (URL)
-  useEffect(() => {
-    setDate(getInitialDateRange());
-  }, [startDate, endDate,]);
+// Synchronisation seulement quand les props changent
+useEffect(() => {
+  setDate(getInitialDateRange());
+}, [getInitialDateRange]);
 
   // Initialiser tempDate quand le popover s'ouvre
   useEffect(() => {

@@ -52,7 +52,7 @@ export default function PageFilters() {
         setSelectedYear('');
         
         // Réinitialiser l'URL
-        const params = new URLSearchParams();
+        // const params = new URLSearchParams();
         router.push('?', { scroll: false });
     };
 
