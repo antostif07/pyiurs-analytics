@@ -31,8 +31,17 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockBeautyModel>[] = [
     cell: ({ row }) => {
       const brand = row.original.brand;
       const color = row.original.color;
+      const hs_code = row.original.hs_code
+      const imageUrl = `https://images.pyiurs.com/images/${hs_code}_.jpg`
       return (
-        <div className="py-2">
+        <div className="flex space-x-2">
+          <img
+            src={imageUrl}
+            alt={row.getValue("name")}
+            className="w-12 h-12 object-cover rounded"
+            onError={(e) => (e.currentTarget.src = "/file.svg")}
+          />
+          <div className="py-2">
           <div className="font-medium text-sm">{row.getValue("name")}</div>
           <div className="text-xs text-gray-500 flex items-center space-x-1 mt-1">
             <span>{brand}</span>
@@ -43,6 +52,7 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockBeautyModel>[] = [
               </>
             )}
           </div>
+        </div>
         </div>
       );
     },
