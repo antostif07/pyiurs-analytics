@@ -8,8 +8,21 @@ import { DataTable } from "./data-table";
 import { Suspense } from "react";
 import { TableSkeleton } from "./table-skeleton";
 import Link from "next/link";
+import { StockQuant } from "../types/stock";
+import { extractBoutiqueCode, extractBrandFromProduct, extractColorFromProduct } from "@/lib/utils";
+import { calculateLastSaleDate, calculateReplenishmentMetrics, calculateSalesLast30Days } from "../utils/stockCalculations";
 
 export const dynamic = 'force-dynamic'
+
+// let viewer: any;
+
+interface PageProps {
+  searchParams: Promise<{
+    brand?: string;
+    color?: string;
+    stock?: string;
+  }>;
+}
 
 // Cache en mémoire avec invalidation après 5 minutes
 let cachedData: {
@@ -20,6 +33,74 @@ let cachedData: {
 } | null = null;
 
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// async function getStockLocations() {
+//   const res = await fetch(
+//     `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/stock.location?fields=id,name,complete_name,active`,
+//     { 
+//       next: { 
+//         revalidate: 300
+//       } 
+//     }
+//   );
+
+//   if (!res.ok) {
+//     throw new Error("Erreur API Odoo - Stock Location");
+//   }
+
+//   return res.json();
+// }
+
+// Nouvelle fonction pour récupérer les stocks quant en batch
+
+async function getStockQuantsForProducts(productIds: number[]): Promise<{ records: StockQuant[], success: boolean }> {
+  if (productIds.length === 0) return { records: [], success: true };;
+
+  try {
+    console.log(`📊 Récupération des stocks quant pour ${productIds.length} produits...`);
+    
+    // Diviser en lots plus petits si nécessaire pour éviter les limites de taille
+    const BATCH_SIZE = 500;
+    const batches = [];
+    
+    for (let i = 0; i < productIds.length; i += BATCH_SIZE) {
+      batches.push(productIds.slice(i, i + BATCH_SIZE));
+    }
+
+    const allResults = [];
+    
+    for (const batch of batches) {
+      const domain = JSON.stringify([
+        ['product_id', 'in', batch],
+        ['location_id', 'in', [225,99,100,89,105,62,8,244,160,232,180,169,245]]
+      ])
+      
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/stock.quant?fields=id,product_id,product_tmpl_id,location_id,quantity&domain=${domain}`,
+        { 
+          next: { 
+            revalidate: 300
+          } 
+        }
+      );
+
+      if (!res.ok) {
+        throw new Error(`Erreur lors de la récupération des stocks: ${res.statusText}`);
+      }
+
+      const batchResults = await res.json();
+      
+      allResults.push(...batchResults.records);
+    }
+
+    console.log(`✅ ${allResults.length} enregistrements de stock récupérés`);
+    return {success: true, records: allResults};
+
+  } catch (error) {
+    console.error('❌ Erreur lors de la récupération des stocks quant:', error);
+    return {records: [], success: false};
+  }
+}
 
 async function getProducts() {
   const res = await fetch(
@@ -55,33 +136,54 @@ async function getPurchaseOrderLines() {
   return res.json();
 }
 
-async function getPOSOrderLines() {
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.order.line?fields=id,qty,product_id,qty`,
-    { 
-      next: { 
-        revalidate: 300
-      } 
+async function getPOSOrderLines(productIds: number[]): Promise<{
+  records: POSOrderLine[];
+  success: boolean;
+}> {
+  if (productIds.length === 0) return { records: [], success: true };
+
+  try {
+    console.log(`🛒 Récupération des ventes POS pour ${productIds.length} produits...`);
+    
+    // Diviser en lots pour éviter les limites de taille
+    const BATCH_SIZE = 500;
+    const batches = [];
+    
+    for (let i = 0; i < productIds.length; i += BATCH_SIZE) {
+      batches.push(productIds.slice(i, i + BATCH_SIZE));
     }
-  );
 
-  if (!res.ok) {
-    throw new Error("Erreur API Odoo - Ventes POS");
+    const allResults = [];
+    
+    for (const batch of batches) {
+      const domain = JSON.stringify([
+        ['product_id', 'in', batch]
+      ]);
+      
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.order.line?fields=id,qty,product_id,create_date&domain=${domain}`,
+        { 
+          next: { 
+            revalidate: 300
+          } 
+        }
+      );
+
+      if (!res.ok) {
+        throw new Error(`Erreur lors de la récupération des ventes POS: ${res.statusText}`);
+      }
+
+      const batchResults = await res.json();
+      allResults.push(...batchResults.records);
+    }
+
+    console.log(`✅ ${allResults.length} lignes de vente POS récupérées`);
+    return { success: true, records: allResults };
+
+  } catch (error) {
+    console.error('❌ Erreur lors de la récupération des ventes POS:', error);
+    return { records: [], success: false };
   }
-
-  return res.json();
-}
-
-// Fonction pour extraire la marque du nom du produit
-function extractBrandFromProduct(product: Product): string {
-  const brand = product.marque || 'Autres';
-  return brand;
-}
-
-// Fonction pour extraire la couleur du produit
-function extractColorFromProduct(product: Product): string {
-  const color = product.couleur || 'Non spécifié';
-  return color;
 }
 
 async function getControlStockData(): Promise<{
@@ -96,14 +198,95 @@ async function getControlStockData(): Promise<{
   }
 
   console.log("🔄 Chargement des données fraîches...");
-  
-  const [products, purchaseOrderLines, posOrderLines] = await Promise.all([
-    getProducts(),
+  const products = await getProducts();
+  const data = products.records.map(mapOdooProduct);
+  const allProductIds = data.map((product: Product) => product.productVariantId);
+
+  const [
+    purchaseOrderLines, 
+    posOrderLines, 
+    stockQuants
+  ] = await Promise.all([
     getPurchaseOrderLines(),
-    getPOSOrderLines()
+    getPOSOrderLines(allProductIds), // Maintenant filtré par produits
+    getStockQuantsForProducts(allProductIds)
   ]);
 
-  const data = products.records.map(mapOdooProduct);
+  // viewer = stockLocations.records;
+  console.log("📊 Données récupérées:", {
+    produits: data.length,
+    lignesAchat: purchaseOrderLines.records.length,
+    lignesVente: posOrderLines.records.length,
+    stocks: stockQuants.records.length
+  });
+
+  const salesLast30Days = calculateSalesLast30Days(posOrderLines.records, allProductIds);
+  const lastSaleDates = calculateLastSaleDate(posOrderLines.records, allProductIds);
+
+  // Créer une map des stocks par produit et par boutique
+  const stockByProductAndBoutique = new Map<number, {
+    P24: number;
+    ktm: number;
+    mto: number;
+    onl: number;
+    dc: number;
+    other: number;
+    total: number;
+  }>();
+
+  // Initialiser tous les produits avec des stocks à 0
+  allProductIds.forEach((productId: number) => {
+    stockByProductAndBoutique.set(productId, {
+      P24: 0,
+      ktm: 0,
+      mto: 0,
+      onl: 0,
+      dc: 0,
+      other: 0,
+      total: 0
+    });
+  });
+
+  // Remplir avec les données réelles
+  stockQuants.records.forEach((quant: StockQuant) => {
+    const productId = quant.product_id[0];
+    const locationName = quant.location_id[1];
+    const quantity = quant.quantity;
+    
+    const boutiqueCode = extractBoutiqueCode(locationName);
+    
+    const currentStock = stockByProductAndBoutique.get(productId) || {
+      P24: 0, ktm: 0, mto: 0, onl: 0, dc: 0, other: 0, total: 0
+    };
+    
+    // Mettre à jour le stock de la boutique spécifique
+    switch (boutiqueCode) {
+      case 'P24':
+        currentStock.P24 += quantity;
+        break;
+      case 'ktm':
+        currentStock.ktm += quantity;
+        break;
+      case 'mto':
+        currentStock.mto += quantity;
+        break;
+      case 'onl':
+        currentStock.onl += quantity;
+        break;
+      case 'dc':
+        currentStock.dc += quantity;
+        break;
+      default:
+        currentStock.other += quantity;
+        break;
+    }
+    
+    // Mettre à jour le total
+    currentStock.total += quantity;
+    
+    stockByProductAndBoutique.set(productId, currentStock);
+  });
+
   const groupedData: ControlStockBeautyModel[] = [];
   const groupedMap = new Map<string, Product[]>();
   const brandsSet = new Set<string>();
@@ -114,11 +297,9 @@ async function getControlStockData(): Promise<{
     if (!groupedMap.has(key)) groupedMap.set(key, []);
     groupedMap.get(key)!.push(product);
     
-    // Extraire et ajouter la marque
     const brand = extractBrandFromProduct(product);
     brandsSet.add(brand);
     
-    // Extraire et ajouter la couleur
     const color = extractColorFromProduct(product);
     colorsSet.add(color);
   });
@@ -155,7 +336,43 @@ async function getControlStockData(): Promise<{
       (sum: number, line: POSOrderLine) => sum + (line.qty || 0),
       0
     );
-    const qty_available = qty_received - qty_sold;
+
+    // Calculer les stocks par boutique pour ce groupe de produits
+    let stockP24 = 0;
+    let stockKtm = 0;
+    let stockMto = 0;
+    let stockOnl = 0;
+    let stockDc = 0;
+    let stockOther = 0;
+    let totalStock = 0;
+
+    productsGroup.forEach((product) => {
+      const productStock = stockByProductAndBoutique.get(product.productVariantId!);
+      if (productStock) {
+        stockP24 += productStock.P24;
+        stockKtm += productStock.ktm;
+        stockMto += productStock.mto;
+        stockOnl += productStock.onl;
+        stockDc += productStock.dc;
+        stockOther += productStock.other;
+        totalStock += productStock.total;
+      }
+    });
+
+    const sales30Days = productsGroup.reduce((total, product) => {
+      return total + (salesLast30Days.get(product.productVariantId!) || 0);
+    }, 0);
+
+    const lastSaleDate = productsGroup.reduce((latest, product) => {
+      const productLastSale = lastSaleDates.get(product.productVariantId!);
+      if (!productLastSale) return latest;
+      if (!latest) return productLastSale;
+      return productLastSale > latest ? productLastSale : latest;
+    }, null as Date | null);
+
+    const replenishmentMetrics = calculateReplenishmentMetrics(totalStock, sales30Days);
+    // const qty_available = qty_received - qty_sold;
+    const qty_available = totalStock;
 
     groupedData.push({
       hs_code,
@@ -166,7 +383,23 @@ async function getControlStockData(): Promise<{
       qty_received,
       not_received,
       qty_sold,
-      qty_available
+      qty_available,
+
+      // Stocks par boutique
+      stock_P24: stockP24,
+      stock_ktm: stockKtm,
+      stock_mto: stockMto,
+      stock_onl: stockOnl,
+      stock_dc: stockDc,
+      stock_other: stockOther,
+      total_stock: totalStock,
+
+      sales_last_30_days: sales30Days,
+      daily_sales_rate: replenishmentMetrics.dailySalesRate,
+      days_until_out_of_stock: replenishmentMetrics.daysUntilOutOfStock,
+      estimated_out_of_stock_date: replenishmentMetrics.estimatedOutOfStockDate || undefined,
+      recommended_reorder_date: replenishmentMetrics.recommendedReorderDate || undefined,
+      last_sale_date: lastSaleDate || undefined,
     });
   });
 
@@ -182,14 +415,6 @@ async function getControlStockData(): Promise<{
   };
 
   return cachedData;
-}
-
-interface PageProps {
-  searchParams: Promise<{
-    brand?: string;
-    color?: string;
-    stock?: string;
-  }>;
 }
 
 export default async function ControlStockBeautyPage({ searchParams }: PageProps) {
@@ -272,6 +497,7 @@ export default async function ControlStockBeautyPage({ searchParams }: PageProps
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
+      {/* <code>{JSON.stringify(viewer,null,2)}</code> */}
       {/* Header */}
       <div className="border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
         <div className="container mx-auto px-6 py-6">
