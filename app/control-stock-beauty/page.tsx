@@ -51,8 +51,6 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 //   return res.json();
 // }
 
-// Nouvelle fonction pour récupérer les stocks quant en batch
-
 async function getStockQuantsForProducts(productIds: number[]): Promise<{ records: StockQuant[], success: boolean }> {
   if (productIds.length === 0) return { records: [], success: true };;
 
@@ -72,7 +70,7 @@ async function getStockQuantsForProducts(productIds: number[]): Promise<{ record
     for (const batch of batches) {
       const domain = JSON.stringify([
         ['product_id', 'in', batch],
-        ['location_id', 'in', [225,99,100,89,105,62,8,244,160,232,180,169,245]]
+        ['location_id', 'in', [225,99,100,89,105,62,8,244,160,232,180,169,245,226]]
       ])
       
       const res = await fetch(
@@ -205,11 +203,13 @@ async function getControlStockData(): Promise<{
   const [
     purchaseOrderLines, 
     posOrderLines, 
-    stockQuants
+    stockQuants,
+    // stockLocations,
   ] = await Promise.all([
     getPurchaseOrderLines(),
     getPOSOrderLines(allProductIds), // Maintenant filtré par produits
-    getStockQuantsForProducts(allProductIds)
+    getStockQuantsForProducts(allProductIds),
+    // getStockLocations(),
   ]);
 
   // viewer = stockLocations.records;
