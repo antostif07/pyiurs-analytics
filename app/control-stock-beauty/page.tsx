@@ -70,7 +70,7 @@ async function getStockQuantsForProducts(productIds: number[]): Promise<{ record
     for (const batch of batches) {
       const domain = JSON.stringify([
         ['product_id', 'in', batch],
-        ['location_id', 'in', [225,99,100,89,105,62,8,244,160,232,180,169,245,226]]
+        ['location_id', 'in', [8,225,99,100,89,105,62,8,244,160,232,180,169,245,226]]
       ])
       
       const res = await fetch(
@@ -102,7 +102,7 @@ async function getStockQuantsForProducts(productIds: number[]): Promise<{ record
 
 async function getProducts() {
   const res = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/product.template?fields=id,name,list_price,categ_id,hs_code,product_variant_id,x_studio_many2one_field_21bvh,x_studio_many2one_field_QyelN,x_studio_many2one_field_Arl5D,description_pickingin&domain=[[\"categ_id\",\"ilike\",\"beauty\"]]`,
+    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/product.template?fields=id,name,list_price,categ_id,hs_code,product_variant_id,x_studio_many2one_field_21bvh,x_studio_many2one_field_QyelN,x_studio_many2one_field_Arl5D,description_pickingin&domain=[[\"categ_id\",\"ilike\",\"beauty\"],["active","=","true"],["available_in_pos","=","true"]]`,
     { 
       next: { 
         revalidate: 300
@@ -465,6 +465,30 @@ export default async function ControlStockBeautyPage({ searchParams }: PageProps
     }
   }
 
+  // Calcul des marques et couleurs filtrées pour le filtrage croisé
+  const getFilteredOptions = () => {
+    let dataForBrands = allData;
+    let dataForColors = allData;
+
+    // Si une couleur est sélectionnée, filtrer les marques disponibles pour cette couleur
+    if (selectedColor && selectedColor !== 'all') {
+      dataForBrands = dataForBrands.filter(item => item.color === selectedColor);
+    }
+
+    // Si une marque est sélectionnée, filtrer les couleurs disponibles pour cette marque
+    if (selectedBrand && selectedBrand !== 'all') {
+      dataForColors = dataForColors.filter(item => item.brand === selectedBrand);
+    }
+
+    // Extraire les options uniques
+    const filteredBrands = [...new Set(dataForBrands.map(item => item.brand))].sort();
+    const filteredColors = [...new Set(dataForColors.map(item => item.color))].sort();
+
+    return { filteredBrands, filteredColors };
+  };
+
+  const { filteredBrands, filteredColors } = getFilteredOptions();
+
   // Calcul des métriques globales
   const totalProducts = filteredData.length;
   const totalAvailable = filteredData.reduce((sum, item) => sum + item.qty_available, 0);
@@ -549,6 +573,8 @@ export default async function ControlStockBeautyPage({ searchParams }: PageProps
             selectedColor={selectedColor}
             selectedStock={selectedStock}
             stockLevels={stockLevels}
+            filteredBrands={filteredBrands} // Passer les options filtrées
+            filteredColors={filteredColors} // Passer les options filtrées
           />
         </div>
         <div className="bg-white dark:bg-slate-800 rounded-xl p-6 border border-gray-200 dark:border-slate-700 mb-4">
