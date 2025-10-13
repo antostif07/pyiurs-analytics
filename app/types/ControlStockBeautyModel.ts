@@ -22,4 +22,32 @@ export interface ControlStockBeautyModel {
   estimated_out_of_stock_date?: Date; // Date estimée de rupture
   recommended_reorder_date?: Date; // Date recommandée de commande
   last_sale_date?: Date;
+
+  isExpanded?: boolean;
+  individualProducts?: IndividualProductModel[];
+}
+
+export interface IndividualProductModel {
+  id: number;
+  name: string;
+  productVariantId: number;
+  listPrice: number;
+  brand: string;
+  color: string;
+  
+  // Stocks individuels par boutique
+  stock_P24: number;
+  stock_ktm: number;
+  stock_mto: number;
+  stock_onl: number;
+  stock_dc: number;
+  stock_other: number;
+  total_stock: number;
+  
+  // Métriques individuelles
+  sales_last_30_days: number;
+  last_sale_date?: Date;
+  
+  // Référence au parent
+  parent_hs_code: string;
 }

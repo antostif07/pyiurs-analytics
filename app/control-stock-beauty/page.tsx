@@ -1,16 +1,16 @@
-import { ControlStockBeautyModel } from "../types/ControlStockBeautyModel";
+import { ControlStockBeautyModel, IndividualProductModel } from "../types/ControlStockBeautyModel";
 import { POSOrderLine } from "../types/pos";
 import { mapOdooProduct, Product } from "../types/product_template";
 import { PurchaseOrderLine } from "../types/purchase";
 import { controlStockBeautyColumns } from "./columns";
 import { CompactFilters } from "./compact-filters";
-import { DataTable } from "./data-table";
 import { Suspense } from "react";
 import { TableSkeleton } from "./table-skeleton";
 import Link from "next/link";
 import { StockQuant } from "../types/stock";
 import { extractBoutiqueCode, extractBrandFromProduct, extractColorFromProduct } from "@/lib/utils";
 import { calculateLastSaleDate, calculateReplenishmentMetrics, calculateSalesLast30Days } from "../utils/stockCalculations";
+import { ExpandableDataTable } from "./data-table";
 
 export const dynamic = 'force-dynamic'
 
@@ -102,7 +102,7 @@ async function getStockQuantsForProducts(productIds: number[]): Promise<{ record
 
 async function getProducts() {
   const res = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/product.template?fields=id,name,list_price,categ_id,hs_code,product_variant_id,x_studio_many2one_field_21bvh,x_studio_many2one_field_QyelN,x_studio_many2one_field_Arl5D,description_pickingin&domain=[[\"categ_id\",\"ilike\",\"beauty\"],["active","=","true"],["available_in_pos","=","true"]]`,
+    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/product.template?fields=id,name,list_price,categ_id,hs_code,product_variant_id,x_studio_many2one_field_21bvh,x_studio_many2one_field_QyelN,x_studio_many2one_field_Arl5D,description_pickingin&domain=[[\"categ_id\",\"ilike\",\"beauty\"],["active","=","true"],["available_in_pos","=","true"],["barcode","ilike","cos"]]`,
     { 
       next: { 
         revalidate: 300
@@ -213,12 +213,6 @@ async function getControlStockData(): Promise<{
   ]);
 
   // viewer = stockLocations.records;
-  console.log("📊 Données récupérées:", {
-    produits: data.length,
-    lignesAchat: purchaseOrderLines.records.length,
-    lignesVente: posOrderLines.records.length,
-    stocks: stockQuants.records.length
-  });
 
   const salesLast30Days = calculateSalesLast30Days(posOrderLines.records, allProductIds);
   const lastSaleDates = calculateLastSaleDate(posOrderLines.records, allProductIds);
@@ -346,6 +340,40 @@ async function getControlStockData(): Promise<{
     let stockOther = 0;
     let totalStock = 0;
 
+    const individualProducts: IndividualProductModel[] = productsGroup.map((product) => {
+      const productStock = stockByProductAndBoutique.get(product.productVariantId!) || {
+        P24: 0, ktm: 0, mto: 0, onl: 0, dc: 0, other: 0, total: 0
+      };
+
+      // Ajouter au total du groupe
+      stockP24 += productStock.P24;
+      stockKtm += productStock.ktm;
+      stockMto += productStock.mto;
+      stockOnl += productStock.onl;
+      stockDc += productStock.dc;
+      stockOther += productStock.other;
+      totalStock += productStock.total;
+
+      return {
+        id: product.id,
+        name: product.name,
+        productVariantId: product.productVariantId!,
+        listPrice: product.listPrice,
+        brand: extractBrandFromProduct(product),
+        color: extractColorFromProduct(product),
+        stock_P24: productStock.P24,
+        stock_ktm: productStock.ktm,
+        stock_mto: productStock.mto,
+        stock_onl: productStock.onl,
+        stock_dc: productStock.dc,
+        stock_other: productStock.other,
+        total_stock: productStock.total,
+        sales_last_30_days: salesLast30Days.get(product.productVariantId!) || 0,
+        last_sale_date: lastSaleDates.get(product.productVariantId!),
+        parent_hs_code: hs_code
+      };
+    });
+
     productsGroup.forEach((product) => {
       const productStock = stockByProductAndBoutique.get(product.productVariantId!);
       if (productStock) {
@@ -400,6 +428,8 @@ async function getControlStockData(): Promise<{
       estimated_out_of_stock_date: replenishmentMetrics.estimatedOutOfStockDate || undefined,
       recommended_reorder_date: replenishmentMetrics.recommendedReorderDate || undefined,
       last_sale_date: lastSaleDate || undefined,
+      individualProducts,
+      isExpanded: false
     });
   });
 
@@ -617,7 +647,10 @@ export default async function ControlStockBeautyPage({ searchParams }: PageProps
           {/* Table avec Suspense pour le loading */}
           <Suspense fallback={<TableSkeleton />}>
             <div className="p-4">
-              <DataTable columns={controlStockBeautyColumns} data={filteredData} />
+              <ExpandableDataTable 
+                columns={controlStockBeautyColumns} 
+                data={filteredData}
+              />
             </div>
           </Suspense>
 
