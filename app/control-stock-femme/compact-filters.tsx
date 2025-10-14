@@ -34,8 +34,8 @@ interface CompactFiltersProps {
 
 export function CompactFilters({ 
   brands, 
-  // colors, 
-  // partners, // Nouveau
+  colors, 
+  partners, // Nouveau
   orderNames, // Nouveau
   selectedBrand, 
   selectedColor, 
@@ -221,7 +221,7 @@ useEffect(() => {
             )}
             {selectedColor && (
               <Badge variant="secondary" className="flex items-center gap-1">
-                Gamme: {selectedColor}
+                Couleur: {selectedColor}
                 <X 
                   className="h-3 w-3 cursor-pointer" 
                   onClick={() => clearFilter('color')}
@@ -412,8 +412,36 @@ useEffect(() => {
                   </ScrollArea>
                 </div>
 
+                {/* Filtre Gamme */}
                 <div>
-                  <h4 className="font-medium mb-3">{`Commandes d'achat`}</h4>
+                  <h4 className="font-medium mb-3">Couleur</h4>
+                  <ScrollArea className="h-48 border rounded-lg">
+                    <div className="p-2 space-y-1">
+                      <Button
+                        variant={!selectedColor ? "default" : "ghost"}
+                        size="sm"
+                        className="w-full justify-start"
+                        onClick={() => updateFilter('color', 'all')}
+                      >
+                        Toutes les Couleurs
+                      </Button>
+                      {colors.map((color) => (
+                        <Button
+                          key={color}
+                          variant={selectedColor === color ? "default" : "ghost"}
+                          size="sm"
+                          className="w-full justify-start"
+                          onClick={() => updateFilter('color', color)}
+                        >
+                          {color}
+                        </Button>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </div>
+
+                <div>
+                  <h4 className="font-medium mb-3">Commandes d&apos;achat</h4>
                   <ScrollArea className="h-48 border rounded-lg">
                     <div className="p-2 space-y-1">
                       <Button
