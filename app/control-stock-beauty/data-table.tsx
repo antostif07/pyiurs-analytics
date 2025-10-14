@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
 import { Button } from "@/components/ui/button"
@@ -41,8 +42,6 @@ export function ExpandableDataTable<TData, TValue>({
     setExpandedRows(newExpanded);
   };
 
-  // Fonction pour obtenir les produits individuels directement depuis les données
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const getIndividualProducts = (row: any): IndividualProductModel[] => {
     if (row.individualProducts && Array.isArray(row.individualProducts)) {
       return row.individualProducts;
@@ -50,90 +49,78 @@ export function ExpandableDataTable<TData, TValue>({
     return [];
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const getRowId = (row: any): string => {
     if (row.hs_code) return row.hs_code;
     if (row.id) return String(row.id);
     return String(Math.random());
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const hasIndividualProducts = (row: any): boolean => {
     const individualProducts = getIndividualProducts(row);
     return individualProducts && individualProducts.length > 0;
   };
 
-  // Fonction pour formater une cellule individuelle en utilisant la même logique que les colonnes
-  const renderIndividualCell = (product: IndividualProductModel, columnId: string) => {
+  // Fonction utilitaire pour rendre le contenu d'une cellule individuelle
+  const renderIndividualCellContent = (product: IndividualProductModel, columnId: string) => {
     switch (columnId) {
       case "name":
         return (
-          <div className="flex flex-col pl-6">
-            <span className="font-medium text-sm">{product.name}</span>
-            <span className="text-xs text-gray-500">Variant ID: {product.productVariantId}</span>
+          <div className="pl-6 text-sm text-muted-foreground">
+            <div className="font-medium">{product.name}</div>
+            <div className="text-xs text-gray-500">Variant ID: {product.productVariantId}</div>
           </div>
         );
-
+      
       case "brand":
-        return product.brand;
-
+        return <div className="text-sm text-muted-foreground">{product.brand}</div>;
+      
       case "color":
-        return product.color;
-
+        return <div className="text-sm text-muted-foreground">{product.color}</div>;
+      
       case "qty_available":
       case "total_stock":
         const value = product.total_stock;
         let bgColor = "bg-gray-100";
         if (value === 0) bgColor = "bg-black text-white";
-        else if (value <= 5) bgColor = "bg-red-100 text-red-800";
-        else if (value <= 11) bgColor = "bg-yellow-100 text-yellow-800";
-        else bgColor = "bg-green-100 text-green-800";
+        else if (value <= 5) bgColor = "bg-red-500 text-white";
+        else if (value <= 11) bgColor = "bg-yellow-500 text-black";
+        else bgColor = "bg-green-500 text-white";
         
         return (
-          <div className={`text-right font-semibold px-2 py-1 rounded ${bgColor}`}>
+          <div className={`px-2 py-1 rounded-full text-xs font-bold text-center min-w-10 inline-block ${bgColor}`}>
             {value}
           </div>
         );
-
+      
       case "stock_P24":
-        return <div className="text-right">{product.stock_P24}</div>;
-
+        return <div className="text-center text-sm">{product.stock_P24 || 0}</div>;
+      
       case "stock_ktm":
-        return <div className="text-right">{product.stock_ktm}</div>;
-
+        return <div className="text-center text-sm">{product.stock_ktm || 0}</div>;
+      
       case "stock_mto":
-        return <div className="text-right">{product.stock_mto}</div>;
-
+        return <div className="text-center text-sm">{product.stock_mto || 0}</div>;
+      
       case "stock_onl":
-        return <div className="text-right">{product.stock_onl}</div>;
-
+        return <div className="text-center text-sm">{product.stock_onl || 0}</div>;
+      
       case "stock_dc":
-        return <div className="text-right">{product.stock_dc}</div>;
-
+        return <div className="text-center text-sm">{product.stock_dc || 0}</div>;
+      
       case "stock_other":
-        return <div className="text-right">{product.stock_other}</div>;
-
+        return <div className="text-center text-sm">{product.stock_other || 0}</div>;
+      
       case "sales_last_30_days":
-        return <div className="text-right">{product.sales_last_30_days}</div>;
-
+        return <div className="text-right text-sm">{product.sales_last_30_days || 0}</div>;
+      
       case "last_sale_date":
         return product.last_sale_date 
-          ? new Date(product.last_sale_date).toLocaleDateString('fr-FR')
-          : '-';
-
-      // Pour les colonnes qui n'ont pas de données individuelles (commandé, reçu, etc.)
-      case "product_qty":
-      case "qty_received":
-      case "not_received":
-      case "qty_sold":
-      case "daily_sales_rate":
-      case "days_until_out_of_stock":
-      case "estimated_out_of_stock_date":
-      case "recommended_reorder_date":
-        return <div className="text-right">-</div>;
-
+          ? <div className="text-sm">{new Date(product.last_sale_date).toLocaleDateString('fr-FR')}</div>
+          : <div className="text-sm text-gray-400">-</div>;
+      
+      // Pour les colonnes qui n'ont pas de données individuelles
       default:
-        return '-';
+        return <div className="text-sm text-gray-400">-</div>;
     }
   };
 
@@ -163,7 +150,6 @@ export function ExpandableDataTable<TData, TValue>({
           <TableBody>
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const rowData = row.original as any;
                 const rowId = getRowId(rowData);
                 const isExpanded = expandedRows.has(rowId);
@@ -209,7 +195,7 @@ export function ExpandableDataTable<TData, TValue>({
                         {individualProducts.map((product, index) => (
                           <TableRow 
                             key={`${rowId}-${product.id}`}
-                            className="bg-muted/30 hover:bg-muted/40 border-t border-muted/20"
+                            className="bg-blue-50/30 hover:bg-blue-50/50 border-t border-blue-100 dark:bg-blue-950/20 dark:hover:bg-blue-950/30 dark:border-blue-800/30"
                           >
                             <TableCell className="w-12">
                               <div className="flex justify-center">
@@ -217,12 +203,14 @@ export function ExpandableDataTable<TData, TValue>({
                               </div>
                             </TableCell>
 
-                            {/* Utiliser les mêmes colonnes que le parent */}
                             {row.getVisibleCells().map((cell) => {
                               const columnId = cell.column.id;
                               return (
-                                <TableCell key={`${rowId}-${product.id}-${columnId}`} className="text-sm">
-                                  {renderIndividualCell(product, columnId)}
+                                <TableCell 
+                                  key={`${rowId}-${product.id}-${columnId}`} 
+                                  className="text-sm text-muted-foreground"
+                                >
+                                  {renderIndividualCellContent(product, columnId)}
                                 </TableCell>
                               );
                             })}

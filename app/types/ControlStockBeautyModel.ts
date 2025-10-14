@@ -11,6 +11,7 @@ export interface ControlStockBeautyModel {
   qty_available: number;
   stock_P24?: number;
   stock_ktm?: number;
+  stock_lmb?: number;
   stock_mto?: number;
   stock_onl?: number;
   stock_dc?: number;
@@ -39,6 +40,7 @@ export interface IndividualProductModel {
   stock_P24: number;
   stock_ktm: number;
   stock_mto: number;
+  stock_lmb: number;
   stock_onl: number;
   stock_dc: number;
   stock_other: number;

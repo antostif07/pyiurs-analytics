@@ -256,6 +256,15 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockBeautyModel>[] = [
     size: 70,
   },
   {
+  accessorKey: "stock_lmb",
+  header: "LMB",
+  cell: ({ row }) => {
+    const stock = row.getValue("stock_lmb") as number;
+    return <div className="text-center">{stock || 0}</div>;
+  },
+  size: 70,
+},
+  {
     accessorKey: "stock_dc",
     header: "DC",
     cell: ({ row }) => {

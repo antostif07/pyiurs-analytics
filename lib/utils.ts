@@ -6,17 +6,23 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function extractBoutiqueCode(locationName: string): string {
-  if (!locationName) return 'other';
+export function extractBoutiqueCode(locationName: string, productId?: number): string {
+  if (!locationName){
+    console.log(productId);
+    
+    return 'other';
+  }
   
   const name = locationName.toLowerCase();
   
-  if (name.includes('24') || name.includes('p24')) return 'P24';
-  if (name.includes('ktm')) return 'ktm';
-  if (name.includes('mto')) return 'mto';
-  if (name.includes('onl')) return 'onl';
-  if (name.includes('dc')) return 'dc';
+  if (name.includes('pb.24/boutique 24') || name.includes('aah/stock/emballage') || name.includes('PB.24/Dup')) return 'P24';
+  if (name.includes('pbktm/')) return 'ktm';
+  if (name.includes('mto/stock')) return 'mto';
+  if (name.includes('pblmb/')) return 'lmb';
+  if (name.includes('pbonl/')|| name.includes('pb.24/boutique onl')) return 'onl';
+  if (name.includes('dcbty') || name.includes('p.bty/stock')) return 'dc';
   
+
   return 'other';
 }
 
