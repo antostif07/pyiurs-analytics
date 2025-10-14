@@ -1,12 +1,11 @@
 "use client"
 
-import { useState, useMemo } from "react"
-import { ChevronDown, ChevronUp, Filter, X, SlidersHorizontal, Search } from "lucide-react"
+import { useState } from "react"
+import { ChevronDown, ChevronUp, Filter, X, SlidersHorizontal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Badge } from "@/components/ui/badge"
-import { ScrollArea } from "@/components/ui/scroll-area"
 
 interface CompactFiltersProps {
   brands: string[];

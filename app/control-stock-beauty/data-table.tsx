@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ColumnDef, flexRender, getCoreRowModel, getPaginationRowModel, getSortedRowModel, SortingState, useReactTable } from "@tanstack/react-table"
 import React from "react"
 import { ChevronDown, ChevronRight } from "lucide-react"
-import { ControlStockBeautyModel, IndividualProductModel } from "../types/ControlStockBeautyModel"
+import { IndividualProductModel } from "../types/ControlStockBeautyModel"
 
 interface ExpandableDataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -192,7 +192,7 @@ export function ExpandableDataTable<TData, TValue>({
                     {/* Lignes des produits individuels */}
                     {isExpanded && hasChildren && (
                       <>
-                        {individualProducts.map((product, index) => (
+                        {individualProducts.map((product) => (
                           <TableRow 
                             key={`${rowId}-${product.id}`}
                             className="bg-blue-50/30 hover:bg-blue-50/50 border-t border-blue-100 dark:bg-blue-950/20 dark:hover:bg-blue-950/30 dark:border-blue-800/30"
