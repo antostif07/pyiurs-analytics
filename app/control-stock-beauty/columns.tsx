@@ -34,16 +34,28 @@ function ProductNameWithTooltip({ name, brand, color, hs_code }: {
   color: string; 
   hs_code: string;
 }) {
-  const imageUrl = `https://images.pyiurs.com/images/${hs_code}_.jpg`;
+  const imageUrl = `https://images.pyiurs.com/images/${hs_code}_`;
   
   return (
     <div className="flex space-x-2 w-96">
+      {/* <SmartImage baseName={imageUrl} /> */}
+      {/* <picture>
+        <source srcSet={`${imageUrl}.webp`} type="image/webp" />
+        <source srcSet={`${imageUrl}.jpg`} type="image/jpg" />
+        <source srcSet={`${imageUrl}.png`} type="image/png" />
+        <img
+          src={`${imageUrl}.jpg`}
+          alt={name}
+          className="w-12 h-12 object-cover rounded flex-shrink-0"
+          onError={(e) => (e.currentTarget.src = "/file.svg")}
+        />
+      </picture> */}
       <img
-        src={imageUrl}
-        alt={name}
-        className="w-12 h-12 object-cover rounded flex-shrink-0"
-        onError={(e) => (e.currentTarget.src = "/file.svg")}
-      />
+          src={`${imageUrl}.jpg`}
+          alt={name}
+          className="w-12 h-12 object-cover rounded flex-shrink-0"
+          onError={(e) => (e.currentTarget.src = "/file.svg")}
+        />
       <div className="py-2 flex-1 min-w-0">
         <TooltipProvider>
           <Tooltip>

@@ -15,7 +15,7 @@ export default function Home() {
 
   const modules = [
     { name: "KPI Manager", icon: BarChart2, color: "from-blue-500 to-purple-600", href: "/manager-kpis", },
-    { name: "Suivi des Ventes", icon: TrendingUp, color: "from-emerald-500 to-teal-600", href: "/control-revenue-beauty", },
+    { name: "Suivi des Ventes Beauty", icon: TrendingUp, color: "from-emerald-500 to-teal-600", href: "/control-revenue-beauty", },
     { name: "Suivi du Stock Beauty", icon: Package, color: "from-orange-500 to-yellow-500", href: "/control-stock-beauty", },
     { name: "Suivi du Stock Femme", icon: Package, color: "from-yellow-500 to-teal-500", href: "/control-stock-femme",},
     { name: "Gestion des Clients", icon: Users, color: "from-indigo-500 to-blue-700", href: "/client-base",},

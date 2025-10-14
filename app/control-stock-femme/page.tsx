@@ -28,8 +28,18 @@ export interface ControlStockFemmeModel {
 
 // const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-async function getPurchaseOrders(startDate: string, endDate: string) {
-  const domain = `[["partner_id", "ilike", "P.FEM"], ["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"]]`;
+async function getPurchaseOrders(startDate: string, endDate: string, partnerFilter?: string, orderNameFilter?: string) {
+  let domain = `[["partner_id", "ilike", "P.FEM"], ["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"]]`;
+  
+  // Ajouter les filtres optionnels
+  if (partnerFilter) {
+    domain = `[["partner_id", "ilike", "${partnerFilter}"], ["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"]]`;
+  }
+  
+  if (orderNameFilter) {
+    domain = `[["name", "ilike", "${orderNameFilter}"], ["partner_id", "ilike", "P.FEM"], ["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"]]`;
+  }
+
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/purchase.order?fields=id,create_date,partner_id,name&domain=${domain}`,
     { 
@@ -251,10 +261,17 @@ async function getPOSOrderLines(productIds: number[]) {
   return res.json();
 }
 
-async function getData(start_date?: string, end_date?: string): Promise<{
+async function getData(
+  start_date?: string, 
+  end_date?: string,
+  partnerFilter?: string,
+  orderNameFilter?: string
+): Promise<{
   data: ControlStockFemmeModel[];
   brands: string[];
   colors: string[];
+  partners: string[]; // Nouveau
+  orderNames: string[]; // Nouveau
 }> {
   let startDate;
   let endDate;
@@ -270,8 +287,9 @@ async function getData(start_date?: string, end_date?: string): Promise<{
     startDate = start_date;
     endDate = end_date;
   }
-  // 1. Récupérer les Purchase Orders
-  const purchaseOrders = await getPurchaseOrders(startDate, endDate);
+
+  // 1. Récupérer les Purchase Orders avec les nouveaux filtres
+  const purchaseOrders = await getPurchaseOrders(startDate, endDate, partnerFilter, orderNameFilter);
 
   // 2. Extraire tous les IDs des Purchase Orders
   const purchaseOrderIds = purchaseOrders.records.map((p: PurchaseOrder) => p.id);
@@ -282,14 +300,13 @@ async function getData(start_date?: string, end_date?: string): Promise<{
   // 4. Extraire tous les product_id des Purchase Order Lines
   const productIds = purchaseOrderLines.records
     .map((line: PurchaseOrderLine) => line.product_id?.[0])
-    // .filter((id): id is number => id !== undefined && id !== null);
+    .filter((id: number): id is number => id !== undefined && id !== null);
 
   // 5. Récupérer les produits correspondants
-  const products = await getProductsByIds([productIds]);
+  const products = await getProductsByIds(productIds);
 
   // 6. Récupérer les POS Order Lines pour les ventes
   const posOrderLines = await getPOSOrderLines(productIds);
-  // console.log(`🛒 POS Order Lines récupérés: ${posOrderLines.records.length}`);
 
   // 7. Transformer les données en ControlStockFemmeModel
   const allData: ControlStockFemmeModel[] = await transformToControlStockModel(
@@ -299,24 +316,40 @@ async function getData(start_date?: string, end_date?: string): Promise<{
     posOrderLines.records
   );
 
-  // 8. Extraire les marques et couleurs
+  // 8. Extraire les marques, couleurs, partenaires et noms de commande
   const brandsSet = new Set<string>();
   const colorsSet = new Set<string>();
+  const partnersSet = new Set<string>();
+  const orderNamesSet = new Set<string>();
 
   allData.forEach(item => {
     if (item.brand) brandsSet.add(item.brand);
     if (item.color) colorsSet.add(item.color);
   });
 
+  // Extraire les partenaires et noms de commande des purchase orders
+  purchaseOrders.records.forEach((order: PurchaseOrder) => {
+    if (order.partner_id && order.partner_id[1]) {
+      partnersSet.add(order.partner_id[1]);
+    }
+    if (order.name) {
+      orderNamesSet.add(order.name);
+    }
+  });
+
   const brands = Array.from(brandsSet).sort();
   const colors = Array.from(colorsSet).sort();
+  const partners = Array.from(partnersSet).sort();
+  const orderNames = Array.from(orderNamesSet).sort();
 
-  console.log(`✅ Données finales: ${allData.length} produits, ${brands.length} marques, ${colors.length} couleurs`);
+  console.log(`✅ Données finales: ${allData.length} produits, ${brands.length} marques, ${colors.length} couleurs, ${partners.length} partenaires, ${orderNames.length} commandes`);
 
   return {
     data: allData,
     brands,
-    colors
+    colors,
+    partners,
+    orderNames
   };
 }
 
@@ -327,23 +360,27 @@ interface PageProps {
     stock?: string;
     start_date?: string;
     end_date?: string;
+    purchase_order?: string; // Nouveau filtre
+    partner?: string;
   }>;
 }
 
-export default async function ControlStockBeautyPage({ searchParams }: PageProps) {
+export default async function ControlStockFemmePage({ searchParams }: PageProps) {
   const params = await searchParams;
   const selectedBrand = params.brand;
   const selectedColor = params.color;
   const selectedStock = params.stock;
   const startDate = params.start_date;
   const endDate = params.end_date;
+  const selectedPartner = params.partner; // Nouveau
+  const selectedPurchaseOrder = params.purchase_order;
   
-  const {data,} = await getData(startDate, endDate);
+  const {data,brands, colors, partners, orderNames} = await getData(startDate, endDate,selectedPartner, selectedPurchaseOrder);
   
   // const { data: allData, brands, colors } = await getControlStockData();
 
   // Filtrer les données
-  let filteredData: ControlStockBeautyModel[] = []; //allData;
+  let filteredData: ControlStockFemmeModel[] = data; //allData;
 
   // Filtre par marque
   if (selectedBrand && selectedBrand !== 'all') {
@@ -411,6 +448,8 @@ export default async function ControlStockBeautyPage({ searchParams }: PageProps
     };
     activeFilters.push(stockLabels[selectedStock as keyof typeof stockLabels]);
   }
+  if (selectedPartner && selectedPartner !== 'all') activeFilters.push(`Fournisseur: ${selectedPartner}`);
+  if (selectedPurchaseOrder && selectedPurchaseOrder !== 'all') activeFilters.push(`Commande: ${selectedPurchaseOrder}`);
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
@@ -462,12 +501,17 @@ export default async function ControlStockBeautyPage({ searchParams }: PageProps
         {/* Filtres compacts */}
         <div className="mb-6">
           <CompactFilters 
-            // brands={brands} 
-            // colors={colors}
-            brands={[]} colors={[]}
+            brands={brands} 
+            colors={colors}
+            partners={partners} // Nouveau
+            orderNames={orderNames} // Nouveau
             selectedBrand={selectedBrand}
             selectedColor={selectedColor}
             selectedStock={selectedStock}
+            selectedPartner={selectedPartner} // Nouveau
+            selectedPurchaseOrder={selectedPurchaseOrder} // Nouveau
+            startDate={startDate}
+            endDate={endDate}
             stockLevels={stockLevels}
           />
         </div>
@@ -490,7 +534,7 @@ export default async function ControlStockBeautyPage({ searchParams }: PageProps
           {/* Table avec Suspense pour le loading */}
           <Suspense fallback={<TableSkeleton />}>
             <div className="p-4">
-              <DataTable columns={controlStockBeautyColumns} data={data} />
+              <DataTable columns={controlStockBeautyColumns} data={filteredData} />
             </div>
           </Suspense>
 

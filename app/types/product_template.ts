@@ -43,21 +43,17 @@ export function mapOdooProduct(product: OdooProductTemplate): Product {
 export interface BrandData {
   id: string;
   name: string;
-  type: 'brand' | 'product';
+  type: 'brand' | 'product' | 'hscode';
   parentId?: string;
-  dailySales: {
-    [date: string]: {
-      amount: number;
-      quantity: number;
-    }
-  };
+  dailySales: { [date: string]: { amount: number; quantity: number } };
   totalAmount: number;
   totalQuantity: number;
-  subRows?: BrandData[];
+  hsCode?: string; // Ajouter cette propriété
 }
 
 export interface BeautyBrandsData {
   brands: BrandData[];
   products: BrandData[];
+  hsCodeGroups: BrandData[];
   dateRange: string[];
 }

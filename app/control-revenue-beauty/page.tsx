@@ -3,6 +3,7 @@ import { POSConfig, POSOrder, POSOrderLine } from "../types/pos";
 import { BeautyBrandsData, BrandData, mapOdooProduct, Product } from "../types/product_template";
 import BeautyBrandsClient from "./control-revenue-beauty.client";
 import { getMonthDates } from "@/lib/date-utils";
+import { getNameInProductName } from "@/lib/product-utils";
 
 interface PageProps {
   searchParams: Promise<{
@@ -107,6 +108,7 @@ async function getBeautyBrandsData(boutiqueId?: string, month?: string, year?: s
     // Structurer les données
     const brandsMap = new Map<string, BrandData>();
     const productsMap = new Map<string, BrandData>();
+    const hsCodeGroupsMap = new Map<string, BrandData>();
     const dateSet = new Set<string>();
 
     posLines.forEach((line: POSOrderLine) => {
@@ -115,6 +117,7 @@ async function getBeautyBrandsData(boutiqueId?: string, month?: string, year?: s
 
       const brandName = product.marque || 'Autres';
       const date = line.create_date.split(' ')[0];
+      const hsCode = product.hs_code || 'SANS_HS_CODE';
       dateSet.add(date);
 
       const amount = line.qty * (line.price_unit || 0);
@@ -141,14 +144,37 @@ async function getBeautyBrandsData(boutiqueId?: string, month?: string, year?: s
       brandData.totalAmount += amount;
       brandData.totalQuantity += quantity;
 
-      // Données pour le produit
+      // Données pour le groupe hs_code
+      const hsCodeId = `hscode-${brandId}-${hsCode}`;
+      if (!hsCodeGroupsMap.has(hsCodeId)) {
+        hsCodeGroupsMap.set(hsCodeId, {
+          id: hsCodeId,
+          name: `${getNameInProductName(product.name)} (${hsCode})`,
+          type: 'hscode',
+          parentId: brandId,
+          dailySales: {},
+          totalAmount: 0,
+          totalQuantity: 0,
+          hsCode: hsCode
+        });
+      }
+      const hsCodeData = hsCodeGroupsMap.get(hsCodeId)!;
+      if (!hsCodeData.dailySales[date]) {
+        hsCodeData.dailySales[date] = { amount: 0, quantity: 0 };
+      }
+      hsCodeData.dailySales[date].amount += amount;
+      hsCodeData.dailySales[date].quantity += quantity;
+      hsCodeData.totalAmount += amount;
+      hsCodeData.totalQuantity += quantity;
+
+      // CORRECTION : Le produit doit appartenir au groupe hs_code, pas directement à la marque
       const productId = `product-${product.id}`;
       if (!productsMap.has(productId)) {
         productsMap.set(productId, {
           id: productId,
           name: product.name,
           type: 'product',
-          parentId: brandId,
+          parentId: hsCodeId, // ← CORRECTION : parentId vers le groupe hs_code
           dailySales: {},
           totalAmount: 0,
           totalQuantity: 0
@@ -170,6 +196,7 @@ async function getBeautyBrandsData(boutiqueId?: string, month?: string, year?: s
     return {
       brands: Array.from(brandsMap.values()),
       products: Array.from(productsMap.values()),
+      hsCodeGroups: Array.from(hsCodeGroupsMap.values()),
       dateRange
     };
     

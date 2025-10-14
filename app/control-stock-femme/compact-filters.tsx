@@ -15,9 +15,13 @@ import { cn } from "@/lib/utils"
 interface CompactFiltersProps {
   brands: string[];
   colors: string[];
+  partners: string[]; // Nouveau
+  orderNames: string[]; // Nouveau
   selectedBrand?: string;
   selectedColor?: string;
   selectedStock?: string;
+  selectedPartner?: string; // Nouveau
+  selectedPurchaseOrder?: string; // Nouveau
   startDate?: string;
   endDate?: string;
   stockLevels: {
@@ -30,13 +34,17 @@ interface CompactFiltersProps {
 
 export function CompactFilters({ 
   brands, 
-  colors, 
+  // colors, 
+  // partners, // Nouveau
+  orderNames, // Nouveau
   selectedBrand, 
   selectedColor, 
   selectedStock,
+  selectedPartner, // Nouveau
+  selectedPurchaseOrder, // Nouveau
   startDate,
   endDate,
-  stockLevels 
+  stockLevels
 }: CompactFiltersProps) {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
@@ -72,7 +80,7 @@ useEffect(() => {
     }
   }, [isDatePickerOpen, date]);
 
-  const updateFilter = (type: 'brand' | 'color' | 'stock', value: string) => {
+  const updateFilter = (type: 'brand' | 'color' | 'stock' | 'partner' | 'purchase_order', value: string) => {
     const url = new URL(window.location.href);
     
     if (value === 'all') {
@@ -116,7 +124,9 @@ useEffect(() => {
     setIsDatePickerOpen(false);
   };
 
-  const clearFilter = (type: 'brand' | 'color' | 'stock') => {
+  const clearFilter = (type: 'brand' | 'color' | 'stock' | 'partner' | 'purchase_order') => {
+    console.log(type);
+    
     const url = new URL(window.location.href);
     url.searchParams.delete(type);
     window.location.href = url.toString();
@@ -127,12 +137,14 @@ useEffect(() => {
     url.searchParams.delete('brand');
     url.searchParams.delete('color');
     url.searchParams.delete('stock');
+    url.searchParams.delete('partner'); // Nouveau
+    url.searchParams.delete('purchase_order'); // Nouveau
     url.searchParams.delete('start_date');
     url.searchParams.delete('end_date');
     window.location.href = url.toString();
   };
 
-  const hasActiveFilters = selectedBrand || selectedColor || selectedStock || (startDate && endDate);
+  const hasActiveFilters = selectedBrand || selectedColor || selectedStock || selectedPartner || selectedPurchaseOrder || (startDate && endDate);
 
   const getStockLabel = (stock: string) => {
     const labels: { [key: string]: string } = {
@@ -202,7 +214,7 @@ useEffect(() => {
               <Badge variant="secondary" className="flex items-center gap-1">
                 Marque: {selectedBrand}
                 <X 
-                  className="h-3 w-3 cursor-pointer" 
+                  className="h-3 w-3 cursor-pointer flex" 
                   onClick={() => clearFilter('brand')}
                 />
               </Badge>
@@ -222,6 +234,24 @@ useEffect(() => {
                 <X 
                   className="h-3 w-3 cursor-pointer" 
                   onClick={() => clearFilter('stock')}
+                />
+              </Badge>
+            )}
+            {selectedPartner && (
+              <Badge variant="secondary" className="flex items-center gap-1">
+                Fournisseur: {selectedPartner}
+                <X 
+                  className="h-3 w-3 cursor-pointer" 
+                  onClick={() => clearFilter('partner')}
+                />
+              </Badge>
+            )}
+            {selectedPurchaseOrder && (
+              <Badge variant="secondary" className="flex items-center gap-1">
+                Commande: {selectedPurchaseOrder}
+                <X 
+                  className="h-3 w-3 cursor-pointer" 
+                  onClick={() => clearFilter('purchase_order')}
                 />
               </Badge>
             )}
@@ -356,7 +386,7 @@ useEffect(() => {
 
                 {/* Filtre Marque */}
                 <div>
-                  <h4 className="font-medium mb-3">Marques</h4>
+                  <h4 className="font-medium mb-3">Fournisseur</h4>
                   <ScrollArea className="h-48 border rounded-lg">
                     <div className="p-2 space-y-1">
                       <Button
@@ -365,7 +395,7 @@ useEffect(() => {
                         className="w-full justify-start"
                         onClick={() => updateFilter('brand', 'all')}
                       >
-                        Toutes les marques
+                        Toutes les fournisseurs
                       </Button>
                       {brands.map((brand) => (
                         <Button
@@ -382,28 +412,27 @@ useEffect(() => {
                   </ScrollArea>
                 </div>
 
-                {/* Filtre Gamme */}
                 <div>
-                  <h4 className="font-medium mb-3">Gammes</h4>
+                  <h4 className="font-medium mb-3">{`Commandes d'achat`}</h4>
                   <ScrollArea className="h-48 border rounded-lg">
                     <div className="p-2 space-y-1">
                       <Button
-                        variant={!selectedColor ? "default" : "ghost"}
+                        variant={!selectedPurchaseOrder ? "default" : "ghost"}
                         size="sm"
                         className="w-full justify-start"
-                        onClick={() => updateFilter('color', 'all')}
+                        onClick={() => updateFilter('purchase_order', 'all')}
                       >
-                        Toutes les gammes
+                        Toutes les commandes
                       </Button>
-                      {colors.map((color) => (
+                      {orderNames.map((orderName) => (
                         <Button
-                          key={color}
-                          variant={selectedColor === color ? "default" : "ghost"}
+                          key={orderName}
+                          variant={selectedPurchaseOrder === orderName ? "default" : "ghost"}
                           size="sm"
                           className="w-full justify-start"
-                          onClick={() => updateFilter('color', color)}
+                          onClick={() => updateFilter('purchase_order', orderName)}
                         >
-                          {color}
+                          {orderName}
                         </Button>
                       ))}
                     </div>

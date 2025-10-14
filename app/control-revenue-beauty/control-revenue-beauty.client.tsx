@@ -20,6 +20,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sparkles, Users, TrendingUp, Target } from 'lucide-react';
 import { BeautyBrandsData, BrandData } from '../types/product_template';
+import React from 'react';
 
 interface BeautyBrandsClientProps {
   initialData: BeautyBrandsData;
@@ -32,6 +33,7 @@ interface BeautyBrandsClientProps {
 // Types pour les données de la table
 interface TableRowData extends BrandData {
   isBrand: boolean;
+  isHsCodeGroup: boolean;
   subRows?: TableRowData[];
 }
 
@@ -42,28 +44,39 @@ interface DailySales {
 
 // Créer une structure hiérarchique pour React Table
 function createHierarchicalData(initialData: BeautyBrandsData): TableRowData[] {
-    const data = initialData.brands.map(brand => {
-        const brandProducts = initialData.products.filter(product => {
-            const matches = product.parentId === brand.id;
-            return matches;
-        })
+  const data = initialData.brands.map(brand => {
+    // Trouver les groupes hs_code pour cette marque
+    const brandHsCodeGroups = initialData.hsCodeGroups?.filter(group => 
+      group.parentId === brand.id
+    ) || [];
 
-        console.log(`Brand ${brand.name} has ${brandProducts.length} products`);
+    // Pour chaque groupe hs_code, trouver les produits correspondants
+    const hsCodeGroupsWithProducts = brandHsCodeGroups.map(hsCodeGroup => {
+      const groupProducts = initialData.products.filter(product => 
+        product.parentId === hsCodeGroup.id
+      );
 
-        return {
-            ...brand,
-            isBrand: true,
-            subRows: brandProducts.map(product => ({
-                ...product,
-                isBrand: false,
-                subRows: undefined
-            }))
-        } as TableRowData;
+      return {
+        ...hsCodeGroup,
+        isBrand: false,
+        isHsCodeGroup: true,
+        subRows: groupProducts.map(product => ({
+          ...product,
+          isBrand: false,
+          isHsCodeGroup: false,
+          subRows: undefined
+        }))
+      } as TableRowData;
     });
 
-    console.log(data);
+    return {
+      ...brand,
+      isBrand: true,
+      subRows: hsCodeGroupsWithProducts
+    } as TableRowData;
+  });
 
-    return data as TableRowData[];
+  return data;
 }
 
 export default function BeautyBrandsClient({
@@ -82,9 +95,7 @@ export default function BeautyBrandsClient({
 
     // Créer les données hiérarchiques
     const tableData = useMemo(() => {
-        const data = createHierarchicalData(initialData);
-        console.log('Final table data:', data);
-        return data;
+        return createHierarchicalData(initialData);
     }, [initialData]);
 
   // Calculer les totaux journaliers pour le footer
@@ -115,30 +126,45 @@ export default function BeautyBrandsClient({
       header: 'Marque / Produit',
       cell: ({ row, getValue }: CellContext<TableRowData, unknown>) => {
         const isBrand = row.original.isBrand;
+        const isHsCodeGroup = row.original.isHsCodeGroup;
         const paddingLeft = row.depth * 20 + 'px';
         
         return (
-          <div style={{ paddingLeft }} className="flex items-center space-x-2">
-            {isBrand && row.getCanExpand() && (
+          <div 
+            className="flex items-center space-x-2 sticky left-0 bg-inherit min-w-[300px]"
+            style={{ paddingLeft }}
+          >
+            {(isBrand || isHsCodeGroup) && row.getCanExpand() && (
               <button
                 onClick={row.getToggleExpandedHandler()}
-                className="p-1 rounded hover:bg-gray-100"
+                className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
               >
                 {row.getIsExpanded() ? '▼' : '►'}
               </button>
             )}
-            <span className={`font-medium ${isBrand ? 'text-blue-600' : 'text-gray-700'}`}>
+            {/* CORRECTION : Afficher le nom pour tous les types de lignes */}
+            <span className={`
+              font-medium 
+              ${isBrand ? 'text-blue-600 dark:text-blue-400' : ''}
+              ${isHsCodeGroup ? 'text-green-600 dark:text-green-400 font-semibold' : ''}
+              ${!isBrand && !isHsCodeGroup ? 'text-gray-700 dark:text-gray-300' : ''}
+            `}>
               {getValue() as string}
             </span>
             {isBrand && (
-              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                {row.original.subRows?.length || 0} produits
+              <span className="text-xs text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
+                {row.original.subRows?.length || 0} groupes HS
+              </span>
+            )}
+            {isHsCodeGroup && (
+              <span className="text-xs text-gray-500 bg-green-100 dark:bg-green-900 px-2 py-1 rounded">
+                HS: {row.original.hsCode}
               </span>
             )}
           </div>
         );
       },
-      size: 300,
+      size: 350,
     },
     {
       accessorKey: 'totalAmount',
@@ -146,9 +172,16 @@ export default function BeautyBrandsClient({
       cell: ({ row, getValue }: CellContext<TableRowData, unknown>) => {
         const amount = getValue() as number;
         const quantity = row.original.totalQuantity;
+        const isHsCodeGroup = row.original.isHsCodeGroup;
+        
         return (
-          <div className="text-right font-medium flex space-x-2">
-            <span>{amount.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}$</span>
+          <div className={`
+            text-right font-medium flex space-x-2
+            ${isHsCodeGroup ? 'bg-green-50 dark:bg-green-900/20 py-2' : ''}
+          `}>
+            <span className={isHsCodeGroup ? 'font-bold' : ''}>
+              {amount.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}$
+            </span>
             <span className="text-sm text-gray-500">({quantity})</span>
           </div>
         );
@@ -185,14 +218,19 @@ export default function BeautyBrandsClient({
           </div>
         );
       },
-      cell: ({ getValue }: CellContext<TableRowData, unknown>) => {
+      cell: ({ row, getValue }: CellContext<TableRowData, unknown>) => {
         const dailyData = getValue() as DailySales | undefined;
+        const isHsCodeGroup = row.original.isHsCodeGroup;
+        
         if (!dailyData || (dailyData.amount === 0 && dailyData.quantity === 0)) {
           return <div className="text-center text-gray-300">-</div>;
         }
         return (
-          <div className="text-center flex space-x-2">
-            <div className="font-medium text-sm">
+          <div className={`
+            text-center flex space-x-2 justify-center
+            ${isHsCodeGroup ? 'bg-green-50 dark:bg-green-900/20 py-2' : ''}
+          `}>
+            <div className={`font-medium text-sm ${isHsCodeGroup ? 'font-bold' : ''}`}>
               {dailyData.amount.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}$
             </div>
             <div className="text-xs text-gray-500">
@@ -204,7 +242,7 @@ export default function BeautyBrandsClient({
       footer: () => {
         const total = dailyTotals[date];
         return (
-          <div className="text-center font-bold flex space-x-2">
+          <div className="text-center font-bold flex space-x-2 justify-center">
             <div className="text-sm">
               {total.amount.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}$
             </div>
@@ -232,7 +270,7 @@ export default function BeautyBrandsClient({
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: setGlobalFilter,
     onExpandedChange: setExpanded,
-    getRowCanExpand: (row) => row.original.isBrand,
+    getRowCanExpand: (row) => row.original.isBrand || row.original.isHsCodeGroup,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -429,7 +467,10 @@ export default function BeautyBrandsClient({
                       {headerGroup.headers.map(header => (
                         <th 
                           key={header.id} 
-                          className="text-left py-4 px-6 text-sm font-semibold text-gray-900 dark:text-white"
+                          className={`
+                            text-left py-4 px-6 text-sm font-semibold text-gray-900 dark:text-white
+                            ${header.index === 0 ? 'sticky left-0 bg-gray-50 dark:bg-slate-700/30 z-10' : ''}
+                          `}
                           style={{ width: header.getSize() }}
                         >
                           {header.isPlaceholder ? null : (
@@ -457,79 +498,107 @@ export default function BeautyBrandsClient({
                   ))}
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-slate-700">
-                    {table.getRowModel().rows.map(row => {
-                        return (
-                        <>
-                            {/* Ligne principale */}
-                            <tr 
-                            key={row.id} 
-                            className={`
-                                ${row.getIsExpanded() ? 'bg-blue-50 dark:bg-blue-900/20' : ''}
-                                hover:bg-gray-50 dark:hover:bg-slate-700/50
-                            `}
+                  {table.getRowModel().rows.map(row => {
+                    return (
+                      <React.Fragment key={row.id}>
+                        {/* Ligne principale */}
+                        <tr 
+                          className={`
+                            ${row.getIsExpanded() ? 'bg-blue-50 dark:bg-blue-900/20' : ''}
+                            hover:bg-gray-50 dark:hover:bg-slate-700/50
+                          `}
+                        >
+                          {row.getVisibleCells().map((cell, index) => (
+                            <td 
+                              key={cell.id} 
+                              className={`
+                                py-4 px-6
+                                ${index === 0 ? 'sticky left-0 bg-inherit z-5' : ''}
+                                ${row.original.isHsCodeGroup ? 'bg-green-50 dark:bg-green-900/20' : ''}
+                              `}
+                              style={{ width: cell.column.getSize() }}
                             >
-                            {row.getVisibleCells().map(cell => (
-                                <td 
-                                key={cell.id} 
-                                className="py-4 px-6"
-                                style={{ width: cell.column.getSize() }}
-                                >
-                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                </td>
-                            ))}
-                            </tr>
-                            
-                            {/* Sous-lignes quand la ligne est développée */}
-                            {row.getIsExpanded() && row.original.subRows && row.original.subRows.length > 0 && (
-                                row.original.subRows.map(subRow => (
-                                    <tr 
-                                    key={subRow.id} 
-                                    className="bg-gray-50 dark:bg-slate-800/30 hover:bg-gray-100 dark:hover:bg-slate-700/50"
-                                    >
-                                    {/* Colonne Nom */}
-                                    <td className="py-3 px-6" style={{ paddingLeft: '40px' }}>
-                                        <span className="font-medium text-gray-700">
-                                        {subRow.name}
-                                        </span>
-                                    </td>
-                                    
-                                    {/* Colonne Total */}
-                                    <td className="py-3 px-6 text-right">
-                                        <div className="font-medium">
-                                        {subRow.totalAmount.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}$
-                                        </div>
-                                        <div className="text-sm text-gray-500">
-                                        ({subRow.totalQuantity})
-                                        </div>
-                                    </td>
-                                    
-                                    {/* Colonnes des jours */}
-                                    {initialData.dateRange.map(date => {
-                                        const dailyData = subRow.dailySales[date];
-                                        return (
-                                        <td key={date} className="py-3 px-6 text-center">
-                                            {!dailyData || (dailyData.amount === 0 && dailyData.quantity === 0) ? (
-                                            <div className="text-center text-gray-300">-</div>
-                                            ) : (
-                                            <div className="text-center">
-                                                <div className="font-medium text-sm">
-                                                {dailyData.amount.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}$
-                                                </div>
-                                                <div className="text-xs text-gray-500">
-                                                ({dailyData.quantity})
-                                                </div>
-                                            </div>
-                                            )}
-                                        </td>
-                                        );
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </td>
+                          ))}
+                        </tr>
+                        
+                        {/* Sous-lignes quand la ligne est développée */}
+                        {row.getIsExpanded() && row.original.subRows && row.original.subRows.length > 0 && (
+                          row.original.subRows.map((subRow, subIndex) => (
+                            <React.Fragment key={`${row.id}-sub-${subIndex}`}>
+                              {/* Ligne du groupe HS Code ou produit */}
+                              <tr 
+                                className={`
+                                  ${subRow.isHsCodeGroup ? 'bg-gray-50 dark:bg-slate-800/30' : 'bg-gray-25 dark:bg-slate-800/10'}
+                                  hover:bg-gray-100 dark:hover:bg-slate-700/50
+                                `}
+                              >
+                                {row.getVisibleCells().map((cell, index) => (
+                                  <td 
+                                    key={`${row.id}-${subRow.id}-${cell.id}`}
+                                    className={`
+                                      ${index === 0 ? 'sticky left-0 bg-inherit z-5' : ''}
+                                      ${subRow.isHsCodeGroup ? 'bg-green-50 dark:bg-green-900/20 py-3' : 'py-2'}
+                                    `}
+                                    style={{ 
+                                      width: cell.column.getSize(),
+                                      paddingLeft: index === 0 
+                                        ? (subRow.isHsCodeGroup ? '40px' : '60px')
+                                        : 'inherit'
+                                    }}
+                                  >
+                                    {flexRender(cell.column.columnDef.cell, {
+                                      ...cell.getContext(),
+                                      row: {
+                                        ...cell.row,
+                                        original: subRow,
+                                        id: `${row.id}-${subRow.id}`,
+                                        depth: row.depth + 1
+                                      }
                                     })}
-                                    </tr>
-                                ))
-                            )}
-                        </>
-                        );
-                    })}
-                    </tbody>
+                                  </td>
+                                ))}
+                              </tr>
+                              
+                              {/* Produits sous le groupe HS Code (si le sous-row est un groupe hs_code) */}
+                              {subRow.isHsCodeGroup && subRow.subRows && subRow.subRows.map((productRow, productIndex) => (
+                                <tr 
+                                  key={`${row.id}-product-${productIndex}`}
+                                  className="bg-gray-25 dark:bg-slate-800/10 hover:bg-gray-50 dark:hover:bg-slate-700/30"
+                                >
+                                  {row.getVisibleCells().map((cell, index) => (
+                                    <td 
+                                      key={`${row.id}-${productRow.id}-${cell.id}`}
+                                      className={`
+                                        py-2 px-6
+                                        ${index === 0 ? 'sticky left-0 bg-inherit z-5' : ''}
+                                      `}
+                                      style={{ 
+                                        width: cell.column.getSize(),
+                                        paddingLeft: index === 0 ? '80px' : 'inherit'
+                                      }}
+                                    >
+                                      {flexRender(cell.column.columnDef.cell, {
+                                        ...cell.getContext(),
+                                        row: {
+                                          ...cell.row,
+                                          original: productRow,
+                                          id: `${row.id}-${productRow.id}`,
+                                          depth: row.depth + 2
+                                        }
+                                      })}
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </React.Fragment>
+                          ))
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
                 {/* Footer avec les totaux */}
                 <tfoot>
                   {table.getFooterGroups().map(footerGroup => (
