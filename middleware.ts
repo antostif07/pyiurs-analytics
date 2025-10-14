@@ -2,13 +2,23 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getSession } from '@/lib/session';
+import { users, hasPermission } from '@/lib/users';
 
-export default async function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const session = await getSession(request.headers.get('cookie'));
 
-  // Si l'utilisateur n'est pas connecté et essaie d'accéder à une route protégée
   if (!session?.isLoggedIn && !request.nextUrl.pathname.startsWith('/api/auth')) {
     return NextResponse.redirect(new URL('/', request.url));
+  }
+
+  // Vérifier les permissions si l'utilisateur est connecté
+  if (session?.isLoggedIn) {
+    const user = users.find(u => u.id === session.userId);
+    
+    if (user && !hasPermission(user, request.nextUrl.pathname)) {
+      // Rediriger vers la page d'accueil si pas la permission
+      return NextResponse.redirect(new URL('/', request.url));
+    }
   }
 
   return NextResponse.next();

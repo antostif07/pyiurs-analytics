@@ -11,21 +11,21 @@ import LoginForm from "@/components/login-form";
 export default function Home() {
   const [darkMode, setDarkMode] = useState(false);
   const [search, setSearch] = useState("");
-  const { user, isLoading, logout, isAuthenticated } = useAuth();
+  const { user, isLoading, logout, isAuthenticated, hasPermission } = useAuth();
 
   const modules = [
-    { name: "KPI Manager", icon: BarChart2, color: "from-blue-500 to-purple-600", href: "/manager-kpis", roles: ['admin', 'manager'] },
-    { name: "Suivi des Ventes", icon: TrendingUp, color: "from-emerald-500 to-teal-600", href: "/control-revenue-beauty", roles: ['admin', 'manager', 'viewer'] },
-    { name: "Suivi du Stock Beauty", icon: Package, color: "from-orange-500 to-yellow-500", href: "/control-stock-beauty", roles: ['admin', 'manager', 'viewer'] },
-    { name: "Suivi du Stock Femme", icon: Package, color: "from-yellow-500 to-teal-500", href: "/control-stock-femme", roles: ['admin', 'manager', 'viewer'] },
-    { name: "Gestion des Clients", icon: Users, color: "from-indigo-500 to-blue-700", href: "/client-base", roles: ['admin', 'manager'] },
+    { name: "KPI Manager", icon: BarChart2, color: "from-blue-500 to-purple-600", href: "/manager-kpis", },
+    { name: "Suivi des Ventes", icon: TrendingUp, color: "from-emerald-500 to-teal-600", href: "/control-revenue-beauty", },
+    { name: "Suivi du Stock Beauty", icon: Package, color: "from-orange-500 to-yellow-500", href: "/control-stock-beauty", },
+    { name: "Suivi du Stock Femme", icon: Package, color: "from-yellow-500 to-teal-500", href: "/control-stock-femme",},
+    { name: "Gestion des Clients", icon: Users, color: "from-indigo-500 to-blue-700", href: "/client-base",},
     { name: "Gestion des Clients Beauty", icon: Users, color: "from-blue-500 to-indigo-700", href: "/client-base-beauty", roles: ['admin', 'manager'] },
     { name: "Parc Client", icon: Users, color: "from-emerald-500 to-indigo-700", href: "/parc-client", roles: ['admin', 'manager'] },
   ];
 
   const filteredModules = modules
     .filter(m => m.name.toLowerCase().includes(search.toLowerCase()))
-    .filter(m => user ? m.roles.includes(user.role) : false);
+    .filter(m => user ? hasPermission(m.href) : false); // ← Utiliser hasPermission au lieu des rôles
 
   const handleLoginSuccess = () => {
     window.location.reload();

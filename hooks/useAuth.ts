@@ -1,14 +1,8 @@
 // hooks/useAuth.ts
 "use client";
 
+import { User } from '@/lib/users';
 import { useState, useEffect } from 'react';
-
-interface User {
-  id: string;
-  username: string;
-  name: string;
-  role: string;
-}
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
@@ -63,11 +57,22 @@ export function useAuth() {
     }
   };
 
+  const hasPermission = (path: string): boolean => {
+    if (!user) return false;
+    
+    if (user.permissions.includes('all')) {
+      return true;
+    }
+    
+    return user.permissions.includes(path);
+  };
+
   return {
     user,
     isLoading,
     login,
     logout,
     isAuthenticated: !!user,
+    hasPermission,
   };
 }
