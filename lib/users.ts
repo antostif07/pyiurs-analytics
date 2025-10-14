@@ -12,7 +12,7 @@ export interface User {
 export const users: User[] = [
   {
     id: '1',
-    username: ' ',
+    username: 'admin',
     password: 'Tigo1515',
     name: 'Administrateur',
     role: 'admin',
