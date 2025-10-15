@@ -56,7 +56,7 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
         </div>
       );
     },
-    size: 250,
+    size: 280,
   },
   {
     accessorKey: "product_qty",
@@ -67,7 +67,7 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           className="p-2 h-auto text-xs font-semibold"
         >
-          Commandé
+          Achts
           <ArrowUpDown className="ml-1 h-3 w-3" />
         </Button>
       )
@@ -80,7 +80,6 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
         </span>
       );
     },
-    size: 80,
   },
   {
     accessorKey: "qty_received",
@@ -115,7 +114,7 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           className="p-2 h-auto text-xs font-semibold"
         >
-          En attente
+          Rlq
           <ArrowUpDown className="ml-1 h-3 w-3" />
         </Button>
       )
@@ -180,8 +179,184 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
     size: 80,
   },
   {
-    accessorKey: "age",
+    accessorKey: "stock_24",
     header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="p-2 h-auto text-xs font-semibold"
+        >
+          P.24
+          <ArrowUpDown className="ml-1 h-3 w-3" />
+        </Button>
+      )
+    },
+    cell: ({ getValue }) => {
+      const value = getValue<number>();
+      const colorClass = getStockColor(value);
+      return (
+        <span className={`px-2 py-1 rounded-full text-xs font-bold text-center min-w-10 inline-block ${colorClass}`}>
+          {value}
+        </span>
+      );
+    },
+    size: 80,
+  },
+  {
+    accessorKey: "stock_ktm",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="p-2 h-auto text-xs font-semibold"
+        >
+          P.KTM
+          <ArrowUpDown className="ml-1 h-3 w-3" />
+        </Button>
+      )
+    },
+    cell: ({ getValue }) => {
+      const value = getValue<number>();
+      const colorClass = getStockColor(value);
+      return (
+        <span className={`px-2 py-1 rounded-full text-xs font-bold text-center min-w-10 inline-block ${colorClass}`}>
+          {value}
+        </span>
+      );
+    },
+    size: 80,
+  },
+  {
+    accessorKey: "stock_lmb",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="p-2 h-auto text-xs font-semibold"
+        >
+          LMB
+          <ArrowUpDown className="ml-1 h-3 w-3" />
+        </Button>
+      )
+    },
+    cell: ({ getValue }) => {
+      const value = getValue<number>();
+      const colorClass = getStockColor(value);
+      return (
+        <span className={`px-2 py-1 rounded-full text-xs font-bold text-center min-w-10 inline-block ${colorClass}`}>
+          {value}
+        </span>
+      );
+    },
+    size: 80,
+  },
+  {
+    accessorKey: "stock_mto",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="p-2 h-auto text-xs font-semibold"
+        >
+          MTO
+          <ArrowUpDown className="ml-1 h-3 w-3" />
+        </Button>
+      )
+    },
+    cell: ({ getValue }) => {
+      const value = getValue<number>();
+      const colorClass = getStockColor(value);
+      return (
+        <span className={`px-2 py-1 rounded-full text-xs font-bold text-center min-w-10 inline-block ${colorClass}`}>
+          {value}
+        </span>
+      );
+    },
+    size: 80,
+  },
+  {
+    accessorKey: "stock_onl",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="p-2 h-auto text-xs font-semibold"
+        >
+          ONL
+          <ArrowUpDown className="ml-1 h-3 w-3" />
+        </Button>
+      )
+    },
+    cell: ({ getValue }) => {
+      const value = getValue<number>();
+      const colorClass = getStockColor(value);
+      return (
+        <span className={`px-2 py-1 rounded-full text-xs font-bold text-center min-w-10 inline-block ${colorClass}`}>
+          {value}
+        </span>
+      );
+    },
+    size: 80,
+  },
+  {
+    accessorKey: "stock_dc",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="p-2 h-auto text-xs font-semibold"
+        >
+          BC
+          <ArrowUpDown className="ml-1 h-3 w-3" />
+        </Button>
+      )
+    },
+    cell: ({ getValue }) => {
+      const value = getValue<number>();
+      const colorClass = getStockColor(value);
+      return (
+        <span className={`px-2 py-1 rounded-full text-xs font-bold text-center min-w-10 inline-block ${colorClass}`}>
+          {value}
+        </span>
+      );
+    },
+  },
+  // {
+  //   accessorKey: "other",
+  //   header: ({ column }) => {
+  //     return (
+  //       <Button
+  //         variant="ghost"
+  //         onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+  //         className="p-2 h-auto text-xs font-semibold"
+  //       >
+  //         Autres.
+  //         <ArrowUpDown className="ml-1 h-3 w-3" />
+  //       </Button>
+  //     )
+  //   },
+  //   cell: ({ getValue }) => {
+  //     const value = getValue<number>();
+  //     const colorClass = getStockColor(value);
+  //     return (
+  //       <span className={`px-2 py-1 rounded-full text-xs font-bold text-center min-w-10 inline-block`}>
+  //         {value}
+  //       </span>
+  //     );
+  //   },
+  // },
+  {
+    accessorKey: "age",
+    id: "stock_age",
+    header: ({ column }) => {
+      console.log(column);
+      
       return (
         <Button
           variant="ghost"
@@ -227,6 +402,7 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
         </span>
       );
     },
+    accessorFn: (row) => (row.qty_sold / (row.qty_received || 1)) * 100,
     sortingFn: (rowA, rowB) => {
       const perfA = (rowA.original.qty_sold / (rowA.original.qty_received || 1)) * 100;
       const perfB = (rowB.original.qty_sold / (rowB.original.qty_received || 1)) * 100;

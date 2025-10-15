@@ -8,8 +8,6 @@ export function cn(...inputs: ClassValue[]) {
 
 export function extractBoutiqueCode(locationName: string, productId?: number): string {
   if (!locationName){
-    console.log(productId);
-    
     return 'other';
   }
   
@@ -20,7 +18,7 @@ export function extractBoutiqueCode(locationName: string, productId?: number): s
   if (name.includes('mto/stock')) return 'mto';
   if (name.includes('pblmb/')) return 'lmb';
   if (name.includes('pbonl/')|| name.includes('pb.24/boutique onl')) return 'onl';
-  if (name.includes('dcbty') || name.includes('p.bty/stock')) return 'dc';
+  if (name.includes('dcbty') || name.includes('p.bty/stock') || name.includes('dcfem')) return 'dc';
   
 
   return 'other';

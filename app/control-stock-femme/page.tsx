@@ -7,9 +7,11 @@ import { CompactFilters } from "./compact-filters";
 import { DataTable } from "./data-table";
 import { Suspense } from "react";
 import { TableSkeleton } from "./table-skeleton";
-import { endOfMonth, format, startOfMonth } from "date-fns";
+import { endOfMonth, format, isBefore, startOfMonth } from "date-fns";
 import Link from "next/link";
 import { formatTimeShort } from "@/lib/format-time-short";
+import { StockQuant } from "../types/stock";
+import { extractBoutiqueCode } from "@/lib/utils";
 
 export const dynamic = 'force-dynamic'
 
@@ -23,10 +25,79 @@ export interface ControlStockFemmeModel {
   qty_sold: number;
   qty_available: number;
   imageUrl: string;
-  age: string
+  age: string,
+  stock_24: number;
+  stock_ktm: number;
+  stock_lmb: number;
+  stock_mto: number;
+  stock_onl: number;
+  stock_dc: number;
+  stock_other: number;
 }
 
 // const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// async function getStockLocations() {
+//   const res = await fetch(
+//     `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/stock.location?fields=id,name,complete_name,active`,
+//     { 
+//       next: { 
+//         revalidate: 300
+//       } 
+//     }
+//   );
+
+//   if (!res.ok) {
+//     throw new Error("Erreur API Odoo - Stock Location");
+//   }
+
+//   return res.json();
+// }
+
+async function getStockQuantsForProducts(productIds: number[]): Promise<{ records: StockQuant[], success: boolean }> {
+  if (productIds.length === 0) return { records: [], success: true };;
+
+  try {
+    // Diviser en lots plus petits si nécessaire pour éviter les limites de taille
+    const BATCH_SIZE = 500;
+    const batches = [];
+    
+    for (let i = 0; i < productIds.length; i += BATCH_SIZE) {
+      batches.push(productIds.slice(i, i + BATCH_SIZE));
+    }
+
+    const allResults = [];
+    
+    for (const batch of batches) {
+      const domain = JSON.stringify([
+        ['product_id', 'in', batch],
+        ['location_id', 'not in', [5,4]],
+      ])
+      
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/stock.quant?fields=id,product_id,product_tmpl_id,location_id,quantity&domain=${domain}`,
+        { 
+          next: { 
+            revalidate: 300
+          } 
+        }
+      );
+
+      if (!res.ok) {
+        throw new Error(`Erreur lors de la récupération des stocks: ${res.statusText}`);
+      }
+
+      const batchResults = await res.json();
+      
+      allResults.push(...batchResults.records);
+    }
+    return {success: true, records: allResults};
+
+  } catch (error) {
+    console.error('❌ Erreur lors de la récupération des stocks quant:', error);
+    return {records: [], success: false};
+  }
+}
 
 async function getPurchaseOrders(startDate: string, endDate: string, partnerFilter?: string, orderNameFilter?: string) {
   let domain = `[["partner_id", "ilike", "P.FEM"], ["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"]]`;
@@ -109,8 +180,73 @@ async function transformToControlStockModel(
   purchaseOrders: PurchaseOrder[],
   purchaseOrderLines: PurchaseOrderLine[],
   products: OdooProductTemplate[],
-  posOrderLines: POSOrderLine[]
+  posOrderLines: POSOrderLine[],
+  stockQuants: StockQuant[]
 ): Promise<ControlStockFemmeModel[]> {
+  const allProductIds = products.map((product: OdooProductTemplate) => product.product_variant_id ? product.product_variant_id[0] : 0);
+
+  // Créer une map des stocks par produit et par boutique
+  const stockByProductAndBoutique = new Map<number, {
+    P24: number;
+    ktm: number;
+    mto: number;
+    lmb: number;
+    onl: number;
+    dc: number;
+    other: number;
+    total: number;
+  }>();
+
+  allProductIds.forEach((productId: number) => {
+    stockByProductAndBoutique.set(productId, {
+      P24: 0,
+      ktm: 0,
+      mto: 0,
+      lmb: 0,
+      onl: 0,
+      dc: 0,
+      other: 0,
+      total: 0
+    });
+  });
+
+  stockQuants.forEach((quant: StockQuant) => {
+    const productId = quant.product_id[0];
+    const locationName = quant.location_id[1];
+    const quantity = quant.quantity;
+
+    const boutiqueCode = extractBoutiqueCode(locationName, productId);
+
+    const currentStock = stockByProductAndBoutique.get(productId) || {
+      P24: 0, ktm: 0, mto: 0, onl: 0, dc: 0, other: 0, total: 0, lmb: 0,
+    };
+
+    switch (boutiqueCode) {
+      case 'P24':
+        currentStock.P24 += quantity;
+        break;
+      case 'ktm':
+        currentStock.ktm += quantity;
+        break;
+      case 'mto':
+        currentStock.mto += quantity;
+        break;
+      case 'onl':
+        currentStock.onl += quantity;
+        break;
+      case 'dc':
+        currentStock.dc += quantity;
+        break;
+      default:
+        currentStock.other += quantity;
+        break;
+    }
+
+    currentStock.total += quantity;
+    // console.log(locationName, boutiqueCode, quant.location_id[0], quant, currentStock);
+    
+    stockByProductAndBoutique.set(productId, currentStock);
+  })
   
   // Créer un map des produits par ID pour un accès rapide
   const productsMap = new Map<number, OdooProductTemplate>();
@@ -128,6 +264,7 @@ async function transformToControlStockModel(
       salesByProductId.set(productId, currentQty + (line.qty || 0));
     }
   });
+
   // Grouper les lignes de commande par hs_code
   const linesByHsCode = new Map<string, {
     lines: PurchaseOrderLine[];
@@ -138,10 +275,21 @@ async function transformToControlStockModel(
     price: string;
     imageUrl: string;
     age: string;
+    stock: Array<{
+      P24: number;
+      ktm: number;
+      mto: number;
+      lmb: number;
+      onl: number;
+      dc: number;
+      other: number;
+      total: number;
+    }>,
   }>();
 
   purchaseOrderLines.forEach((line: PurchaseOrderLine) => {
     let age = "";
+    let lastdate;
     const productId = line.product_id?.[0];
     if (!productId) return;
     
@@ -150,13 +298,22 @@ async function transformToControlStockModel(
     if (!product) return;
     
     if(line.qty_received > 0) {
-      age = formatTimeShort(line.write_date)
+      if (lastdate) {
+        const old = isBefore(new Date(lastdate), new Date(line.write_date))
+        if(old) {
+          age = formatTimeShort(lastdate)
+        }
+      } else {
+        age = formatTimeShort(line.write_date)
+      }
     }
     const hsCode = product.hs_code || 'UNKNOWN';
     const categ_id = product?.categ_id?.[1] ?? "";
     const category = categ_id.split("/").pop()?.trim() ?? "";
     const price = product.list_price;
     const imageUrl = `https://images.pyiurs.com/images/${hsCode}_${product.x_studio_many2one_field_Arl5D![1]}.jpg`;
+    
+    const stock = stockByProductAndBoutique.get(productId)
     
     if (!linesByHsCode.has(hsCode)) {
       linesByHsCode.set(hsCode, {
@@ -167,7 +324,8 @@ async function transformToControlStockModel(
         category: category,
         price: `${price} $`,
         imageUrl: imageUrl,
-        age
+        age,
+        stock: stock ? [stock] : []
       });
     }
 
@@ -187,6 +345,11 @@ async function transformToControlStockModel(
     const color = product.x_studio_many2one_field_Arl5D?.[1];
     if (color) {
       hsCodeGroup.colors.add(color);
+    }
+
+    // Ajouter le stock
+    if(stock) {
+      hsCodeGroup.stock.push(stock)
     }
   });
 
@@ -221,7 +384,7 @@ async function transformToControlStockModel(
     const color = colors.length > 0 
       ? `${colors[0]}${colors.length > 1 ? `, +${colors.length - 1}` : ''}`
       : 'Non spécifié';
-
+      
     result.push({
       name: `${group.category} - ${hsCode} (${group.price})`, // Utiliser le hs_code comme nom principal
       brand,
@@ -233,6 +396,25 @@ async function transformToControlStockModel(
       qty_available,
       imageUrl: group.imageUrl,
       age: group.age,
+      stock_24: group.stock.reduce((acc, val) => {
+        return acc + val.P24
+      }, 0),
+      stock_ktm: group.stock.reduce((acc, val) => {
+        return acc + val.ktm
+      }, 0),
+      stock_dc: group.stock.reduce((acc, val) => {
+        return acc + val.dc
+      }, 0),
+      stock_lmb: group.stock.reduce((acc, val) => {
+        return acc + val.lmb
+      }, 0),
+      stock_mto: group.stock.reduce((acc, val) => {
+        return acc + val.mto
+      }, 0),
+      stock_onl: group.stock.reduce((acc, val) => {
+        return acc + val.onl
+      }, 0),
+      stock_other: 0,
     });
   });
 
@@ -308,13 +490,25 @@ async function getData(
   // 6. Récupérer les POS Order Lines pour les ventes
   const posOrderLines = await getPOSOrderLines(productIds);
 
-  // 7. Transformer les données en ControlStockFemmeModel
-  const allData: ControlStockFemmeModel[] = await transformToControlStockModel(
+  // 7. Récupérer les stocks disponibles pour les produits
+  const stockQuantsResponse = await getStockQuantsForProducts(productIds);
+
+  if (!stockQuantsResponse.success) {
+    console.error('❌ Échec de la récupération des stocks. Les quantités disponibles seront définies à 0.');
+  }
+
+  const stockQuants = stockQuantsResponse.records;
+
+  // 8. Transformer les données en ControlStockFemmeModel
+  const allData: ControlStockFemmeModel[] =
+  await transformToControlStockModel(
     purchaseOrders.records,
     purchaseOrderLines.records,
     products.records,
-    posOrderLines.records
+    posOrderLines.records,
+    stockQuants
   );
+  
 
   // 8. Extraire les marques, couleurs, partenaires et noms de commande
   const brandsSet = new Set<string>();
@@ -328,14 +522,14 @@ async function getData(
   });
 
   // Extraire les partenaires et noms de commande des purchase orders
-  purchaseOrders.records.forEach((order: PurchaseOrder) => {
-    if (order.partner_id && order.partner_id[1]) {
-      partnersSet.add(order.partner_id[1]);
-    }
-    if (order.name) {
-      orderNamesSet.add(order.name);
-    }
-  });
+  // purchaseOrders.records.forEach((order: PurchaseOrder) => {
+  //   if (order.partner_id && order.partner_id[1]) {
+  //     partnersSet.add(order.partner_id[1]);
+  //   }
+  //   if (order.name) {
+  //     orderNamesSet.add(order.name);
+  //   }
+  // });
 
   const brands = Array.from(brandsSet).sort();
   const colors = Array.from(colorsSet).sort();
@@ -376,6 +570,7 @@ export default async function ControlStockFemmePage({ searchParams }: PageProps)
   const selectedPurchaseOrder = params.purchase_order;
   
   const {data,brands, colors, partners, orderNames} = await getData(startDate, endDate,selectedPartner, selectedPurchaseOrder);
+  // const stockLocations = await getStockLocations();
   
   // const { data: allData, brands, colors } = await getControlStockData();
 
@@ -453,6 +648,7 @@ export default async function ControlStockFemmePage({ searchParams }: PageProps)
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
+      {/* <code>{JSON.stringify(stockLocations.records,null,2)}</code> */}
       {/* Header */}
       <div className="border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
         <div className="container mx-auto px-6 py-8">
