@@ -11,14 +11,14 @@ export function calculateSalesLast30Days(posOrderLines: POSOrderLine[], productV
   
   // Calculer la date il y a 30 jours
   const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 7);
   
   // Filtrer et compter les ventes des 30 derniers jours
   posOrderLines.forEach((line: POSOrderLine) => {
     const productId = line.product_id[0];
     const createDate = new Date(line.create_date);
     
-    // Vérifier si la vente est dans les 30 derniers jours
+    // Vérifier si la vente est dans les 7 derniers jours
     if (createDate >= thirtyDaysAgo) {
       const currentQty = salesMap.get(productId) || 0;
       salesMap.set(productId, currentQty + (line.qty || 0));
