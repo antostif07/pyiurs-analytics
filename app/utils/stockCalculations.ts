@@ -49,7 +49,7 @@ export function calculateReplenishmentMetrics(
   }
 
   // Calcul de la vitesse de vente quotidienne
-  const dailySalesRate = ventes30Jours / 30;
+  const dailySalesRate = ventes30Jours / 7;
   
   // Jours restants avant rupture (arrondi à l'entier supérieur)
   const daysUntilOutOfStock = Math.ceil(stockActuel / dailySalesRate);
