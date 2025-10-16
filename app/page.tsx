@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useState } from "react";
-import { Moon, Sun, TrendingUp, Package, BarChart2, Users, LogOut } from "lucide-react";
+import { Moon, Sun, TrendingUp, Package, BarChart2, Users, LogOut, DollarSign } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
 import LoginForm from "@/components/login-form";
@@ -21,6 +21,7 @@ export default function Home() {
     { name: "Gestion des Clients", icon: Users, color: "from-indigo-500 to-blue-700", href: "/client-base",},
     { name: "Gestion des Clients Beauty", icon: Users, color: "from-blue-500 to-indigo-700", href: "/client-base-beauty", roles: ['admin', 'manager'] },
     { name: "Parc Client", icon: Users, color: "from-emerald-500 to-indigo-700", href: "/parc-client", roles: ['admin', 'manager'] },
+    { name: "Cloture Vente", icon: DollarSign, color: "from-orange-500 to-yellow-700", href: "/cloture-vente", roles: ['admin', 'manager'] },
   ];
 
   const filteredModules = modules
