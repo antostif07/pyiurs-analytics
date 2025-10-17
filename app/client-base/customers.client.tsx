@@ -299,6 +299,9 @@ export default function CustomersClient({ initialCustomers, searchParams }: Cust
     },
   });
 
+  console.log(filteredCustomers.length);
+  
+
   // Export Excel
   const exportToExcel = useCallback(() => {
     const headers = [
@@ -339,7 +342,7 @@ export default function CustomersClient({ initialCustomers, searchParams }: Cust
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  }, [preparedCustomers]);
+  }, [filteredCustomers]);
 
   // Statistiques
   const stats = useMemo(() => {
