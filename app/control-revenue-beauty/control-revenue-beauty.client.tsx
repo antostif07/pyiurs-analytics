@@ -21,6 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sparkles, Users, TrendingUp, Target } from 'lucide-react';
 import { BeautyBrandsData, BrandData } from '../types/product_template';
 import React from 'react';
+import { access } from 'fs';
 
 interface BeautyBrandsClientProps {
   initialData: BeautyBrandsData;
@@ -60,12 +61,12 @@ function createHierarchicalData(initialData: BeautyBrandsData): TableRowData[] {
         ...hsCodeGroup,
         isBrand: false,
         isHsCodeGroup: true,
-        // subRows: groupProducts.map(product => ({
-        //   ...product,
-        //   isBrand: false,
-        //   isHsCodeGroup: false,
-        //   subRows: undefined
-        // }))
+        subRows: groupProducts.map(product => ({
+          ...product,
+          isBrand: false,
+          isHsCodeGroup: false,
+          subRows: undefined
+        }))
       } as TableRowData;
     });
 
@@ -75,10 +76,7 @@ function createHierarchicalData(initialData: BeautyBrandsData): TableRowData[] {
       subRows: hsCodeGroupsWithProducts
     } as TableRowData;
   });
-
-  console.log(data[0]);
   
-
   return data;
 }
 
@@ -165,6 +163,11 @@ export default function BeautyBrandsClient({
                 {row.original.name}
               </span>
             )}
+            {!isHsCodeGroup && !isBrand && (
+              <span className="text-xs text-gray-500 bg-green-100 dark:bg-green-900 px-2 py-1 rounded mr-3">
+                {row.original.name}
+              </span>
+            )}
           </div>
         );
       },
@@ -192,14 +195,21 @@ export default function BeautyBrandsClient({
                   </span>
                   <span className="text-sm text-gray-500">({quantity})</span>
                 </>
-              ) : (
+              ) : isHsCodeGroup ? (
                 <>
                   <span className={isHsCodeGroup ? 'font-bold' : ''}>
                     {row.original.totalAmount.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}$
                   </span>
                   <span className="text-sm text-gray-500">({row.original.totalQuantity})</span>
                 </>
-              )
+              ) : !isBrand && !isHsCodeGroup ? (
+                <>
+                  <span>
+                    {row.original.totalAmount.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}$
+                  </span>
+                  <span className="text-sm text-gray-500">({row.original.totalQuantity})</span>
+                </>
+              ) : null
             }
           </div>
         );
@@ -222,7 +232,8 @@ export default function BeautyBrandsClient({
     },
     // Colonnes dynamiques pour chaque jour
     ...initialData.dateRange.map(date => ({
-      accessorKey: `dailySales.${date}`,
+      accessorKey: `daily-${date}`,
+      accessorFn: (row: TableRowData) => row.dailySales[date] || { amount: 0, quantity: 0 },
       header: () => {
         const dateObj = new Date(date);
         return (
@@ -572,7 +583,7 @@ export default function BeautyBrandsClient({
                                   <td 
                                     key={`${row.id}-${subRow.id}-${cell.id}`}
                                     className={`
-                                      ${index === 0 ? 'sticky left-0 bg-inherit z-5' : ''}
+                                      ${index === 0 ? 'sticky left-0 bg-white z-5' : ''}
                                       ${subRow.isHsCodeGroup ? 'bg-green-50 dark:bg-green-900/20 py-3' : 'py-2'}
                                     `}
                                     style={{ 
@@ -606,7 +617,7 @@ export default function BeautyBrandsClient({
                                       key={`${row.id}-${productRow.id}-${cell.id}`}
                                       className={`
                                         py-2 px-6
-                                        ${index === 0 ? 'sticky left-0 bg-inherit z-5' : ''}
+                                        ${index === 0 ? 'sticky left-0 bg-white z-5' : ''}
                                       `}
                                       style={{ 
                                         width: cell.column.getSize(),
