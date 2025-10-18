@@ -61,12 +61,12 @@ function createHierarchicalData(initialData: BeautyBrandsData): TableRowData[] {
         ...hsCodeGroup,
         isBrand: false,
         isHsCodeGroup: true,
-        subRows: groupProducts.map(product => ({
-          ...product,
-          isBrand: false,
-          isHsCodeGroup: false,
-          subRows: undefined
-        }))
+        // subRows: groupProducts.map(product => ({
+        //   ...product,
+        //   isBrand: false,
+        //   isHsCodeGroup: false,
+        //   subRows: undefined
+        // }))
       } as TableRowData;
     });
 
@@ -232,73 +232,61 @@ export default function BeautyBrandsClient({
     },
     // Colonnes dynamiques pour chaque jour
     ...initialData.dateRange.map(date => ({
-      accessorKey: `daily-${date}`,
-      accessorFn: (row: TableRowData) => row.dailySales[date] || { amount: 0, quantity: 0 },
-      header: () => {
-        const dateObj = new Date(date);
-        return (
-          <div className="text-center">
-            <div className="text-xs font-medium">
-              {dateObj.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
-            </div>
-            <div className="text-xs text-gray-500">
-              {dateObj.toLocaleDateString('fr-FR', { weekday: 'short' })}
-            </div>
+    id: `daily-${date}`,
+    // Pas d'accessorKey ni accessorFn - tout se passe dans la cellule
+    header: () => {
+      const dateObj = new Date(date);
+      return (
+        <div className="text-center">
+          <div className="text-xs font-medium">
+            {dateObj.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
           </div>
-        );
-      },
-      cell: ({ row, getValue }: CellContext<TableRowData, unknown>) => {
-        const dailyData = getValue() as DailySales | undefined;
-        const isHsCodeGroup = row.original.isHsCodeGroup;
-        const isBrand = row.original.isBrand;
-        
-        if (!dailyData || (dailyData.amount === 0 && dailyData.quantity === 0)) {
-          return <div className="text-center text-gray-300">-</div>;
-        }
-        return (
-          <div className={`
-            text-center flex space-x-2 justify-center
-            ${isHsCodeGroup ? 'bg-green-50 dark:bg-green-900/20 py-2' : ''}
-          `}>
-            {
-              isBrand ? (
-                <>
-                  <div className={`font-medium text-sm ${isHsCodeGroup ? 'font-bold' : ''}`}>
-                    {dailyData.amount.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}$
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    ({dailyData.quantity})
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className={`font-medium text-sm ${isHsCodeGroup ? 'font-bold' : ''}`}>
-                    {dailyData.amount.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}$
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    ({dailyData.quantity})
-                  </div>
-                </>
-              )
-            }
+          <div className="text-xs text-gray-500">
+            {dateObj.toLocaleDateString('fr-FR', { weekday: 'short' })}
           </div>
-        );
-      },
-      footer: () => {
-        const total = dailyTotals[date];
-        return (
-          <div className="text-center font-bold flex space-x-2 justify-center">
-            <div className="text-sm">
-              {total.amount.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}$
-            </div>
-            <div className="text-xs text-gray-600">
-              ({total.quantity})
-            </div>
+        </div>
+      );
+    },
+    cell: ({ row }: CellContext<TableRowData, unknown>) => {
+      // ACCÈS DIRECT aux données de la ligne actuelle (marque, groupe HS ou produit)
+      const dailyData = row.original.dailySales?.[date] as DailySales | undefined;
+      const isHsCodeGroup = row.original.isHsCodeGroup;
+
+      console.log(`${row.original.name} (${row.original.type}) - ${date}:`, dailyData);
+      
+      if (!dailyData || (dailyData.amount === 0 && dailyData.quantity === 0)) {
+        return <div className="text-center text-gray-300">-</div>;
+      }
+      
+      return (
+        <div className={`
+          text-center flex space-x-2 justify-center
+          ${isHsCodeGroup ? 'bg-green-50 dark:bg-green-900/20 py-2' : ''}
+        `}>
+          <div className={`font-medium text-sm ${isHsCodeGroup ? 'font-bold' : ''}`}>
+            {dailyData.amount.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}$
           </div>
-        );
-      },
-      size: 100,
-    })),
+          <div className="text-xs text-gray-500">
+            ({dailyData.quantity})
+          </div>
+        </div>
+      );
+    },
+    footer: () => {
+      const total = dailyTotals[date];
+      return (
+        <div className="text-center font-bold flex space-x-2 justify-center">
+          <div className="text-sm">
+            {total.amount.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}$
+          </div>
+          <div className="text-xs text-gray-600">
+            ({total.quantity})
+          </div>
+        </div>
+      );
+    },
+    size: 100,
+  })),
   ], [initialData.dateRange, dailyTotals]);
 
   // Configuration de la table
