@@ -60,12 +60,12 @@ function createHierarchicalData(initialData: BeautyBrandsData): TableRowData[] {
         ...hsCodeGroup,
         isBrand: false,
         isHsCodeGroup: true,
-        subRows: groupProducts.map(product => ({
-          ...product,
-          isBrand: false,
-          isHsCodeGroup: false,
-          subRows: undefined
-        }))
+        // subRows: groupProducts.map(product => ({
+        //   ...product,
+        //   isBrand: false,
+        //   isHsCodeGroup: false,
+        //   subRows: undefined
+        // }))
       } as TableRowData;
     });
 
@@ -75,6 +75,9 @@ function createHierarchicalData(initialData: BeautyBrandsData): TableRowData[] {
       subRows: hsCodeGroupsWithProducts
     } as TableRowData;
   });
+
+  console.log(data[0]);
+  
 
   return data;
 }
@@ -142,23 +145,24 @@ export default function BeautyBrandsClient({
                 {row.getIsExpanded() ? '▼' : '►'}
               </button>
             )}
-            {/* CORRECTION : Afficher le nom pour tous les types de lignes */}
-            <span className={`
-              font-medium 
-              ${isBrand ? 'text-blue-600 dark:text-blue-400' : ''}
-              ${isHsCodeGroup ? 'text-green-600 dark:text-green-400 font-semibold' : ''}
-              ${!isBrand && !isHsCodeGroup ? 'text-gray-700 dark:text-gray-300' : ''}
-            `}>
-              {getValue() as string}
-            </span>
             {isBrand && (
-              <span className="text-xs text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
-                {row.original.subRows?.length || 0} groupes HS
-              </span>
+              <>
+                <span className={`
+                  font-medium 
+                  ${isBrand ? 'text-blue-600 dark:text-blue-400' : ''}
+                  ${isHsCodeGroup ? 'text-green-600 dark:text-green-400 font-semibold' : ''}
+                  ${!isBrand && !isHsCodeGroup ? 'text-gray-700 dark:text-gray-300' : ''}
+                `}>
+                  {getValue() as string}
+                </span>
+                <span className="text-xs text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
+                  {row.original.subRows?.length || 0} gamme(s)
+                </span>
+              </>
             )}
             {isHsCodeGroup && (
-              <span className="text-xs text-gray-500 bg-green-100 dark:bg-green-900 px-2 py-1 rounded">
-                HS: {row.original.hsCode}
+              <span className="text-xs text-gray-500 bg-green-100 dark:bg-green-900 px-2 py-1 rounded mr-3">
+                {row.original.name}
               </span>
             )}
           </div>
@@ -173,16 +177,30 @@ export default function BeautyBrandsClient({
         const amount = getValue() as number;
         const quantity = row.original.totalQuantity;
         const isHsCodeGroup = row.original.isHsCodeGroup;
+        const isBrand = row.original.isBrand;
         
         return (
           <div className={`
             text-right font-medium flex space-x-2
             ${isHsCodeGroup ? 'bg-green-50 dark:bg-green-900/20 py-2' : ''}
           `}>
-            <span className={isHsCodeGroup ? 'font-bold' : ''}>
-              {amount.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}$
-            </span>
-            <span className="text-sm text-gray-500">({quantity})</span>
+            {
+              isBrand ? (
+                <>
+                  <span className={isHsCodeGroup ? 'font-bold' : ''}>
+                    {amount.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}$
+                  </span>
+                  <span className="text-sm text-gray-500">({quantity})</span>
+                </>
+              ) : (
+                <>
+                  <span className={isHsCodeGroup ? 'font-bold' : ''}>
+                    {row.original.totalAmount.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}$
+                  </span>
+                  <span className="text-sm text-gray-500">({row.original.totalQuantity})</span>
+                </>
+              )
+            }
           </div>
         );
       },
@@ -221,6 +239,7 @@ export default function BeautyBrandsClient({
       cell: ({ row, getValue }: CellContext<TableRowData, unknown>) => {
         const dailyData = getValue() as DailySales | undefined;
         const isHsCodeGroup = row.original.isHsCodeGroup;
+        const isBrand = row.original.isBrand;
         
         if (!dailyData || (dailyData.amount === 0 && dailyData.quantity === 0)) {
           return <div className="text-center text-gray-300">-</div>;
@@ -230,12 +249,27 @@ export default function BeautyBrandsClient({
             text-center flex space-x-2 justify-center
             ${isHsCodeGroup ? 'bg-green-50 dark:bg-green-900/20 py-2' : ''}
           `}>
-            <div className={`font-medium text-sm ${isHsCodeGroup ? 'font-bold' : ''}`}>
-              {dailyData.amount.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}$
-            </div>
-            <div className="text-xs text-gray-500">
-              ({dailyData.quantity})
-            </div>
+            {
+              isBrand ? (
+                <>
+                  <div className={`font-medium text-sm ${isHsCodeGroup ? 'font-bold' : ''}`}>
+                    {dailyData.amount.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}$
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    ({dailyData.quantity})
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className={`font-medium text-sm ${isHsCodeGroup ? 'font-bold' : ''}`}>
+                    {dailyData.amount.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}$
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    ({dailyData.quantity})
+                  </div>
+                </>
+              )
+            }
           </div>
         );
       },
@@ -498,14 +532,14 @@ export default function BeautyBrandsClient({
                   ))}
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-slate-700">
-                  {table.getRowModel().rows.map(row => {
+                  {table.getRowModel().rows.map((row) => {
                     return (
                       <React.Fragment key={row.id}>
                         {/* Ligne principale */}
                         <tr 
                           className={`
                             ${row.getIsExpanded() ? 'bg-blue-50 dark:bg-blue-900/20' : ''}
-                            hover:bg-gray-50 dark:hover:bg-slate-700/50
+                            hover:bg-gray-50 dark:hover:bg-slate-700/50 
                           `}
                         >
                           {row.getVisibleCells().map((cell, index) => (
@@ -513,7 +547,7 @@ export default function BeautyBrandsClient({
                               key={cell.id} 
                               className={`
                                 py-4 px-6
-                                ${index === 0 ? 'sticky left-0 bg-inherit z-5' : ''}
+                                ${index === 0 ? 'sticky left-0 bg-white z-5' : ''}
                                 ${row.original.isHsCodeGroup ? 'bg-green-50 dark:bg-green-900/20' : ''}
                               `}
                               style={{ width: cell.column.getSize() }}

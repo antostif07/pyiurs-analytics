@@ -167,7 +167,6 @@ async function getBeautyBrandsData(boutiqueId?: string, month?: string, year?: s
       hsCodeData.totalAmount += amount;
       hsCodeData.totalQuantity += quantity;
 
-      // CORRECTION : Le produit doit appartenir au groupe hs_code, pas directement à la marque
       const productId = `product-${product.id}`;
       if (!productsMap.has(productId)) {
         productsMap.set(productId, {
