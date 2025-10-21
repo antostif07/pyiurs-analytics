@@ -85,6 +85,10 @@ export function getBoutiqueLabel(posConfigName: string): {name: string, phone: s
 
   const name = posConfigName.toLowerCase();
 
+  if(name.includes("PB. ONL Facturation")){
+    return undefined;
+  }
+
   if (name.includes("24")) {
     return {name: "24", phone: "+243896139999"};
   } else if (name.includes("ktm")) {
@@ -153,6 +157,11 @@ export async function POST(req: NextRequest) {
         const posConfig = posConfigData?.records?.[0];
 
         const boutique = getBoutiqueLabel(posConfig?.name);
+
+        if(!boutique){
+            console.error(`❌ Boutique non gérée pour la commande ${orderId} (config POS: ${posConfig?.name})`);
+            return NextResponse.json({ error: "Boutique non gérée" }, { status: 400 });
+        }
 
         const clientPhone = partner?.phone || "";
         const formattedPhone = formatPhoneNumber(clientPhone);

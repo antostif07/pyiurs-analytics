@@ -81,9 +81,9 @@ async function getRevenueData(month?: string, year?: string, boutique?: string):
       headers: ["Boutique", "W31", "W32", "W33", "W34", "W35"],
       rows: [
         { boutique: "P24", values: [644, 3797.5, 2872, 3483, 2501] },
-        { boutique: "PENTM", values: [178, 1151, 1909, 1331, 1461] },
-        { boutique: "PLMR", values: [442, 1935, 1633, 1532, 457] },
-        { boutique: "PONL", values: [107, 272, 173, 0, 0] },
+        { boutique: "P.KTM", values: [178, 1151, 1909, 1331, 1461] },
+        { boutique: "P.LMB", values: [442, 1935, 1633, 1532, 457] },
+        { boutique: "P.MTO", values: [107, 272, 173, 0, 0] },
         { boutique: "ZARINA", values: [95, 235, 130, 145, 410] }
       ],
       total: [1359, 7225.5, 6816, 6664, 4829]
@@ -92,11 +92,11 @@ async function getRevenueData(month?: string, year?: string, boutique?: string):
       headers: ["Boutique", "A WOW", "MTD", "MTD-1", "A MON", "PV-MTD", "Forecast", "BU/M", "% BU", "YTD-1", "A YOY", "BU Annuel", "% BU/A"],
       rows: [
         { boutique: "ZARINA", wow: 183, mtd: 500, mtd1: 1970, aMon: -9, pvMtd: 1130, forecast: 722, buM: Infinity, percentageBU: 0, ytd1: 2470, aYoy: 3263, buAnnuel: Infinity, percentageBUA: -23 },
-        { boutique: "PMTO", wow: 70, mtd: 4802, mtd1: 8785, aMon: -45, pvMtd: 8380, forecast: 6905, buM: 9015, percentageBU: 53, ytd1: 61150, aYoy: 43454, buAnnuel: 126668, percentageBUA: -86 },
-        { boutique: "PXTM", wow: 10, mtd: 4149, mtd1: 6866, aMon: -40, pvMtd: 8131, forecast: 5795, buM: 8404, percentageBU: 49, ytd1: 61060, aYoy: 61831, buAnnuel: 118280, percentageBUA: -52 },
+        { boutique: "P.MTO", wow: 70, mtd: 4802, mtd1: 8785, aMon: -45, pvMtd: 8380, forecast: 6905, buM: 9015, percentageBU: 53, ytd1: 61150, aYoy: 43454, buAnnuel: 126668, percentageBUA: -86 },
+        { boutique: "P.KTM", wow: 10, mtd: 4149, mtd1: 6866, aMon: -40, pvMtd: 8131, forecast: 5795, buM: 8404, percentageBU: 49, ytd1: 61060, aYoy: 61831, buAnnuel: 118280, percentageBUA: -52 },
         { boutique: "P24", wow: 28, mtd: 9156, mtd1: 18282, aMon: -50, pvMtd: 32891, forecast: 13225, buM: 46839, percentageBU: 20, ytd1: 170067, aYoy: 275138, buAnnuel: 645853, percentageBUA: -26 },
         { boutique: "PONL", wow: 36, mtd: 494, mtd1: 1516, aMon: 67, pvMtd: 3785, forecast: 714, buM: 3403, percentageBU: 19, ytd1: 6805, aYoy: 34626, buAnnuel: 53339, percentageBUA: 13 },
-        { boutique: "PLMR", wow: 28, mtd: 19101, mtd1: 37419, aMon: -49, pvMtd: 59152, forecast: 27509, buM: 75482, percentageBU: 25, ytd1: 329382, aYoy: 468895, buAnnuel: 1062421, percentageBUA: -21 }
+        { boutique: "P.LMB", wow: 28, mtd: 19101, mtd1: 37419, aMon: -49, pvMtd: 59152, forecast: 27509, buM: 75482, percentageBU: 25, ytd1: 329382, aYoy: 468895, buAnnuel: 1062421, percentageBUA: -21 }
       ]
     },
     segmentRevenue: {
@@ -111,7 +111,7 @@ async function getRevenueData(month?: string, year?: string, boutique?: string):
       total: [1359, 7225.5, 6816, 6664, 4829]
     },
     segmentPerformance: {
-      headers: ["Segment", "A WOW", "MTD", "MTD-1", "A MON", "PV-MTD", "Forecast", "BU/M", "% BU", "YTD-1", "A YOY", "BU Annuel", "% BU/A"],
+      headers: ["Segment", "WoW", "MTD", "MTD-1", "A MON", "PV-MTD", "Forecast", "BU/M", "% BU", "YTD-1", "A YOY", "BU Annuel", "% BU/A"],
       rows: [
         { segment: "Beauty", wow: 51, mtd: 4055, mtd1: 7830, aMon: -48, pvMtd: 13926, forecast: 5857, buM: 75482, percentageBU: 5, ytd1: 65542, aYoy: 76841, buAnnuel: 1062421, percentageBUA: 6 },
         { segment: "Enfant", wow: 18, mtd: 256, mtd1: 1006, aMon: -75, pvMtd: 5169, forecast: 369, buM: 75482, percentageBU: 0, ytd1: 13506, aYoy: 33116, buAnnuel: 1062421, percentageBUA: 1 },
