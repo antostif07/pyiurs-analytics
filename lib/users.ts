@@ -50,6 +50,16 @@ export const users: User[] = [
       '/parc-client'
     ]
   },
+  {
+    id: '4',
+    username: 'full_manager',
+    password: 'fullManager3',
+    name: 'Full Manager',
+    role: 'manager',
+    permissions: [
+      '/funds'
+    ]
+  },
 ];
 
 export function verifyUser(username: string, password: string): User | null {
