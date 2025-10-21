@@ -121,10 +121,6 @@ async function getBeautyProducts() {
 function cleanProductName(productName: string): string {
   if (!productName) return 'Produit inconnu';
   
-  // Supprimer le code-barre à la fin (le dernier crochet)
-  // Exemple: "CeraVe : Gel-Crème Hydratant Oil Control 52ML [3337875904513][COS1108]" 
-  // → "CeraVe : Gel-Crème Hydratant Oil Control 52ML [3337875904513]"
-  
   // Trouver le dernier crochet fermant
   const lastBracketIndex = productName.lastIndexOf(']');
   const secondLastBracketIndex = productName.lastIndexOf('[', lastBracketIndex - 1);

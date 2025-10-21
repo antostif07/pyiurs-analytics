@@ -1,6 +1,7 @@
 export type POSOrderLine = {
   id: number;
   product_id: [number, string]; // Tuple of [id, name]
+  full_product_name: string;
   qty: number;
   price_unit: number;
   price_subtotal: number;
