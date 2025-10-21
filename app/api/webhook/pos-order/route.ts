@@ -158,10 +158,10 @@ export async function POST(req: NextRequest) {
 
         const boutique = getBoutiqueLabel(posConfig?.name);
 
-        if(!boutique){
-            console.error(`❌ Boutique non gérée pour la commande ${orderId} (config POS: ${posConfig?.name})`);
-            return NextResponse.json({ error: "Boutique non gérée" }, { status: 400 });
-        }
+        // if(!boutique){
+        //     console.error(`❌ Boutique non gérée pour la commande ${orderId} (config POS: ${posConfig?.name})`);
+        //     return NextResponse.json({ error: "Boutique non gérée" }, { status: 400 });
+        // }
 
         const clientPhone = partner?.phone || "";
         const formattedPhone = formatPhoneNumber(clientPhone);
@@ -199,7 +199,9 @@ export async function POST(req: NextRequest) {
             }
         };
         
-        await sendMessage(payload_client)
+        if(boutique){
+            await sendMessage(payload_client);
+        }
         await sendMessage({...payload_client, to: "+243841483052"} as PayloadWhatsappMessage)
 
         return NextResponse.json({
