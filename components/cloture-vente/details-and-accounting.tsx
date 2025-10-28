@@ -82,7 +82,6 @@ export default function DetailsAndAccounting({denominations, decrementDenominati
                 <CardContent className="p-0">
                     {initialData.expenses.length > 0 ? (
                     <div className="space-y-2">
-                        {/* En-tête du tableau */}
                         <div className="grid grid-cols-2 gap-4 px-6 py-3 bg-slate-50 border-b font-semibold text-sm">
                         <div>Charge</div>
                         <div className="text-right">Montant</div>
@@ -142,7 +141,7 @@ export default function DetailsAndAccounting({denominations, decrementDenominati
                     </div>
                     )}
                 </CardContent>
-                </Card>
+            </Card>
           <div className="space-y-6">
             <Card>
               <CardHeader>

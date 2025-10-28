@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronDown, ChevronRight, FileText, Calendar } from 'lucide-react'
+import { ChevronDown, ChevronRight, FileText, Calendar, ExternalLink } from 'lucide-react'
 import { Badge } from "@/components/ui/badge"
 import { format } from 'date-fns'
 import { Expense } from '@/app/types/cloture'
@@ -62,42 +62,45 @@ export function ChargeRow({ chargeData, chargeId }: ChargeRowProps) {
 
       {/* Section détaillée avec animation */}
       {isExpanded && (
-        <div className="bg-gray-25 border-t animate-in fade-in duration-200">
-          <div className="px-14 py-4">
-            <div className="mb-3">
-              <h4 className="font-semibold text-sm text-gray-700 mb-2">Détails des dépenses</h4>
+  <div className="bg-gray-25 border-t animate-in fade-in duration-200">
+    <div className="px-14 py-4">
+      <div className="mb-3">
+        <h4 className="font-semibold text-sm text-gray-700 mb-2">Détails des dépenses</h4>
+      </div>
+      <div className="space-y-2">
+        {chargeData.expenses.map((expense) => (
+          <div 
+            key={expense.id} 
+            className="flex justify-between items-center p-3 rounded-lg border bg-white hover:shadow-md transition-all cursor-pointer hover:bg-blue-50 group"
+            onClick={() => window.open(`https://pyiurs.odoo.com/web?#id=${expense.id}&cids=5&menu_id=367&action=549&model=hr.expense&view_type=form`, '_blank')}
+          >
+            <div className="flex-1">
+              {expense.id}
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                <p className="font-medium text-sm text-gray-900 group-hover:text-blue-700">
+                  {expense.name || 'Dépense non décrite'}
+                </p>
+                <ExternalLink className="w-3 h-3 text-gray-400 group-hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+              </div>
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                <Calendar className="w-3 h-3" />
+                <span>
+                  {expense.create_date ? format(new Date(expense.create_date), 'dd/MM/yyyy HH:mm') : 'Date non spécifiée'} - {expense.product_id[1]}
+                </span>
+              </div>
             </div>
-            <div className="space-y-2">
-              {chargeData.expenses.map((expense) => (
-                <div 
-                  key={expense.id} 
-                  className="flex justify-between items-center p-3 rounded-lg border bg-white hover:shadow-sm transition-shadow"
-                >
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                      <p className="font-medium text-sm text-gray-900">
-                        {expense.name || 'Dépense non décrite'}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-gray-500">
-                      <Calendar className="w-3 h-3" />
-                      <span>
-                        {expense.create_date ? format(new Date(expense.create_date), 'dd/MM/yyyy HH:mm') : 'Date non spécifiée'}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-red-600 text-sm">
-                      {(expense.total_amount || 0).toLocaleString('fr-FR')} $
-                    </p>
-                  </div>
-                </div>
-              ))}
+            <div className="text-right">
+              <p className="font-bold text-red-600 text-sm">
+                {(expense.total_amount || 0).toLocaleString('fr-FR')} $
+              </p>
             </div>
           </div>
-        </div>
-      )}
+        ))}
+      </div>
+    </div>
+  </div>
+)}
     </div>
   )
 }

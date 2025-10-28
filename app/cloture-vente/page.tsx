@@ -87,21 +87,23 @@ async function getDailySalesLines(date: Date, shop?: string) {
 }
 
 // Récupérer les dépenses du jour
-async function getDailyExpenses(date: Date, shop?: string) {
+async function getDailyExpenses(date: Date, company_name?: string) {
   const startDate = format(startOfDay(date), "yyyy-MM-dd HH:mm:ss")
   const endDate = format(endOfDay(date), "yyyy-MM-dd HH:mm:ss")
+
+  console.log(startDate, endDate);
   
   // Adaptez cette requête selon votre modèle de données des dépenses
   let domain = `[["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"]]`
   
-  if (shop && shop !== 'all') {
-    domain = `[["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"]]`
+  if (company_name && company_name !== 'all') {
+    domain = `[["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"], ["company_id", "ilike", "${company_name}"]]`
   }
   
   const expenseRes = await fetch(
     `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/hr.expense?fields=id,total_amount,name,create_date,product_id,company_id,account_id&domain=${encodeURIComponent(domain)}`,
     { 
-      next: { revalidate: 300 }
+      cache: 'no-store'
     }
   )
 
@@ -166,16 +168,38 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
   const params = await searchParams
   const selectedDate = params.date ? new Date(params.date) : new Date()
   const selectedShop = params.shop || 'all'
+  let company_name = 'all';
 
-  const [salesData, salesLinesData, expensesData, exchangeRate, shops] = await Promise.all([
+  const [salesData, salesLinesData, exchangeRate, shops] = await Promise.all([
     getDailySales(selectedDate, selectedShop),
     getDailySalesLines(selectedDate, selectedShop),
-    getDailyExpenses(selectedDate, selectedShop),
     getExchangeRate(),
     getPOSConfig(),
   ])
 
-  console.log(expensesData.records[0].account);
+  switch (selectedShop) {
+    case "all":
+      company_name = 'all'
+      break;
+    case "1":
+      company_name = "PB - 24"
+      break;
+    case "13":
+      company_name = "PB - LMB"
+      break;
+    case "14":
+      company_name = "PB - KTM"
+      break;
+    case "15":
+      company_name = "PB - MTO"
+      break;
+    case "17":
+      company_name = "PB - BC"
+      break;
+    default:
+      break;
+  }
+  const expensesData = await getDailyExpenses(selectedDate, company_name)
   
   // Total des ventes especes
   const cashSalesTotal = salesData.records.reduce((sum: number, order: POSOrder) => {
