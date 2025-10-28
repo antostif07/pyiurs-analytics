@@ -55,10 +55,10 @@ export default function RevenueClient({
         searchParams.year || new Date().getFullYear().toString()
     );
 
-    const years = useMemo(() => {
-        const currentYear = new Date().getFullYear();
-        return Array.from({ length: currentYear - 2018 + 1 }, (_, i) => currentYear - i);
-    }, []);
+    // const years = useMemo(() => {
+    //     const currentYear = new Date().getFullYear();
+    //     return Array.from({ length: currentYear - 2018 + 1 }, (_, i) => currentYear - i);
+    // }, []);
 
     const updateURL = useCallback((month: string, year: string) => {
         const params = new URLSearchParams();
@@ -106,7 +106,7 @@ export default function RevenueClient({
         if (selectedMonth !== currentMonth || selectedYear !== currentYear) {
         updateURL(selectedMonth, selectedYear);
         }
-    }, []);
+    }, [selectedMonth, selectedYear, updateURL]);
 
     // Statistiques principales formatées
     const mainStats = useMemo(() => [

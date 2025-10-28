@@ -250,7 +250,7 @@ async function getControlStockData(): Promise<{
     const locationName = quant.location_id[1];
     const quantity = quant.quantity;
     
-    const boutiqueCode = extractBoutiqueCode(locationName, productId);
+    const boutiqueCode = extractBoutiqueCode(locationName);
     
     const currentStock = stockByProductAndBoutique.get(productId) || {
       P24: 0, ktm: 0, mto: 0, onl: 0, dc: 0, other: 0, total: 0, lmb: 0,

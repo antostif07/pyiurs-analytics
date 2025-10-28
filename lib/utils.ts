@@ -6,7 +6,7 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function extractBoutiqueCode(locationName: string, productId?: number): string {
+export function extractBoutiqueCode(locationName: string): string {
   if (!locationName){
     return 'other';
   }

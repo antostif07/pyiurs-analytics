@@ -25,6 +25,8 @@ export type POSOrder = {
   partner_id: [number, string] | null; // Tuple of [id, name] or null if no customer
   state: "draft" | "paid" | "done" | "invoiced" | "cancelled";
   create_date: string; // ISO date string
+  payment_ids: [number, string][];
+  payments?: POSPayment[]; // Populated when fetching enriched orders
 };
 
 export type POSSession = {
@@ -52,7 +54,7 @@ export type POSPayment = {
   amount: number;
   payment_date: string; // ISO date string
   payment_method_id: [number, string]; // Tuple of [id, name]
-  order_id: [number, string]; // Tuple of [id, name]
+  pos_order_id: [number, string]; // Tuple of [id, name]
 };
 
 export type POSPaymentMethod = {

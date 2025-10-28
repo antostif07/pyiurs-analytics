@@ -145,13 +145,13 @@ export default function FundsClient({
   }, [financialData.transactions]);
 
   // Extraire les catégories uniques
-  const allCategories = useMemo(() => {
-    const categories = new Set<string>();
-    preparedTransactions.forEach(transaction => {
-      categories.add(transaction.category);
-    });
-    return Array.from(categories).sort();
-  }, [preparedTransactions]);
+  // const allCategories = useMemo(() => {
+  //   const categories = new Set<string>();
+  //   preparedTransactions.forEach(transaction => {
+  //     categories.add(transaction.category);
+  //   });
+  //   return Array.from(categories).sort();
+  // }, [preparedTransactions]);
 
   // Filtrer les transactions
   const filteredTransactions = useMemo(() => {
@@ -207,17 +207,17 @@ export default function FundsClient({
     );
   }, []);
 
-  const toggleStatus = useCallback((status: string) => {
-    setSelectedStatuses(prev => 
-      prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]
-    );
-  }, []);
+  // const toggleStatus = useCallback((status: string) => {
+  //   setSelectedStatuses(prev => 
+  //     prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]
+  //   );
+  // }, []);
 
-  const toggleCategory = useCallback((category: string) => {
-    setSelectedCategories(prev => 
-      prev.includes(category) ? prev.filter(c => c !== category) : [...prev, category]
-    );
-  }, []);
+  // const toggleCategory = useCallback((category: string) => {
+  //   setSelectedCategories(prev => 
+  //     prev.includes(category) ? prev.filter(c => c !== category) : [...prev, category]
+  //   );
+  // }, []);
 
   const handleDateChange = useCallback((date: Date | undefined) => {
     setSelectedDate(date);
@@ -233,32 +233,32 @@ export default function FundsClient({
   }, []);
 
   // Statistiques pour la date sélectionnée
-  const stats = useMemo(() => {
-    const selectedDateString = selectedDate ? toLocalDateString(selectedDate) : '';
-    const dateTransactions = preparedTransactions.filter(transaction => {
-      const transactionDate = toLocalDateString(new Date(transaction.date));
-      return transactionDate === selectedDateString;
-    });
+  // const stats = useMemo(() => {
+  //   const selectedDateString = selectedDate ? toLocalDateString(selectedDate) : '';
+  //   const dateTransactions = preparedTransactions.filter(transaction => {
+  //     const transactionDate = toLocalDateString(new Date(transaction.date));
+  //     return transactionDate === selectedDateString;
+  //   });
 
-    const totalDeposits = dateTransactions
-      .filter(t => t.type === 'DEPOSIT')
-      .reduce((sum, t) => sum + t.amount, 0);
+  //   const totalDeposits = dateTransactions
+  //     .filter(t => t.type === 'DEPOSIT')
+  //     .reduce((sum, t) => sum + t.amount, 0);
     
-    const totalWithdrawals = dateTransactions
-      .filter(t => t.type === 'WITHDRAWAL')
-      .reduce((sum, t) => sum + t.amount, 0);
+  //   const totalWithdrawals = dateTransactions
+  //     .filter(t => t.type === 'WITHDRAWAL')
+  //     .reduce((sum, t) => sum + t.amount, 0);
 
-    const completedTransactions = dateTransactions.filter(t => t.status === 'COMPLETED').length;
+  //   const completedTransactions = dateTransactions.filter(t => t.status === 'COMPLETED').length;
 
-    return {
-      totalDeposits,
-      totalWithdrawals,
-      netFlow: totalDeposits - totalWithdrawals,
-      completedTransactions,
-      totalTransactions: dateTransactions.length,
-      dateTransactions
-    };
-  }, [preparedTransactions, selectedDate]);
+  //   return {
+  //     totalDeposits,
+  //     totalWithdrawals,
+  //     netFlow: totalDeposits - totalWithdrawals,
+  //     completedTransactions,
+  //     totalTransactions: dateTransactions.length,
+  //     dateTransactions
+  //   };
+  // }, [preparedTransactions, selectedDate]);
 
   // Définition des colonnes
   const columns = useMemo<ColumnDef<PreparedTransaction>[]>(() => [

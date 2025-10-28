@@ -1,29 +1,38 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import Link from "next/link"
-import { Calculator, DollarSign, TrendingUp, FileText, Save, Calendar, Plus, Minus } from "lucide-react"
+import { useState, useMemo, useCallback } from 'react'
+import { DollarSign, FileText, Save, Plus, Minus } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 // import { supabase, CashClosure, CashDenomination } from '@/lib/supabase'
-import { POSOrder, POSOrderLine } from '../types/pos'
+import { POSConfig, POSOrder, POSOrderLine } from '../types/pos'
 import { format } from 'date-fns'
 import { CashClosure, Expense } from '../types/cloture'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
+import ClotureVenteHeader from '@/components/cloture-vente/header'
+import { usePathname, useRouter } from 'next/navigation'
+import PaymentCards from '@/components/cloture-vente/payment-cards'
+import DetailsAndAccounting from '@/components/cloture-vente/details-and-accounting'
 
 interface ClotureVentesClientProps {
   initialData: {
     date: Date
     dailySalesTotal: number
+    cashSalesTotal: number
+    bankSalesTotal: number
+    mobileMoneySalesTotal: number
+    onlSalesTotal: number
     expensesTotal: number
     expectedCash: number
     exchangeRate: number
     sales: POSOrder[]
     salesLines: POSOrderLine[]
     expenses: Expense[]
-    // recentClosures: CashClosure[]
+    shops: POSConfig[]
+  }
+  searchParams: {
+    shop?: string
   }
 }
 
@@ -52,7 +61,10 @@ const CDF_DENOMINATIONS: Denomination[] = [
   { currency: 'CDF', value: 100, label: '100 CDF', quantity: 0 },
 ]
 
-export default function ClotureVentesClient({ initialData }: ClotureVentesClientProps) {
+export default function ClotureVentesClient({ initialData, searchParams }: ClotureVentesClientProps) {
+  const [selectedShop, setSelectedShop] = useState(searchParams.shop || 'all')
+  const pathname = usePathname();
+  const router = useRouter();
   const [denominations, setDenominations] = useState<Denomination[]>([
     ...USD_DENOMINATIONS,
     ...CDF_DENOMINATIONS
@@ -150,6 +162,20 @@ export default function ClotureVentesClient({ initialData }: ClotureVentesClient
     }
   }
 
+  const handleShopChange = useCallback((shop: string) => {
+    setSelectedShop(shop)
+    
+    const params = new URLSearchParams()
+    if (shop !== 'all') {
+      params.set('shop', shop)
+    }
+    
+    const queryString = params.toString()
+    const newUrl = queryString ? `${pathname}?${queryString}` : pathname
+    
+    router.replace(newUrl, { scroll: false })
+  }, [router])
+
   const getDifferenceColor = (difference: number) => {
     if (Math.abs(difference) < 0.01) return 'text-green-600'
     if (difference > 0) return 'text-orange-600'
@@ -165,108 +191,25 @@ export default function ClotureVentesClient({ initialData }: ClotureVentesClient
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
       {/* Header */}
-      <div className="border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-        <div className="container mx-auto px-6 py-8">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center space-x-4">
-              <Link 
-                href="/"
-                className="inline-flex items-center px-4 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors duration-200"
-              >
-                ← Retour
-              </Link>
+      <ClotureVenteHeader
+        selectedShop={selectedShop}
+        handleShopChange={handleShopChange}
+        exchangeRate={initialData.exchangeRate}
+        shops={initialData.shops}
+      />
+      <PaymentCards
+        totalEspeces={initialData.cashSalesTotal}
+        totalBanque={initialData.bankSalesTotal}
+        totalMobileMoney={initialData.mobileMoneySalesTotal} totalCarte={initialData.onlSalesTotal} transactionsBanque={0} transactionsMobileMoney={0} transactionsCarte={0}        
+      />
 
-              <div className="flex items-center space-x-3">
-                <Calculator className="w-8 h-8 text-green-500" />
-                <div>
-                  <h1 className="text-3xl lg:text-4xl font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
-                    Clôture des Ventes
-                  </h1>
-                  <p className="text-gray-600 dark:text-gray-300 mt-2">
-                    {format(initialData.date, 'dd/MM/yyyy')}
-                  </p>
-                </div>
-              </div>
-            </div>
-            
-            {/* Stats principales */}
-            <div className="flex gap-3 mt-4 lg:mt-0">
-              <div className="text-center">
-                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                  {initialData.dailySalesTotal.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}$
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Ventes</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-red-600 dark:text-red-400">
-                  {initialData.expensesTotal.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}$
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Dépenses</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-                  {initialData.expectedCash.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}$
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Théorique</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <DetailsAndAccounting />
 
       {/* Contenu principal */}
       <div className="container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Colonne gauche : Résumé et billeterie */}
           <div className="space-y-6">
-            {/* Cartes de résumé */}
-            <div className="grid grid-cols-2 gap-4">
-              <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
-                <CardContent className="p-4">
-                  <DollarSign className="w-8 h-8 mb-2 opacity-90" />
-                  <p className="text-sm opacity-90">Cash USD Physique</p>
-                  <p className="text-2xl font-bold">
-                    {calculations.physicalCashUSD.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} $
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white">
-                <CardContent className="p-4">
-                  <TrendingUp className="w-8 h-8 mb-2 opacity-90" />
-                  <p className="text-sm opacity-90">Cash CDF Physique</p>
-                  <p className="text-2xl font-bold">
-                    {calculations.physicalCashCDF.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} CDF
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Taux de change */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calculator className="w-5 h-5" />
-                  Taux de change
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-4">
-                  <div className="flex-1">
-                    <label className="text-sm font-medium">1 USD = CDF</label>
-                    {/* <Input
-                      type="number"
-                      value={exchangeRate}
-                      onChange={(e) => setExchangeRate(Number(e.target.value))}
-                      className="mt-1"
-                    /> */}
-                  </div>
-                  <div className="text-sm text-gray-500 mt-6">
-                    ≈ {calculations.physicalCashCDF.toLocaleString('fr-FR')} CDF
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
 
             {/* Billeterie USD */}
             <Card>
@@ -318,7 +261,7 @@ export default function ClotureVentesClient({ initialData }: ClotureVentesClient
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {denominations.filter(d => d.currency === 'CDF').map((denomination, index) => {
+                  {denominations.filter(d => d.currency === 'CDF').map((denomination) => {
                     const globalIndex = denominations.findIndex(d => 
                       d.currency === 'CDF' && d.value === denomination.value
                     )
