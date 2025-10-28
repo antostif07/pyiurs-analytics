@@ -1,8 +1,6 @@
 'use client'
 
 import { useState, useMemo, useCallback } from 'react'
-import { DollarSign, FileText, Save, Plus, Minus } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 // import { supabase, CashClosure, CashDenomination } from '@/lib/supabase'
 import { POSConfig, POSOrder, POSOrderLine } from '../types/pos'
@@ -14,6 +12,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import PaymentCards from '@/components/cloture-vente/payment-cards'
 import DetailsAndAccounting from '@/components/cloture-vente/details-and-accounting'
 import { CDF_DENOMINATIONS, Denomination, USD_DENOMINATIONS } from '@/lib/constants'
+import ClotureVenteClose from '@/components/cloture-vente/close'
 
 export type CloturePageDataType = {
   date: Date
@@ -187,226 +186,13 @@ export default function ClotureVentesClient({ initialData, searchParams }: Clotu
         initialData={initialData}
       />
 
-      {/* Contenu principal */}
-      <div className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Colonne gauche : Résumé et billeterie */}
-          <div className="space-y-6">
-
-            {/* Billeterie USD */}
-            {/* <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <DollarSign className="w-5 h-5" />
-                  Billeterie USD
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {denominations.filter(d => d.currency === 'USD').map((denomination, index) => (
-                    <div key={denomination.value} className="flex items-center justify-between p-3 border rounded-lg">
-                      <span className="font-medium">{denomination.label}</span>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => decrementDenomination(index)}
-                          disabled={denomination.quantity === 0}
-                        >
-                          <Minus className="w-4 h-4" />
-                        </Button>
-                        <span className="w-12 text-center font-bold">{denomination.quantity}</span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => incrementDenomination(index)}
-                        >
-                          <Plus className="w-4 h-4" />
-                        </Button>
-                        <span className="w-20 text-right font-mono">
-                          {(denomination.value * denomination.quantity).toLocaleString('fr-FR')} $
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card> */}
-
-            {/* Billeterie CDF */}
-            {/* <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="w-5 h-5" />
-                  Billeterie CDF
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {denominations.filter(d => d.currency === 'CDF').map((denomination) => {
-                    const globalIndex = denominations.findIndex(d => 
-                      d.currency === 'CDF' && d.value === denomination.value
-                    )
-                    return (
-                      <div key={denomination.value} className="flex items-center justify-between p-3 border rounded-lg">
-                        <span className="font-medium">{denomination.label}</span>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => decrementDenomination(globalIndex)}
-                            disabled={denomination.quantity === 0}
-                          >
-                            <Minus className="w-4 h-4" />
-                          </Button>
-                          <span className="w-12 text-center font-bold">{denomination.quantity}</span>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => incrementDenomination(globalIndex)}
-                          >
-                            <Plus className="w-4 h-4" />
-                          </Button>
-                          <span className="w-20 text-right font-mono">
-                            {(denomination.value * denomination.quantity).toLocaleString('fr-FR')} CDF
-                          </span>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </CardContent>
-            </Card> */}
-          </div>
-
-          {/* Colonne droite : Calculs et actions */}
-          <div className="space-y-6">
-            {/* Résultat des calculs */}
-            {/* <Card>
-              <CardHeader>
-                <CardTitle>Résultat de la Clôture</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-gray-500">Cash théorique attendu</p>
-                    <p className="text-xl font-bold text-blue-600">
-                      {initialData.expectedCash.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} $
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Cash physique calculé</p>
-                    <p className="text-xl font-bold text-green-600">
-                      {calculations.calculatedCash.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} $
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="border-t pt-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-lg font-semibold">Différence</p>
-                    <div className="flex items-center gap-2">
-                      <p className={`text-xl font-bold ${getDifferenceColor(calculations.difference)}`}>
-                        {calculations.difference.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} $
-                      </p>
-                      {getDifferenceBadge(calculations.difference)}
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card> */}
-
-            {/* Notes et sauvegarde */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Notes & Sauvegarde</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium">Observations</label>
-                  {/* <Textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Notes sur la clôture..."
-                    className="mt-1"
-                    rows={3}
-                  /> */}
-                </div>
-                
-                {/* <Button
-                  onClick={handleSaveClosure}
-                  disabled={isSubmitting}
-                  className="w-full bg-green-600 hover:bg-green-700"
-                  size="lg"
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  {isSubmitting ? 'Sauvegarde...' : 'Sauvegarder la Clôture'}
-                </Button> */}
-
-                {savedClosure && (
-                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                    <p className="text-green-800 text-sm">
-                      ✅ Clôture sauvegardée le {format(new Date(savedClosure.created_at), 'dd/MM/yyyy à HH:mm')}
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Détail des ventes */}
-            {/* <Card>
-              <CardHeader>
-                <CardTitle>Détail des Ventes</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {initialData.sales.slice(0, 5).map((sale) => (
-                    <div key={sale.id} className="flex justify-between items-center p-2 border rounded">
-                      <div>
-                        <p className="font-medium">Commande #{sale.id}</p>
-                        <p className="text-sm text-gray-500">
-                          {format(new Date(sale.create_date), 'HH:mm')}
-                        </p>
-                      </div>
-                      <p className="font-bold">
-                        {(sale.amount_total || 0).toLocaleString('fr-FR')} $
-                      </p>
-                    </div>
-                  ))}
-                  {initialData.sales.length > 5 && (
-                    <p className="text-sm text-gray-500 text-center">
-                      + {initialData.sales.length - 5} autres ventes
-                    </p>
-                  )}
-                </div>
-              </CardContent>
-            </Card> */}
-
-            {/* Dépenses */}
-            {/* <Card>
-              <CardHeader>
-                <CardTitle>Dépenses du Jour</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {initialData.expenses.length > 0 ? (
-                  <div className="space-y-2">
-                    {initialData.expenses.map((expense) => (
-                      <div key={expense.id} className="flex justify-between items-center p-2 border rounded">
-                        <p className="text-sm">{expense.description || 'Dépense'}</p>
-                        <p className="font-bold text-red-600">
-                          {(expense.amount || 0).toLocaleString('fr-FR')} $
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-gray-500 text-center">Aucune dépense enregistrée</p>
-                )}
-              </CardContent>
-            </Card> */}
-          </div>
-        </div>
-      </div>
+      <ClotureVenteClose
+        denominations={denominations}
+        incrementDenomination={incrementDenomination}
+        decrementDenomination={decrementDenomination}
+        initialData={initialData}
+        // calculations={calculations}
+      />
     </main>
   )
 }

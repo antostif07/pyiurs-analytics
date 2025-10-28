@@ -75,7 +75,6 @@ export function ChargeRow({ chargeData, chargeId }: ChargeRowProps) {
             onClick={() => window.open(`https://pyiurs.odoo.com/web?#id=${expense.id}&cids=5&menu_id=367&action=549&model=hr.expense&view_type=form`, '_blank')}
           >
             <div className="flex-1">
-              {expense.id}
               <div className="flex items-center gap-2 mb-1">
                 <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                 <p className="font-medium text-sm text-gray-900 group-hover:text-blue-700">

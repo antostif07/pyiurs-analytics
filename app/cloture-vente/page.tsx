@@ -25,7 +25,7 @@ async function getDailySales(date: Date, shop?: string) {
   // 1️⃣ Récupérer les ventes du jour
   const ordersRes = await fetch(
     `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.order?fields=id,name,amount_total,create_date,config_id,payment_ids&domain=${encodeURIComponent(domain)}`,
-    { next: { revalidate: 300 } }
+    { cache: 'no-store' }
   );
 
   if (!ordersRes.ok) throw new Error("Erreur API Odoo - Ventes du jour")
