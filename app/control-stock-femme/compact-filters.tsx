@@ -34,8 +34,7 @@ interface CompactFiltersProps {
 
 export function CompactFilters({ 
   brands, 
-  colors, 
-  partners, // Nouveau
+  colors,
   orderNames, // Nouveau
   selectedBrand, 
   selectedColor, 

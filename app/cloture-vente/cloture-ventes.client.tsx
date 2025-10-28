@@ -9,57 +9,34 @@ import { POSConfig, POSOrder, POSOrderLine } from '../types/pos'
 import { format } from 'date-fns'
 import { CashClosure, Expense } from '../types/cloture'
 import { supabase } from '@/lib/supabase'
-import { Button } from '@/components/ui/button'
 import ClotureVenteHeader from '@/components/cloture-vente/header'
 import { usePathname, useRouter } from 'next/navigation'
 import PaymentCards from '@/components/cloture-vente/payment-cards'
 import DetailsAndAccounting from '@/components/cloture-vente/details-and-accounting'
+import { CDF_DENOMINATIONS, Denomination, USD_DENOMINATIONS } from '@/lib/constants'
+
+export type CloturePageDataType = {
+  date: Date
+  dailySalesTotal: number
+  cashSalesTotal: number
+  bankSalesTotal: number
+  mobileMoneySalesTotal: number
+  onlSalesTotal: number
+  expensesTotal: number
+  expectedCash: number
+  exchangeRate: number
+  sales: POSOrder[]
+  salesLines: POSOrderLine[]
+  expenses: Expense[]
+  shops: POSConfig[]
+}
 
 interface ClotureVentesClientProps {
-  initialData: {
-    date: Date
-    dailySalesTotal: number
-    cashSalesTotal: number
-    bankSalesTotal: number
-    mobileMoneySalesTotal: number
-    onlSalesTotal: number
-    expensesTotal: number
-    expectedCash: number
-    exchangeRate: number
-    sales: POSOrder[]
-    salesLines: POSOrderLine[]
-    expenses: Expense[]
-    shops: POSConfig[]
-  }
+  initialData: CloturePageDataType
   searchParams: {
     shop?: string
   }
 }
-
-interface Denomination {
-  currency: 'USD' | 'CDF'
-  value: number
-  label: string
-  quantity: number
-}
-
-const USD_DENOMINATIONS: Denomination[] = [
-  { currency: 'USD', value: 100, label: '100 USD', quantity: 0 },
-  { currency: 'USD', value: 50, label: '50 USD', quantity: 0 },
-  { currency: 'USD', value: 20, label: '20 USD', quantity: 0 },
-  { currency: 'USD', value: 10, label: '10 USD', quantity: 0 },
-  { currency: 'USD', value: 5, label: '5 USD', quantity: 0 },
-  { currency: 'USD', value: 1, label: '1 USD', quantity: 0 },
-]
-
-const CDF_DENOMINATIONS: Denomination[] = [
-  { currency: 'CDF', value: 20000, label: '20,000 CDF', quantity: 0 },
-  { currency: 'CDF', value: 10000, label: '10,000 CDF', quantity: 0 },
-  { currency: 'CDF', value: 5000, label: '5,000 CDF', quantity: 0 },
-  { currency: 'CDF', value: 1000, label: '1,000 CDF', quantity: 0 },
-  { currency: 'CDF', value: 500, label: '500 CDF', quantity: 0 },
-  { currency: 'CDF', value: 100, label: '100 CDF', quantity: 0 },
-]
 
 export default function ClotureVentesClient({ initialData, searchParams }: ClotureVentesClientProps) {
   const [selectedShop, setSelectedShop] = useState(searchParams.shop || 'all')
@@ -203,7 +180,12 @@ export default function ClotureVentesClient({ initialData, searchParams }: Clotu
         totalMobileMoney={initialData.mobileMoneySalesTotal} totalCarte={initialData.onlSalesTotal} transactionsBanque={0} transactionsMobileMoney={0} transactionsCarte={0}        
       />
 
-      <DetailsAndAccounting />
+      <DetailsAndAccounting
+        denominations={denominations}
+        decrementDenomination={decrementDenomination}
+        incrementDenomination={incrementDenomination}
+        initialData={initialData}
+      />
 
       {/* Contenu principal */}
       <div className="container mx-auto px-4 py-8">
@@ -212,7 +194,7 @@ export default function ClotureVentesClient({ initialData, searchParams }: Clotu
           <div className="space-y-6">
 
             {/* Billeterie USD */}
-            <Card>
+            {/* <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <DollarSign className="w-5 h-5" />
@@ -249,10 +231,10 @@ export default function ClotureVentesClient({ initialData, searchParams }: Clotu
                   ))}
                 </div>
               </CardContent>
-            </Card>
+            </Card> */}
 
             {/* Billeterie CDF */}
-            <Card>
+            {/* <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <FileText className="w-5 h-5" />
@@ -294,13 +276,13 @@ export default function ClotureVentesClient({ initialData, searchParams }: Clotu
                   })}
                 </div>
               </CardContent>
-            </Card>
+            </Card> */}
           </div>
 
           {/* Colonne droite : Calculs et actions */}
           <div className="space-y-6">
             {/* Résultat des calculs */}
-            <Card>
+            {/* <Card>
               <CardHeader>
                 <CardTitle>Résultat de la Clôture</CardTitle>
               </CardHeader>
@@ -332,7 +314,7 @@ export default function ClotureVentesClient({ initialData, searchParams }: Clotu
                   </div>
                 </div>
               </CardContent>
-            </Card>
+            </Card> */}
 
             {/* Notes et sauvegarde */}
             <Card>
@@ -351,7 +333,7 @@ export default function ClotureVentesClient({ initialData, searchParams }: Clotu
                   /> */}
                 </div>
                 
-                <Button
+                {/* <Button
                   onClick={handleSaveClosure}
                   disabled={isSubmitting}
                   className="w-full bg-green-600 hover:bg-green-700"
@@ -359,7 +341,7 @@ export default function ClotureVentesClient({ initialData, searchParams }: Clotu
                 >
                   <Save className="w-4 h-4 mr-2" />
                   {isSubmitting ? 'Sauvegarde...' : 'Sauvegarder la Clôture'}
-                </Button>
+                </Button> */}
 
                 {savedClosure && (
                   <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
@@ -372,7 +354,7 @@ export default function ClotureVentesClient({ initialData, searchParams }: Clotu
             </Card>
 
             {/* Détail des ventes */}
-            <Card>
+            {/* <Card>
               <CardHeader>
                 <CardTitle>Détail des Ventes</CardTitle>
               </CardHeader>
@@ -398,10 +380,10 @@ export default function ClotureVentesClient({ initialData, searchParams }: Clotu
                   )}
                 </div>
               </CardContent>
-            </Card>
+            </Card> */}
 
             {/* Dépenses */}
-            <Card>
+            {/* <Card>
               <CardHeader>
                 <CardTitle>Dépenses du Jour</CardTitle>
               </CardHeader>
@@ -421,7 +403,7 @@ export default function ClotureVentesClient({ initialData, searchParams }: Clotu
                   <p className="text-gray-500 text-center">Aucune dépense enregistrée</p>
                 )}
               </CardContent>
-            </Card>
+            </Card> */}
           </div>
         </div>
       </div>

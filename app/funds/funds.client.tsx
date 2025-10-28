@@ -201,11 +201,11 @@ export default function FundsClient({
   }, [preparedTransactions, selectedDate, selectedTypes, selectedStatuses, selectedCategories, globalFilter]);
 
   // Gestion des filtres
-  const toggleType = useCallback((type: string) => {
-    setSelectedTypes(prev => 
-      prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
-    );
-  }, []);
+  // const toggleType = useCallback((type: string) => {
+  //   setSelectedTypes(prev => 
+  //     prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
+  //   );
+  // }, []);
 
   // const toggleStatus = useCallback((status: string) => {
   //   setSelectedStatuses(prev => 

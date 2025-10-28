@@ -21,7 +21,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sparkles, Users, TrendingUp, Target } from 'lucide-react';
 import { BeautyBrandsData, BrandData } from '../types/product_template';
 import React from 'react';
-import { access } from 'fs';
 
 interface BeautyBrandsClientProps {
   initialData: BeautyBrandsData;

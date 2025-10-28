@@ -1,7 +1,7 @@
 import { endOfDay, format, startOfDay } from "date-fns"
 import { POSConfig, POSOrder, POSPayment } from "../types/pos"
 import ClotureVentesClient from "./cloture-ventes.client"
-import { Expense } from "../types/cloture"
+import { AccountAccount, Expense } from "../types/cloture"
 
 interface PageProps {
   searchParams: Promise<{
@@ -92,26 +92,49 @@ async function getDailyExpenses(date: Date, shop?: string) {
   const endDate = format(endOfDay(date), "yyyy-MM-dd HH:mm:ss")
   
   // Adaptez cette requête selon votre modèle de données des dépenses
-  let domain = `[["date", ">=", "${startDate}"], ["date", "<=", "${endDate}"]]`
+  let domain = `[["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"]]`
   
   if (shop && shop !== 'all') {
-    domain = `[["date", ">=", "${startDate}"], ["date", "<=", "${endDate}"], ["shop", "=", "${shop}"]]`
+    domain = `[["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"]]`
   }
   
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/expense.model?fields=id,amount,description&domain=${encodeURIComponent(domain)}`,
+  const expenseRes = await fetch(
+    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/hr.expense?fields=id,total_amount,name,create_date,product_id,company_id,account_id&domain=${encodeURIComponent(domain)}`,
     { 
       next: { revalidate: 300 }
     }
   )
 
-  if (!res.ok) {
-    console.log("Aucun modèle de dépense trouvé, utilisation des données mockées")
-    // Retourner des données mockées pour l'exemple
-    return { records: [] }
-  }
+  if (!expenseRes.ok) throw new Error("Erreur API Odoo - Recuperation des dépenses")
+  const expenseData = await expenseRes.json();
+  if (!expenseData.success) throw new Error(expenseData.error || "Erreur Odoo (he.expense)");
+
+  const expenses = expenseData.records as Expense[];
+  const allAccountIds = expenses.flatMap((e: Expense) => e.account_id?.[0] || []);
+
+  // 2️⃣ Récupérer tous les comptes liés
+  const accountsDomain = `[["id", "in", [${allAccountIds.join(",")}]]]`;
+
+
+  const accountRes = await fetch(
+    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/account.account?fields=id,x_studio_categorie_compte,name,code&domain=${encodeURIComponent(accountsDomain)}`,
+    { next: { revalidate: 300 } }
+  );
+
+  if (!accountRes.ok) throw new Error("Erreur API Odoo - Récupération des paiements");
+
+  const accountsData = await accountRes.json();
+  if (!accountsData.success) throw new Error(accountsData.error || "Erreur Odoo (account.account)");
+
+  const accounts = accountsData.records;
   
-  return res.json()
+  // 3️⃣ Enrichir les ventes avec leurs paiements
+  const enrichedOrders = expenses.map((expense: Expense) => ({
+    ...expense,
+    account: accounts.find((a: AccountAccount) => a.id === expense.account_id?.[0]) || null,
+  }));
+
+  return { success: true, records: enrichedOrders };
 }
 
 // Récupérer le taux de change actuel
@@ -151,6 +174,9 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
     getExchangeRate(),
     getPOSConfig(),
   ])
+
+  console.log(expensesData.records[0].account);
+  
   // Total des ventes especes
   const cashSalesTotal = salesData.records.reduce((sum: number, order: POSOrder) => {
     const cashPayments = order.payments ? order.payments.filter((payment: POSPayment) => payment.payment_method_id[1].toLowerCase().includes('esp')) : [];
@@ -191,7 +217,7 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
 
   // Calculer le total des dépenses
   const expensesTotal = expensesData.records.reduce((sum: number, expense: Expense) => 
-    sum + (expense.amount || 0), 0
+    sum + (expense.total_amount || 0), 0
   )
 
   // Calculer l'argent théorique en caisse

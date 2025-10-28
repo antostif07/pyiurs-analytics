@@ -1,4 +1,3 @@
-import { ControlStockBeautyModel } from "../types/ControlStockBeautyModel";
 import { POSOrderLine } from "../types/pos";
 import { OdooProductTemplate } from "../types/product_template";
 import { PurchaseOrder, PurchaseOrderLine } from "../types/purchase";
