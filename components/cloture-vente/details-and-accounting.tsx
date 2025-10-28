@@ -1,26 +1,17 @@
-import { DollarSign, FileText, Minus, Plus, Receipt, TrendingUp } from "lucide-react";
+import { FileText, Receipt, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "../ui/accordion";
-import { Button } from "../ui/button";
 import { CloturePageDataType } from "@/app/cloture-vente/cloture-ventes.client";
 import { format } from "date-fns";
 import { Expense } from "@/app/types/cloture";
 import { ChargeRow } from "./charge-row";
 
 interface DetailsAndAccountingProps {
-    denominations: {
-        currency: 'USD' | 'CDF';
-        value: number;
-        label: string;
-        quantity: number;
-    }[];
-    decrementDenomination: (index: number) => void;
-    incrementDenomination: (index: number) => void;
     initialData: CloturePageDataType;
 }
 
-export default function DetailsAndAccounting({denominations, decrementDenomination, incrementDenomination, initialData}: DetailsAndAccountingProps) {
+export default function DetailsAndAccounting({initialData}: DetailsAndAccountingProps) {
   return (
     <div className="container mx-auto px-4">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

@@ -35,7 +35,7 @@ async function getPOSOrderLines(month?: string, year?: string) {
   return res.json();
 }
 
-async function getRevenueData(month?: string, year?: string, boutique?: string): Promise<RevenueData> {
+async function getRevenueData(month?: string, year?: string): Promise<RevenueData> {
     const posOrderLines = await getPOSOrderLines(month, year);
     const dailySales = posOrderLines.records.filter((line: POSOrderLine) => {
         const lineDate = new Date(line.create_date);
@@ -128,7 +128,7 @@ async function getRevenueData(month?: string, year?: string, boutique?: string):
 
 export default async function RevenuePage({ searchParams }: PageProps) {
   const params = await searchParams;
-  const revenueData = await getRevenueData(params.month, params.year, params.boutique);
+  const revenueData = await getRevenueData(params.month, params.year);
   
   return (
     <RevenueClient 

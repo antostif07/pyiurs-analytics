@@ -1,9 +1,10 @@
-import { DollarSign, FileText, Minus, Plus } from "lucide-react"
+import { DollarSign, FileText, Minus, Plus, Save, CheckCircle, Clock } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card"
 import { Denomination } from "@/lib/constants"
 import { Button } from "../ui/button"
 import { CloturePageDataType } from "@/app/cloture-vente/cloture-ventes.client"
 import { Badge } from "../ui/badge"
+import { useState } from "react"
 
 interface ClotureVenteCloseProps {
   denominations: Denomination[]
@@ -12,301 +13,444 @@ interface ClotureVenteCloseProps {
   initialData: CloturePageDataType
 }
 
+interface CaissePrincipaleRow {
+  modePaiement: string
+  soldeOuverture: number
+  ventesJour: number
+  sortiesJour: number
+  clotureTheorique: number
+  cashPhysique: number
+  managerConfirmed: boolean
+  financierConfirmed: boolean
+}
+
+interface CaisseSecondaireRow {
+  categorie: string
+  soldeOuverture: number
+  entreesEpargne: number
+  sortiesEpargne: number
+  soldeCloture: number
+  validated: boolean
+}
+
 export default function ClotureVenteClose({denominations, decrementDenomination, incrementDenomination, initialData}: ClotureVenteCloseProps) {
-    const getDifferenceColor = (difference: number) => {
-        if (Math.abs(difference) < 0.01) return 'text-green-600'
-        if (difference > 0) return 'text-orange-600'
-        return 'text-red-600'
+  const [notes, setNotes] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Données mock pour la caisse principale
+  const caissePrincipaleData: CaissePrincipaleRow[] = [
+    {
+      modePaiement: "Espèces",
+      soldeOuverture: 1500,
+      ventesJour: initialData.cashSalesTotal,
+      sortiesJour: initialData.expensesTotal,
+      clotureTheorique: 1500 + initialData.cashSalesTotal - initialData.expensesTotal,
+      cashPhysique: 1500 + initialData.cashSalesTotal - initialData.expensesTotal,
+      managerConfirmed: false,
+      financierConfirmed: false
+    },
+    {
+      modePaiement: "Banque",
+      soldeOuverture: 5000,
+      ventesJour: initialData.bankSalesTotal,
+      sortiesJour: 0,
+      clotureTheorique: 5000 + initialData.bankSalesTotal,
+      cashPhysique: 5000 + initialData.bankSalesTotal,
+      managerConfirmed: true,
+      financierConfirmed: false
+    },
+    {
+      modePaiement: "Mobile Money",
+      soldeOuverture: 2000,
+      ventesJour: initialData.mobileMoneySalesTotal,
+      sortiesJour: 0,
+      clotureTheorique: 2000 + initialData.mobileMoneySalesTotal,
+      cashPhysique: 2000 + initialData.mobileMoneySalesTotal,
+      managerConfirmed: false,
+      financierConfirmed: false
+    },
+    {
+      modePaiement: "Online",
+      soldeOuverture: 1000,
+      ventesJour: initialData.onlSalesTotal,
+      sortiesJour: 0,
+      clotureTheorique: 1000 + initialData.onlSalesTotal,
+      cashPhysique: 1000 + initialData.onlSalesTotal,
+      managerConfirmed: true,
+      financierConfirmed: true
     }
+  ]
 
-    const getDifferenceBadge = (difference: number) => {
-        if (Math.abs(difference) < 0.01) return <Badge variant="default">Parfait</Badge>
-        if (difference > 0) return <Badge variant="secondary">Excédent</Badge>
-        return <Badge variant="destructive">Manquant</Badge>
+  // Données mock pour la caisse secondaire
+  const caisseSecondaireData: CaisseSecondaireRow[] = [
+    {
+      categorie: "Epargne Marchandise",
+      soldeOuverture: 5000,
+      entreesEpargne: 1500,
+      sortiesEpargne: 800,
+      soldeCloture: 5700,
+      validated: true
+    },
+    {
+      categorie: "Loyer",
+      soldeOuverture: 3000,
+      entreesEpargne: 2000,
+      sortiesEpargne: 0,
+      soldeCloture: 5000,
+      validated: false
+    },
+    {
+      categorie: "Beauty",
+      soldeOuverture: 2500,
+      entreesEpargne: 1200,
+      sortiesEpargne: 500,
+      soldeCloture: 3200,
+      validated: true
+    },
+    {
+      categorie: "Finance",
+      soldeOuverture: 8000,
+      entreesEpargne: 3000,
+      sortiesEpargne: 2000,
+      soldeCloture: 9000,
+      validated: false
+    },
+    {
+      categorie: "Boost",
+      soldeOuverture: 1500,
+      entreesEpargne: 800,
+      sortiesEpargne: 300,
+      soldeCloture: 2000,
+      validated: true
     }
+  ]
 
-    return (
-        <div className="container mx-auto px-4 py-8">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
-            {/* Billeterie existante */}
-            <Card>
-                <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                    <DollarSign className="w-5 h-5" />
-                    Billeterie
-                </CardTitle>
-                </CardHeader>
-                <CardContent>
-                <div className="space-y-4">
-                    {/* USD */}
-                    <div>
-                    <h4 className="font-semibold text-sm text-gray-500 mb-2">USD</h4>
-                    <div className="grid grid-cols-2 gap-2">
-                        {denominations.filter(d => d.currency === 'USD').map((denomination, index) => (
-                        <div key={denomination.value} className="flex items-center justify-between p-2 border rounded">
-                            <span className="text-sm font-medium">{denomination.value}$</span>
-                            <div className="flex items-center gap-1">
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-0"
-                                onClick={() => decrementDenomination(index)}
-                                disabled={denomination.quantity === 0}
-                            >
-                                <Minus className="w-3 h-3" />
-                            </Button>
-                            <span className="w-8 text-center text-sm font-bold">{denomination.quantity}</span>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-0"
-                                onClick={() => incrementDenomination(index)}
-                            >
-                                <Plus className="w-3 h-3" />
-                            </Button>
-                            </div>
-                        </div>
-                        ))}
-                    </div>
-                    </div>
-                    
-                    {/* CDF */}
-                    <div>
-                    <h4 className="font-semibold text-sm text-gray-500 mb-2">CDF</h4>
-                    <div className="grid grid-cols-2 gap-2">
-                        {denominations.filter(d => d.currency === 'CDF').map((denomination) => {
-                        const globalIndex = denominations.findIndex(d => d.currency === 'CDF' && d.value === denomination.value)
-                        return (
-                            <div key={denomination.value} className="flex items-center justify-between p-2 border rounded">
-                            <span className="text-sm font-medium">{denomination.value.toLocaleString('fr-FR')}FC</span>
-                            <div className="flex items-center gap-1">
-                                <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-0"
-                                onClick={() => decrementDenomination(globalIndex)}
-                                disabled={denomination.quantity === 0}
-                                >
-                                <Minus className="w-3 h-3" />
-                                </Button>
-                                <span className="w-8 text-center text-sm font-bold">{denomination.quantity}</span>
-                                <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-0"
-                                onClick={() => incrementDenomination(globalIndex)}
-                                >
-                                <Plus className="w-3 h-3" />
-                                </Button>
-                            </div>
-                            </div>
-                        )
-                        })}
-                    </div>
-                    </div>
-                </div>
-                </CardContent>
-            </Card>
+  const handleSaveClosure = async () => {
+    setIsSubmitting(true)
+    // Simulation de sauvegarde
+    setTimeout(() => {
+      setIsSubmitting(false)
+      alert('Clôture sauvegardée avec succès!')
+    }, 2000)
+  }
 
-            {/* Tableau de Synthèse */}
-            <Card>
-                <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                    <FileText className="w-5 h-5" />
-                    Synthèse de Clôture
-                </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                {/* Entrées */}
-                <div>
-                    <h4 className="font-semibold text-green-600 mb-3">ENTRÉES</h4>
-                    <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                        <span className="text-sm">Solde d&apos;ouverture</span>
-                        <span className="font-semibold">0 $</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                        <span className="text-sm">Total Cash (Espèces)</span>
-                        <span className="font-semibold text-green-600">
-                        {initialData.cashSalesTotal.toLocaleString('fr-FR')} $
-                        </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                        <span className="text-sm">Mobile Money</span>
-                        <span className="font-semibold text-green-600">
-                        {initialData.mobileMoneySalesTotal.toLocaleString('fr-FR')} $
-                        </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                        <span className="text-sm">Banque</span>
-                        <span className="font-semibold text-green-600">
-                        {initialData.bankSalesTotal.toLocaleString('fr-FR')} $
-                        </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                        <span className="text-sm">Online</span>
-                        <span className="font-semibold text-green-600">
-                        {initialData.onlSalesTotal.toLocaleString('fr-FR')} $
-                        </span>
-                    </div>
-                    <div className="border-t pt-2">
-                        <div className="flex justify-between items-center font-bold">
-                        <span>Total Entrées</span>
-                        <span className="text-green-600">
-                            {initialData.dailySalesTotal.toLocaleString('fr-FR')} $
-                        </span>
-                        </div>
-                    </div>
-                    </div>
-                </div>
+  const getStatusBadge = (manager: boolean, financier: boolean) => {
+    if (manager && financier) return <Badge variant="default" className="bg-green-100 text-green-800">Validé</Badge>
+    if (manager) return <Badge variant="secondary" className="bg-blue-100 text-blue-800">Manager OK</Badge>
+    return <Badge variant="outline" className="bg-gray-100 text-gray-600">En attente</Badge>
+  }
 
-                {/* Sorties */}
-                <div>
-                    <h4 className="font-semibold text-red-600 mb-3">SORTIES</h4>
-                    <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                        <span className="text-sm">Dépenses Cash</span>
-                        <span className="font-semibold text-red-600">
-                        {initialData.expensesTotal.toLocaleString('fr-FR')} $
-                        </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                        <span className="text-sm">Mobile Money</span>
-                        <span className="font-semibold text-red-600">0 $</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                        <span className="text-sm">Banque</span>
-                        <span className="font-semibold text-red-600">0 $</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                        <span className="text-sm">Online</span>
-                        <span className="font-semibold text-red-600">0 $</span>
-                    </div>
-                    <div className="border-t pt-2">
-                        <div className="flex justify-between items-center font-bold">
-                        <span>Total Sorties</span>
-                        <span className="text-red-600">
-                            {initialData.expensesTotal.toLocaleString('fr-FR')} $
-                        </span>
-                        </div>
-                    </div>
-                    </div>
-                </div>
-
-                {/* Soldes d'épargne */}
-                <div>
-                    <h4 className="font-semibold text-blue-600 mb-3">SOLDES D&apos;ÉPARGNE</h4>
-                    <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                        <span className="text-sm">Solde d&apos;ouverture Beauty</span>
-                        <span className="font-semibold">0 $</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                        <span className="text-sm">Solde d&apos;ouverture Produits</span>
-                        <span className="font-semibold">0 $</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                        <span className="text-sm">Solde d&apos;ouverture Loyer</span>
-                        <span className="font-semibold">0 $</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                        <span className="text-sm">Solde d&apos;ouverture Personnel</span>
-                        <span className="font-semibold">0 $</span>
-                    </div>
-                    </div>
-                </div>
-
-                {/* Totaux de clôture */}
-                <div className="bg-slate-50 p-4 rounded-lg">
-                    <h4 className="font-semibold text-purple-600 mb-3">SOLDE DE FERMETURE</h4>
-                    <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                        <span className="text-sm">Cash Physique</span>
-                        <span className="font-semibold">
-                        {initialData.cashSalesTotal.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} $
-                        </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                        <span className="text-sm">Mobile Money</span>
-                        <span className="font-semibold">
-                        {initialData.mobileMoneySalesTotal.toLocaleString('fr-FR')} $
-                        </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                        <span className="text-sm">Banque</span>
-                        <span className="font-semibold">
-                        {initialData.bankSalesTotal.toLocaleString('fr-FR')} $
-                        </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                        <span className="text-sm">Online</span>
-                        <span className="font-semibold">
-                        {initialData.onlSalesTotal.toLocaleString('fr-FR')} $
-                        </span>
-                    </div>
-                    <div className="border-t pt-2">
-                        <div className="flex justify-between items-center font-bold text-lg">
-                        <span>Solde Total de Fermeture</span>
-                        <span className="text-purple-600">
-                            {(
-                            initialData.cashSalesTotal + 
-                            initialData.mobileMoneySalesTotal + 
-                            initialData.bankSalesTotal + 
-                            initialData.onlSalesTotal
-                            ).toLocaleString('fr-FR')} $
-                        </span>
-                        </div>
-                    </div>
-                    </div>
-                </div>
-
-                {/* Différence et Bouton de clôture */}
-                <div className="border-t pt-4">
-                    <div className="flex items-center justify-between mb-4">
-                    <div>
-                        {/* <p className="text-lg font-semibold">Différence</p>
-                        <p className={`text-xl font-bold ${getDifferenceColor(calculations.difference)}`}>
-                        {calculations.difference.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} $
-                        </p>
-                        {getDifferenceBadge(calculations.difference)} */}
-                    </div>
-                    </div>
-
-                    {/* Observations */}
-                    <div className="mb-4">
-                    <label className="text-sm font-medium block mb-2">Observations</label>
-                    {/* <textarea
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        placeholder="Notes sur la clôture..."
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none"
-                        rows={3}
-                    /> */}
-                    </div>
-
-                    {/* Bouton de clôture */}
-                    {/* <Button
-                    onClick={handleSaveClosure}
-                    disabled={isSubmitting}
-                    className="w-full bg-green-600 hover:bg-green-700"
-                    size="lg"
-                    >
-                    <Save className="w-4 h-4 mr-2" />
-                    {isSubmitting ? 'Sauvegarde...' : 'Sauvegarder la Clôture'}
-                    </Button> */}
-
-                    {/* {savedClosure && (
-                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg mt-4">
-                        <p className="text-green-800 text-sm">
-                        ✅ Clôture sauvegardée le {format(new Date(savedClosure.created_at), 'dd/MM/yyyy à HH:mm')}
-                        </p>
-                    </div>
-                    )} */}
-                </div>
-                </CardContent>
-            </Card>
-            </div>
-        </div>
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         
-    )
+        {/* Colonne Gauche - Billeterie */}
+        <div className="xl:col-span-1 space-y-6">
+          {/* Billeterie */}
+          <Card className="h-fit">
+            <CardHeader className="">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <DollarSign className="w-5 h-5" />
+                Billeterie
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* USD */}
+              <div>
+                <h4 className="font-semibold text-sm text-gray-700 mb-3 flex items-center gap-2">
+                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  USD
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
+                  {denominations.filter(d => d.currency === 'USD').map((denomination, index) => (
+                    <div key={denomination.value} className="flex items-center justify-between p-1 border rounded-lg bg-white shadow-sm">
+                      <span className="text-sm font-semibold text-gray-800 text-xs">{denomination.value}$</span>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-4 w-4 p-0 border-gray-300 rounded-12"
+                          onClick={() => decrementDenomination(index)}
+                          disabled={denomination.quantity === 0}
+                        >
+                          <Minus className="w-2 h-2" />
+                        </Button>
+                        <span className="w-8 text-center text-sm font-bold text-gray-900">{denomination.quantity}</span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-4 w-4 p-0 border-gray-300"
+                          onClick={() => incrementDenomination(index)}
+                        >
+                          <Plus className="w-1 h-1" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              {/* CDF */}
+              <div>
+                <h4 className="font-semibold text-sm text-gray-700 mb-3 flex items-center gap-2">
+                  <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                  CDF
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
+                  {denominations.filter(d => d.currency === 'CDF').map((denomination) => {
+                    const globalIndex = denominations.findIndex(d => d.currency === 'CDF' && d.value === denomination.value)
+                    return (
+                      <div key={denomination.value} className="flex items-center justify-between p-3 border rounded-lg bg-white shadow-sm">
+                        <span className="text-sm font-semibold text-gray-800 text-[12px]">{denomination.value.toLocaleString('fr-FR')}FC</span>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-4 w-4 p-0 border-gray-300"
+                            onClick={() => decrementDenomination(globalIndex)}
+                            disabled={denomination.quantity === 0}
+                          >
+                            <Minus className="w-3 h-3" />
+                          </Button>
+                          <span className="w-4 text-center text-sm font-bold text-gray-900">{denomination.quantity}</span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-4 w-4 p-0 border-gray-300"
+                            onClick={() => incrementDenomination(globalIndex)}
+                          >
+                            <Plus className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Résumé Billeterie */}
+              <div className="pt-4 border-t">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="font-medium text-gray-600">Total USD:</span>
+                  <span className="font-bold text-green-600">
+                    {denominations
+                      .filter(d => d.currency === 'USD')
+                      .reduce((sum, d) => sum + (d.value * d.quantity), 0)
+                      .toLocaleString('fr-FR')} $
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-sm mt-2">
+                  <span className="font-medium text-gray-600">Total CDF:</span>
+                  <span className="font-bold text-blue-600">
+                    {denominations
+                      .filter(d => d.currency === 'CDF')
+                      .reduce((sum, d) => sum + (d.value * d.quantity), 0)
+                      .toLocaleString('fr-FR')} FC
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Notes et Clôture */}
+          <Card>
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Save className="w-5 h-5" />
+                Finalisation
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-2">Observations</label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Notes sur la clôture, remarques, anomalies..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  rows={4}
+                />
+              </div>
+              
+              <Button
+                onClick={handleSaveClosure}
+                disabled={isSubmitting}
+                className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 h-11 text-base font-semibold shadow-md"
+                size="lg"
+              >
+                <Save className="w-4 h-4 mr-2" />
+                {isSubmitting ? 'Sauvegarde...' : 'Finaliser la Clôture'}
+              </Button>
+
+              <div className="text-xs text-gray-500 text-center">
+                Toutes les validations doivent être complétées avant la clôture
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Colonne Droite - Tableaux */}
+        <div className="xl:col-span-2 space-y-6">
+          {/* Caisse Principale */}
+          <Card>
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <FileText className="w-6 h-6 text-blue-600" />
+                Caisse Principale
+                <Badge variant="outline" className="ml-2 bg-blue-50 text-blue-700">
+                  {caissePrincipaleData.filter(row => row.managerConfirmed && row.financierConfirmed).length}/{caissePrincipaleData.length} validés
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto rounded-lg border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gradient-to-r from-blue-50 to-blue-100 border-b">
+                      <th className="text-left p-4 font-semibold text-blue-900">Mode de Paiement</th>
+                      <th className="text-right p-4 font-semibold text-blue-900">Solde Ouverture</th>
+                      <th className="text-right p-4 font-semibold text-blue-900">Ventes Jour</th>
+                      <th className="text-right p-4 font-semibold text-blue-900">Sorties Jour</th>
+                      <th className="text-right p-4 font-semibold text-blue-900">Clôture Théorique</th>
+                      <th className="text-right p-4 font-semibold text-blue-900">Cash Physique</th>
+                      <th className="text-center p-4 font-semibold text-blue-900">Validation</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {caissePrincipaleData.map((row, index) => (
+                      <tr key={index} className="border-b hover:bg-blue-50/50 transition-colors">
+                        <td className="p-4 font-medium text-gray-900">{row.modePaiement}</td>
+                        <td className="p-4 text-right font-semibold">{row.soldeOuverture.toLocaleString('fr-FR')} $</td>
+                        <td className="p-4 text-right font-semibold text-green-600">+{row.ventesJour.toLocaleString('fr-FR')} $</td>
+                        <td className="p-4 text-right font-semibold text-red-600">-{row.sortiesJour.toLocaleString('fr-FR')} $</td>
+                        <td className="p-4 text-right font-bold text-purple-600">{row.clotureTheorique.toLocaleString('fr-FR')} $</td>
+                        <td className="p-4 text-right font-bold text-blue-600">{row.cashPhysique.toLocaleString('fr-FR')} $</td>
+                        <td className="p-4 text-center">
+                          <div className="flex justify-center gap-2">
+                            <Button
+                              size="sm"
+                              variant={row.managerConfirmed ? "default" : "outline"}
+                              className={`h-8 text-xs font-medium ${row.managerConfirmed ? 'bg-blue-600 hover:bg-blue-700' : 'border-blue-300 text-blue-700'}`}
+                            >
+                              {row.managerConfirmed ? <CheckCircle className="w-3 h-3 mr-1" /> : <Clock className="w-3 h-3 mr-1" />}
+                              Manager
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant={row.financierConfirmed ? "default" : "outline"}
+                              className={`h-8 text-xs font-medium ${row.financierConfirmed ? 'bg-green-600 hover:bg-green-700' : 'border-green-300 text-green-700'}`}
+                            >
+                              {row.financierConfirmed ? <CheckCircle className="w-3 h-3 mr-1" /> : <Clock className="w-3 h-3 mr-1" />}
+                              Financier
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {/* Total */}
+                    <tr className="bg-gradient-to-r from-blue-100 to-blue-200 font-bold">
+                      <td className="p-4 text-blue-900">TOTAL GÉNÉRAL</td>
+                      <td className="p-4 text-right text-blue-900">
+                        {caissePrincipaleData.reduce((sum, row) => sum + row.soldeOuverture, 0).toLocaleString('fr-FR')} $
+                      </td>
+                      <td className="p-4 text-right text-green-700">
+                        +{caissePrincipaleData.reduce((sum, row) => sum + row.ventesJour, 0).toLocaleString('fr-FR')} $
+                      </td>
+                      <td className="p-4 text-right text-red-700">
+                        -{caissePrincipaleData.reduce((sum, row) => sum + row.sortiesJour, 0).toLocaleString('fr-FR')} $
+                      </td>
+                      <td className="p-4 text-right text-purple-700">
+                        {caissePrincipaleData.reduce((sum, row) => sum + row.clotureTheorique, 0).toLocaleString('fr-FR')} $
+                      </td>
+                      <td className="p-4 text-right text-blue-700">
+                        {caissePrincipaleData.reduce((sum, row) => sum + row.cashPhysique, 0).toLocaleString('fr-FR')} $
+                      </td>
+                      <td className="p-4 text-center">
+                        {getStatusBadge(
+                          caissePrincipaleData.every(row => row.managerConfirmed),
+                          caissePrincipaleData.every(row => row.financierConfirmed)
+                        )}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Caisse Secondaire */}
+          <Card>
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <FileText className="w-6 h-6 text-green-600" />
+                Caisse Secondaire - Épargnes
+                <Badge variant="outline" className="ml-2 bg-green-50 text-green-700">
+                  {caisseSecondaireData.filter(row => row.validated).length}/{caisseSecondaireData.length} validés
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto rounded-lg border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gradient-to-r from-green-50 to-green-100 border-b">
+                      <th className="text-left p-4 font-semibold text-green-900">Catégorie</th>
+                      <th className="text-right p-4 font-semibold text-green-900">Solde Ouverture</th>
+                      <th className="text-right p-4 font-semibold text-green-900">Entrées Épargne (+)</th>
+                      <th className="text-right p-4 font-semibold text-green-900">Sorties Épargne (-)</th>
+                      <th className="text-right p-4 font-semibold text-green-900">Solde Clôture</th>
+                      <th className="text-center p-4 font-semibold text-green-900">Validation</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {caisseSecondaireData.map((row, index) => (
+                      <tr key={index} className="border-b hover:bg-green-50/50 transition-colors">
+                        <td className="p-4 font-medium text-gray-900">{row.categorie}</td>
+                        <td className="p-4 text-right font-semibold">{row.soldeOuverture.toLocaleString('fr-FR')} $</td>
+                        <td className="p-4 text-right font-semibold text-green-600">+{row.entreesEpargne.toLocaleString('fr-FR')} $</td>
+                        <td className="p-4 text-right font-semibold text-red-600">-{row.sortiesEpargne.toLocaleString('fr-FR')} $</td>
+                        <td className="p-4 text-right font-bold text-blue-600">{row.soldeCloture.toLocaleString('fr-FR')} $</td>
+                        <td className="p-4 text-center">
+                          <Button
+                            size="sm"
+                            variant={row.validated ? "default" : "outline"}
+                            className={`h-8 text-xs font-medium ${row.validated ? 'bg-green-600 hover:bg-green-700' : 'border-green-300 text-green-700 hover:bg-green-50'}`}
+                          >
+                            {row.validated ? <CheckCircle className="w-3 h-3 mr-1" /> : <Clock className="w-3 h-3 mr-1" />}
+                            {row.validated ? 'Validé' : 'Valider'}
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                    {/* Total */}
+                    <tr className="bg-gradient-to-r from-green-100 to-green-200 font-bold">
+                      <td className="p-4 text-green-900">TOTAL GÉNÉRAL</td>
+                      <td className="p-4 text-right text-green-900">
+                        {caisseSecondaireData.reduce((sum, row) => sum + row.soldeOuverture, 0).toLocaleString('fr-FR')} $
+                      </td>
+                      <td className="p-4 text-right text-green-700">
+                        +{caisseSecondaireData.reduce((sum, row) => sum + row.entreesEpargne, 0).toLocaleString('fr-FR')} $
+                      </td>
+                      <td className="p-4 text-right text-red-700">
+                        -{caisseSecondaireData.reduce((sum, row) => sum + row.sortiesEpargne, 0).toLocaleString('fr-FR')} $
+                      </td>
+                      <td className="p-4 text-right text-blue-700">
+                        {caisseSecondaireData.reduce((sum, row) => sum + row.soldeCloture, 0).toLocaleString('fr-FR')} $
+                      </td>
+                      <td className="p-4 text-center">
+                        <Badge variant={caisseSecondaireData.every(row => row.validated) ? "default" : "secondary"} 
+                               className={caisseSecondaireData.every(row => row.validated) ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}>
+                          {caisseSecondaireData.every(row => row.validated) ? '✅ Tout validé' : '⏳ En cours'}
+                        </Badge>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  )
 }

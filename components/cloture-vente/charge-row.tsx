@@ -16,7 +16,7 @@ interface ChargeRowProps {
   chargeId: string
 }
 
-export function ChargeRow({ chargeData, chargeId }: ChargeRowProps) {
+export function ChargeRow({ chargeData }: ChargeRowProps) {
   const [isExpanded, setIsExpanded] = useState(false)
 
   return (

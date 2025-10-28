@@ -13,6 +13,7 @@ import PaymentCards from '@/components/cloture-vente/payment-cards'
 import DetailsAndAccounting from '@/components/cloture-vente/details-and-accounting'
 import { CDF_DENOMINATIONS, Denomination, USD_DENOMINATIONS } from '@/lib/constants'
 import ClotureVenteClose from '@/components/cloture-vente/close'
+import { Separator } from '@radix-ui/react-select'
 
 export type CloturePageDataType = {
   date: Date
@@ -150,19 +151,7 @@ export default function ClotureVentesClient({ initialData, searchParams }: Clotu
     const newUrl = queryString ? `${pathname}?${queryString}` : pathname
     
     router.replace(newUrl, { scroll: false })
-  }, [router])
-
-  const getDifferenceColor = (difference: number) => {
-    if (Math.abs(difference) < 0.01) return 'text-green-600'
-    if (difference > 0) return 'text-orange-600'
-    return 'text-red-600'
-  }
-
-  const getDifferenceBadge = (difference: number) => {
-    if (Math.abs(difference) < 0.01) return <Badge variant="default">Parfait</Badge>
-    if (difference > 0) return <Badge variant="secondary">Excédent</Badge>
-    return <Badge variant="destructive">Manquant</Badge>
-  }
+  }, [router,pathname])
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
@@ -180,11 +169,10 @@ export default function ClotureVentesClient({ initialData, searchParams }: Clotu
       />
 
       <DetailsAndAccounting
-        denominations={denominations}
-        decrementDenomination={decrementDenomination}
-        incrementDenomination={incrementDenomination}
         initialData={initialData}
       />
+
+      <Separator className="my-8 " />
 
       <ClotureVenteClose
         denominations={denominations}
