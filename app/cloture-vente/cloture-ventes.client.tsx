@@ -1,8 +1,7 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { Badge } from "@/components/ui/badge"
-// import { supabase, CashClosure, CashDenomination } from '@/lib/supabase'
 import { POSConfig, POSOrder, POSOrderLine } from '../types/pos'
 import { format } from 'date-fns'
 import { CashClosure, Expense } from '../types/cloture'
@@ -14,6 +13,8 @@ import DetailsAndAccounting from '@/components/cloture-vente/details-and-account
 import { CDF_DENOMINATIONS, Denomination, USD_DENOMINATIONS } from '@/lib/constants'
 import ClotureVenteClose from '@/components/cloture-vente/close'
 import { Separator } from '@radix-ui/react-select'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { InfoIcon } from 'lucide-react'
 
 export type CloturePageDataType = {
   date: Date
@@ -35,11 +36,14 @@ interface ClotureVentesClientProps {
   initialData: CloturePageDataType
   searchParams: {
     shop?: string
+    date?: string
   }
 }
 
 export default function ClotureVentesClient({ initialData, searchParams }: ClotureVentesClientProps) {
   const [selectedShop, setSelectedShop] = useState(searchParams.shop || 'all')
+  const [selectedDate, setSelectedDate] = useState(initialData.date)
+  const [isClotureExist, setIsClotureExist] = useState(false)
   const pathname = usePathname();
   const router = useRouter();
   const [denominations, setDenominations] = useState<Denomination[]>([
@@ -50,6 +54,28 @@ export default function ClotureVentesClient({ initialData, searchParams }: Clotu
   const [notes, setNotes] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [savedClosure, setSavedClosure] = useState<CashClosure | null>(null)
+
+  // Vérifier si une clôture existe déjà
+  useEffect(() => {
+    const checkExistingClosure = async () => {
+      if (selectedShop && selectedShop !== 'all') {
+        try {
+          const { data, error } = await supabase
+            .from('cash_closures')
+            .select('id')
+            .eq('closure_date', format(selectedDate, 'yyyy-MM-dd'))
+            .eq('shop_id', parseInt(selectedShop))
+            .single()
+
+          setIsClotureExist(!!data && !error)
+        } catch (error) {
+          setIsClotureExist(false)
+        }
+      }
+    }
+
+    checkExistingClosure()
+  }, [selectedDate, selectedShop])
 
   // Calculs dérivés
   const calculations = useMemo(() => {
@@ -86,59 +112,6 @@ export default function ClotureVentesClient({ initialData, searchParams }: Clotu
     updateDenomination(index, denominations[index].quantity - 1)
   }
 
-  const handleSaveClosure = async () => {
-    setIsSubmitting(true)
-    try {
-      // Sauvegarder la clôture principale
-      const { data: closure, error: closureError } = await supabase
-        .from('cash_closures')
-        .insert({
-          closure_date: format(initialData.date, 'yyyy-MM-dd'),
-          daily_sales_total: initialData.dailySalesTotal,
-          expenses_total: initialData.expensesTotal,
-          expected_cash: initialData.expectedCash,
-          physical_cash_usd: calculations.physicalCashUSD,
-          physical_cash_cdf: calculations.physicalCashCDF,
-          exchange_rate: exchangeRate,
-          calculated_cash: calculations.calculatedCash,
-          difference: calculations.difference,
-          notes: notes
-        })
-        .select()
-        .single()
-
-      if (closureError) throw closureError
-
-      // Sauvegarder les détails de billeterie
-      const denominationRecords = denominations
-        .filter(d => d.quantity > 0)
-        .map(d => ({
-          cash_closure_id: closure.id,
-          currency: d.currency,
-          denomination: d.value,
-          quantity: d.quantity,
-          amount: d.value * d.quantity
-        }))
-
-      if (denominationRecords.length > 0) {
-        const { error: denominationsError } = await supabase
-          .from('cash_denominations')
-          .insert(denominationRecords)
-
-        if (denominationsError) throw denominationsError
-      }
-
-      setSavedClosure(closure)
-      alert('Clôture sauvegardée avec succès!')
-      
-    } catch (error) {
-      console.error('Erreur lors de la sauvegarde:', error)
-      alert('Erreur lors de la sauvegarde')
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
   const handleShopChange = useCallback((shop: string) => {
     setSelectedShop(shop)
     
@@ -146,41 +119,100 @@ export default function ClotureVentesClient({ initialData, searchParams }: Clotu
     if (shop !== 'all') {
       params.set('shop', shop)
     }
+    if (selectedDate) {
+      params.set('date', format(selectedDate, 'yyyy-MM-dd'))
+    }
     
     const queryString = params.toString()
     const newUrl = queryString ? `${pathname}?${queryString}` : pathname
     
     router.replace(newUrl, { scroll: false })
-  }, [router,pathname])
+  }, [router, pathname, selectedDate])
+
+  const handleDateChange = useCallback((date: Date) => {
+    setSelectedDate(date)
+    
+    const params = new URLSearchParams()
+    if (selectedShop !== 'all') {
+      params.set('shop', selectedShop)
+    }
+    params.set('date', format(date, 'yyyy-MM-dd'))
+    
+    const queryString = params.toString()
+    const newUrl = queryString ? `${pathname}?${queryString}` : pathname
+    
+    router.replace(newUrl, { scroll: false })
+  }, [router, pathname, selectedShop])
+
+  const canCreateClosure = selectedShop && selectedShop !== 'all' && !isClotureExist
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
       {/* Header */}
       <ClotureVenteHeader
         selectedShop={selectedShop}
+        selectedDate={selectedDate}
         handleShopChange={handleShopChange}
+        handleDateChange={handleDateChange}
         exchangeRate={initialData.exchangeRate}
         shops={initialData.shops}
       />
+
+      {/* Alerte si clôture existe déjà */}
+      {isClotureExist && (
+        <div className="container mx-auto px-4 py-4">
+          <Alert className="bg-yellow-50 border-yellow-200">
+            <InfoIcon className="h-4 w-4 text-yellow-600" />
+            <AlertDescription className="text-yellow-800">
+              ⚠️ Une clôture existe déjà pour cette date et cette boutique. 
+              <a 
+                href={`/cloture-vente/historique?date=${format(selectedDate, 'yyyy-MM-dd')}&shop=${selectedShop}`}
+                className="ml-2 text-yellow-900 underline font-semibold"
+              >
+                Voir la clôture existante
+              </a>
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
+
+      {/* Alerte si aucun shop sélectionné */}
+      {!canCreateClosure && !isClotureExist && (
+        <div className="container mx-auto px-4 py-4">
+          <Alert className="bg-blue-50 border-blue-200">
+            <InfoIcon className="h-4 w-4 text-blue-600" />
+            <AlertDescription className="text-blue-800">
+              ℹ️ Veuillez sélectionner une boutique spécifique pour effectuer la clôture.
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
+
       <PaymentCards
         totalEspeces={initialData.cashSalesTotal}
         totalBanque={initialData.bankSalesTotal}
-        totalMobileMoney={initialData.mobileMoneySalesTotal} totalCarte={initialData.onlSalesTotal} transactionsBanque={0} transactionsMobileMoney={0} transactionsCarte={0}        
+        totalMobileMoney={initialData.mobileMoneySalesTotal} 
+        totalCarte={initialData.onlSalesTotal} 
+        transactionsBanque={0} 
+        transactionsMobileMoney={0} 
+        transactionsCarte={0}        
       />
 
       <DetailsAndAccounting
         initialData={initialData}
       />
 
-      <Separator className="my-8 " />
+      <Separator className="my-8" />
 
-      <ClotureVenteClose
-        denominations={denominations}
-        incrementDenomination={incrementDenomination}
-        decrementDenomination={decrementDenomination}
-        initialData={initialData}
-        // calculations={calculations}
-      />
+      {/* Afficher la section de clôture seulement si un shop est sélectionné et aucune clôture n'existe */}
+      {canCreateClosure && (
+        <ClotureVenteClose
+          denominations={denominations}
+          incrementDenomination={incrementDenomination}
+          decrementDenomination={decrementDenomination}
+          initialData={initialData}
+        />
+      )}
     </main>
   )
 }

@@ -1,3 +1,5 @@
+import { Database } from "@/lib/supabase"
+
 export interface Expense {
   id: number
   total_amount: number
@@ -16,27 +18,7 @@ export interface AccountAccount {
   x_studio_categorie_compte: string | boolean
 }
 
-export interface CashClosure {
-  id: string
-  closure_date: string
-  daily_sales_total: number
-  expenses_total: number
-  expected_cash: number
-  physical_cash_usd: number
-  physical_cash_cdf: number
-  exchange_rate: number
-  calculated_cash: number
-  difference: number
-  notes?: string
-  created_at: string
-}
-
-export interface CashDenomination {
-  id: string
-  cash_closure_id: string
-  currency: 'USD' | 'CDF'
-  denomination: number
-  quantity: number
-  amount: number
-  created_at: string
-}
+export type CashClosure = Database['public']['Tables']['cash_closures']['Row']
+export type MainCashRow = Database['public']['Tables']['cash_closure_main_cash']['Row']
+export type SecondaryCashRow = Database['public']['Tables']['cash_closure_secondary_cash']['Row']
+export type CashDenomination = Database['public']['Tables']['cash_denominations']['Row']

@@ -50,7 +50,7 @@ export default function DetailsAndAccounting({initialData}: DetailsAndAccounting
                                 {(sale.amount_total || 0).toLocaleString('fr-FR')} $
                               </p>
                               <p className="text-xs text-gray-500 capitalize">
-                                {sale.payments ? sale.payments[0].payment_method_id[1] : 'Espèces'}
+                                {/* {sale.payments ? sale.payments[0].payment_method_id[1] : 'Espèces'} */}
                               </p>
                             </div>
                           </div>

@@ -1,10 +1,16 @@
-import { DollarSign, FileText, Minus, Plus, Save, CheckCircle, Clock } from "lucide-react"
+'use client'
+
+import { DollarSign, FileText, Minus, Plus, Save } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card"
 import { Denomination } from "@/lib/constants"
 import { Button } from "../ui/button"
 import { CloturePageDataType } from "@/app/cloture-vente/cloture-ventes.client"
 import { Badge } from "../ui/badge"
-import { useState } from "react"
+import { useState, useMemo } from "react"
+import { format } from "date-fns"
+import { ClotureData, clotureService } from "@/lib/cloture-service"
+import { Textarea } from "../ui/textarea"
+import { CashClosure } from "@/app/types/cloture"
 
 interface ClotureVenteCloseProps {
   denominations: Denomination[]
@@ -15,6 +21,8 @@ interface ClotureVenteCloseProps {
 
 interface CaissePrincipaleRow {
   modePaiement: string
+  paymentMethod: string
+  paymentMethodId?: number
   soldeOuverture: number
   ventesJour: number
   sortiesJour: number
@@ -26,6 +34,8 @@ interface CaissePrincipaleRow {
 
 interface CaisseSecondaireRow {
   categorie: string
+  savingsCategory: string
+  savingsCategoryId?: number
   soldeOuverture: number
   entreesEpargne: number
   sortiesEpargne: number
@@ -36,63 +46,98 @@ interface CaisseSecondaireRow {
 export default function ClotureVenteClose({denominations, decrementDenomination, incrementDenomination, initialData}: ClotureVenteCloseProps) {
   const [notes, setNotes] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [savedClosure, setSavedClosure] = useState<CashClosure | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  // Données mock pour la caisse principale
+  // Calculs de la billeterie
+  const calculations = useMemo(() => {
+    const physicalCashUSD = denominations
+      .filter(d => d.currency === 'USD')
+      .reduce((sum, d) => sum + (d.value * d.quantity), 0)
+
+    const physicalCashCDF = denominations
+      .filter(d => d.currency === 'CDF')
+      .reduce((sum, d) => sum + (d.value * d.quantity), 0)
+
+    const calculatedCash = physicalCashUSD + (physicalCashCDF / initialData.exchangeRate)
+    const difference = calculatedCash - initialData.expectedCash
+
+    return {
+      physicalCashUSD,
+      physicalCashCDF,
+      calculatedCash,
+      difference
+    }
+  }, [denominations, initialData.exchangeRate, initialData.expectedCash])
+
+  // Données pour la caisse principale
   const caissePrincipaleData: CaissePrincipaleRow[] = [
     {
       modePaiement: "Espèces",
+      paymentMethod: "especes",
+      paymentMethodId: 1,
       soldeOuverture: 1500,
       ventesJour: initialData.cashSalesTotal,
       sortiesJour: initialData.expensesTotal,
       clotureTheorique: 1500 + initialData.cashSalesTotal - initialData.expensesTotal,
-      cashPhysique: 1500 + initialData.cashSalesTotal - initialData.expensesTotal,
+      cashPhysique: calculations.calculatedCash,
       managerConfirmed: false,
       financierConfirmed: false
     },
     {
       modePaiement: "Banque",
+      paymentMethod: "banque",
+      paymentMethodId: 2,
       soldeOuverture: 5000,
       ventesJour: initialData.bankSalesTotal,
       sortiesJour: 0,
       clotureTheorique: 5000 + initialData.bankSalesTotal,
-      cashPhysique: 5000 + initialData.bankSalesTotal,
-      managerConfirmed: true,
+      cashPhysique: initialData.bankSalesTotal,
+      managerConfirmed: false,
       financierConfirmed: false
     },
     {
       modePaiement: "Mobile Money",
+      paymentMethod: "mobile_money",
+      paymentMethodId: 3,
       soldeOuverture: 2000,
       ventesJour: initialData.mobileMoneySalesTotal,
       sortiesJour: 0,
       clotureTheorique: 2000 + initialData.mobileMoneySalesTotal,
-      cashPhysique: 2000 + initialData.mobileMoneySalesTotal,
+      cashPhysique: initialData.mobileMoneySalesTotal,
       managerConfirmed: false,
       financierConfirmed: false
     },
     {
       modePaiement: "Online",
+      paymentMethod: "online",
+      paymentMethodId: 4,
       soldeOuverture: 1000,
       ventesJour: initialData.onlSalesTotal,
       sortiesJour: 0,
       clotureTheorique: 1000 + initialData.onlSalesTotal,
-      cashPhysique: 1000 + initialData.onlSalesTotal,
-      managerConfirmed: true,
-      financierConfirmed: true
+      cashPhysique: initialData.onlSalesTotal,
+      managerConfirmed: false,
+      financierConfirmed: false
     }
   ]
 
-  // Données mock pour la caisse secondaire
+  // Données pour la caisse secondaire
   const caisseSecondaireData: CaisseSecondaireRow[] = [
     {
       categorie: "Epargne Marchandise",
+      savingsCategory: "marchandise",
+      savingsCategoryId: 1,
       soldeOuverture: 5000,
       entreesEpargne: 1500,
       sortiesEpargne: 800,
       soldeCloture: 5700,
-      validated: true
+      validated: false
     },
     {
       categorie: "Loyer",
+      savingsCategory: "loyer",
+      savingsCategoryId: 2,
       soldeOuverture: 3000,
       entreesEpargne: 2000,
       sortiesEpargne: 0,
@@ -101,14 +146,18 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
     },
     {
       categorie: "Beauty",
+      savingsCategory: "beauty",
+      savingsCategoryId: 3,
       soldeOuverture: 2500,
       entreesEpargne: 1200,
       sortiesEpargne: 500,
       soldeCloture: 3200,
-      validated: true
+      validated: false
     },
     {
       categorie: "Finance",
+      savingsCategory: "finance",
+      savingsCategoryId: 4,
       soldeOuverture: 8000,
       entreesEpargne: 3000,
       sortiesEpargne: 2000,
@@ -117,21 +166,109 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
     },
     {
       categorie: "Boost",
+      savingsCategory: "boost",
+      savingsCategoryId: 5,
       soldeOuverture: 1500,
       entreesEpargne: 800,
       sortiesEpargne: 300,
       soldeCloture: 2000,
-      validated: true
+      validated: false
     }
   ]
 
   const handleSaveClosure = async () => {
     setIsSubmitting(true)
-    // Simulation de sauvegarde
-    setTimeout(() => {
-      setIsSubmitting(false)
+    setError(null)
+
+    try {
+      // Récupérer le shop sélectionné depuis l'URL ou utiliser le premier shop
+      const urlParams = new URLSearchParams(window.location.search)
+      const selectedShopId = urlParams.get('shop') || initialData.shops[0]?.id.toString()
+      const selectedShop = initialData.shops.find(shop => shop.id.toString() === selectedShopId) || initialData.shops[0]
+      
+      if (!selectedShop) {
+        throw new Error('Aucune boutique sélectionnée')
+      }
+
+      // Vérifier si une clôture existe déjà
+      const existingClosure = await clotureService.checkExistingClosure(
+        format(initialData.date, 'yyyy-MM-dd'),
+        selectedShop.id
+      )
+
+      if (existingClosure) {
+        setError('Une clôture existe déjà pour cette date et cette boutique.')
+        setIsSubmitting(false)
+        return
+      }
+
+      // Préparer les données pour Supabase
+      const clotureData: ClotureData = {
+        closure: {
+          closure_date: format(initialData.date, 'yyyy-MM-dd'),
+          shop_id: selectedShop.id,
+          shop_name: selectedShop.name,
+          total_sales: initialData.dailySalesTotal,
+          total_expenses: initialData.expensesTotal,
+          expected_cash: initialData.expectedCash,
+          physical_cash_usd: calculations.physicalCashUSD,
+          physical_cash_cdf: calculations.physicalCashCDF,
+          exchange_rate: initialData.exchangeRate,
+          calculated_cash: calculations.calculatedCash,
+          difference: calculations.difference,
+          closure_status: 'draft',
+          notes: notes,
+          created_by: 1 // À remplacer par l'ID utilisateur réel
+        },
+        mainCash: caissePrincipaleData.map(row => ({
+          payment_method_id: row.paymentMethodId,
+          payment_method: row.paymentMethod,
+          payment_method_name: row.modePaiement,
+          opening_balance: row.soldeOuverture,
+          daily_sales: row.ventesJour,
+          daily_outflows: row.sortiesJour,
+          theoretical_closure: row.clotureTheorique,
+          physical_cash: row.cashPhysique,
+          manager_confirmed: row.managerConfirmed,
+          financier_confirmed: row.financierConfirmed
+        })),
+        secondaryCash: caisseSecondaireData.map(row => ({
+          savings_category_id: row.savingsCategoryId,
+          savings_category: row.savingsCategory,
+          savings_category_name: row.categorie,
+          opening_balance: row.soldeOuverture,
+          savings_inflows: row.entreesEpargne,
+          savings_outflows: row.sortiesEpargne,
+          closure_balance: row.soldeCloture,
+          validated: row.validated
+        })),
+        denominations: denominations
+          .filter(d => d.quantity > 0)
+          .map(d => ({
+            currency: d.currency,
+            denomination: d.value,
+            quantity: d.quantity,
+            amount: d.value * d.quantity
+          }))
+      }
+
+      const result = await clotureService.createCloture(clotureData)
+      setSavedClosure(result)
+      
       alert('Clôture sauvegardée avec succès!')
-    }, 2000)
+
+    } catch (error: unknown) {
+      console.error('Erreur lors de la sauvegarde:', error)
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === 'string'
+          ? error
+          : 'Une erreur est survenue lors de la sauvegarde'
+      setError(message)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const getStatusBadge = (manager: boolean, financier: boolean) => {
@@ -148,7 +285,7 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
         <div className="xl:col-span-1 space-y-6">
           {/* Billeterie */}
           <Card className="h-fit">
-            <CardHeader className="">
+            <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <DollarSign className="w-5 h-5" />
                 Billeterie
@@ -163,26 +300,26 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
                 </h4>
                 <div className="grid grid-cols-2 gap-3">
                   {denominations.filter(d => d.currency === 'USD').map((denomination, index) => (
-                    <div key={denomination.value} className="flex items-center justify-between p-1 border rounded-lg bg-white shadow-sm">
-                      <span className="text-sm font-semibold text-gray-800 text-xs">{denomination.value}$</span>
+                    <div key={denomination.value} className="flex items-center justify-between p-3 border rounded-lg bg-white shadow-sm">
+                      <span className="text-sm font-semibold text-gray-800">{denomination.value}$</span>
                       <div className="flex items-center gap-2">
                         <Button
                           variant="outline"
                           size="sm"
-                          className="h-4 w-4 p-0 border-gray-300 rounded-12"
+                          className="h-8 w-8 p-0 border-gray-300"
                           onClick={() => decrementDenomination(index)}
                           disabled={denomination.quantity === 0}
                         >
-                          <Minus className="w-2 h-2" />
+                          <Minus className="w-3 h-3" />
                         </Button>
                         <span className="w-8 text-center text-sm font-bold text-gray-900">{denomination.quantity}</span>
                         <Button
                           variant="outline"
                           size="sm"
-                          className="h-4 w-4 p-0 border-gray-300"
+                          className="h-8 w-8 p-0 border-gray-300"
                           onClick={() => incrementDenomination(index)}
                         >
-                          <Plus className="w-1 h-1" />
+                          <Plus className="w-3 h-3" />
                         </Button>
                       </div>
                     </div>
@@ -201,22 +338,22 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
                     const globalIndex = denominations.findIndex(d => d.currency === 'CDF' && d.value === denomination.value)
                     return (
                       <div key={denomination.value} className="flex items-center justify-between p-3 border rounded-lg bg-white shadow-sm">
-                        <span className="text-sm font-semibold text-gray-800 text-[12px]">{denomination.value.toLocaleString('fr-FR')}FC</span>
+                        <span className="text-sm font-semibold text-gray-800">{denomination.value.toLocaleString('fr-FR')}FC</span>
                         <div className="flex items-center gap-2">
                           <Button
                             variant="outline"
                             size="sm"
-                            className="h-4 w-4 p-0 border-gray-300"
+                            className="h-8 w-8 p-0 border-gray-300"
                             onClick={() => decrementDenomination(globalIndex)}
                             disabled={denomination.quantity === 0}
                           >
                             <Minus className="w-3 h-3" />
                           </Button>
-                          <span className="w-4 text-center text-sm font-bold text-gray-900">{denomination.quantity}</span>
+                          <span className="w-8 text-center text-sm font-bold text-gray-900">{denomination.quantity}</span>
                           <Button
                             variant="outline"
                             size="sm"
-                            className="h-4 w-4 p-0 border-gray-300"
+                            className="h-8 w-8 p-0 border-gray-300"
                             onClick={() => incrementDenomination(globalIndex)}
                           >
                             <Plus className="w-3 h-3" />
@@ -233,19 +370,19 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
                 <div className="flex justify-between items-center text-sm">
                   <span className="font-medium text-gray-600">Total USD:</span>
                   <span className="font-bold text-green-600">
-                    {denominations
-                      .filter(d => d.currency === 'USD')
-                      .reduce((sum, d) => sum + (d.value * d.quantity), 0)
-                      .toLocaleString('fr-FR')} $
+                    {calculations.physicalCashUSD.toLocaleString('fr-FR')} $
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-sm mt-2">
                   <span className="font-medium text-gray-600">Total CDF:</span>
                   <span className="font-bold text-blue-600">
-                    {denominations
-                      .filter(d => d.currency === 'CDF')
-                      .reduce((sum, d) => sum + (d.value * d.quantity), 0)
-                      .toLocaleString('fr-FR')} FC
+                    {calculations.physicalCashCDF.toLocaleString('fr-FR')} FC
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-sm mt-2 font-semibold">
+                  <span className="text-gray-700">Cash Physique Total:</span>
+                  <span className="text-purple-600">
+                    {calculations.calculatedCash.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} $
                   </span>
                 </div>
               </div>
@@ -261,13 +398,27 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {error && (
+                <div className="p-3 bg-red-100 border border-red-300 rounded-lg">
+                  <p className="text-red-700 text-sm">{error}</p>
+                </div>
+              )}
+
+              {savedClosure && (
+                <div className="p-3 bg-green-100 border border-green-300 rounded-lg">
+                  <p className="text-green-700 text-sm">
+                    ✅ Clôture sauvegardée le {format(new Date(), 'dd/MM/yyyy à HH:mm')}
+                  </p>
+                </div>
+              )}
+
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-2">Observations</label>
-                <textarea
+                <Textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Notes sur la clôture, remarques, anomalies..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  className="w-full resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                   rows={4}
                 />
               </div>
@@ -327,22 +478,12 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
                         <td className="p-4 text-right font-bold text-blue-600">{row.cashPhysique.toLocaleString('fr-FR')} $</td>
                         <td className="p-4 text-center">
                           <div className="flex justify-center gap-2">
-                            <Button
-                              size="sm"
-                              variant={row.managerConfirmed ? "default" : "outline"}
-                              className={`h-8 text-xs font-medium ${row.managerConfirmed ? 'bg-blue-600 hover:bg-blue-700' : 'border-blue-300 text-blue-700'}`}
-                            >
-                              {row.managerConfirmed ? <CheckCircle className="w-3 h-3 mr-1" /> : <Clock className="w-3 h-3 mr-1" />}
-                              Manager
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant={row.financierConfirmed ? "default" : "outline"}
-                              className={`h-8 text-xs font-medium ${row.financierConfirmed ? 'bg-green-600 hover:bg-green-700' : 'border-green-300 text-green-700'}`}
-                            >
-                              {row.financierConfirmed ? <CheckCircle className="w-3 h-3 mr-1" /> : <Clock className="w-3 h-3 mr-1" />}
-                              Financier
-                            </Button>
+                            <Badge variant={row.managerConfirmed ? "default" : "outline"} className={row.managerConfirmed ? "bg-blue-600" : ""}>
+                              {row.managerConfirmed ? "✅ Manager" : "⏳ Manager"}
+                            </Badge>
+                            <Badge variant={row.financierConfirmed ? "default" : "outline"} className={row.financierConfirmed ? "bg-green-600" : ""}>
+                              {row.financierConfirmed ? "✅ Financier" : "⏳ Financier"}
+                            </Badge>
                           </div>
                         </td>
                       </tr>
@@ -411,14 +552,9 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
                         <td className="p-4 text-right font-semibold text-red-600">-{row.sortiesEpargne.toLocaleString('fr-FR')} $</td>
                         <td className="p-4 text-right font-bold text-blue-600">{row.soldeCloture.toLocaleString('fr-FR')} $</td>
                         <td className="p-4 text-center">
-                          <Button
-                            size="sm"
-                            variant={row.validated ? "default" : "outline"}
-                            className={`h-8 text-xs font-medium ${row.validated ? 'bg-green-600 hover:bg-green-700' : 'border-green-300 text-green-700 hover:bg-green-50'}`}
-                          >
-                            {row.validated ? <CheckCircle className="w-3 h-3 mr-1" /> : <Clock className="w-3 h-3 mr-1" />}
-                            {row.validated ? 'Validé' : 'Valider'}
-                          </Button>
+                          <Badge variant={row.validated ? "default" : "outline"} className={row.validated ? "bg-green-600" : ""}>
+                            {row.validated ? "✅ Validé" : "⏳ En attente"}
+                          </Badge>
                         </td>
                       </tr>
                     ))}

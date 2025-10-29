@@ -15,7 +15,7 @@ async function getDailySales(date: Date, shop?: string) {
   const startDate = format(startOfDay(date), "yyyy-MM-dd HH:mm:ss")
   const endDate = format(endOfDay(date), "yyyy-MM-dd HH:mm:ss")
   
-  let domain = `[["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"]]`
+  let domain = `[["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"], ["config_id", "not in", [19]]]`
   
   // Ajouter le filtre shop si spécifié
   if (shop && shop !== 'all') {
@@ -149,7 +149,7 @@ async function getExchangeRate(): Promise<number> {
 // Récupérer la liste des shops disponibles
 async function getPOSConfig() {
   const res = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.config?fields=id,name`,
+    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.config?fields=id,name&domain=[["id", "not in", [19]]]`,
     { 
       next: { 
         revalidate: 300 // 5 minutes
