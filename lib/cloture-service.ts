@@ -16,9 +16,108 @@ export interface ClotureData {
 }
 
 export const clotureService = {
+  /**
+   * Vérifier si on peut clôturer une période
+  */
+  async canClosePeriod(startDate: string, endDate: string, shopId: number): Promise<{
+    canClose: boolean
+    reason?: string
+    overlappingClosure?: Database['public']['Tables']['cash_closures']['Row']
+  }> {
+    try {
+      // Vérifier les chevauchements avec les périodes existantes
+      const { data: overlapping, error } = await supabase
+        .from('cash_closures')
+        .select('*')
+        .eq('shop_id', shopId)
+        .or(`and(opening_date.lte.${endDate},closing_date.gte.${startDate})`)
+
+      if (error) {
+        console.error('Erreur vérification chevauchement:', error)
+        return {
+          canClose: false,
+          reason: 'Erreur lors de la vérification des périodes existantes'
+        }
+      }
+
+      if (overlapping && overlapping.length > 0) {
+        const overlappingClosure = overlapping[0]
+        return {
+          canClose: false,
+          reason: `La période du ${startDate} au ${endDate} chevauche une clôture existante du ${overlappingClosure.opening_date} au ${overlappingClosure.closing_date}`,
+          overlappingClosure: overlappingClosure
+        }
+      }
+
+      // Vérifier que la date de fin n'est pas avant la date de début
+      const start = new Date(startDate)
+      const end = new Date(endDate)
+      
+      if (end < start) {
+        return {
+          canClose: false,
+          reason: 'La date de fin ne peut pas être avant la date de début'
+        }
+      }
+
+      return { canClose: true }
+    } catch (error) {
+      console.error('Erreur inattendue dans canClosePeriod:', error)
+      return {
+        canClose: false,
+        reason: 'Erreur inattendue lors de la vérification de la période'
+      }
+    }
+  },
+
+  /**
+   * Récupérer la dernière clôture d'une boutique
+   */
+  async getLastClosureByShop(shopId: number) {
+    const { data, error } = await supabase
+      .from('cash_closures')
+      .select('*')
+      .eq('shop_id', shopId)
+      .order('closing_date', { ascending: false })
+      .limit(1)
+      .single()
+
+    if (error && error.code !== 'PGRST116') {
+      throw new Error(`Erreur récupération dernière clôture: ${error.message}`)
+    }
+
+    return data
+  },
+
   // Créer une nouvelle clôture
   async createCloture(data: ClotureData) {
     const { closure, mainCash, secondaryCash, denominations } = data
+
+    // Vérifie la dernière clôture
+    const lastClosure = await this.getLastClosureByShop(closure.shop_id)
+
+    if (lastClosure) {
+      const lastDate = new Date(lastClosure.closing_date)
+      const newDate = new Date(closure.opening_date) // ← Changé ici
+
+      if (newDate <= lastDate) {
+        throw new Error(
+          `Impossible de clôturer une date antérieure ou égale à la dernière clôture (${lastClosure.closing_date})`
+        )
+      }
+    }
+
+    console.log(closure.opening_date, closure.closing_date);
+    
+    const canClose = await this.canClosePeriod(
+      closure.opening_date, 
+      closure.closing_date, 
+      closure.shop_id
+    )
+
+    if (!canClose.canClose) {
+      throw new Error(canClose.reason || 'Période de clôture non valide')
+    }
 
     // Commencer une transaction
     const { data: closureData, error: closureError } = await supabase
@@ -109,13 +208,29 @@ export const clotureService = {
     return data
   },
 
+  async getClotureById(closureId: string) {
+    const { data, error } = await supabase
+      .from('cash_closures')
+      .select(`
+        *,
+        cash_closure_main_cash (*),
+        cash_closure_secondary_cash (*),
+        cash_denominations (*)
+      `)
+      .eq('id', closureId)
+      .single()
+
+    if (error) throw new Error(`Erreur récupération clôture: ${error.message}`)
+    return data
+  },
+
   // Vérifier si une clôture existe déjà pour cette date et boutique
-  async checkExistingClosure(date: string, shopId: number) {
+  async checkExistingClosurePeriod(openingDate: string, closingDate: string, shopId: number) {
     const { data, error } = await supabase
       .from('cash_closures')
       .select('id')
-      .eq('closure_date', date)
       .eq('shop_id', shopId)
+      .or(`and(opening_date.lte.${closingDate},closing_date.gte.${openingDate})`) // chevauchement
       .single()
 
     if (error && error.code !== 'PGRST116') {

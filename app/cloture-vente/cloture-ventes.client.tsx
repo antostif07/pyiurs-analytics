@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { Badge } from "@/components/ui/badge"
 import { POSConfig, POSOrder, POSOrderLine } from '../types/pos'
-import { format } from 'date-fns'
+import { format, isBefore, isAfter } from 'date-fns'
 import { CashClosure, Expense } from '../types/cloture'
 import { supabase } from '@/lib/supabase'
 import ClotureVenteHeader from '@/components/cloture-vente/header'
@@ -14,7 +14,9 @@ import { CDF_DENOMINATIONS, Denomination, USD_DENOMINATIONS } from '@/lib/consta
 import ClotureVenteClose from '@/components/cloture-vente/close'
 import { Separator } from '@radix-ui/react-select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { InfoIcon } from 'lucide-react'
+import { InfoIcon, LockIcon, CalendarIcon } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import Link from 'next/link'
 
 export type CloturePageDataType = {
   date: Date
@@ -38,12 +40,14 @@ interface ClotureVentesClientProps {
     shop?: string
     date?: string
   }
+  shopLastClosure: CashClosure | null
 }
 
-export default function ClotureVentesClient({ initialData, searchParams }: ClotureVentesClientProps) {
+export default function ClotureVentesClient({ initialData, searchParams, shopLastClosure }: ClotureVentesClientProps) {
   const [selectedShop, setSelectedShop] = useState(searchParams.shop || 'all')
   const [selectedDate, setSelectedDate] = useState(initialData.date)
   const [isClotureExist, setIsClotureExist] = useState(false)
+  const [currentClosure, setCurrentClosure] = useState<CashClosure | null>(null)
   const pathname = usePathname();
   const router = useRouter();
   const [denominations, setDenominations] = useState<Denomination[]>([
@@ -55,27 +59,48 @@ export default function ClotureVentesClient({ initialData, searchParams }: Clotu
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [savedClosure, setSavedClosure] = useState<CashClosure | null>(null)
 
+  // Vérifier si une clôture existe déjà pour la période
+  const isDateInClosedPeriod = useMemo(() => {
+    if (!shopLastClosure || selectedShop === 'all') return false
+    
+    const selected = new Date(selectedDate)
+    const lastClosing = new Date(shopLastClosure.closing_date)
+    
+    // La date sélectionnée est-elle dans la période déjà cloturée ?
+    return isBefore(selected, lastClosing) || selected.toDateString() === lastClosing.toDateString()
+  }, [shopLastClosure, selectedDate, selectedShop])
+
   // Vérifier si une clôture existe déjà
   useEffect(() => {
     const checkExistingClosure = async () => {
       if (selectedShop && selectedShop !== 'all') {
         try {
+          // Vérifier avec le nouveau schéma (opening_date/closing_date)
           const { data, error } = await supabase
             .from('cash_closures')
-            .select('id')
-            .eq('closure_date', format(selectedDate, 'yyyy-MM-dd'))
+            .select('*')
             .eq('shop_id', parseInt(selectedShop))
-            .single()
+            .lte('opening_date', format(selectedDate, 'yyyy-MM-dd'))
+            .gte('closing_date', format(selectedDate, 'yyyy-MM-dd'))
+            .maybeSingle()
 
           setIsClotureExist(!!data && !error)
+          if (data) setCurrentClosure(data)
         } catch (error) {
+          console.error('Erreur vérification clôture:', error)
           setIsClotureExist(false)
+          setCurrentClosure(null)
         }
+      } else {
+        setIsClotureExist(false)
+        setCurrentClosure(null)
       }
     }
 
     checkExistingClosure()
   }, [selectedDate, selectedShop])
+
+  const canCreateClosure = selectedShop && selectedShop !== 'all' && !isClotureExist && !isDateInClosedPeriod
 
   // Calculs dérivés
   const calculations = useMemo(() => {
@@ -144,8 +169,6 @@ export default function ClotureVentesClient({ initialData, searchParams }: Clotu
     router.replace(newUrl, { scroll: false })
   }, [router, pathname, selectedShop])
 
-  const canCreateClosure = selectedShop && selectedShop !== 'all' && !isClotureExist
-
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
       {/* Header */}
@@ -158,26 +181,56 @@ export default function ClotureVentesClient({ initialData, searchParams }: Clotu
         shops={initialData.shops}
       />
 
-      {/* Alerte si clôture existe déjà */}
-      {isClotureExist && (
+      {/* Alerte si date dans période déjà cloturée */}
+      {isDateInClosedPeriod && shopLastClosure && (
+        <div className="container mx-auto px-4 py-4">
+          <Alert className="bg-orange-50 border-orange-200">
+            <LockIcon className="h-4 w-4 text-orange-600" />
+            <AlertDescription className="text-orange-800 flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <CalendarIcon className="h-4 w-4" />
+                <span>
+                  🔒 Cette date est dans une période déjà clôturée (du {format(new Date(shopLastClosure.opening_date), 'dd/MM/yyyy')} au {format(new Date(shopLastClosure.closing_date), 'dd/MM/yyyy')})
+                </span>
+              </div>
+              
+              <Button asChild variant="outline" size="sm" className="border-orange-300 text-orange-700">
+                <Link 
+                  href={`/cloture-vente/historique?date=${format(selectedDate, 'yyyy-MM-dd')}&shop=${selectedShop}`}
+                >
+                  Voir la clôture
+                </Link>
+              </Button>
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
+
+      {/* Alerte si clôture existe déjà pour la date exacte */}
+      {isClotureExist && currentClosure && !isDateInClosedPeriod && (
         <div className="container mx-auto px-4 py-4">
           <Alert className="bg-yellow-50 border-yellow-200">
             <InfoIcon className="h-4 w-4 text-yellow-600" />
-            <AlertDescription className="text-yellow-800">
-              ⚠️ Une clôture existe déjà pour cette date et cette boutique. 
-              <a 
-                href={`/cloture-vente/historique?date=${format(selectedDate, 'yyyy-MM-dd')}&shop=${selectedShop}`}
-                className="ml-2 text-yellow-900 underline font-semibold"
-              >
-                Voir la clôture existante
-              </a>
+            <AlertDescription className="text-yellow-800 flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <span>
+                  ⚠️ Une clôture existe déjà pour cette date exacte ({format(new Date(currentClosure.opening_date), 'dd/MM/yyyy')} au {format(new Date(currentClosure.closing_date), 'dd/MM/yyyy')})
+                </span>
+              </div>
+              <Button asChild variant="outline" size="sm" className="border-yellow-300 text-yellow-700">
+                <Link 
+                  href={`/cloture-vente/historique?date=${format(selectedDate, 'yyyy-MM-dd')}&shop=${selectedShop}`}
+                >
+                  Voir la clôture
+                </Link>
+              </Button>
             </AlertDescription>
           </Alert>
         </div>
       )}
 
       {/* Alerte si aucun shop sélectionné */}
-      {!canCreateClosure && !isClotureExist && (
+      {!canCreateClosure && !isClotureExist && !isDateInClosedPeriod && (
         <div className="container mx-auto px-4 py-4">
           <Alert className="bg-blue-50 border-blue-200">
             <InfoIcon className="h-4 w-4 text-blue-600" />
@@ -204,13 +257,14 @@ export default function ClotureVentesClient({ initialData, searchParams }: Clotu
 
       <Separator className="my-8" />
 
-      {/* Afficher la section de clôture seulement si un shop est sélectionné et aucune clôture n'existe */}
+      {/* Afficher la section de clôture seulement si possible */}
       {canCreateClosure && (
         <ClotureVenteClose
           denominations={denominations}
           incrementDenomination={incrementDenomination}
           decrementDenomination={decrementDenomination}
           initialData={initialData}
+          lastClosure={shopLastClosure}
         />
       )}
     </main>

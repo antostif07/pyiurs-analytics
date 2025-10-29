@@ -1,6 +1,6 @@
 'use client'
 
-import { DollarSign, FileText, Minus, Plus, Save } from "lucide-react"
+import { DollarSign, Download, FileText, Mail, MessageCircle, Minus, Plus, Save } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card"
 import { Denomination } from "@/lib/constants"
 import { Button } from "../ui/button"
@@ -11,12 +11,16 @@ import { format } from "date-fns"
 import { ClotureData, clotureService } from "@/lib/cloture-service"
 import { Textarea } from "../ui/textarea"
 import { CashClosure } from "@/app/types/cloture"
+import { useSearchParams } from "next/navigation"
+import { toast } from "sonner"
+import { PDFClotureData, pdfService } from "@/lib/pdf/cloture-service"
 
 interface ClotureVenteCloseProps {
   denominations: Denomination[]
   decrementDenomination: (index: number) => void
   incrementDenomination: (index: number) => void
   initialData: CloturePageDataType
+  lastClosure: CashClosure | null
 }
 
 interface CaissePrincipaleRow {
@@ -43,11 +47,66 @@ interface CaisseSecondaireRow {
   validated: boolean
 }
 
-export default function ClotureVenteClose({denominations, decrementDenomination, incrementDenomination, initialData}: ClotureVenteCloseProps) {
+export default function ClotureVenteClose({denominations, decrementDenomination, incrementDenomination, initialData, lastClosure}: ClotureVenteCloseProps) {
   const [notes, setNotes] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [savedClosure, setSavedClosure] = useState<CashClosure | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const searchParams = useSearchParams()
+
+  const handleGeneratePDF = async () => {
+    try {
+      // Récupérer toutes les données complètes de la clôture
+      const selectedShopId = searchParams.get('shop') || initialData.shops[0]?.id.toString()
+      const selectedShop = initialData.shops.find(shop => shop.id.toString() === selectedShopId)
+      
+      if (!savedClosure) {
+        toast.error('Veuillez d\'abord sauvegarder la clôture')
+        return
+      }
+
+      // Récupérer les données complètes depuis Supabase
+      const fullClosureData = await clotureService.getClotureById(savedClosure.id)
+      
+      if (!fullClosureData) {
+        toast.error('Données de clôture non trouvées')
+        return
+      }
+
+      const pdfData: PDFClotureData = {
+        closure: fullClosureData,
+        mainCash: fullClosureData.cash_closure_main_cash || [],
+        secondaryCash: fullClosureData.cash_closure_secondary_cash || [],
+        denominations: fullClosureData.cash_denominations || []
+      }
+
+      const pdfBlob = await pdfService.generateCloturePDF(pdfData)
+      
+      // Téléchargement
+      const url = URL.createObjectURL(pdfBlob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `cloture-${selectedShop?.name}-${format(initialData.date, 'yyyy-MM-dd')}.pdf`
+      link.click()
+      URL.revokeObjectURL(url)
+
+      toast.success('PDF généré avec succès')
+
+    } catch (error) {
+      console.error('Erreur génération PDF:', error)
+      toast.error('Erreur lors de la génération du PDF')
+    }
+  }
+
+  const handleShareWhatsApp = async () => {
+    // Implémentation pour WhatsApp
+    toast.info('Fonction WhatsApp en développement')
+  }
+
+  const handleSendEmail = async () => {
+    // Implémentation pour email
+    toast.info('Fonction email en développement')
+  }
 
   // Calculs de la billeterie
   const calculations = useMemo(() => {
@@ -70,16 +129,21 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
     }
   }, [denominations, initialData.exchangeRate, initialData.expectedCash])
 
+  const soCash = lastClosure ? lastClosure.physical_cash_usd + (lastClosure.physical_cash_cdf / initialData.exchangeRate) : 0;
+  const soBank = 0;
+  const soMobileMoney = 0;
+  const soOnline = 0;
+
   // Données pour la caisse principale
   const caissePrincipaleData: CaissePrincipaleRow[] = [
     {
       modePaiement: "Espèces",
       paymentMethod: "especes",
       paymentMethodId: 1,
-      soldeOuverture: 1500,
+      soldeOuverture: soCash,
       ventesJour: initialData.cashSalesTotal,
       sortiesJour: initialData.expensesTotal,
-      clotureTheorique: 1500 + initialData.cashSalesTotal - initialData.expensesTotal,
+      clotureTheorique: soCash + initialData.cashSalesTotal - initialData.expensesTotal,
       cashPhysique: calculations.calculatedCash,
       managerConfirmed: false,
       financierConfirmed: false
@@ -88,10 +152,10 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
       modePaiement: "Banque",
       paymentMethod: "banque",
       paymentMethodId: 2,
-      soldeOuverture: 5000,
+      soldeOuverture: soBank,
       ventesJour: initialData.bankSalesTotal,
       sortiesJour: 0,
-      clotureTheorique: 5000 + initialData.bankSalesTotal,
+      clotureTheorique: soBank + initialData.bankSalesTotal,
       cashPhysique: initialData.bankSalesTotal,
       managerConfirmed: false,
       financierConfirmed: false
@@ -100,10 +164,10 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
       modePaiement: "Mobile Money",
       paymentMethod: "mobile_money",
       paymentMethodId: 3,
-      soldeOuverture: 2000,
+      soldeOuverture: soMobileMoney,
       ventesJour: initialData.mobileMoneySalesTotal,
       sortiesJour: 0,
-      clotureTheorique: 2000 + initialData.mobileMoneySalesTotal,
+      clotureTheorique: soMobileMoney + initialData.mobileMoneySalesTotal,
       cashPhysique: initialData.mobileMoneySalesTotal,
       managerConfirmed: false,
       financierConfirmed: false
@@ -112,10 +176,10 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
       modePaiement: "Online",
       paymentMethod: "online",
       paymentMethodId: 4,
-      soldeOuverture: 1000,
+      soldeOuverture: soOnline,
       ventesJour: initialData.onlSalesTotal,
       sortiesJour: 0,
-      clotureTheorique: 1000 + initialData.onlSalesTotal,
+      clotureTheorique: soOnline + initialData.onlSalesTotal,
       cashPhysique: initialData.onlSalesTotal,
       managerConfirmed: false,
       financierConfirmed: false
@@ -128,62 +192,61 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
       categorie: "Epargne Marchandise",
       savingsCategory: "marchandise",
       savingsCategoryId: 1,
-      soldeOuverture: 5000,
-      entreesEpargne: 1500,
-      sortiesEpargne: 800,
-      soldeCloture: 5700,
+      soldeOuverture: 0,
+      entreesEpargne: 0,
+      sortiesEpargne: 0,
+      soldeCloture: 0,
       validated: false
     },
     {
       categorie: "Loyer",
       savingsCategory: "loyer",
       savingsCategoryId: 2,
-      soldeOuverture: 3000,
-      entreesEpargne: 2000,
+      soldeOuverture: 0,
+      entreesEpargne: 0,
       sortiesEpargne: 0,
-      soldeCloture: 5000,
+      soldeCloture: 0,
       validated: false
     },
     {
       categorie: "Beauty",
       savingsCategory: "beauty",
       savingsCategoryId: 3,
-      soldeOuverture: 2500,
-      entreesEpargne: 1200,
-      sortiesEpargne: 500,
-      soldeCloture: 3200,
+      soldeOuverture: 0,
+      entreesEpargne: 0,
+      sortiesEpargne: 0,
+      soldeCloture: 0,
       validated: false
     },
     {
       categorie: "Finance",
       savingsCategory: "finance",
       savingsCategoryId: 4,
-      soldeOuverture: 8000,
-      entreesEpargne: 3000,
-      sortiesEpargne: 2000,
-      soldeCloture: 9000,
+      soldeOuverture: 0,
+      entreesEpargne: 0,
+      sortiesEpargne: 0,
+      soldeCloture: 0,
       validated: false
     },
     {
       categorie: "Boost",
       savingsCategory: "boost",
       savingsCategoryId: 5,
-      soldeOuverture: 1500,
-      entreesEpargne: 800,
-      sortiesEpargne: 300,
-      soldeCloture: 2000,
+      soldeOuverture: 0,
+      entreesEpargne: 0,
+      sortiesEpargne: 0,
+      soldeCloture: 0,
       validated: false
     }
   ]
-
+  
   const handleSaveClosure = async () => {
     setIsSubmitting(true)
     setError(null)
 
     try {
       // Récupérer le shop sélectionné depuis l'URL ou utiliser le premier shop
-      const urlParams = new URLSearchParams(window.location.search)
-      const selectedShopId = urlParams.get('shop') || initialData.shops[0]?.id.toString()
+      const selectedShopId = searchParams.get('shop') || initialData.shops[0]?.id.toString()
       const selectedShop = initialData.shops.find(shop => shop.id.toString() === selectedShopId) || initialData.shops[0]
       
       if (!selectedShop) {
@@ -191,7 +254,8 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
       }
 
       // Vérifier si une clôture existe déjà
-      const existingClosure = await clotureService.checkExistingClosure(
+      const existingClosure = await clotureService.checkExistingClosurePeriod(
+        format(initialData.date, 'yyyy-MM-dd'),
         format(initialData.date, 'yyyy-MM-dd'),
         selectedShop.id
       )
@@ -205,7 +269,8 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
       // Préparer les données pour Supabase
       const clotureData: ClotureData = {
         closure: {
-          closure_date: format(initialData.date, 'yyyy-MM-dd'),
+          opening_date: format(initialData.date, 'yyyy-MM-dd'),
+          closing_date: format(new Date(), 'yyyy-MM-dd'),
           shop_id: selectedShop.id,
           shop_name: selectedShop.name,
           total_sales: initialData.dailySalesTotal,
@@ -255,7 +320,7 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
       const result = await clotureService.createCloture(clotureData)
       setSavedClosure(result)
       
-      alert('Clôture sauvegardée avec succès!')
+      toast('Clôture sauvegardée avec succès!')
 
     } catch (error: unknown) {
       console.error('Erreur lors de la sauvegarde:', error)
@@ -435,6 +500,51 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
 
               <div className="text-xs text-gray-500 text-center">
                 Toutes les validations doivent être complétées avant la clôture
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Download className="w-5 h-5" />
+                Export & Partage
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Button
+                onClick={handleGeneratePDF}
+                disabled={!savedClosure}
+                variant="outline"
+                className="w-full justify-start"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Télécharger PDF
+              </Button>
+              
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  onClick={handleShareWhatsApp}
+                  disabled={!savedClosure}
+                  variant="outline"
+                  className="justify-start"
+                >
+                  <MessageCircle className="w-4 h-4 mr-2" />
+                  WhatsApp
+                </Button>
+                
+                <Button
+                  onClick={handleSendEmail}
+                  disabled={!savedClosure}
+                  variant="outline"
+                  className="justify-start"
+                >
+                  <Mail className="w-4 h-4 mr-2" />
+                  Email
+                </Button>
+              </div>
+              
+              <div className="text-xs text-gray-500 text-center">
+                Disponible après sauvegarde
               </div>
             </CardContent>
           </Card>

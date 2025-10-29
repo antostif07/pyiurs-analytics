@@ -2,6 +2,7 @@ import { endOfDay, format, startOfDay } from "date-fns"
 import { POSConfig, POSOrder, POSPayment } from "../types/pos"
 import ClotureVentesClient from "./cloture-ventes.client"
 import { AccountAccount, Expense } from "../types/cloture"
+import { clotureService } from "@/lib/cloture-service"
 
 interface PageProps {
   searchParams: Promise<{
@@ -90,8 +91,6 @@ async function getDailySalesLines(date: Date, shop?: string) {
 async function getDailyExpenses(date: Date, company_name?: string) {
   const startDate = format(startOfDay(date), "yyyy-MM-dd HH:mm:ss")
   const endDate = format(endOfDay(date), "yyyy-MM-dd HH:mm:ss")
-
-  console.log(startDate, endDate);
   
   // Adaptez cette requête selon votre modèle de données des dépenses
   let domain = `[["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"]]`
@@ -169,6 +168,28 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
   const selectedDate = params.date ? new Date(params.date) : new Date()
   const selectedShop = params.shop || 'all'
   let company_name = 'all';
+  let startDate: Date
+  let endDate: Date
+  let lastClosure = null
+
+  // 🔍 Récupérer la dernière clôture du shop
+  if (selectedShop !== 'all') {
+    lastClosure = await clotureService.getLastClosureByShop(parseInt(selectedShop))
+
+    if (lastClosure) {
+      // Si une clôture existe → on part de sa closing_date jusqu’à la date sélectionnée
+      startDate = new Date(lastClosure.closing_date)
+      endDate = selectedDate > startDate ? selectedDate : startDate
+    } else {
+      // Sinon → on prend juste la journée sélectionnée
+      startDate = startOfDay(selectedDate)
+      endDate = endOfDay(selectedDate)
+    }
+  } else {
+    // Si aucun shop sélectionné → on prend la journée actuelle
+    startDate = startOfDay(selectedDate)
+    endDate = endOfDay(selectedDate)
+  }
 
   const [salesData, salesLinesData, exchangeRate, shops] = await Promise.all([
     getDailySales(selectedDate, selectedShop),
@@ -178,26 +199,12 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
   ])
 
   switch (selectedShop) {
-    case "all":
-      company_name = 'all'
-      break;
-    case "1":
-      company_name = "PB - 24"
-      break;
-    case "13":
-      company_name = "PB - LMB"
-      break;
-    case "14":
-      company_name = "PB - KTM"
-      break;
-    case "15":
-      company_name = "PB - MTO"
-      break;
-    case "17":
-      company_name = "PB - BC"
-      break;
-    default:
-      break;
+    case "1": company_name = "PB - 24"; break;
+    case "13": company_name = "PB - LMB"; break;
+    case "14": company_name = "PB - KTM"; break;
+    case "15": company_name = "PB - MTO"; break;
+    case "17": company_name = "PB - BC"; break;
+    default: company_name = 'all'
   }
   const expensesData = await getDailyExpenses(selectedDate, company_name)
   
@@ -264,6 +271,6 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
   }
 
   return (
-    <ClotureVentesClient initialData={initialData} searchParams={params} />
+    <ClotureVentesClient initialData={initialData} searchParams={params} shopLastClosure={lastClosure} />
   )
 }

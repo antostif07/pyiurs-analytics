@@ -11,7 +11,8 @@ export type Database = {
       cash_closures: {
         Row: {
           id: string
-          closure_date: string
+          opening_date: string
+          closing_date: string
           shop_id: number
           shop_name: string | null
           total_sales: number
@@ -34,7 +35,8 @@ export type Database = {
         }
         Insert: {
           id?: string
-          closure_date: string
+          opening_date: string
+          closing_date: string
           shop_id: number
           shop_name?: string | null
           total_sales?: number
@@ -57,7 +59,8 @@ export type Database = {
         }
         Update: {
           id?: string
-          closure_date?: string
+          opening_date: string
+          closing_date: string
           shop_id?: number
           shop_name?: string | null
           total_sales?: number

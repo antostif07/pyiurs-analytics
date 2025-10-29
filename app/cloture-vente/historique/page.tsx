@@ -1,6 +1,6 @@
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
-import { Search, FileText, Eye, Building, ArrowLeft } from "lucide-react"
+import { Search, FileText, Eye, Building, ArrowLeft, Calendar } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -25,7 +25,7 @@ async function getCloturesHistory() {
       cash_closure_secondary_cash (*),
       cash_denominations (*)
     `)
-    .order('closure_date', { ascending: false })
+    .order('closing_date', { ascending: false }) // ← Changé ici
     .limit(50)
 
   if (error) {
@@ -56,6 +56,19 @@ export default async function HistoriqueCloturesPage({ searchParams }: Historiqu
     if (Math.abs(difference) < 0.01) return 'text-green-600'
     if (difference > 0) return 'text-orange-600'
     return 'text-red-600'
+  }
+
+  const formatPeriod = (openingDate: string, closingDate: string) => {
+    const opening = new Date(openingDate)
+    const closing = new Date(closingDate)
+    
+    if (opening.toDateString() === closing.toDateString()) {
+      // Même jour
+      return format(opening, 'dd MMMM yyyy', { locale: fr })
+    } else {
+      // Période
+      return `${format(opening, 'dd/MM')} - ${format(closing, 'dd MMMM yyyy', { locale: fr })}`
+    }
   }
 
   return (
@@ -157,7 +170,7 @@ export default async function HistoriqueCloturesPage({ searchParams }: Historiqu
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Date</TableHead>
+                  <TableHead>Période</TableHead> {/* ← Changé ici */}
                   <TableHead>Boutique</TableHead>
                   <TableHead className="text-right">Ventes Total</TableHead>
                   <TableHead className="text-right">Dépenses</TableHead>
@@ -170,7 +183,10 @@ export default async function HistoriqueCloturesPage({ searchParams }: Historiqu
                 {clotures.map((cloture) => (
                   <TableRow key={cloture.id}>
                     <TableCell className="font-medium">
-                      {format(new Date(cloture.closure_date), 'dd MMMM yyyy', { locale: fr })}
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-gray-400" />
+                        {formatPeriod(cloture.opening_date, cloture.closing_date)} {/* ← Changé ici */}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
