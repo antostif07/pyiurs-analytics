@@ -53,6 +53,73 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
   const [savedClosure, setSavedClosure] = useState<CashClosure | null>(null)
   const [error, setError] = useState<string | null>(null)
   const searchParams = useSearchParams()
+  const selectedShopId = parseInt(searchParams.get('shop') || initialData.shops[0]?.id.toString() || '1');
+
+  const getOpeningBalances = (shopId: number) => {
+    let soCash = 0;
+    let soBank = 0;
+    let soMobileMoney = 0;
+    let soOnline = 0;
+
+    // Si dernière clôture existe, utiliser ses données
+    if (lastClosure) {
+      soCash = lastClosure.physical_cash_usd + (lastClosure.physical_cash_cdf / initialData.exchangeRate);
+      // Pour les autres modes, on pourrait récupérer depuis la dernière clôture si disponible
+      const lastMainCash = Array.isArray(lastClosure.calculated_cash) ? lastClosure.calculated_cash : [];
+      soBank = lastMainCash.find(row => row.payment_method === 'banque')?.physical_cash || 0;
+      soMobileMoney = lastMainCash.find(row => row.payment_method === 'mobile_money')?.physical_cash || 0;
+      soOnline = lastMainCash.find(row => row.payment_method === 'online')?.physical_cash || 0;
+    } else {
+      // Si pas de dernière clôture, utiliser les soldes par défaut selon le shop
+      switch (shopId) {
+        case 1: // PB - 24
+          soCash = 37.95;
+          soBank = 0;
+          soMobileMoney = 0;
+          soOnline = 0;
+          break;
+        
+        case 13: // PB - LMB
+          soCash = 0;
+          soBank = 0;
+          soMobileMoney = 0;
+          soOnline = 0;
+          break;
+        
+        case 14: // PB - KTM
+          soCash = 33.50;
+          soBank = 0;
+          soMobileMoney = 0;
+          soOnline = 0;
+          break;
+        
+        case 15: // PB - MTO
+          soCash = 124.06;
+          soBank = 0;
+          soMobileMoney = 0;
+          soOnline = 0;
+          break;
+
+        case 17: // PB - BC
+          soCash = 2.70;
+          soBank = 0;
+          soMobileMoney = 0;
+          soOnline = 0;
+          break;
+        
+        default:
+          soCash = 0;
+          soBank = 0;
+          soMobileMoney = 0;
+          soOnline = 0;
+      }
+    }
+
+    return { soCash, soBank, soMobileMoney, soOnline };
+  };
+
+  // Calculer les soldes d'ouverture pour le shop sélectionné
+  const { soCash, soBank, soMobileMoney, soOnline } = getOpeningBalances(selectedShopId);
 
   const handleGeneratePDF = async () => {
     try {
@@ -129,10 +196,10 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
     }
   }, [denominations, initialData.exchangeRate, initialData.expectedCash])
 
-  const soCash = lastClosure ? lastClosure.physical_cash_usd + (lastClosure.physical_cash_cdf / initialData.exchangeRate) : 0;
-  const soBank = 0;
-  const soMobileMoney = 0;
-  const soOnline = 0;
+  // const soCash = lastClosure ? lastClosure.physical_cash_usd + (lastClosure.physical_cash_cdf / initialData.exchangeRate) : 0;
+  // const soBank = 0;
+  // const soMobileMoney = 0;
+  // const soOnline = 0;
 
   // Données pour la caisse principale
   const caissePrincipaleData: CaissePrincipaleRow[] = [
