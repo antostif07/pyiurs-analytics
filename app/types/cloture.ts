@@ -18,6 +18,13 @@ export interface AccountAccount {
   x_studio_categorie_compte: string | boolean
 }
 
+
+export interface FilteredExpensesResult {
+  filteredExpenses: Expense[]
+  totalAmount: number
+  count: number
+}
+
 export type CashClosure = Database['public']['Tables']['cash_closures']['Row']
 export type MainCashRow = Database['public']['Tables']['cash_closure_main_cash']['Row']
 export type SecondaryCashRow = Database['public']['Tables']['cash_closure_secondary_cash']['Row']

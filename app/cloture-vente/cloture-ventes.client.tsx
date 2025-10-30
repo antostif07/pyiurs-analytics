@@ -29,7 +29,6 @@ export type CloturePageDataType = {
   expectedCash: number
   exchangeRate: number
   sales: POSOrder[]
-  salesLines: POSOrderLine[]
   expenses: Expense[]
   shops: POSConfig[]
 }
@@ -57,7 +56,6 @@ export default function ClotureVentesClient({ initialData, searchParams, shopLas
   const [exchangeRate, setExchangeRate] = useState(initialData.exchangeRate)
   const [notes, setNotes] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [savedClosure, setSavedClosure] = useState<CashClosure | null>(null)
 
   // Vérifier si une clôture existe déjà pour la période
   const isDateInClosedPeriod = useMemo(() => {
@@ -101,27 +99,6 @@ export default function ClotureVentesClient({ initialData, searchParams, shopLas
   }, [selectedDate, selectedShop])
 
   const canCreateClosure = selectedShop && selectedShop !== 'all' && !isClotureExist && !isDateInClosedPeriod
-
-  // Calculs dérivés
-  const calculations = useMemo(() => {
-    const physicalCashUSD = denominations
-      .filter(d => d.currency === 'USD')
-      .reduce((sum, d) => sum + (d.value * d.quantity), 0)
-
-    const physicalCashCDF = denominations
-      .filter(d => d.currency === 'CDF')
-      .reduce((sum, d) => sum + (d.value * d.quantity), 0)
-
-    const calculatedCash = physicalCashUSD + (physicalCashCDF / exchangeRate)
-    const difference = calculatedCash - initialData.expectedCash
-
-    return {
-      physicalCashUSD,
-      physicalCashCDF,
-      calculatedCash,
-      difference
-    }
-  }, [denominations, exchangeRate, initialData.expectedCash])
 
   const updateDenomination = (index: number, quantity: number) => {
     const newDenominations = [...denominations]

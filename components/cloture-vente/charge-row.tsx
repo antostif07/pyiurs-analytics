@@ -72,7 +72,7 @@ export function ChargeRow({ chargeData }: ChargeRowProps) {
           <div 
             key={expense.id} 
             className="flex justify-between items-center p-3 rounded-lg border bg-white hover:shadow-md transition-all cursor-pointer hover:bg-blue-50 group"
-            onClick={() => window.open(`https://pyiurs.odoo.com/web?#id=${expense.id}&cids=5&menu_id=367&action=549&model=hr.expense&view_type=form`, '_blank')}
+            onClick={() => window.open(`https://pyiurs.odoo.com/web?#id=${expense.id}&cids=${expense.company_id[0]}&menu_id=367&action=549&model=hr.expense&view_type=form`, '_blank')}
           >
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">

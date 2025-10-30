@@ -65,28 +65,6 @@ async function getDailySales(date: Date, shop?: string) {
   return { success: true, records: enrichedOrders };
 }
 
-// Récupérer les lignes de vente pour le détail
-async function getDailySalesLines(date: Date, shop?: string) {
-  const startDate = format(startOfDay(date), "yyyy-MM-dd HH:mm:ss")
-  const endDate = format(endOfDay(date), "yyyy-MM-dd HH:mm:ss")
-  
-  let domain = `[["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"]]`
-  
-  if (shop && shop !== 'all') {
-    domain = `[["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"], ["order_id.config_id.name", "=", "${shop}"]]`
-  }
-  
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.order.line?fields=id,qty,price_unit,product_id,order_id&domain=${encodeURIComponent(domain)}`,
-    { 
-      next: { revalidate: 300 }
-    }
-  )
-
-  if (!res.ok) throw new Error("Erreur API Odoo - Lignes de vente")
-  return res.json()
-}
-
 // Récupérer les dépenses du jour
 async function getDailyExpenses(date: Date, company_name?: string) {
   const startDate = format(startOfDay(date), "yyyy-MM-dd HH:mm:ss")
@@ -191,9 +169,8 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
     endDate = endOfDay(selectedDate)
   }
 
-  const [salesData, salesLinesData, exchangeRate, shops] = await Promise.all([
+  const [salesData, exchangeRate, shops] = await Promise.all([
     getDailySales(selectedDate, selectedShop),
-    getDailySalesLines(selectedDate, selectedShop),
     getExchangeRate(),
     getPOSConfig(),
   ])
@@ -265,7 +242,6 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
     bankSalesTotal,
     mobileMoneySalesTotal,
     onlSalesTotal,
-    salesLines: salesLinesData.records,
     expenses: expensesData.records,
     shops: shops.records as POSConfig[]
   }

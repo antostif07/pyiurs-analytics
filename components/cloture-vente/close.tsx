@@ -14,6 +14,7 @@ import { CashClosure } from "@/app/types/cloture"
 import { useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import { PDFClotureData, pdfService } from "@/lib/pdf/cloture-service"
+import { filterAndSumExpensesByKeywords } from "@/lib/utils"
 
 interface ClotureVenteCloseProps {
   denominations: Denomination[]
@@ -196,11 +197,6 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
     }
   }, [denominations, initialData.exchangeRate, initialData.expectedCash])
 
-  // const soCash = lastClosure ? lastClosure.physical_cash_usd + (lastClosure.physical_cash_cdf / initialData.exchangeRate) : 0;
-  // const soBank = 0;
-  // const soMobileMoney = 0;
-  // const soOnline = 0;
-
   // Données pour la caisse principale
   const caissePrincipaleData: CaissePrincipaleRow[] = [
     {
@@ -254,6 +250,22 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
   ]
 
   // Données pour la caisse secondaire
+  // 1. Marchandises
+  const marchandisesSortiesEpargne = filterAndSumExpensesByKeywords(initialData.expenses, ['[51003]'], 'any').totalAmount;
+
+  // 2. Loyer
+  const loyerEntreesEpargne = filterAndSumExpensesByKeywords(initialData.expenses, ['[51055]'], 'any').totalAmount;;
+
+  // 3. Beauty
+  const beautySoldeOuverture = 0;
+  const beautySortiesEpargne = filterAndSumExpensesByKeywords(initialData.expenses, ['0829473053'], 'any').totalAmount;
+
+  // 4. Boost
+  const boostSortiesEpargne = filterAndSumExpensesByKeywords(initialData.expenses, ['0860524829'], 'any').totalAmount;
+
+  // 6. Sécurité
+  const securitySortiesEpargne = filterAndSumExpensesByKeywords(initialData.expenses, ['[51020]'], 'any').totalAmount;
+
   const caisseSecondaireData: CaisseSecondaireRow[] = [
     {
       categorie: "Epargne Marchandise",
@@ -261,7 +273,7 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
       savingsCategoryId: 1,
       soldeOuverture: 0,
       entreesEpargne: 0,
-      sortiesEpargne: 0,
+      sortiesEpargne: marchandisesSortiesEpargne,
       soldeCloture: 0,
       validated: false
     },
@@ -270,7 +282,7 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
       savingsCategory: "loyer",
       savingsCategoryId: 2,
       soldeOuverture: 0,
-      entreesEpargne: 0,
+      entreesEpargne: loyerEntreesEpargne,
       sortiesEpargne: 0,
       soldeCloture: 0,
       validated: false
@@ -279,10 +291,10 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
       categorie: "Beauty",
       savingsCategory: "beauty",
       savingsCategoryId: 3,
-      soldeOuverture: 0,
+      soldeOuverture: beautySoldeOuverture,
       entreesEpargne: 0,
-      sortiesEpargne: 0,
-      soldeCloture: 0,
+      sortiesEpargne: beautySortiesEpargne,
+      soldeCloture: beautySoldeOuverture - beautySortiesEpargne,
       validated: false
     },
     {
@@ -301,7 +313,17 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
       savingsCategoryId: 5,
       soldeOuverture: 0,
       entreesEpargne: 0,
-      sortiesEpargne: 0,
+      sortiesEpargne: boostSortiesEpargne,
+      soldeCloture: 0,
+      validated: false
+    },
+    {
+      categorie: "Sécurité",
+      savingsCategory: "security",
+      savingsCategoryId: 6,
+      soldeOuverture: 0,
+      entreesEpargne: 0,
+      sortiesEpargne: securitySortiesEpargne,
       soldeCloture: 0,
       validated: false
     }
