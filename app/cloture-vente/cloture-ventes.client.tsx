@@ -1,9 +1,8 @@
 'use client'
 
 import { useState, useMemo, useCallback, useEffect } from 'react'
-import { Badge } from "@/components/ui/badge"
-import { POSConfig, POSOrder, POSOrderLine } from '../types/pos'
-import { format, isBefore, isAfter } from 'date-fns'
+import { POSConfig, POSOrder } from '../types/pos'
+import { format, isBefore } from 'date-fns'
 import { CashClosure, Expense } from '../types/cloture'
 import { supabase } from '@/lib/supabase'
 import ClotureVenteHeader from '@/components/cloture-vente/header'
@@ -17,6 +16,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { InfoIcon, LockIcon, CalendarIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
+import { useAuth } from '@/hooks/useAuth'
 
 export type CloturePageDataType = {
   date: Date
@@ -40,15 +40,69 @@ interface ClotureVentesClientProps {
     date?: string
   }
   shopLastClosure: CashClosure | null
+  userShops: string[]
+  isUserRestricted: boolean
+  showShopSelector: boolean
+  userRole?: string
 }
 
-export default function ClotureVentesClient({ initialData, searchParams, shopLastClosure }: ClotureVentesClientProps) {
+export default function ClotureVentesClient({ 
+  initialData, 
+  searchParams, 
+  shopLastClosure, 
+  userShops = [],
+  isUserRestricted = false,
+  showShopSelector = true,
+  userRole
+}: ClotureVentesClientProps) {
+  const { hasRole } = useAuth()
   const [selectedShop, setSelectedShop] = useState(searchParams.shop || 'all')
   const [selectedDate, setSelectedDate] = useState(initialData.date)
   const [isClotureExist, setIsClotureExist] = useState(false)
   const [currentClosure, setCurrentClosure] = useState<CashClosure | null>(null)
   const pathname = usePathname();
   const router = useRouter();
+
+  // États pour les boutons de validation
+  // const [managerValidated, setManagerValidated] = useState(false)
+  // const [adminValidated, setAdminValidated] = useState(false)
+
+  // Vérifier les permissions pour les boutons
+  // const canValidateManager = hasRole(['manager'])
+  // const canValidateAdmin = hasRole(['admin', 'financier'])
+
+  // Filtrer les shops disponibles selon les permissions
+  const availableShops = useMemo(() => {
+    if (!isUserRestricted || userShops.includes('all')) {
+      return initialData.shops
+    }
+    
+    return initialData.shops.filter(shop => 
+      userShops.includes(shop.id.toString())
+    )
+  }, [initialData.shops, userShops, isUserRestricted])
+
+  // Si l'utilisateur est restreint et n'a qu'un seul shop, le sélectionner automatiquement
+  useEffect(() => {
+    if (isUserRestricted && userShops.length === 1 && userShops[0] !== 'all') {
+      const singleShop = userShops[0]
+      if (selectedShop !== singleShop) {
+        setSelectedShop(singleShop)
+        
+        const params = new URLSearchParams()
+        params.set('shop', singleShop)
+        if (selectedDate) {
+          params.set('date', format(selectedDate, 'yyyy-MM-dd'))
+        }
+        
+        const queryString = params.toString()
+        const newUrl = queryString ? `${pathname}?${queryString}` : pathname
+        router.replace(newUrl, { scroll: false })
+      }
+    }
+  }, [isUserRestricted, userShops, selectedDate, pathname, router, selectedShop])
+
+
   const [denominations, setDenominations] = useState<Denomination[]>([
     ...USD_DENOMINATIONS,
     ...CDF_DENOMINATIONS
@@ -98,7 +152,18 @@ export default function ClotureVentesClient({ initialData, searchParams, shopLas
     checkExistingClosure()
   }, [selectedDate, selectedShop])
 
-  const canCreateClosure = selectedShop && selectedShop !== 'all' && !isClotureExist && !isDateInClosedPeriod
+  // Vérifier si l'utilisateur peut créer une clôture pour le shop sélectionné
+  const canCreateClosure = useMemo(() => {
+    if (!selectedShop || selectedShop === 'all') return false
+    if (isClotureExist || isDateInClosedPeriod) return false
+    
+    // Vérifier l'accès au shop si l'utilisateur est restreint
+    if (isUserRestricted && !userShops.includes(selectedShop)) {
+      return false
+    }
+    
+    return true
+  }, [selectedShop, isClotureExist, isDateInClosedPeriod, isUserRestricted, userShops])
 
   const updateDenomination = (index: number, quantity: number) => {
     const newDenominations = [...denominations]
@@ -115,6 +180,11 @@ export default function ClotureVentesClient({ initialData, searchParams, shopLas
   }
 
   const handleShopChange = useCallback((shop: string) => {
+    // Si l'utilisateur est restreint, vérifier l'accès
+    if (isUserRestricted && !userShops.includes(shop) && shop !== 'all') {
+      return
+    }
+    
     setSelectedShop(shop)
     
     const params = new URLSearchParams()
@@ -129,7 +199,7 @@ export default function ClotureVentesClient({ initialData, searchParams, shopLas
     const newUrl = queryString ? `${pathname}?${queryString}` : pathname
     
     router.replace(newUrl, { scroll: false })
-  }, [router, pathname, selectedDate])
+  }, [router, pathname, selectedDate, isUserRestricted, userShops])
 
   const handleDateChange = useCallback((date: Date) => {
     setSelectedDate(date)
@@ -156,7 +226,23 @@ export default function ClotureVentesClient({ initialData, searchParams, shopLas
         handleDateChange={handleDateChange}
         exchangeRate={initialData.exchangeRate}
         shops={initialData.shops}
+        showShopSelector={showShopSelector}
+        userRole={userRole}
+        isUserRestricted={isUserRestricted}
+        userShops={userShops}
       />
+
+      {/* Alerte si l'utilisateur est restreint à des shops spécifiques */}
+      {isUserRestricted && (
+        <div className="container mx-auto px-4 py-4">
+          <Alert className="bg-blue-50 border-blue-200">
+            <InfoIcon className="h-4 w-4 text-blue-600" />
+            <AlertDescription className="text-blue-800">
+              🔐 Accès restreint - Vous avez accès {userShops.length === 1 ? 'à 1 boutique' : `à ${userShops.length} boutiques`}
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
 
       {/* Alerte si date dans période déjà cloturée */}
       {isDateInClosedPeriod && shopLastClosure && (

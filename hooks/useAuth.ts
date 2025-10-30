@@ -67,6 +67,41 @@ export function useAuth() {
     return user.permissions.includes(path);
   };
 
+  // Nouvelle méthode pour vérifier les rôles
+  const hasRole = (roles: string[]): boolean => {
+    if (!user) return false;
+    return roles.includes(user.role);
+  };
+
+  // Nouvelle méthode pour obtenir les shops attribués
+  const getAssignedShops = (): string[] => {
+    if (!user) return [];
+    
+    if (user.assignedShop === 'all') {
+      return ['all']; // Accès à tous les shops
+    }
+    
+    return user.assignedShop || [];
+  };
+
+  // Vérifier si l'utilisateur a accès à un shop spécifique
+  const hasShopAccess = (shopId: string): boolean => {
+    if (!user) return false;
+    
+    if (user.assignedShop === 'all') {
+      return true;
+    }
+    
+    return user.assignedShop?.includes(shopId) || false;
+  };
+
+  // Vérifier si l'utilisateur est limité à des shops spécifiques
+  const isShopRestricted = (): boolean => {
+    if (!user) return true;
+    
+    return user.assignedShop !== 'all' && (user.assignedShop?.length || 0) > 0;
+  };
+
   return {
     user,
     isLoading,
@@ -74,5 +109,9 @@ export function useAuth() {
     logout,
     isAuthenticated: !!user,
     hasPermission,
+    hasRole,
+    getAssignedShops,
+    hasShopAccess,
+    isShopRestricted,
   };
 }

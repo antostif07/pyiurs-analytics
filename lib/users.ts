@@ -6,6 +6,7 @@ export interface User {
   name: string;
   role: string;
   permissions: string[];
+  assignedShop?: 'all' | Array<string>; // ID de la boutique assignée, si applicable
 }
 
 // Liste des utilisateurs - en production, stockez ça dans une base de données
@@ -17,6 +18,7 @@ export const users: User[] = [
     name: 'Administrateur',
     role: 'admin',
     permissions: ["all"],
+    assignedShop: 'all', 
   },
   {
     id: '2',
@@ -31,7 +33,7 @@ export const users: User[] = [
     //   '/control-stock-femme',
     //   '/client-base',
       '/client-base-beauty',
-    //   '/parc-client'
+      // '/cloture-vente'
     ]
   },
   {
@@ -59,6 +61,17 @@ export const users: User[] = [
     permissions: [
       '/funds'
     ]
+  },
+  {
+    id: '5',
+    username: 'manager_24',
+    password: 'manager_24',
+    name: 'Manager 24',
+    role: 'manager',
+    permissions: [
+      '/cloture-vente'
+    ],
+    assignedShop: ['1'],
   },
 ];
 

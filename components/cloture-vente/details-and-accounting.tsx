@@ -1,7 +1,6 @@
 import { FileText, Receipt, TrendingUp, CreditCard, Building2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "../ui/accordion";
 import { CloturePageDataType } from "@/app/cloture-vente/cloture-ventes.client";
 import { format } from "date-fns";
 import { Expense } from "@/app/types/cloture";
@@ -88,7 +87,7 @@ export default function DetailsAndAccounting({initialData}: DetailsAndAccounting
                                 </div>
 
                                 {/* Groupes par méthode de paiement */}
-                                {paymentGroupsArray.map((group, index) => (
+                                {paymentGroupsArray.map((group) => (
                                     <div key={group.name} className="border-b last:border-b-0">
                                         {/* Ligne principale du groupe */}
                                         <div className="grid grid-cols-2 gap-4 px-6 py-4 cursor-pointer hover:bg-blue-50 transition-colors group">

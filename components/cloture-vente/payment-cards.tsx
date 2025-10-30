@@ -16,10 +16,10 @@ export default function PaymentCards({
   totalEspeces = 0,
   totalBanque = 0,
   totalMobileMoney = 0,
-  totalCarte = 0,
+  // totalCarte = 0,
   transactionsBanque = 0,
   transactionsMobileMoney = 0,
-  transactionsCarte = 0
+  // transactionsCarte = 0
 }: PaymentCardsProps) {
   return (
     <div className="container mx-auto px-4 py-6">

@@ -6,7 +6,7 @@ import { Denomination } from "@/lib/constants"
 import { Button } from "../ui/button"
 import { CloturePageDataType } from "@/app/cloture-vente/cloture-ventes.client"
 import { Badge } from "../ui/badge"
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { format } from "date-fns"
 import { ClotureData, clotureService } from "@/lib/cloture-service"
 import { Textarea } from "../ui/textarea"
@@ -56,127 +56,7 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
   const searchParams = useSearchParams()
   const selectedShopId = parseInt(searchParams.get('shop') || initialData.shops[0]?.id.toString() || '1');
 
-  const getOpeningBalances = (shopId: number) => {
-    let soCash = 0;
-    let soBank = 0;
-    let soMobileMoney = 0;
-    let soOnline = 0;
-
-    // Si dernière clôture existe, utiliser ses données
-    if (lastClosure) {
-      soCash = lastClosure.physical_cash_usd + (lastClosure.physical_cash_cdf / initialData.exchangeRate);
-      // Pour les autres modes, on pourrait récupérer depuis la dernière clôture si disponible
-      const lastMainCash = Array.isArray(lastClosure.calculated_cash) ? lastClosure.calculated_cash : [];
-      soBank = lastMainCash.find(row => row.payment_method === 'banque')?.physical_cash || 0;
-      soMobileMoney = lastMainCash.find(row => row.payment_method === 'mobile_money')?.physical_cash || 0;
-      soOnline = lastMainCash.find(row => row.payment_method === 'online')?.physical_cash || 0;
-    } else {
-      // Si pas de dernière clôture, utiliser les soldes par défaut selon le shop
-      switch (shopId) {
-        case 1: // PB - 24
-          soCash = 37.95;
-          soBank = 0;
-          soMobileMoney = 0;
-          soOnline = 0;
-          break;
-        
-        case 13: // PB - LMB
-          soCash = 0;
-          soBank = 0;
-          soMobileMoney = 0;
-          soOnline = 0;
-          break;
-        
-        case 14: // PB - KTM
-          soCash = 33.50;
-          soBank = 0;
-          soMobileMoney = 0;
-          soOnline = 0;
-          break;
-        
-        case 15: // PB - MTO
-          soCash = 124.06;
-          soBank = 0;
-          soMobileMoney = 0;
-          soOnline = 0;
-          break;
-
-        case 17: // PB - BC
-          soCash = 2.70;
-          soBank = 0;
-          soMobileMoney = 0;
-          soOnline = 0;
-          break;
-        
-        default:
-          soCash = 0;
-          soBank = 0;
-          soMobileMoney = 0;
-          soOnline = 0;
-      }
-    }
-
-    return { soCash, soBank, soMobileMoney, soOnline };
-  };
-
-  // Calculer les soldes d'ouverture pour le shop sélectionné
-  const { soCash, soBank, soMobileMoney, soOnline } = getOpeningBalances(selectedShopId);
-
-  const handleGeneratePDF = async () => {
-    try {
-      // Récupérer toutes les données complètes de la clôture
-      const selectedShopId = searchParams.get('shop') || initialData.shops[0]?.id.toString()
-      const selectedShop = initialData.shops.find(shop => shop.id.toString() === selectedShopId)
-      
-      if (!savedClosure) {
-        toast.error('Veuillez d\'abord sauvegarder la clôture')
-        return
-      }
-
-      // Récupérer les données complètes depuis Supabase
-      const fullClosureData = await clotureService.getClotureById(savedClosure.id)
-      
-      if (!fullClosureData) {
-        toast.error('Données de clôture non trouvées')
-        return
-      }
-
-      const pdfData: PDFClotureData = {
-        closure: fullClosureData,
-        mainCash: fullClosureData.cash_closure_main_cash || [],
-        secondaryCash: fullClosureData.cash_closure_secondary_cash || [],
-        denominations: fullClosureData.cash_denominations || []
-      }
-
-      const pdfBlob = await pdfService.generateCloturePDF(pdfData)
-      
-      // Téléchargement
-      const url = URL.createObjectURL(pdfBlob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `cloture-${selectedShop?.name}-${format(initialData.date, 'yyyy-MM-dd')}.pdf`
-      link.click()
-      URL.revokeObjectURL(url)
-
-      toast.success('PDF généré avec succès')
-
-    } catch (error) {
-      console.error('Erreur génération PDF:', error)
-      toast.error('Erreur lors de la génération du PDF')
-    }
-  }
-
-  const handleShareWhatsApp = async () => {
-    // Implémentation pour WhatsApp
-    toast.info('Fonction WhatsApp en développement')
-  }
-
-  const handleSendEmail = async () => {
-    // Implémentation pour email
-    toast.info('Fonction email en développement')
-  }
-
-  // Calculs de la billeterie
+  // Calculs de la billeterie - DOIT ÊTRE EN PREMIER
   const calculations = useMemo(() => {
     const physicalCashUSD = denominations
       .filter(d => d.currency === 'USD')
@@ -197,144 +77,265 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
     }
   }, [denominations, initialData.exchangeRate, initialData.expectedCash])
 
-  // Données pour la caisse principale
-  const caissePrincipaleData: CaissePrincipaleRow[] = [
-    {
-      modePaiement: "Espèces",
-      paymentMethod: "especes",
-      paymentMethodId: 1,
-      soldeOuverture: soCash,
-      ventesJour: initialData.cashSalesTotal,
-      sortiesJour: initialData.expensesTotal,
-      clotureTheorique: soCash + initialData.cashSalesTotal - initialData.expensesTotal,
-      cashPhysique: calculations.calculatedCash,
-      managerConfirmed: false,
-      financierConfirmed: false
-    },
-    {
-      modePaiement: "Banque",
-      paymentMethod: "banque",
-      paymentMethodId: 2,
-      soldeOuverture: soBank,
-      ventesJour: initialData.bankSalesTotal,
-      sortiesJour: 0,
-      clotureTheorique: soBank + initialData.bankSalesTotal,
-      cashPhysique: initialData.bankSalesTotal,
-      managerConfirmed: false,
-      financierConfirmed: false
-    },
-    {
-      modePaiement: "Mobile Money",
-      paymentMethod: "mobile_money",
-      paymentMethodId: 3,
-      soldeOuverture: soMobileMoney,
-      ventesJour: initialData.mobileMoneySalesTotal,
-      sortiesJour: 0,
-      clotureTheorique: soMobileMoney + initialData.mobileMoneySalesTotal,
-      cashPhysique: initialData.mobileMoneySalesTotal,
-      managerConfirmed: false,
-      financierConfirmed: false
-    },
-    {
-      modePaiement: "Online",
-      paymentMethod: "online",
-      paymentMethodId: 4,
-      soldeOuverture: soOnline,
-      ventesJour: initialData.onlSalesTotal,
-      sortiesJour: 0,
-      clotureTheorique: soOnline + initialData.onlSalesTotal,
-      cashPhysique: initialData.onlSalesTotal,
-      managerConfirmed: false,
-      financierConfirmed: false
+  // Fonction pour calculer les soldes d'ouverture
+  const getOpeningBalances = useMemo(() => {
+    const shopId = selectedShopId;
+    let soCash = 0;
+    let soBank = 0;
+    let soMobileMoney = 0;
+    let soOnline = 0;
+
+    if (lastClosure) {
+      soCash = lastClosure.physical_cash_usd + (lastClosure.physical_cash_cdf / initialData.exchangeRate);
+      const lastMainCash = Array.isArray(lastClosure.calculated_cash) ? lastClosure.calculated_cash : [];
+      soBank = lastMainCash.find(row => row.payment_method === 'banque')?.physical_cash || 0;
+      soMobileMoney = lastMainCash.find(row => row.payment_method === 'mobile_money')?.physical_cash || 0;
+      soOnline = lastMainCash.find(row => row.payment_method === 'online')?.physical_cash || 0;
+    } else {
+      switch (shopId) {
+        case 1: soCash = 37.95; break;
+        case 13: soCash = 0; break;
+        case 14: soCash = 33.50; break;
+        case 15: soCash = 124.06; break;
+        case 17: soCash = 2.70; break;
+        default: soCash = 0;
+      }
     }
-  ]
 
-  // Données pour la caisse secondaire
-  // 1. Marchandises
-  const marchandisesSortiesEpargne = filterAndSumExpensesByKeywords(initialData.expenses, ['[51003]'], 'any').totalAmount;
+    return { soCash, soBank, soMobileMoney, soOnline };
+  }, [selectedShopId, lastClosure, initialData.exchangeRate]);
 
-  // 2. Loyer
-  const loyerEntreesEpargne = filterAndSumExpensesByKeywords(initialData.expenses, ['[51055]'], 'any').totalAmount;;
+  // Calcul des données de caisse secondaire
+  const savingsCalculations = useMemo(() => {
+    return {
+      marchandisesSortiesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['[51003]'], 'any').totalAmount,
+      loyerEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['[51055]'], 'any').totalAmount,
+      beautySortiesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['0829473053'], 'any').totalAmount,
+      boostSortiesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['0860524829'], 'any').totalAmount,
+      securitySortiesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['[51020]'], 'any').totalAmount,
+    };
+  }, [initialData.expenses]);
 
-  // 3. Beauty
-  const beautySoldeOuverture = 0;
-  const beautySortiesEpargne = filterAndSumExpensesByKeywords(initialData.expenses, ['0829473053'], 'any').totalAmount;
+  // États pour les données des caisses
+  const [caissePrincipaleData, setCaissePrincipaleData] = useState<CaissePrincipaleRow[]>([]);
+  const [caisseSecondaireData, setCaisseSecondaireData] = useState<CaisseSecondaireRow[]>([]);
 
-  // 4. Boost
-  const boostSortiesEpargne = filterAndSumExpensesByKeywords(initialData.expenses, ['0860524829'], 'any').totalAmount;
+  // Mettre à jour les données quand les calculs changent
+  useEffect(() => {
+    const { soCash, soBank, soMobileMoney, soOnline } = getOpeningBalances;
+    const { 
+      marchandisesSortiesEpargne, 
+      loyerEntreesEpargne, 
+      beautySortiesEpargne, 
+      boostSortiesEpargne, 
+      securitySortiesEpargne 
+    } = savingsCalculations;
 
-  // 6. Sécurité
-  const securitySortiesEpargne = filterAndSumExpensesByKeywords(initialData.expenses, ['[51020]'], 'any').totalAmount;
+    // Mettre à jour la caisse principale
+    setCaissePrincipaleData([
+      {
+        modePaiement: "Espèces",
+        paymentMethod: "especes",
+        paymentMethodId: 1,
+        soldeOuverture: soCash,
+        ventesJour: initialData.cashSalesTotal,
+        sortiesJour: initialData.expensesTotal,
+        clotureTheorique: soCash + initialData.cashSalesTotal - initialData.expensesTotal,
+        cashPhysique: calculations.calculatedCash,
+        managerConfirmed: false,
+        financierConfirmed: false
+      },
+      {
+        modePaiement: "Banque",
+        paymentMethod: "banque",
+        paymentMethodId: 2,
+        soldeOuverture: soBank,
+        ventesJour: initialData.bankSalesTotal,
+        sortiesJour: 0,
+        clotureTheorique: soBank + initialData.bankSalesTotal,
+        cashPhysique: initialData.bankSalesTotal,
+        managerConfirmed: false,
+        financierConfirmed: false
+      },
+      {
+        modePaiement: "Mobile Money",
+        paymentMethod: "mobile_money",
+        paymentMethodId: 3,
+        soldeOuverture: soMobileMoney,
+        ventesJour: initialData.mobileMoneySalesTotal,
+        sortiesJour: 0,
+        clotureTheorique: soMobileMoney + initialData.mobileMoneySalesTotal,
+        cashPhysique: initialData.mobileMoneySalesTotal,
+        managerConfirmed: false,
+        financierConfirmed: false
+      },
+      {
+        modePaiement: "Online",
+        paymentMethod: "online",
+        paymentMethodId: 4,
+        soldeOuverture: soOnline,
+        ventesJour: initialData.onlSalesTotal,
+        sortiesJour: 0,
+        clotureTheorique: soOnline + initialData.onlSalesTotal,
+        cashPhysique: initialData.onlSalesTotal,
+        managerConfirmed: false,
+        financierConfirmed: false
+      }
+    ]);
 
-  const caisseSecondaireData: CaisseSecondaireRow[] = [
-    {
-      categorie: "Epargne Marchandise",
-      savingsCategory: "marchandise",
-      savingsCategoryId: 1,
-      soldeOuverture: 0,
-      entreesEpargne: 0,
-      sortiesEpargne: marchandisesSortiesEpargne,
-      soldeCloture: 0,
-      validated: false
-    },
-    {
-      categorie: "Loyer",
-      savingsCategory: "loyer",
-      savingsCategoryId: 2,
-      soldeOuverture: 0,
-      entreesEpargne: loyerEntreesEpargne,
-      sortiesEpargne: 0,
-      soldeCloture: 0,
-      validated: false
-    },
-    {
-      categorie: "Beauty",
-      savingsCategory: "beauty",
-      savingsCategoryId: 3,
-      soldeOuverture: beautySoldeOuverture,
-      entreesEpargne: 0,
-      sortiesEpargne: beautySortiesEpargne,
-      soldeCloture: beautySoldeOuverture - beautySortiesEpargne,
-      validated: false
-    },
-    {
-      categorie: "Finance",
-      savingsCategory: "finance",
-      savingsCategoryId: 4,
-      soldeOuverture: 0,
-      entreesEpargne: 0,
-      sortiesEpargne: 0,
-      soldeCloture: 0,
-      validated: false
-    },
-    {
-      categorie: "Boost",
-      savingsCategory: "boost",
-      savingsCategoryId: 5,
-      soldeOuverture: 0,
-      entreesEpargne: 0,
-      sortiesEpargne: boostSortiesEpargne,
-      soldeCloture: 0,
-      validated: false
-    },
-    {
-      categorie: "Sécurité",
-      savingsCategory: "security",
-      savingsCategoryId: 6,
-      soldeOuverture: 0,
-      entreesEpargne: 0,
-      sortiesEpargne: securitySortiesEpargne,
-      soldeCloture: 0,
-      validated: false
+    // Mettre à jour la caisse secondaire
+    setCaisseSecondaireData([
+      {
+        categorie: "Epargne Marchandise",
+        savingsCategory: "marchandise",
+        savingsCategoryId: 1,
+        soldeOuverture: 0,
+        entreesEpargne: 0,
+        sortiesEpargne: marchandisesSortiesEpargne,
+        soldeCloture: 0,
+        validated: false
+      },
+      {
+        categorie: "Loyer",
+        savingsCategory: "loyer",
+        savingsCategoryId: 2,
+        soldeOuverture: 0,
+        entreesEpargne: loyerEntreesEpargne,
+        sortiesEpargne: 0,
+        soldeCloture: 0,
+        validated: false
+      },
+      {
+        categorie: "Beauty",
+        savingsCategory: "beauty",
+        savingsCategoryId: 3,
+        soldeOuverture: 0,
+        entreesEpargne: 0,
+        sortiesEpargne: beautySortiesEpargne,
+        soldeCloture: -beautySortiesEpargne,
+        validated: false
+      },
+      {
+        categorie: "Finance",
+        savingsCategory: "finance",
+        savingsCategoryId: 4,
+        soldeOuverture: 0,
+        entreesEpargne: 0,
+        sortiesEpargne: 0,
+        soldeCloture: 0,
+        validated: false
+      },
+      {
+        categorie: "Boost",
+        savingsCategory: "boost",
+        savingsCategoryId: 5,
+        soldeOuverture: 0,
+        entreesEpargne: 0,
+        sortiesEpargne: boostSortiesEpargne,
+        soldeCloture: 0,
+        validated: false
+      },
+      {
+        categorie: "Sécurité",
+        savingsCategory: "security",
+        savingsCategoryId: 6,
+        soldeOuverture: 0,
+        entreesEpargne: 0,
+        sortiesEpargne: securitySortiesEpargne,
+        soldeCloture: 0,
+        validated: false
+      }
+    ]);
+  }, [getOpeningBalances, savingsCalculations, calculations.calculatedCash, initialData]);
+
+  // Fonctions pour gérer la validation (restent les mêmes)
+  const toggleManagerValidation = (index: number) => {
+    setCaissePrincipaleData(prev => prev.map((row, i) => 
+      i === index ? { ...row, managerConfirmed: !row.managerConfirmed } : row
+    ));
+  };
+
+  const toggleFinancierValidation = (index: number) => {
+    setCaissePrincipaleData(prev => prev.map((row, i) => 
+      i === index ? { ...row, financierConfirmed: !row.financierConfirmed } : row
+    ));
+  };
+
+  const toggleSecondaryValidation = (index: number) => {
+    setCaisseSecondaireData(prev => prev.map((row, i) => 
+      i === index ? { ...row, validated: !row.validated } : row
+    ));
+  };
+
+  const validateAllMainCash = (type: 'manager' | 'financier') => {
+    setCaissePrincipaleData(prev => prev.map(row => ({
+      ...row,
+      ...(type === 'manager' ? { managerConfirmed: true } : { financierConfirmed: true })
+    })));
+  };
+
+  const validateAllSecondaryCash = () => {
+    setCaisseSecondaireData(prev => prev.map(row => ({
+      ...row,
+      validated: true
+    })));
+  };
+
+  // Les autres fonctions (handleGeneratePDF, handleSaveClosure, etc.) restent identiques
+  const handleGeneratePDF = async () => {
+    try {
+      const selectedShopId = searchParams.get('shop') || initialData.shops[0]?.id.toString()
+      const selectedShop = initialData.shops.find(shop => shop.id.toString() === selectedShopId)
+      
+      if (!savedClosure) {
+        toast.error('Veuillez d\'abord sauvegarder la clôture')
+        return
+      }
+
+      const fullClosureData = await clotureService.getClotureById(savedClosure.id)
+      
+      if (!fullClosureData) {
+        toast.error('Données de clôture non trouvées')
+        return
+      }
+
+      const pdfData: PDFClotureData = {
+        closure: fullClosureData,
+        mainCash: fullClosureData.cash_closure_main_cash || [],
+        secondaryCash: fullClosureData.cash_closure_secondary_cash || [],
+        denominations: fullClosureData.cash_denominations || []
+      }
+
+      const pdfBlob = await pdfService.generateCloturePDF(pdfData)
+      
+      const url = URL.createObjectURL(pdfBlob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `cloture-${selectedShop?.name}-${format(initialData.date, 'yyyy-MM-dd')}.pdf`
+      link.click()
+      URL.revokeObjectURL(url)
+
+      toast.success('PDF généré avec succès')
+
+    } catch (error) {
+      console.error('Erreur génération PDF:', error)
+      toast.error('Erreur lors de la génération du PDF')
     }
-  ]
+  }
+
+  const handleShareWhatsApp = async () => {
+    toast.info('Fonction WhatsApp en développement')
+  }
+
+  const handleSendEmail = async () => {
+    toast.info('Fonction email en développement')
+  }
   
   const handleSaveClosure = async () => {
     setIsSubmitting(true)
     setError(null)
 
     try {
-      // Récupérer le shop sélectionné depuis l'URL ou utiliser le premier shop
       const selectedShopId = searchParams.get('shop') || initialData.shops[0]?.id.toString()
       const selectedShop = initialData.shops.find(shop => shop.id.toString() === selectedShopId) || initialData.shops[0]
       
@@ -342,7 +343,6 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
         throw new Error('Aucune boutique sélectionnée')
       }
 
-      // Vérifier si une clôture existe déjà
       const existingClosure = await clotureService.checkExistingClosurePeriod(
         format(initialData.date, 'yyyy-MM-dd'),
         format(initialData.date, 'yyyy-MM-dd'),
@@ -355,7 +355,6 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
         return
       }
 
-      // Préparer les données pour Supabase
       const clotureData: ClotureData = {
         closure: {
           opening_date: format(initialData.date, 'yyyy-MM-dd'),
@@ -372,7 +371,7 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
           difference: calculations.difference,
           closure_status: 'draft',
           notes: notes,
-          created_by: 1 // À remplacer par l'ID utilisateur réel
+          created_by: 1
         },
         mainCash: caissePrincipaleData.map(row => ({
           payment_method_id: row.paymentMethodId,
@@ -592,6 +591,7 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
               </div>
             </CardContent>
           </Card>
+
           <Card>
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2 text-lg">
@@ -651,6 +651,25 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
                   {caissePrincipaleData.filter(row => row.managerConfirmed && row.financierConfirmed).length}/{caissePrincipaleData.length} validés
                 </Badge>
               </CardTitle>
+              {/* Boutons de validation globale */}
+              <div className="flex gap-2 mt-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => validateAllMainCash('manager')}
+                  className="text-xs"
+                >
+                  ✅ Valider tous Manager
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => validateAllMainCash('financier')}
+                  className="text-xs"
+                >
+                  ✅ Valider tous Financier
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto rounded-lg border">
@@ -677,17 +696,30 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
                         <td className="p-4 text-right font-bold text-blue-600">{row.cashPhysique.toLocaleString('fr-FR')} $</td>
                         <td className="p-4 text-center">
                           <div className="flex justify-center gap-2">
-                            <Badge variant={row.managerConfirmed ? "default" : "outline"} className={row.managerConfirmed ? "bg-blue-600" : ""}>
+                            {/* Bouton Manager cliquable */}
+                            <Button
+                              variant={row.managerConfirmed ? "default" : "outline"}
+                              size="sm"
+                              className={`text-xs h-7 ${row.managerConfirmed ? "bg-blue-600 hover:bg-blue-700" : ""}`}
+                              onClick={() => toggleManagerValidation(index)}
+                            >
                               {row.managerConfirmed ? "✅ Manager" : "⏳ Manager"}
-                            </Badge>
-                            <Badge variant={row.financierConfirmed ? "default" : "outline"} className={row.financierConfirmed ? "bg-green-600" : ""}>
+                            </Button>
+                            
+                            {/* Bouton Financier cliquable */}
+                            <Button
+                              variant={row.financierConfirmed ? "default" : "outline"}
+                              size="sm"
+                              className={`text-xs h-7 ${row.financierConfirmed ? "bg-green-600 hover:bg-green-700" : ""}`}
+                              onClick={() => toggleFinancierValidation(index)}
+                            >
                               {row.financierConfirmed ? "✅ Financier" : "⏳ Financier"}
-                            </Badge>
+                            </Button>
                           </div>
                         </td>
                       </tr>
                     ))}
-                    {/* Total */}
+                    {/* Total (reste inchangé) */}
                     <tr className="bg-gradient-to-r from-blue-100 to-blue-200 font-bold">
                       <td className="p-4 text-blue-900">TOTAL GÉNÉRAL</td>
                       <td className="p-4 text-right text-blue-900">
@@ -728,6 +760,15 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
                   {caisseSecondaireData.filter(row => row.validated).length}/{caisseSecondaireData.length} validés
                 </Badge>
               </CardTitle>
+              {/* Bouton de validation globale */}
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={validateAllSecondaryCash}
+                className="mt-2 text-xs"
+              >
+                ✅ Valider toutes les épargnes
+              </Button>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto rounded-lg border">
@@ -751,13 +792,19 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
                         <td className="p-4 text-right font-semibold text-red-600">-{row.sortiesEpargne.toLocaleString('fr-FR')} $</td>
                         <td className="p-4 text-right font-bold text-blue-600">{row.soldeCloture.toLocaleString('fr-FR')} $</td>
                         <td className="p-4 text-center">
-                          <Badge variant={row.validated ? "default" : "outline"} className={row.validated ? "bg-green-600" : ""}>
+                          {/* Bouton de validation cliquable */}
+                          <Button
+                            variant={row.validated ? "default" : "outline"}
+                            size="sm"
+                            className={`text-xs h-7 ${row.validated ? "bg-green-600 hover:bg-green-700" : ""}`}
+                            onClick={() => toggleSecondaryValidation(index)}
+                          >
                             {row.validated ? "✅ Validé" : "⏳ En attente"}
-                          </Badge>
+                          </Button>
                         </td>
                       </tr>
                     ))}
-                    {/* Total */}
+                    {/* Total (reste inchangé) */}
                     <tr className="bg-gradient-to-r from-green-100 to-green-200 font-bold">
                       <td className="p-4 text-green-900">TOTAL GÉNÉRAL</td>
                       <td className="p-4 text-right text-green-900">
@@ -774,7 +821,7 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
                       </td>
                       <td className="p-4 text-center">
                         <Badge variant={caisseSecondaireData.every(row => row.validated) ? "default" : "secondary"} 
-                               className={caisseSecondaireData.every(row => row.validated) ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}>
+                              className={caisseSecondaireData.every(row => row.validated) ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}>
                           {caisseSecondaireData.every(row => row.validated) ? '✅ Tout validé' : '⏳ En cours'}
                         </Badge>
                       </td>

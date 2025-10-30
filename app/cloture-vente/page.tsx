@@ -3,6 +3,9 @@ import { POSConfig, POSOrder, POSPayment } from "../types/pos"
 import ClotureVentesClient from "./cloture-ventes.client"
 import { AccountAccount, Expense } from "../types/cloture"
 import { clotureService } from "@/lib/cloture-service"
+import { getSession } from "@/lib/session"
+import { headers } from "next/headers"
+import { users } from "@/lib/users"
 
 interface PageProps {
   searchParams: Promise<{
@@ -36,7 +39,7 @@ async function getDailySales(date: Date, shop?: string) {
   const orders = ordersData.records as POSOrder[];
   const allPaymentIds = orders.flatMap((o: POSOrder) => o.payment_ids || []);
 
-  // Si aucune vente n’a de paiements
+  // Si aucune vente n'a de paiements
   if (allPaymentIds.length === 0) {
     return { success: true, records: orders.map((o: POSOrder) => ({ ...o, payments: [] })) };
   }
@@ -94,7 +97,6 @@ async function getDailyExpenses(date: Date, company_name?: string) {
   // 2️⃣ Récupérer tous les comptes liés
   const accountsDomain = `[["id", "in", [${allAccountIds.join(",")}]]]`;
 
-
   const accountRes = await fetch(
     `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/account.account?fields=id,x_studio_categorie_compte,name,code&domain=${encodeURIComponent(accountsDomain)}`,
     { next: { revalidate: 300 } }
@@ -141,39 +143,78 @@ async function getPOSConfig() {
   return res.json();
 }
 
+// Fonction utilitaire pour filtrer les shops (remplace useMemo côté serveur)
+function filterShops(allShops: { records: POSConfig[] }, userShops: string[], isUserRestricted: boolean): POSConfig[] {
+  if (!isUserRestricted || userShops.includes('all')) {
+    return allShops.records;
+  }
+  
+  return allShops.records.filter((shop: POSConfig) => 
+    userShops.includes(shop.id.toString())
+  );
+}
+
 export default async function ClotureVentesPage({ searchParams }: PageProps) {
-  const params = await searchParams
-  const selectedDate = params.date ? new Date(params.date) : new Date()
-  const selectedShop = params.shop || 'all'
+  const params = await searchParams;
+  const selectedDate = params.date ? new Date(params.date) : new Date();
+  
+  // Récupérer la session utilisateur
+  const session = await getSession((await headers()).get('cookie'));
+  
+  let selectedShop = params.shop || 'all';
+  let userShops: string[] = [];
+  let isUserRestricted = false;
+  let userRole: string | undefined;
+  
+  // Si l'utilisateur est connecté, vérifier ses shops attribués
+  if (session) {
+    const user = users.find(u => u.id === session.userId);
+    if (user) {
+      userRole = user.role;
+      
+      if (user.assignedShop === 'all') {
+        userShops = ['all'];
+        isUserRestricted = false;
+      } else if (user.assignedShop && Array.isArray(user.assignedShop)) {
+        userShops = user.assignedShop;
+        isUserRestricted = true;
+        
+        // Si l'utilisateur n'a qu'un seul shop, le sélectionner automatiquement
+        if (userShops.length === 1) {
+          selectedShop = userShops[0];
+        }
+        
+        // Vérifier si le shop demandé est autorisé
+        if (params.shop && params.shop !== 'all' && !userShops.includes(params.shop)) {
+          // Si non autorisé, utiliser le premier shop disponible
+          selectedShop = userShops[0] || 'all';
+        }
+      } else {
+        // Aucun shop assigné = accès à tous
+        userShops = ['all'];
+        isUserRestricted = false;
+      }
+    }
+  }
+  
+  const showShopSelector = !isUserRestricted || userShops.length > 1 || userShops.includes('all');
+  
   let company_name = 'all';
-  let startDate: Date
-  let endDate: Date
-  let lastClosure = null
+  let lastClosure = null;
 
   // 🔍 Récupérer la dernière clôture du shop
   if (selectedShop !== 'all') {
-    lastClosure = await clotureService.getLastClosureByShop(parseInt(selectedShop))
-
-    if (lastClosure) {
-      // Si une clôture existe → on part de sa closing_date jusqu’à la date sélectionnée
-      startDate = new Date(lastClosure.closing_date)
-      endDate = selectedDate > startDate ? selectedDate : startDate
-    } else {
-      // Sinon → on prend juste la journée sélectionnée
-      startDate = startOfDay(selectedDate)
-      endDate = endOfDay(selectedDate)
-    }
-  } else {
-    // Si aucun shop sélectionné → on prend la journée actuelle
-    startDate = startOfDay(selectedDate)
-    endDate = endOfDay(selectedDate)
+    lastClosure = await clotureService.getLastClosureByShop(parseInt(selectedShop));
   }
 
-  const [salesData, exchangeRate, shops] = await Promise.all([
+  const [salesData, exchangeRate, allShops] = await Promise.all([
     getDailySales(selectedDate, selectedShop),
     getExchangeRate(),
     getPOSConfig(),
-  ])
+  ]);
+
+  // Filtrer les shops selon les permissions de l'utilisateur
+  const availableShops = filterShops(allShops, userShops, isUserRestricted);
 
   switch (selectedShop) {
     case "1": company_name = "PB - 24"; break;
@@ -181,25 +222,32 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
     case "14": company_name = "PB - KTM"; break;
     case "15": company_name = "PB - MTO"; break;
     case "17": company_name = "PB - BC"; break;
-    default: company_name = 'all'
+    default: company_name = 'all';
   }
-  const expensesData = await getDailyExpenses(selectedDate, company_name)
+  
+  const expensesData = await getDailyExpenses(selectedDate, company_name);
   
   // Total des ventes especes
   const cashSalesTotal = salesData.records.reduce((sum: number, order: POSOrder) => {
-    const cashPayments = order.payments ? order.payments.filter((payment: POSPayment) => payment.payment_method_id[1].toLowerCase().includes('esp')) : [];
+    const cashPayments = order.payments ? order.payments.filter((payment: POSPayment) => 
+      payment.payment_method_id[1].toLowerCase().includes('esp')
+    ) : [];
     const cashTotal = cashPayments.reduce((pSum: number, p: POSPayment) => pSum + (p.amount || 0), 0);
     return sum + cashTotal;
   }, 0);
 
   const bankSalesTotal = salesData.records.reduce((sum: number, order: POSOrder) => {
-    const bankPayments = order.payments ? order.payments.filter((payment: POSPayment) => payment.payment_method_id[1].toLowerCase().includes('ban')) : [];
+    const bankPayments = order.payments ? order.payments.filter((payment: POSPayment) => 
+      payment.payment_method_id[1].toLowerCase().includes('ban')
+    ) : [];
     const bankTotal = bankPayments.reduce((pSum: number, p: POSPayment) => pSum + (p.amount || 0), 0);
     return sum + bankTotal;
   }, 0);
 
   const onlSalesTotal = salesData.records.reduce((sum: number, order: POSOrder) => {
-    const onlPayments = order.payments ? order.payments.filter((payment: POSPayment) => payment.payment_method_id[1].toLowerCase().includes('onl')) : [];
+    const onlPayments = order.payments ? order.payments.filter((payment: POSPayment) => 
+      payment.payment_method_id[1].toLowerCase().includes('onl')
+    ) : [];
     const onlTotal = onlPayments.reduce((pSum: number, p: POSPayment) => pSum + (p.amount || 0), 0);
     return sum + onlTotal;
   }, 0);
@@ -221,12 +269,12 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
   // Calculer le total des ventes
   const dailySalesTotal = salesData.records.reduce((sum: number, order: POSOrder) => 
     sum + (order.amount_total || 0), 0
-  )
+  );
 
   // Calculer le total des dépenses
   const expensesTotal = expensesData.records.reduce((sum: number, expense: Expense) => 
     sum + (expense.total_amount || 0), 0
-  )
+  );
 
   // Calculer l'argent théorique en caisse
   const expectedCash = dailySalesTotal - expensesTotal;
@@ -243,10 +291,18 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
     mobileMoneySalesTotal,
     onlSalesTotal,
     expenses: expensesData.records,
-    shops: shops.records as POSConfig[]
-  }
+    shops: availableShops as POSConfig[]
+  };
 
   return (
-    <ClotureVentesClient initialData={initialData} searchParams={params} shopLastClosure={lastClosure} />
-  )
+    <ClotureVentesClient 
+      initialData={initialData} 
+      searchParams={params} 
+      shopLastClosure={lastClosure} 
+      userShops={userShops}
+      isUserRestricted={isUserRestricted}
+      showShopSelector={showShopSelector}
+      userRole={userRole}
+    />
+  );
 }

@@ -17,7 +17,9 @@ export interface PDFClotureData {
 
 export const pdfService = {
   async generateCloturePDF(data: PDFClotureData): Promise<Blob> {
-    const { closure, mainCash, secondaryCash, denominations, shopInfo } = data
+    const { closure, 
+      // mainCash, secondaryCash, denominations, shopInfo 
+    } = data
     
     const pdf = new jsPDF('p', 'mm', 'a4')
     const pageWidth = pdf.internal.pageSize.getWidth()
@@ -34,24 +36,24 @@ export const pdfService = {
       light: '#6B7280' // gray-500
     }
 
-    let yPosition = 20
+    // let yPosition = 20
 
-    // Header avec dégradé
-    this.addHeader(pdf, closure, shopInfo, pageWidth)
-    yPosition = 45
+    // // Header avec dégradé
+    // this.addHeader(pdf, closure, shopInfo, pageWidth)
+    // yPosition = 45
 
-    // Cartes de résumé (comme dans votre UI)
-    yPosition = this.addSummaryCards(pdf, closure, pageWidth, yPosition, colors)
-    yPosition += 25
+    // // Cartes de résumé (comme dans votre UI)
+    // yPosition = this.addSummaryCards(pdf, closure, pageWidth, yPosition, colors)
+    // yPosition += 25
 
-    // Caisse Principale - Tableau stylisé
-    yPosition = this.addMainCashSection(pdf, mainCash, pageWidth, yPosition, colors)
+    // // Caisse Principale - Tableau stylisé
+    // yPosition = this.addMainCashSection(pdf, mainCash, pageWidth, yPosition, colors)
     
-    // Caisse Secondaire
-    yPosition = this.addSecondaryCashSection(pdf, secondaryCash, pageWidth, yPosition, colors)
+    // // Caisse Secondaire
+    // yPosition = this.addSecondaryCashSection(pdf, secondaryCash, pageWidth, yPosition, colors)
     
-    // Billeterie détaillée
-    yPosition = this.addDenominationsSection(pdf, denominations, closure.exchange_rate, pageWidth, yPosition, colors)
+    // // Billeterie détaillée
+    // yPosition = this.addDenominationsSection(pdf, denominations, closure.exchange_rate, pageWidth, yPosition, colors)
 
     // Notes et signatures
     this.addNotesAndSignatures(pdf, closure, pageWidth, pageHeight, colors)

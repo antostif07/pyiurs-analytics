@@ -8,6 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { cn } from "@/lib/utils";
 import { Calendar as CalendarComponent } from "../ui/calendar";
 import { useState } from "react";
+import { Badge } from "../ui/badge";
 
 interface ClotureVenteHeaderProps {
     selectedShop: string;
@@ -16,6 +17,10 @@ interface ClotureVenteHeaderProps {
     handleDateChange: (date: Date) => void;
     exchangeRate: number;
     shops: POSConfig[];
+    showShopSelector?: boolean;
+    userRole?: string;
+    isUserRestricted?: boolean;
+    userShops?: string[];
 }
 
 export default function ClotureVenteHeader({
@@ -24,9 +29,27 @@ export default function ClotureVenteHeader({
     handleShopChange, 
     handleDateChange, 
     exchangeRate, 
-    shops
+    shops,
+    showShopSelector = true,
+    userRole,
+    isUserRestricted = false,
+    userShops = []
 }: ClotureVenteHeaderProps) {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+    // Déterminer si on doit afficher le sélecteur
+    // Le sélecteur est caché seulement si l'utilisateur a exactement 1 boutique
+    const shouldShowShopSelector = showShopSelector && (userShops.length !== 1 || userShops.includes('all'));
+
+    // Afficher le badge de restriction seulement si l'utilisateur est restreint ET n'a pas accès à tous les shops
+    const restrictionBadge = isUserRestricted && !userShops.includes('all') ? (
+        <Badge variant="outline" className="ml-2 bg-orange-50 text-orange-700 border-orange-200 text-xs">
+            {userShops.length === 1 ? '1 boutique' : `${userShops.length} boutiques`}
+        </Badge>
+    ) : null;
+
+    // Obtenir le nom du shop actuel
+    const currentShopName = shops.find(shop => shop.id.toString() === selectedShop)?.name || 'Shop inconnu';
 
     return (
         <div className="border-b border-gray-200 bg-white">
@@ -48,9 +71,17 @@ export default function ClotureVenteHeader({
                                 <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
                                     Clôture des Ventes
                                 </h1>
-                                <p className="text-gray-600 text-xs sm:text-sm mt-1">
-                                    {format(selectedDate, 'dd/MM/yyyy')}
-                                </p>
+                                <div className="flex items-center gap-2 mt-1">
+                                    <p className="text-gray-600 text-xs sm:text-sm">
+                                        {format(selectedDate, 'dd/MM/yyyy')}
+                                    </p>
+                                    {userRole && (
+                                        <Badge variant="secondary" className="text-xs">
+                                            {userRole}
+                                        </Badge>
+                                    )}
+                                    {restrictionBadge}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -86,28 +117,38 @@ export default function ClotureVenteHeader({
                                 </Popover>
                             </div>
 
-                            {/* Filtre Shop */}
-                            <div className="flex items-center space-x-2">
-                                <span className="text-sm font-medium text-gray-600">Shop:</span>
-                                <Select
-                                    value={selectedShop}
-                                    onValueChange={handleShopChange}
-                                >
-                                    <SelectTrigger className="w-32 bg-white border-gray-300 text-gray-900">
-                                        <SelectValue placeholder="Sélectionner" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">Tous</SelectItem>
-                                        {
-                                            shops.map((shop) => (
+                            {/* Filtre Shop - Conditionnel : affiché seulement si plus d'une boutique */}
+                            {shouldShowShopSelector ? (
+                                <div className="flex items-center space-x-2">
+                                    <span className="text-sm font-medium text-gray-600">Shop:</span>
+                                    <Select
+                                        value={selectedShop}
+                                        onValueChange={handleShopChange}
+                                    >
+                                        <SelectTrigger className="w-32 bg-white border-gray-300 text-gray-900">
+                                            <SelectValue placeholder="Sélectionner" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {!isUserRestricted && (
+                                                <SelectItem value="all">Tous</SelectItem>
+                                            )}
+                                            {shops.map((shop) => (
                                                 <SelectItem key={shop.id} value={shop.id.toString()}>
                                                     {shop.name}
                                                 </SelectItem>
-                                            ))
-                                        }
-                                    </SelectContent>
-                                </Select>
-                            </div>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            ) : (
+                                // Affichage du shop forcé quand l'utilisateur n'a qu'une seule boutique
+                                <div className="flex items-center space-x-2">
+                                    <span className="text-sm font-medium text-gray-600">Shop:</span>
+                                    <div className="px-3 py-1 bg-green-100 text-green-800 rounded-lg text-sm font-medium border border-green-200">
+                                        {currentShopName}
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Taux du jour */}
                             <div className="flex items-center space-x-2">
@@ -158,24 +199,32 @@ export default function ClotureVenteHeader({
                                 </PopoverContent>
                             </Popover>
 
-                            <Select
-                                value={selectedShop}
-                                onValueChange={handleShopChange}
-                            >
-                                <SelectTrigger className="w-24 bg-white border-gray-300 text-gray-900 text-sm">
-                                    <SelectValue placeholder="Shop" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">Tous</SelectItem>
-                                    {
-                                        shops.map((shop) => (
+                            {/* Sélecteur de Shop conditionnel pour tablette */}
+                            {shouldShowShopSelector ? (
+                                <Select
+                                    value={selectedShop}
+                                    onValueChange={handleShopChange}
+                                >
+                                    <SelectTrigger className="w-24 bg-white border-gray-300 text-gray-900 text-sm">
+                                        <SelectValue placeholder="Shop" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {!isUserRestricted && (
+                                            <SelectItem value="all">Tous</SelectItem>
+                                        )}
+                                        {shops.map((shop) => (
                                             <SelectItem key={shop.id} value={shop.id.toString()}>
-                                                {shop.name}
+                                                {shop.name.length > 8 ? `${shop.name.substring(0, 8)}...` : shop.name}
                                             </SelectItem>
-                                        ))
-                                    }
-                                </SelectContent>
-                            </Select>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            ) : (
+                                // Affichage compact du shop forcé
+                                <div className="px-2 py-1 bg-green-100 text-green-800 rounded-lg text-xs font-medium border border-green-200">
+                                    {currentShopName.length > 8 ? `${currentShopName.substring(0, 8)}...` : currentShopName}
+                                </div>
+                            )}
 
                             <div className="px-2 py-1 bg-blue-100 text-blue-800 rounded-lg text-xs font-medium">
                                 {exchangeRate?.toLocaleString('fr-FR', { minimumFractionDigits: 0 })} FC/$
@@ -246,31 +295,51 @@ export default function ClotureVenteHeader({
                                 </Popover>
                             </div>
 
-                            {/* Filtre Shop */}
+                            {/* Filtre Shop conditionnel mobile */}
                             <div className="space-y-2">
                                 <label className="text-sm font-medium text-gray-600">Shop</label>
-                                <Select
-                                    value={selectedShop}
-                                    onValueChange={(value) => {
-                                        handleShopChange(value);
-                                        setIsMobileMenuOpen(false);
-                                    }}
-                                >
-                                    <SelectTrigger className="w-full bg-white border-gray-300 text-gray-900">
-                                        <SelectValue placeholder="Sélectionner" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">Tous</SelectItem>
-                                        {
-                                            shops.map((shop) => (
+                                {shouldShowShopSelector ? (
+                                    <Select
+                                        value={selectedShop}
+                                        onValueChange={(value) => {
+                                            handleShopChange(value);
+                                            setIsMobileMenuOpen(false);
+                                        }}
+                                    >
+                                        <SelectTrigger className="w-full bg-white border-gray-300 text-gray-900">
+                                            <SelectValue placeholder="Sélectionner" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {!isUserRestricted && (
+                                                <SelectItem value="all">Tous</SelectItem>
+                                            )}
+                                            {shops.map((shop) => (
                                                 <SelectItem key={shop.id} value={shop.id.toString()}>
                                                     {shop.name}
                                                 </SelectItem>
-                                            ))
-                                        }
-                                    </SelectContent>
-                                </Select>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                ) : (
+                                    // Affichage du shop forcé en mobile
+                                    <div className="w-full px-3 py-2 bg-green-100 text-green-800 rounded-lg text-sm font-medium border border-green-200">
+                                        {currentShopName}
+                                        <div className="text-xs text-green-600 mt-1">
+                                            Boutique attribuée
+                                        </div>
+                                    </div>
+                                )}
                             </div>
+
+                            {/* Informations de restriction en mobile */}
+                            {isUserRestricted && !userShops.includes('all') && (
+                                <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                                    <p className="text-xs text-orange-700">
+                                        <strong>Accès restreint</strong><br />
+                                        Vous avez accès à {userShops.length} boutique(s) spécifique(s)
+                                    </p>
+                                </div>
+                            )}
 
                             {/* Taux et historique mobile */}
                             <div className="flex items-center justify-between pt-2">
