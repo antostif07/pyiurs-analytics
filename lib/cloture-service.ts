@@ -1,5 +1,17 @@
 import { Database, supabase } from "./supabase"
 
+export interface NegativeSaleJustification {
+  id?: string
+  cash_closure_id: string
+  sale_id: number
+  sale_reference: string
+  sale_amount: number
+  justification_text: string
+  manager_id: number
+  manager_name?: string
+  justification_date: Date
+}
+
 // type CashClosure = Database['public']['Tables']['cash_closures']['Row']
 type CashClosureInsert = Database['public']['Tables']['cash_closures']['Insert']
 // type MainCashRow = Database['public']['Tables']['cash_closure_main_cash']['Row']
@@ -13,6 +25,7 @@ export interface ClotureData {
   mainCash: Omit<MainCashInsert, 'id' | 'cash_closure_id' | 'created_at' | 'updated_at'>[]
   secondaryCash: Omit<SecondaryCashInsert, 'id' | 'cash_closure_id' | 'created_at' | 'updated_at'>[]
   denominations: Omit<CashDenominationInsert, 'id' | 'cash_closure_id' | 'created_at'>[]
+  negativeSaleJustifications?: NegativeSaleJustification[]
 }
 
 export const clotureService = {
@@ -91,14 +104,14 @@ export const clotureService = {
 
   // Créer une nouvelle clôture
   async createCloture(data: ClotureData) {
-    const { closure, mainCash, secondaryCash, denominations } = data
+    const { closure, mainCash, secondaryCash, denominations, negativeSaleJustifications } = data
 
     // Vérifie la dernière clôture
     const lastClosure = await this.getLastClosureByShop(closure.shop_id)
 
     if (lastClosure) {
       const lastDate = new Date(lastClosure.closing_date)
-      const newDate = new Date(closure.opening_date) // ← Changé ici
+      const newDate = new Date(closure.opening_date)
 
       if (newDate <= lastDate) {
         throw new Error(
@@ -106,8 +119,6 @@ export const clotureService = {
         )
       }
     }
-
-    console.log(closure.opening_date, closure.closing_date);
     
     const canClose = await this.canClosePeriod(
       closure.opening_date, 
@@ -132,6 +143,23 @@ export const clotureService = {
     }
 
     const closureId = closureData.id
+
+    // Sauvegarder les justifications des ventes négatives
+    if (negativeSaleJustifications && negativeSaleJustifications.length > 0) {
+      const justificationsWithClosureId = negativeSaleJustifications.map(justification => ({
+        ...justification,
+        cash_closure_id: closureId
+      }))
+
+      const { error: justificationError } = await supabase
+        .from('negative_sale_justifications')
+        .insert(justificationsWithClosureId)
+
+      if (justificationError) {
+        console.error('Erreur sauvegarde justifications:', justificationError)
+        // Ne pas throw pour ne pas bloquer la clôture principale, mais logger l'erreur
+      }
+    }
 
     // Insérer les lignes de caisse principale
     if (mainCash.length > 0) {

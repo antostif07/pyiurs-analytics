@@ -8,7 +8,7 @@ import { CloturePageDataType } from "@/app/cloture-vente/cloture-ventes.client"
 import { Badge } from "../ui/badge"
 import { useState, useMemo, useEffect } from "react"
 import { format } from "date-fns"
-import { ClotureData, clotureService } from "@/lib/cloture-service"
+import { ClotureData, clotureService, NegativeSaleJustification } from "@/lib/cloture-service"
 import { Textarea } from "../ui/textarea"
 import { CashClosure } from "@/app/types/cloture"
 import { useSearchParams } from "next/navigation"
@@ -22,6 +22,7 @@ interface ClotureVenteCloseProps {
   incrementDenomination: (index: number) => void
   initialData: CloturePageDataType
   lastClosure: CashClosure | null
+  negativeSaleJustifications: NegativeSaleJustification[]
 }
 
 interface CaissePrincipaleRow {
@@ -48,7 +49,7 @@ interface CaisseSecondaireRow {
   validated: boolean
 }
 
-export default function ClotureVenteClose({denominations, decrementDenomination, incrementDenomination, initialData, lastClosure}: ClotureVenteCloseProps) {
+export default function ClotureVenteClose({denominations, decrementDenomination, incrementDenomination, initialData, lastClosure, negativeSaleJustifications}: ClotureVenteCloseProps) {
   const [notes, setNotes] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [savedClosure, setSavedClosure] = useState<CashClosure | null>(null)
@@ -84,6 +85,13 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
     let soBank = 0;
     let soMobileMoney = 0;
     let soOnline = 0;
+    let soMarchandises = 0;
+    let soLoyer = 0;
+    let soBeauty = 0;
+    let soFinance = 0;
+    let soBoost = 0;
+    let soSecurity = 0;
+    let soPersonnel = 0;
 
     if (lastClosure) {
       soCash = lastClosure.physical_cash_usd + (lastClosure.physical_cash_cdf / initialData.exchangeRate);
@@ -93,16 +101,51 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
       soOnline = lastMainCash.find(row => row.payment_method === 'online')?.physical_cash || 0;
     } else {
       switch (shopId) {
-        case 1: soCash = 8.55; break; // 24
-        case 13: soCash = 0; break;
-        case 14: soCash = 21.00; break;
-        case 15: soCash = 144.06; break;
+        case 1: 
+          soCash = 8.55;
+          soMarchandises = 0;
+          soLoyer = 128;
+          soBeauty = 0;
+          soFinance = 60;
+          soBoost = 40;
+          soSecurity = 0;
+          soPersonnel = 0;
+          break; // 24
+        case 13: 
+          soCash = 0; break;
+          soMarchandises = 0;
+          soLoyer = 0;
+          soBeauty = 0;
+          soFinance = 0;
+          soBoost = 0;
+          soSecurity = 0;
+          soPersonnel = 0;
+        case 14:
+          soCash = 21.00;
+          soMarchandises = 550;
+          soMarchandises = 622;
+          soBeauty = 0;
+          soFinance = 220;
+          soBoost = 40;
+          soSecurity = 0;
+          soPersonnel = 0;
+          break;
+        case 15:
+          soCash = 144.06;
+          soMarchandises = 586;
+          soLoyer = 238;
+          soBeauty = 78;
+          soFinance = 195;
+          soBoost = 25;
+          soSecurity = 25;
+          soPersonnel = 120;
+          break;
         case 17: soCash = 2.70; break;
         default: soCash = 0;
       }
     }
 
-    return { soCash, soBank, soMobileMoney, soOnline };
+    return { soCash, soBank, soMobileMoney, soOnline, soMarchandises, soBeauty, soBoost, soFinance, soLoyer, soPersonnel, soSecurity };
   }, [selectedShopId, lastClosure, initialData.exchangeRate]);
 
   // Calcul des données de caisse secondaire
@@ -126,7 +169,7 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
 
   // Mettre à jour les données quand les calculs changent
   useEffect(() => {
-    const { soCash, soBank, soMobileMoney, soOnline } = getOpeningBalances;
+    const { soCash, soBank, soMobileMoney, soOnline, soMarchandises, soBeauty, soBoost, soFinance, soLoyer, soPersonnel, soSecurity } = getOpeningBalances;
     const {
       marchandisesEntreesEpargne,
       marchandisesSortiesEpargne, 
@@ -150,8 +193,8 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
         soldeOuverture: soCash,
         ventesJour: initialData.cashSalesTotal,
         sortiesJour: sortiesCash,
-        clotureTheorique: soCash + initialData.cashSalesTotal - initialData.expensesTotal,
-        cashPhysique: soCash + initialData.cashSalesTotal - sortiesCash,
+        clotureTheorique: soCash + initialData.cashSalesTotal - sortiesCash,
+        cashPhysique: calculations.calculatedCash,
         managerConfirmed: false,
         financierConfirmed: false
       },
@@ -199,60 +242,70 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
         categorie: "Epargne Marchandise",
         savingsCategory: "marchandise",
         savingsCategoryId: 1,
-        soldeOuverture: 0,
+        soldeOuverture: soMarchandises,
         entreesEpargne: marchandisesEntreesEpargne,
         sortiesEpargne: marchandisesSortiesEpargne,
-        soldeCloture: marchandisesEntreesEpargne - marchandisesSortiesEpargne,
+        soldeCloture: soMarchandises + marchandisesEntreesEpargne - marchandisesSortiesEpargne,
         validated: false
       },
       {
         categorie: "Loyer",
         savingsCategory: "loyer",
         savingsCategoryId: 2,
-        soldeOuverture: 0,
+        soldeOuverture: soLoyer,
         entreesEpargne: loyerEntreesEpargne,
         sortiesEpargne: 0,
-        soldeCloture: loyerEntreesEpargne,
+        soldeCloture: soLoyer + loyerEntreesEpargne,
         validated: false
       },
       {
         categorie: "Beauty",
         savingsCategory: "beauty",
         savingsCategoryId: 3,
-        soldeOuverture: 0,
+        soldeOuverture: soBeauty,
         entreesEpargne: beautyEntreesEpargne,
         sortiesEpargne: beautySortiesEpargne,
-        soldeCloture: beautyEntreesEpargne - beautySortiesEpargne,
+        soldeCloture: soBeauty + beautyEntreesEpargne - beautySortiesEpargne,
         validated: false
       },
       {
         categorie: "Finance",
         savingsCategory: "finance",
         savingsCategoryId: 4,
-        soldeOuverture: 0,
+        soldeOuverture: soFinance,
         entreesEpargne: financeEntreeEpargne,
         sortiesEpargne: 0,
-        soldeCloture: financeEntreeEpargne,
+        soldeCloture: soFinance + financeEntreeEpargne,
         validated: false
       },
       {
         categorie: "Boost",
         savingsCategory: "boost",
         savingsCategoryId: 5,
-        soldeOuverture: 0,
+        soldeOuverture: soBoost,
         entreesEpargne: boostEntreesEpargne,
         sortiesEpargne: boostSortiesEpargne,
-        soldeCloture: boostEntreesEpargne - boostSortiesEpargne,
+        soldeCloture: soSecurity + boostEntreesEpargne - boostSortiesEpargne,
         validated: false
       },
       {
         categorie: "Sécurité",
         savingsCategory: "security",
         savingsCategoryId: 6,
-        soldeOuverture: 0,
+        soldeOuverture: soSecurity,
         entreesEpargne: securityEntreesEpargne,
         sortiesEpargne: 0,
-        soldeCloture: securityEntreesEpargne,
+        soldeCloture: soSecurity + securityEntreesEpargne,
+        validated: false
+      },
+      {
+        categorie: "Personnel",
+        savingsCategory: "perssonal",
+        savingsCategoryId: 6,
+        soldeOuverture: soPersonnel,
+        entreesEpargne: securityEntreesEpargne,
+        sortiesEpargne: 0,
+        soldeCloture: soPersonnel + securityEntreesEpargne,
         validated: false
       }
     ]);
@@ -291,7 +344,6 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
     })));
   };
 
-  // Les autres fonctions (handleGeneratePDF, handleSaveClosure, etc.) restent identiques
   const handleGeneratePDF = async () => {
     try {
       const selectedShopId = searchParams.get('shop') || initialData.shops[0]?.id.toString()
@@ -354,6 +406,17 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
         setIsSubmitting(false)
         return
       }
+
+      const negativeSales = initialData.sales.filter(sale => (sale.amount_total || 0) <= 0)
+      const justifiedSaleIds = negativeSaleJustifications.map(j => j.sale_id)
+      const unjustifiedNegativeSales = negativeSales.filter(sale => !justifiedSaleIds.includes(sale.id))
+
+      if (unjustifiedNegativeSales.length > 0) {
+        setError(`Veuillez justifier ${unjustifiedNegativeSales.length} vente${unjustifiedNegativeSales.length > 1 ? 's' : ''} négative${unjustifiedNegativeSales.length > 1 ? 's' : ''} avant de finaliser la clôture.`)
+        setIsSubmitting(false)
+        return
+      }
+
 
       const selectedShopId = searchParams.get('shop') || initialData.shops[0]?.id.toString()
       const selectedShop = initialData.shops.find(shop => shop.id.toString() === selectedShopId) || initialData.shops[0]
@@ -421,7 +484,8 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
             denomination: d.value,
             quantity: d.quantity,
             amount: d.value * d.quantity
-          }))
+          })),
+        negativeSaleJustifications: negativeSaleJustifications
       }
 
       const result = await clotureService.createCloture(clotureData)
@@ -451,8 +515,19 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
 
   return (
     <div className="container mx-auto px-4 py-8">
+      {negativeSaleJustifications.length > 0 && (
+        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+          <div className="flex items-center gap-2 text-green-800">
+            <Badge variant="outline" className="bg-green-100 text-green-700">
+              {negativeSaleJustifications.length} vente{negativeSaleJustifications.length > 1 ? 's' : ''} justifiée{negativeSaleJustifications.length > 1 ? 's' : ''}
+            </Badge>
+            <span className="text-sm font-medium">
+              ✅ Toutes les ventes négatives ont été justifiées
+            </span>
+          </div>
+        </div>
+      )}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-        
         {/* Colonne Gauche - Billeterie */}
         <div className="xl:col-span-1 space-y-6">
           {/* Billeterie */}

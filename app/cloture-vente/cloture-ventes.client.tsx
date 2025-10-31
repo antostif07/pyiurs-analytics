@@ -16,6 +16,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { InfoIcon, LockIcon, CalendarIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
+import { NegativeSaleJustification } from '@/lib/cloture-service'
 
 export type CloturePageDataType = {
   date: Date
@@ -54,7 +55,6 @@ export default function ClotureVentesClient({
   showShopSelector = true,
   userRole
 }: ClotureVentesClientProps) {
-  // const { hasRole } = useAuth()
   const [selectedShop, setSelectedShop] = useState(searchParams.shop || 'all')
   const [selectedDate, setSelectedDate] = useState(initialData.date)
   const [isClotureExist, setIsClotureExist] = useState(false)
@@ -62,24 +62,10 @@ export default function ClotureVentesClient({
   const pathname = usePathname();
   const router = useRouter();
 
-  // États pour les boutons de validation
-  // const [managerValidated, setManagerValidated] = useState(false)
-  // const [adminValidated, setAdminValidated] = useState(false)
-
-  // Vérifier les permissions pour les boutons
-  // const canValidateManager = hasRole(['manager'])
-  // const canValidateAdmin = hasRole(['admin', 'financier'])
-
-  // Filtrer les shops disponibles selon les permissions
-  // const availableShops = useMemo(() => {
-  //   if (!isUserRestricted || userShops.includes('all')) {
-  //     return initialData.shops
-  //   }
-    
-  //   return initialData.shops.filter(shop => 
-  //     userShops.includes(shop.id.toString())
-  //   )
-  // }, [initialData.shops, userShops, isUserRestricted])
+  const [negativeSaleJustifications, setNegativeSaleJustifications] = useState<NegativeSaleJustification[]>([])
+  const handleJustificationsUpdate = useCallback((justifications: NegativeSaleJustification[]) => {
+    setNegativeSaleJustifications(justifications)
+  }, [])
 
   // Si l'utilisateur est restreint et n'a qu'un seul shop, le sélectionner automatiquement
   useEffect(() => {
@@ -106,9 +92,6 @@ export default function ClotureVentesClient({
     ...USD_DENOMINATIONS,
     ...CDF_DENOMINATIONS
   ])
-  // const [exchangeRate, setExchangeRate] = useState(initialData.exchangeRate)
-  // const [notes, setNotes] = useState('')
-  // const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Vérifier si une clôture existe déjà pour la période
   const isDateInClosedPeriod = useMemo(() => {
@@ -315,9 +298,8 @@ export default function ClotureVentesClient({
 
       <DetailsAndAccounting
         initialData={initialData}
+        onJustificationsUpdate={handleJustificationsUpdate}
       />
-
-      <Separator className="my-8" />
 
       {/* Afficher la section de clôture seulement si possible */}
       {canCreateClosure && (
@@ -327,6 +309,7 @@ export default function ClotureVentesClient({
           decrementDenomination={decrementDenomination}
           initialData={initialData}
           lastClosure={shopLastClosure}
+          negativeSaleJustifications={negativeSaleJustifications}
         />
       )}
     </main>

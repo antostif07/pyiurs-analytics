@@ -1,4 +1,4 @@
-import { FileText, Receipt, TrendingUp, CreditCard, Building2 } from "lucide-react";
+import { FileText, Receipt, TrendingUp, CreditCard, Building2, MessageCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { CloturePageDataType } from "@/app/cloture-vente/cloture-ventes.client";
@@ -6,9 +6,14 @@ import { format } from "date-fns";
 import { Expense } from "@/app/types/cloture";
 import { ChargeRow } from "./charge-row";
 import { POSOrder } from "@/app/types/pos";
+import { useEffect, useState } from "react";
+import { NegativeSaleJustification } from "@/lib/cloture-service";
+import { Button } from "../ui/button";
+import { NegativeSaleJustificationModal } from "./negative-sale-justification-modal";
 
 interface DetailsAndAccountingProps {
     initialData: CloturePageDataType;
+    onJustificationsUpdate?: (justifications: NegativeSaleJustification[]) => void;
 }
 
 interface PaymentMethodGroup {
@@ -20,10 +25,75 @@ interface PaymentMethodGroup {
     color: string;
 }
 
-export default function DetailsAndAccounting({initialData}: DetailsAndAccountingProps) {
+export default function DetailsAndAccounting({initialData, onJustificationsUpdate}: DetailsAndAccountingProps) {
+    const [selectedSale, setSelectedSale] = useState<POSOrder | null>(null)
+    const [isJustificationModalOpen, setIsJustificationModalOpen] = useState(false)
+    const [justifications, setJustifications] = useState<NegativeSaleJustification[]>([])
+
+    // Notifier le parent quand les justifications changent
+    useEffect(() => {
+        if (onJustificationsUpdate) {
+            onJustificationsUpdate(justifications)
+        }
+    }, [justifications, onJustificationsUpdate])
+
+    // Ouvrir la modal de justification
+    const handleOpenJustification = (sale: POSOrder) => {
+        setSelectedSale(sale)
+        setIsJustificationModalOpen(true)
+    }
+
+    const handleSaveJustification = async (justificationText: string) => {
+        if (!selectedSale) return
+
+        // Ici vous devrez récupérer l'ID du manager depuis votre système d'authentification
+        const managerId = 1 // À remplacer par l'ID réel du manager
+        const managerName = "Manager Name" // À remplacer par le nom réel
+
+        const newJustification: Omit<NegativeSaleJustification, 'id'> = {
+            cash_closure_id: '', // Sera rempli lors de la sauvegarde de la clôture
+            sale_id: selectedSale.id,
+            sale_reference: `Commande #${selectedSale.id}`,
+            sale_amount: selectedSale.amount_total || 0,
+            justification_text: justificationText,
+            manager_id: managerId,
+            manager_name: managerName,
+            justification_date: new Date()
+        }
+
+        // Vérifier si une justification existe déjà pour cette vente
+        const existingIndex = justifications.findIndex(j => j.sale_id === selectedSale.id)
+        
+        let updatedJustifications: NegativeSaleJustification[]
+        
+        if (existingIndex >= 0) {
+            // Mettre à jour la justification existante
+            updatedJustifications = justifications.map((j, index) => 
+                index === existingIndex 
+                    ? { ...j, justification_text: justificationText }
+                    : j
+            )
+        } else {
+            // Ajouter une nouvelle justification
+            updatedJustifications = [...justifications, { 
+                ...newJustification, 
+                id: Date.now().toString() // ID temporaire pour l'affichage
+            }]
+        }
+
+        setJustifications(updatedJustifications)
+        setIsJustificationModalOpen(false)
+        setSelectedSale(null)
+    }
+
+    // Vérifier si une vente a déjà une justification
+    const getSaleJustification = (saleId: number) => {
+        return justifications.find(j => j.sale_id === saleId)
+    }
     
     // Grouper les ventes par méthode de paiement
     const paymentMethodGroups = initialData.sales.reduce((acc: {[key: string]: PaymentMethodGroup}, sale) => {
+
         // Déterminer la méthode de paiement principale
         let paymentMethod = 'Espèces';
         let icon = <CreditCard className="w-4 h-4" />;
@@ -150,6 +220,8 @@ export default function DetailsAndAccounting({initialData}: DetailsAndAccounting
                                                 <div className="space-y-2 max-h-60 overflow-y-auto">
                                                     {group.sales.map((sale) => {
                                                         const isNegativeSale = (sale.amount_total || 0) <= 0;
+                                                        const saleJustification = getSaleJustification(sale.id);
+
                                                         return (
                                                             <div 
                                                                 key={sale.id} 
@@ -170,6 +242,11 @@ export default function DetailsAndAccounting({initialData}: DetailsAndAccounting
                                                                             Commande #{sale.id}
                                                                             {isNegativeSale && ' (Montant négatif)'}
                                                                         </p>
+                                                                        {saleJustification && (
+                                                                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">
+                                                                                ✅ Justifiée
+                                                                            </Badge>
+                                                                        )}
                                                                     </div>
                                                                     <div className="flex items-center gap-2 text-xs ml-2">
                                                                         <span className={isNegativeSale ? 'text-red-600' : 'text-gray-500'}>
@@ -177,6 +254,12 @@ export default function DetailsAndAccounting({initialData}: DetailsAndAccounting
                                                                             {sale.config_id && typeof sale.config_id === 'object' ? sale.config_id[1] : 'Boutique'}
                                                                         </span>
                                                                     </div>
+                                                                    {saleJustification && (
+                                                                        <div className="mt-2 ml-2 p-2 bg-green-50 border border-green-200 rounded text-xs">
+                                                                            <p className="text-green-800 font-medium">Justification:</p>
+                                                                            <p className="text-green-700 mt-1">{saleJustification.justification_text}</p>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                                 <div className="text-right">
                                                                     <p className={`font-bold text-sm ${
@@ -184,6 +267,17 @@ export default function DetailsAndAccounting({initialData}: DetailsAndAccounting
                                                                     }`}>
                                                                         {(sale.amount_total || 0).toLocaleString('fr-FR')} $
                                                                     </p>
+                                                                    {isNegativeSale && (
+                                                                        <Button
+                                                                            variant="outline"
+                                                                            size="sm"
+                                                                            className="text-xs h-7 border-red-300 text-red-700 hover:bg-red-50"
+                                                                            onClick={() => handleOpenJustification(sale)}
+                                                                        >
+                                                                            <MessageCircle className="w-3 h-3 mr-1" />
+                                                                            {saleJustification ? 'Modifier' : 'Justifier'}
+                                                                        </Button>
+                                                                    )}
                                                                 </div>
                                                             </div>
                                                         );
@@ -301,6 +395,15 @@ export default function DetailsAndAccounting({initialData}: DetailsAndAccounting
                     </CardContent>
                 </Card>
             </div>
+            {
+                selectedSale && <NegativeSaleJustificationModal
+                isOpen={isJustificationModalOpen}
+                onClose={() => setIsJustificationModalOpen(false)}
+                onSave={handleSaveJustification}
+                sale={selectedSale}
+                existingJustification={selectedSale ? getSaleJustification(selectedSale.id)?.justification_text : undefined}
+            />
+            }
         </div>
     );
 }

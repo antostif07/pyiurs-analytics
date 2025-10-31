@@ -267,6 +267,47 @@ export type Database = {
           created_at?: string
         }
       }
+      negative_sale_justifications: {
+        Row: {
+          id: string
+          cash_closure_id: string
+          sale_id: number
+          sale_reference: string
+          sale_amount: number
+          justification_text: string
+          manager_id: number
+          manager_name: string | null
+          justification_date: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          cash_closure_id: string
+          sale_id: number
+          sale_reference: string
+          sale_amount: number
+          justification_text: string
+          manager_id: number
+          manager_name?: string | null
+          justification_date?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          cash_closure_id?: string
+          sale_id?: number
+          sale_reference?: string
+          sale_amount?: number
+          justification_text?: string
+          manager_id?: number
+          manager_name?: string | null
+          justification_date?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
   }
 }
