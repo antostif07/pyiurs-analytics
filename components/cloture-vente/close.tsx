@@ -160,6 +160,7 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
       boostSortiesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['0860524829', '[5100577]'], 'any').totalAmount,
       financeEntreeEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ["5100399", "510101"], "any").totalAmount,
       securityEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['[51020]'], 'any').totalAmount,
+      personalEntreesEpargne: 0,
     };
   }, [initialData.expenses]);
 
@@ -179,7 +180,8 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
       boostEntreesEpargne,
       boostSortiesEpargne,
       financeEntreeEpargne,
-      securityEntreesEpargne
+      securityEntreesEpargne,
+      personalEntreesEpargne
     } = savingsCalculations;
 
     const sortiesCash = initialData.expensesTotal - marchandisesSortiesEpargne - beautySortiesEpargne
@@ -303,9 +305,9 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
         savingsCategory: "perssonal",
         savingsCategoryId: 6,
         soldeOuverture: soPersonnel,
-        entreesEpargne: securityEntreesEpargne,
+        entreesEpargne: personalEntreesEpargne,
         sortiesEpargne: 0,
-        soldeCloture: soPersonnel + securityEntreesEpargne,
+        soldeCloture: soPersonnel + personalEntreesEpargne,
         validated: false
       }
     ]);
