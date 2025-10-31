@@ -210,7 +210,7 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
         ventesJour: initialData.bankSalesTotal,
         sortiesJour: 0,
         clotureTheorique: soBank + initialData.bankSalesTotal,
-        cashPhysique: initialData.bankSalesTotal,
+        cashPhysique: soBank + initialData.bankSalesTotal,
         managerConfirmed: false,
         financierConfirmed: false
       },
@@ -222,7 +222,7 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
         ventesJour: initialData.mobileMoneySalesTotal,
         sortiesJour: 0,
         clotureTheorique: soMobileMoney + initialData.mobileMoneySalesTotal,
-        cashPhysique: initialData.mobileMoneySalesTotal,
+        cashPhysique: soMobileMoney + initialData.mobileMoneySalesTotal,
         managerConfirmed: false,
         financierConfirmed: false
       },
@@ -234,7 +234,7 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
         ventesJour: initialData.onlSalesTotal,
         sortiesJour: 0,
         clotureTheorique: soOnline + initialData.onlSalesTotal,
-        cashPhysique: initialData.onlSalesTotal,
+        cashPhysique: soOnline + initialData.onlSalesTotal,
         managerConfirmed: false,
         financierConfirmed: false
       }
@@ -902,7 +902,7 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
                         </td>
                       </tr>
                     ))}
-                    {/* Total (reste inchangé) */}
+                    
                     <tr className="bg-gradient-to-r from-green-100 to-green-200 font-bold">
                       <td className="p-4 text-green-900">TOTAL GÉNÉRAL</td>
                       <td className="p-4 text-right text-green-900">

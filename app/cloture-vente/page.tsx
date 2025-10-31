@@ -263,7 +263,6 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
     });
 
     const total = filteredPayments.reduce((pSum, p) => pSum + (p.amount || 0), 0);
-    console.log(total);
     
     return sum + total;
   }, 0);
