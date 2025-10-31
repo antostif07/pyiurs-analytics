@@ -102,8 +102,8 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
     } else {
       switch (shopId) {
         case 1: 
-          soCash = 8.55;
-          soBank = 1217.5;
+          soCash = 274.25;
+          soBank = 1167.5;
           soMarchandises = 0;
           soLoyer = 128;
           soBeauty = 144;
