@@ -73,6 +73,28 @@ export const users: User[] = [
     ],
     assignedShop: ['1'],
   },
+  {
+    id: '6',
+    username: 'manager_ktm',
+    password: 'manager_kmt',
+    name: 'Manager KTM',
+    role: 'manager',
+    permissions: [
+      '/cloture-vente'
+    ],
+    assignedShop: ['14'],
+  },
+  {
+    id: '7',
+    username: 'manager_mto',
+    password: 'manager_mto',
+    name: 'Manager MTO',
+    role: 'manager',
+    permissions: [
+      '/cloture-vente'
+    ],
+    assignedShop: ['15'],
+  },
 ];
 
 export function verifyUser(username: string, password: string): User | null {

@@ -98,7 +98,7 @@ async function getStockQuantsForProducts(productIds: number[]): Promise<{ record
 
 async function getProducts() {
   const res = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/product.template?fields=id,name,list_price,categ_id,hs_code,product_variant_id,x_studio_many2one_field_21bvh,x_studio_many2one_field_QyelN,x_studio_many2one_field_Arl5D,description_pickingin&domain=[[\"categ_id\",\"ilike\",\"beauty\"],["active","=","true"],["available_in_pos","=","true"]]`,
+    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/product.template?fields=id,name,list_price,categ_id,hs_code,product_variant_id,x_studio_many2one_field_21bvh,x_studio_many2one_field_QyelN,x_studio_many2one_field_Arl5D,description_pickingin&domain=[[\"categ_id\",\"ilike\",\"beauty\"],[\"categ_id\",\"not ilike\",\"make-up\"],["active","=","true"],["available_in_pos","=","true"]]`,
     { 
       next: { 
         revalidate: 300
@@ -123,7 +123,7 @@ async function getPurchaseOrderLines() {
     ["partner_id", "not in", [24099, 23705, 1, 23706, 23707, 23708, 27862]]
   ])
   const res = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/purchase.order.line?fields=id,product_id,product_qty,qty_received,price_unit&domain=${domain}`,
+    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/purchase.order.line?fields=id,product_id,product_qty,qty_received,price_unit,order_id&domain=${domain}`,
     { 
       next: { 
         revalidate: 300
@@ -196,7 +196,6 @@ async function getControlStockData(): Promise<{
     return cachedData;
   }
 
-  console.log("🔄 Chargement des données fraîches...");
   const products = await getProducts();
   const data = products.records.map(mapOdooProduct);
   const allProductIds = data.map((product: Product) => product.productVariantId);
@@ -213,6 +212,8 @@ async function getControlStockData(): Promise<{
     // getStockLocations(),
   ]);
 
+  console.log(purchaseOrderLines.records[0]);
+  
   // viewer = stockLocations.records;
 
   const salesLast30Days = calculateSalesLast30Days(posOrderLines.records, allProductIds);
