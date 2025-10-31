@@ -255,7 +255,7 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
   const mobileMoneySalesTotal = salesData.records.reduce((sum: number, order: POSOrder) => {
     if (!order.payments) return sum;
 
-    const keyWords = ['mobile', 'money', 'pesa', 'airtel', 'orange'];
+    const keyWords = ['mobile','money', 'pesa', 'airtel', 'orange'];
 
     const filteredPayments = order.payments.filter((payment: POSPayment) => {
       const name = payment.payment_method_id?.[1]?.toLowerCase() || '';
@@ -263,6 +263,8 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
     });
 
     const total = filteredPayments.reduce((pSum, p) => pSum + (p.amount || 0), 0);
+    console.log(total);
+    
     return sum + total;
   }, 0);
 

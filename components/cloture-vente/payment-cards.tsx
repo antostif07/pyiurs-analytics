@@ -10,6 +10,7 @@ interface PaymentCardsProps {
   transactionsBanque: number;
   transactionsMobileMoney: number;
   transactionsCarte: number;
+  totalOnline: number;
 }
 
 export default function PaymentCards({ 
@@ -19,6 +20,7 @@ export default function PaymentCards({
   // totalCarte = 0,
   transactionsBanque = 0,
   transactionsMobileMoney = 0,
+  totalOnline = 0,
   // transactionsCarte = 0
 }: PaymentCardsProps) {
   return (
@@ -132,7 +134,7 @@ export default function PaymentCards({
                 <div className="space-y-2">
                     <div className="text-center">
                         <p className="text-3xl font-bold mb-1">
-                        {totalMobileMoney.toLocaleString('fr-FR')} $
+                        {totalOnline.toLocaleString('fr-FR')} $
                         </p>
                         <p className="text-green-100 text-sm">
                         {transactionsMobileMoney} transaction{transactionsMobileMoney > 1 ? 's' : ''}

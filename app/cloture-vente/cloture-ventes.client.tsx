@@ -290,6 +290,7 @@ export default function ClotureVentesClient({
         totalEspeces={initialData.cashSalesTotal}
         totalBanque={initialData.bankSalesTotal}
         totalMobileMoney={initialData.mobileMoneySalesTotal} 
+        totalOnline={initialData.onlSalesTotal}
         totalCarte={initialData.onlSalesTotal} 
         transactionsBanque={0} 
         transactionsMobileMoney={0} 
