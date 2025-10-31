@@ -106,7 +106,7 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
           soBank = 1217.5;
           soMarchandises = 0;
           soLoyer = 128;
-          soBeauty = 0;
+          soBeauty = 144;
           soFinance = 60;
           soBoost = 40;
           soSecurity = 0;
