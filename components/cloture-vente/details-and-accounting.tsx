@@ -101,7 +101,7 @@ export default function DetailsAndAccounting({initialData, onJustificationsUpdat
 
         if (sale.payments && sale.payments.length > 0) {
             const paymentName = sale.payments[0].payment_method_id[1].toLowerCase();
-            
+
             if (paymentName.includes('banque') || paymentName.includes('bank')) {
                 paymentMethod = 'Banque';
                 icon = <Building2 className="w-4 h-4" />;

@@ -153,14 +153,14 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
   // Calcul des données de caisse secondaire
   const savingsCalculations = useMemo(() => {
     return {
-      marchandisesEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ["[510166]", "[510165]", "510036"], 'any').totalAmount,
+      marchandisesEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ["[510166]", "[510165]"], 'any').totalAmount,
       marchandisesSortiesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['[51003]'], 'any').totalAmount,
       loyerEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['[51055]'], 'any').totalAmount,
       beautyEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['510174', '510081'], 'any').totalAmount,
       beautySortiesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['0829473053'], 'any').totalAmount,
       boostEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ["510071", 'any'], 'any').totalAmount,
       boostSortiesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['0860524829', '[5100577]'], 'any').totalAmount,
-      financeEntreeEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ["5100399", "510101"], "any").totalAmount,
+      financeEntreeEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ["5100399", "510101", "510036"], "any").totalAmount,
       securityEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['[51020]'], 'any').totalAmount,
       personalEntreesEpargne: 0,
     };

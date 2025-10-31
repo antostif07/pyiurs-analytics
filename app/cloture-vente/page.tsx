@@ -230,7 +230,7 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
   // Total des ventes especes
   const cashSalesTotal = salesData.records.reduce((sum: number, order: POSOrder) => {
     const cashPayments = order.payments ? order.payments.filter((payment: POSPayment) => 
-      payment.payment_method_id[1].toLowerCase().includes('esp')
+      payment.payment_method_id[1].toLowerCase().includes('esp') // || payment.payment_method_id[1].toLowerCase().includes('cred')
     ) : [];
     const cashTotal = cashPayments.reduce((pSum: number, p: POSPayment) => pSum + (p.amount || 0), 0);
     return sum + cashTotal;
