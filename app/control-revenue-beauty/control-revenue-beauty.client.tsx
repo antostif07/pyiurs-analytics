@@ -52,9 +52,9 @@ function createHierarchicalData(initialData: BeautyBrandsData): TableRowData[] {
 
     // Pour chaque groupe hs_code, trouver les produits correspondants
     const hsCodeGroupsWithProducts = brandHsCodeGroups.map(hsCodeGroup => {
-      const groupProducts = initialData.products.filter(product => 
-        product.parentId === hsCodeGroup.id
-      );
+      // const groupProducts = initialData.products.filter(product => 
+      //   product.parentId === hsCodeGroup.id
+      // );
 
       return {
         ...hsCodeGroup,

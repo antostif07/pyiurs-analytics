@@ -10,6 +10,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import Image from "next/image";
 
 // Fonction pour déterminer la couleur en fonction du stock
 function getStockColor(qty: number): string {
@@ -50,7 +51,7 @@ function ProductNameWithTooltip({ name, brand, color, hs_code }: {
           onError={(e) => (e.currentTarget.src = "/file.svg")}
         />
       </picture> */}
-      <img
+      <Image
           src={`${imageUrl}.jpg`}
           alt={name}
           className="w-12 h-12 object-cover rounded flex-shrink-0"

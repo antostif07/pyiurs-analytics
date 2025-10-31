@@ -4,6 +4,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { ArrowUpDown } from "lucide-react";
 import { ControlStockFemmeModel } from "./page";
+import Image from "next/image";
 
 // Fonction pour déterminer la couleur en fonction du stock
 function getStockColor(qty: number): string {
@@ -35,7 +36,7 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
       
       return (
         <div className="flex space-x-2">
-          <img
+          <Image
             src={imageUrl}
             alt={row.getValue("name")}
             className="w-12 h-12 object-cover rounded"

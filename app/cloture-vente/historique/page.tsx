@@ -36,8 +36,8 @@ async function getCloturesHistory() {
   return data || []
 }
 
-export default async function HistoriqueCloturesPage({ searchParams }: HistoriquePageProps) {
-  const params = await searchParams
+export default async function HistoriqueCloturesPage() {
+  // const params = await searchParams
   const clotures = await getCloturesHistory()
 
   const getStatusBadge = (status: string) => {

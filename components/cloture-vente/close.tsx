@@ -93,10 +93,10 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
       soOnline = lastMainCash.find(row => row.payment_method === 'online')?.physical_cash || 0;
     } else {
       switch (shopId) {
-        case 1: soCash = 37.95; break;
+        case 1: soCash = 8.55; break; // 24
         case 13: soCash = 0; break;
-        case 14: soCash = 33.50; break;
-        case 15: soCash = 124.06; break;
+        case 14: soCash = 21.00; break;
+        case 15: soCash = 144.06; break;
         case 17: soCash = 2.70; break;
         default: soCash = 0;
       }

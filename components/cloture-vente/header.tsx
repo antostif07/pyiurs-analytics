@@ -286,7 +286,9 @@ export default function ClotureVenteHeader({
                                             mode="single"
                                             selected={selectedDate}
                                             onSelect={(date) => {
-                                                date && handleDateChange(date);
+                                                if (date) {
+                                                    handleDateChange(date);
+                                                }
                                                 setIsMobileMenuOpen(false);
                                             }}
                                             initialFocus
