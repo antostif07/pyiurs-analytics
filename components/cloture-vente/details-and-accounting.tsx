@@ -90,63 +90,104 @@ export default function DetailsAndAccounting({initialData}: DetailsAndAccounting
                                 {paymentGroupsArray.map((group) => (
                                     <div key={group.name} className="border-b last:border-b-0">
                                         {/* Ligne principale du groupe */}
-                                        <div className="grid grid-cols-2 gap-4 px-6 py-4 cursor-pointer hover:bg-blue-50 transition-colors group">
+                                        <div className={`grid grid-cols-2 gap-4 px-6 py-4 cursor-pointer transition-colors group ${
+                                            group.total <= 0 
+                                                ? 'bg-red-50 hover:bg-red-100 border-l-4 border-l-red-500' 
+                                                : 'hover:bg-blue-50'
+                                        }`}>
                                             <div className="flex items-center gap-3">
-                                                <div className={`p-2 rounded-lg ${group.color.replace('text-', 'bg-')} bg-opacity-10`}>
+                                                <div className={`p-2 rounded-lg ${
+                                                    group.total <= 0 
+                                                        ? 'bg-red-100 text-red-600' 
+                                                        : group.color.replace('text-', 'bg-') + ' bg-opacity-10'
+                                                }`}>
                                                     {group.icon}
                                                 </div>
                                                 <div>
-                                                    <div className="font-semibold text-gray-900">{group.name}</div>
+                                                    <div className={`font-semibold ${
+                                                        group.total <= 0 ? 'text-red-900' : 'text-gray-900'
+                                                    }`}>
+                                                        {group.name}
+                                                    </div>
                                                     <div className="flex items-center gap-2 mt-1">
                                                         <Badge variant="secondary" className="text-xs font-normal">
                                                             {group.count} vente{group.count > 1 ? 's' : ''}
                                                         </Badge>
+                                                        {group.total <= 0 && (
+                                                            <Badge variant="destructive" className="text-xs">
+                                                                Montant négatif
+                                                            </Badge>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
                                             <div className="text-right">
-                                                <div className="font-bold text-lg text-green-600">
+                                                <div className={`font-bold text-lg ${
+                                                    group.total <= 0 ? 'text-red-600' : 'text-green-600'
+                                                }`}>
                                                     {group.total.toLocaleString('fr-FR')} $
                                                 </div>
-                                                <div className="text-xs text-gray-500 mt-1">
+                                                <div className={`text-xs mt-1 ${
+                                                    group.total <= 0 ? 'text-red-500' : 'text-gray-500'
+                                                }`}>
                                                     Moyenne: {(group.total / group.count).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} $
                                                 </div>
                                             </div>
                                         </div>
 
                                         {/* Détails des ventes pour cette méthode de paiement */}
-                                        <div className="bg-gray-25 border-t">
+                                        <div className={`border-t ${
+                                            group.total <= 0 ? 'bg-red-25' : 'bg-gray-25'
+                                        }`}>
                                             <div className="px-6 py-3">
                                                 <div className="mb-2">
-                                                    <h4 className="font-semibold text-sm text-gray-700 mb-2">Détails des ventes {group.name}</h4>
+                                                    <h4 className={`font-semibold text-sm mb-2 ${
+                                                        group.total <= 0 ? 'text-red-700' : 'text-gray-700'
+                                                    }`}>
+                                                        Détails des ventes {group.name}
+                                                    </h4>
                                                 </div>
                                                 <div className="space-y-2 max-h-60 overflow-y-auto">
-                                                    {group.sales.map((sale) => (
-                                                        <div 
-                                                            key={sale.id} 
-                                                            className="flex justify-between items-center p-3 rounded-lg border bg-white hover:shadow-sm transition-shadow"
-                                                        >
-                                                            <div className="flex-1">
-                                                                <div className="flex items-center gap-2 mb-1">
-                                                                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                                                    <p className="font-medium text-sm text-gray-900">
-                                                                        Commande #{sale.id}
+                                                    {group.sales.map((sale) => {
+                                                        const isNegativeSale = (sale.amount_total || 0) <= 0;
+                                                        return (
+                                                            <div 
+                                                                key={sale.id} 
+                                                                className={`flex justify-between items-center p-3 rounded-lg border transition-shadow ${
+                                                                    isNegativeSale 
+                                                                        ? 'bg-red-50 border-red-200 hover:shadow-red-sm' 
+                                                                        : 'bg-white hover:shadow-sm'
+                                                                }`}
+                                                            >
+                                                                <div className="flex-1">
+                                                                    <div className="flex items-center gap-2 mb-1">
+                                                                        <div className={`w-2 h-2 rounded-full ${
+                                                                            isNegativeSale ? 'bg-red-500' : 'bg-green-500'
+                                                                        }`}></div>
+                                                                        <p className={`font-medium text-sm ${
+                                                                            isNegativeSale ? 'text-red-900' : 'text-gray-900'
+                                                                        }`}>
+                                                                            Commande #{sale.id}
+                                                                            {isNegativeSale && ' (Montant négatif)'}
+                                                                        </p>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2 text-xs ml-2">
+                                                                        <span className={isNegativeSale ? 'text-red-600' : 'text-gray-500'}>
+                                                                            {format(new Date(sale.create_date), 'dd/MM/yyyy HH:mm')} • 
+                                                                            {sale.config_id && typeof sale.config_id === 'object' ? sale.config_id[1] : 'Boutique'}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="text-right">
+                                                                    <p className={`font-bold text-sm ${
+                                                                        isNegativeSale ? 'text-red-600' : 'text-green-600'
+                                                                    }`}>
+                                                                        {(sale.amount_total || 0).toLocaleString('fr-FR')} $
                                                                     </p>
                                                                 </div>
-                                                                <div className="flex items-center gap-2 text-xs text-gray-500 ml-2">
-                                                                    <span>
-                                                                        {format(new Date(sale.create_date), 'dd/MM/yyyy HH:mm')} • 
-                                                                        {sale.config_id && typeof sale.config_id === 'object' ? sale.config_id[1] : 'Boutique'}
-                                                                    </span>
-                                                                </div>
                                                             </div>
-                                                            <div className="text-right">
-                                                                <p className="font-bold text-green-600 text-sm">
-                                                                    {(sale.amount_total || 0).toLocaleString('fr-FR')} $
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                    ))}
+                                                        );
+                                                    })}
                                                 </div>
                                             </div>
                                         </div>
@@ -154,14 +195,27 @@ export default function DetailsAndAccounting({initialData}: DetailsAndAccounting
                                 ))}
 
                                 {/* Total général */}
-                                <div className="grid grid-cols-2 gap-4 px-6 py-4 bg-slate-100 border-t font-bold">
+                                <div className={`grid grid-cols-2 gap-4 px-6 py-4 border-t font-bold ${
+                                    initialData.dailySalesTotal <= 0 
+                                        ? 'bg-red-100 border-red-200' 
+                                        : 'bg-slate-100'
+                                }`}>
                                     <div className="flex items-center gap-2">
-                                        <span>Total Général</span>
-                                        <Badge variant="secondary">
+                                        <span className={initialData.dailySalesTotal <= 0 ? 'text-red-900' : ''}>
+                                            Total Général
+                                        </span>
+                                        <Badge variant={initialData.dailySalesTotal <= 0 ? "destructive" : "secondary"}>
                                             {initialData.sales.length} vente{initialData.sales.length > 1 ? 's' : ''}
                                         </Badge>
+                                        {initialData.dailySalesTotal <= 0 && (
+                                            <Badge variant="destructive" className="text-xs">
+                                                Total négatif
+                                            </Badge>
+                                        )}
                                     </div>
-                                    <div className="text-right text-green-600">
+                                    <div className={`text-right ${
+                                        initialData.dailySalesTotal <= 0 ? 'text-red-600' : 'text-green-600'
+                                    }`}>
                                         {initialData.dailySalesTotal.toLocaleString('fr-FR')} $
                                     </div>
                                 </div>

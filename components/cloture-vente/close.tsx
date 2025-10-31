@@ -108,11 +108,14 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
   // Calcul des données de caisse secondaire
   const savingsCalculations = useMemo(() => {
     return {
+      marchandisesEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ["[510166]", "[510165]", "510036"], 'any').totalAmount,
       marchandisesSortiesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['[51003]'], 'any').totalAmount,
       loyerEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['[51055]'], 'any').totalAmount,
       beautySortiesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['0829473053'], 'any').totalAmount,
-      boostSortiesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['0860524829'], 'any').totalAmount,
-      securitySortiesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['[51020]'], 'any').totalAmount,
+      boostEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ["510071", 'any'], 'any').totalAmount,
+      boostSortiesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['0860524829', '[5100577]'], 'any').totalAmount,
+      financeEntreeEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ["5100399", "510101"], "any").totalAmount,
+      securityEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['[51020]'], 'any').totalAmount,
     };
   }, [initialData.expenses]);
 
@@ -123,12 +126,15 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
   // Mettre à jour les données quand les calculs changent
   useEffect(() => {
     const { soCash, soBank, soMobileMoney, soOnline } = getOpeningBalances;
-    const { 
+    const {
+      marchandisesEntreesEpargne,
       marchandisesSortiesEpargne, 
       loyerEntreesEpargne, 
       beautySortiesEpargne, 
-      boostSortiesEpargne, 
-      securitySortiesEpargne 
+      boostEntreesEpargne,
+      boostSortiesEpargne,
+      financeEntreeEpargne,
+      securityEntreesEpargne
     } = savingsCalculations;
 
     // Mettre à jour la caisse principale
@@ -190,9 +196,9 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
         savingsCategory: "marchandise",
         savingsCategoryId: 1,
         soldeOuverture: 0,
-        entreesEpargne: 0,
+        entreesEpargne: marchandisesEntreesEpargne,
         sortiesEpargne: marchandisesSortiesEpargne,
-        soldeCloture: 0,
+        soldeCloture: marchandisesEntreesEpargne - marchandisesSortiesEpargne,
         validated: false
       },
       {
@@ -202,7 +208,7 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
         soldeOuverture: 0,
         entreesEpargne: loyerEntreesEpargne,
         sortiesEpargne: 0,
-        soldeCloture: 0,
+        soldeCloture: loyerEntreesEpargne,
         validated: false
       },
       {
@@ -220,9 +226,9 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
         savingsCategory: "finance",
         savingsCategoryId: 4,
         soldeOuverture: 0,
-        entreesEpargne: 0,
+        entreesEpargne: financeEntreeEpargne,
         sortiesEpargne: 0,
-        soldeCloture: 0,
+        soldeCloture: financeEntreeEpargne,
         validated: false
       },
       {
@@ -230,9 +236,9 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
         savingsCategory: "boost",
         savingsCategoryId: 5,
         soldeOuverture: 0,
-        entreesEpargne: 0,
+        entreesEpargne: boostEntreesEpargne,
         sortiesEpargne: boostSortiesEpargne,
-        soldeCloture: 0,
+        soldeCloture: boostEntreesEpargne - boostSortiesEpargne,
         validated: false
       },
       {
@@ -240,9 +246,9 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
         savingsCategory: "security",
         savingsCategoryId: 6,
         soldeOuverture: 0,
-        entreesEpargne: 0,
-        sortiesEpargne: securitySortiesEpargne,
-        soldeCloture: 0,
+        entreesEpargne: securityEntreesEpargne,
+        sortiesEpargne: 0,
+        soldeCloture: securityEntreesEpargne,
         validated: false
       }
     ]);
