@@ -32,7 +32,7 @@ async function getControlStockData(): Promise<{
     }
 
     const po = await res.json()
-    console.log(po.records);
+    console.log(po.recordsz);
 
     return {
         data: [],

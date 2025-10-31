@@ -30,7 +30,9 @@ async function getPOSConfig() {
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.config?fields=id,name`,
     { 
-      cache: 'no-store'
+      next: {
+        revalidate: 4
+      }
     }
   );
 
@@ -43,6 +45,8 @@ async function getPOSConfig() {
 
 async function getPOSOrders(boutiqueId?: string, month?: string, year?: string) {
     const { firstDay, lastDay } = getMonthDates(month, year);
+    console.log(lastDay);
+    
     let domain = `[["create_date", ">", "${firstDay}"], ["create_date", "<=", "${lastDay}"]]`;
 
     if (boutiqueId) {
