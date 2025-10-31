@@ -111,6 +111,7 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
       marchandisesEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ["[510166]", "[510165]", "510036"], 'any').totalAmount,
       marchandisesSortiesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['[51003]'], 'any').totalAmount,
       loyerEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['[51055]'], 'any').totalAmount,
+      beautyEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['510174', '510081'], 'any').totalAmount,
       beautySortiesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['0829473053'], 'any').totalAmount,
       boostEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ["510071", 'any'], 'any').totalAmount,
       boostSortiesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['0860524829', '[5100577]'], 'any').totalAmount,
@@ -129,13 +130,16 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
     const {
       marchandisesEntreesEpargne,
       marchandisesSortiesEpargne, 
-      loyerEntreesEpargne, 
+      loyerEntreesEpargne,
+      beautyEntreesEpargne,
       beautySortiesEpargne, 
       boostEntreesEpargne,
       boostSortiesEpargne,
       financeEntreeEpargne,
       securityEntreesEpargne
     } = savingsCalculations;
+
+    const sortiesCash = initialData.expensesTotal - marchandisesSortiesEpargne - beautySortiesEpargne
 
     // Mettre à jour la caisse principale
     setCaissePrincipaleData([
@@ -145,9 +149,9 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
         paymentMethodId: 1,
         soldeOuverture: soCash,
         ventesJour: initialData.cashSalesTotal,
-        sortiesJour: initialData.expensesTotal,
+        sortiesJour: sortiesCash,
         clotureTheorique: soCash + initialData.cashSalesTotal - initialData.expensesTotal,
-        cashPhysique: calculations.calculatedCash,
+        cashPhysique: soCash + initialData.cashSalesTotal - sortiesCash,
         managerConfirmed: false,
         financierConfirmed: false
       },
@@ -216,9 +220,9 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
         savingsCategory: "beauty",
         savingsCategoryId: 3,
         soldeOuverture: 0,
-        entreesEpargne: 0,
+        entreesEpargne: beautyEntreesEpargne,
         sortiesEpargne: beautySortiesEpargne,
-        soldeCloture: -beautySortiesEpargne,
+        soldeCloture: beautyEntreesEpargne - beautySortiesEpargne,
         validated: false
       },
       {
@@ -342,6 +346,15 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
     setError(null)
 
     try {
+      // Vérifier que toutes les lignes du manager sont validées
+      const allManagerValidated = caissePrincipaleData.every(row => row.managerConfirmed)
+      
+      if (!allManagerValidated) {
+        setError('Veuillez valider toutes les lignes de la caisse principale par le manager avant de finaliser la clôture.')
+        setIsSubmitting(false)
+        return
+      }
+
       const selectedShopId = searchParams.get('shop') || initialData.shops[0]?.id.toString()
       const selectedShop = initialData.shops.find(shop => shop.id.toString() === selectedShopId) || initialData.shops[0]
       

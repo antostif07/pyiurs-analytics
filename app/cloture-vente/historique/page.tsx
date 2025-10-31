@@ -9,12 +9,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { supabase } from "@/lib/supabase"
 import Link from "next/link"
 
-interface HistoriquePageProps {
-  searchParams: Promise<{
-    date?: string
-    shop?: string
-  }>
-}
+// interface HistoriquePageProps {
+//   searchParams: Promise<{
+//     date?: string
+//     shop?: string
+//   }>
+// }
 
 async function getCloturesHistory() {
   const { data, error } = await supabase
