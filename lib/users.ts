@@ -95,6 +95,18 @@ export const users: User[] = [
     ],
     assignedShop: ['15'],
   },
+
+  {
+    id: 'o',
+    username: 'financier',
+    password: 'financier123',
+    name: 'Financier',
+    role: 'admin',
+    permissions: [
+      '/cloture-vente'
+    ],
+    assignedShop: 'all', 
+  },
 ];
 
 export function verifyUser(username: string, password: string): User | null {

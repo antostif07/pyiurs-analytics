@@ -14,11 +14,18 @@ export interface NegativeSaleJustification {
 
 // type CashClosure = Database['public']['Tables']['cash_closures']['Row']
 type CashClosureInsert = Database['public']['Tables']['cash_closures']['Insert']
-// type MainCashRow = Database['public']['Tables']['cash_closure_main_cash']['Row']
+type MainCashRow = Database['public']['Tables']['cash_closure_main_cash']['Row']
 type MainCashInsert = Database['public']['Tables']['cash_closure_main_cash']['Insert']
-// type SecondaryCashRow = Database['public']['Tables']['cash_closure_secondary_cash']['Row']
+type SecondaryCashRow = Database['public']['Tables']['cash_closure_secondary_cash']['Row']
 type SecondaryCashInsert = Database['public']['Tables']['cash_closure_secondary_cash']['Insert']
 type CashDenominationInsert = Database['public']['Tables']['cash_denominations']['Insert']
+
+export interface ClotureDataView extends CashClosureInsert {
+  cash_closure_main_cash: MainCashRow[]
+  cash_closure_secondary_cash: SecondaryCashRow[]
+  denominations: CashDenominationInsert[]
+  negativeSaleJustifications?: NegativeSaleJustification[]
+}
 
 export interface ClotureData {
   closure: Omit<CashClosureInsert, 'id' | 'created_at' | 'updated_at'>
@@ -89,7 +96,12 @@ export const clotureService = {
   async getLastClosureByShop(shopId: number) {
     const { data, error } = await supabase
       .from('cash_closures')
-      .select('*')
+      .select(`
+        *,
+        cash_closure_main_cash (*),
+        cash_closure_secondary_cash (*),
+        cash_denominations (*)
+      `)
       .eq('shop_id', shopId)
       .order('closing_date', { ascending: false })
       .limit(1)

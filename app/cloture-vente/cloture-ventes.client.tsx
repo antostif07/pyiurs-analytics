@@ -11,12 +11,11 @@ import PaymentCards from '@/components/cloture-vente/payment-cards'
 import DetailsAndAccounting from '@/components/cloture-vente/details-and-accounting'
 import { CDF_DENOMINATIONS, Denomination, USD_DENOMINATIONS } from '@/lib/constants'
 import ClotureVenteClose from '@/components/cloture-vente/close'
-import { Separator } from '@radix-ui/react-select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { InfoIcon, LockIcon, CalendarIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
-import { NegativeSaleJustification } from '@/lib/cloture-service'
+import { ClotureDataView, NegativeSaleJustification } from '@/lib/cloture-service'
 
 export type CloturePageDataType = {
   date: Date
@@ -39,7 +38,7 @@ interface ClotureVentesClientProps {
     shop?: string
     date?: string
   }
-  shopLastClosure: CashClosure | null
+  shopLastClosure: ClotureDataView | null
   userShops: string[]
   isUserRestricted: boolean
   showShopSelector: boolean
@@ -61,7 +60,7 @@ export default function ClotureVentesClient({
   const [currentClosure, setCurrentClosure] = useState<CashClosure | null>(null)
   const pathname = usePathname();
   const router = useRouter();
-
+  
   const [negativeSaleJustifications, setNegativeSaleJustifications] = useState<NegativeSaleJustification[]>([])
   const handleJustificationsUpdate = useCallback((justifications: NegativeSaleJustification[]) => {
     setNegativeSaleJustifications(justifications)
@@ -109,16 +108,22 @@ export default function ClotureVentesClient({
     const checkExistingClosure = async () => {
       if (selectedShop && selectedShop !== 'all') {
         try {
-          // Vérifier avec le nouveau schéma (opening_date/closing_date)
           const { data, error } = await supabase
             .from('cash_closures')
-            .select('*')
+            .select(`
+              *,
+              cash_closure_main_cash (*),
+              cash_closure_secondary_cash (*),
+              cash_denominations (*),
+              negative_sale_justifications (*)
+            `)
             .eq('shop_id', parseInt(selectedShop))
             .lte('opening_date', format(selectedDate, 'yyyy-MM-dd'))
             .gte('closing_date', format(selectedDate, 'yyyy-MM-dd'))
             .maybeSingle()
 
           setIsClotureExist(!!data && !error)
+          
           if (data) setCurrentClosure(data)
         } catch (error) {
           console.error('Erreur vérification clôture:', error)
@@ -300,6 +305,7 @@ export default function ClotureVentesClient({
       <DetailsAndAccounting
         initialData={initialData}
         onJustificationsUpdate={handleJustificationsUpdate}
+        isReadOnly={isClotureExist}
       />
 
       {/* Afficher la section de clôture seulement si possible */}
@@ -311,6 +317,8 @@ export default function ClotureVentesClient({
           initialData={initialData}
           lastClosure={shopLastClosure}
           negativeSaleJustifications={negativeSaleJustifications}
+          existingClosure={currentClosure}
+          isReadOnly={isClotureExist}
         />
       )}
     </main>

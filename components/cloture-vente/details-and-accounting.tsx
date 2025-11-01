@@ -14,6 +14,7 @@ import { NegativeSaleJustificationModal } from "./negative-sale-justification-mo
 interface DetailsAndAccountingProps {
     initialData: CloturePageDataType;
     onJustificationsUpdate?: (justifications: NegativeSaleJustification[]) => void;
+    isReadOnly?: boolean;
 }
 
 interface PaymentMethodGroup {

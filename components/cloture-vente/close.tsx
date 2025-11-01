@@ -8,21 +8,24 @@ import { CloturePageDataType } from "@/app/cloture-vente/cloture-ventes.client"
 import { Badge } from "../ui/badge"
 import { useState, useMemo, useEffect } from "react"
 import { format } from "date-fns"
-import { ClotureData, clotureService, NegativeSaleJustification } from "@/lib/cloture-service"
+import { ClotureData, ClotureDataView, clotureService, NegativeSaleJustification } from "@/lib/cloture-service"
 import { Textarea } from "../ui/textarea"
 import { CashClosure } from "@/app/types/cloture"
 import { useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import { PDFClotureData, pdfService } from "@/lib/pdf/cloture-service"
 import { filterAndSumExpensesByKeywords } from "@/lib/utils"
+import Link from "next/link"
 
 interface ClotureVenteCloseProps {
   denominations: Denomination[]
   decrementDenomination: (index: number) => void
   incrementDenomination: (index: number) => void
   initialData: CloturePageDataType
-  lastClosure: CashClosure | null
+  lastClosure: ClotureDataView | null
   negativeSaleJustifications: NegativeSaleJustification[]
+  existingClosure?: CashClosure | null
+  isReadOnly?: boolean
 }
 
 interface CaissePrincipaleRow {
@@ -49,13 +52,25 @@ interface CaisseSecondaireRow {
   validated: boolean
 }
 
-export default function ClotureVenteClose({denominations, decrementDenomination, incrementDenomination, initialData, lastClosure, negativeSaleJustifications}: ClotureVenteCloseProps) {
+export default function ClotureVenteClose({
+  denominations,
+  decrementDenomination,
+  incrementDenomination,
+  initialData,
+  lastClosure,
+  negativeSaleJustifications,
+  existingClosure = null,
+  isReadOnly = false
+}: ClotureVenteCloseProps) {
   const [notes, setNotes] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [savedClosure, setSavedClosure] = useState<CashClosure | null>(null)
   const [error, setError] = useState<string | null>(null)
   const searchParams = useSearchParams()
   const selectedShopId = parseInt(searchParams.get('shop') || initialData.shops[0]?.id.toString() || '1');
+
+  console.log(lastClosure);
+  
 
   // Calculs de la billeterie - DOIT ÊTRE EN PREMIER
   const calculations = useMemo(() => {
@@ -94,11 +109,17 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
     let soPersonnel = 0;
 
     if (lastClosure) {
-      soCash = lastClosure.physical_cash_usd + (lastClosure.physical_cash_cdf / initialData.exchangeRate);
-      const lastMainCash = Array.isArray(lastClosure.calculated_cash) ? lastClosure.calculated_cash : [];
-      soBank = lastMainCash.find(row => row.payment_method === 'banque')?.physical_cash || 0;
-      soMobileMoney = lastMainCash.find(row => row.payment_method === 'mobile_money')?.physical_cash || 0;
-      soOnline = lastMainCash.find(row => row.payment_method === 'online')?.physical_cash || 0;
+      soCash = lastClosure.cash_closure_main_cash.find(mc => mc.payment_method_id === 1)?.physical_cash || 0
+      soBank = lastClosure.cash_closure_main_cash.find(mc => mc.payment_method_id === 2)?.physical_cash || 0
+      soMobileMoney = lastClosure.cash_closure_main_cash.find(mc => mc.payment_method_id === 3)?.physical_cash || 0
+      soOnline = lastClosure.cash_closure_main_cash.find(mc => mc.payment_method_id === 4)?.physical_cash || 0
+      soMarchandises = lastClosure.cash_closure_secondary_cash.find(sc => sc.savings_category_id === 1)?.closure_balance || 0
+      soLoyer = lastClosure.cash_closure_secondary_cash.find(sc => sc.savings_category_id === 2)?.closure_balance || 0
+      soBeauty = lastClosure.cash_closure_secondary_cash.find(sc => sc.savings_category_id === 3)?.closure_balance || 0
+      soFinance = lastClosure.cash_closure_secondary_cash.find(sc => sc.savings_category_id === 4)?.closure_balance || 0
+      soBoost = lastClosure.cash_closure_secondary_cash.find(sc => sc.savings_category_id === 5)?.closure_balance || 0
+      soSecurity = lastClosure.cash_closure_secondary_cash.find(sc => sc.savings_category_id === 6)?.closure_balance || 0
+      soPersonnel = lastClosure.cash_closure_secondary_cash.find(sc => sc.savings_category_id === 7)?.closure_balance || 0
     } else {
       switch (shopId) {
         case 1: 
@@ -113,7 +134,7 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
           soPersonnel = 0;
           break; // 24
         case 13: 
-          soCash = 0; break;
+          soCash = 0;
           soMarchandises = 0;
           soLoyer = 0;
           soBeauty = 0;
@@ -121,14 +142,15 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
           soBoost = 0;
           soSecurity = 0;
           soPersonnel = 0;
+          break;
         case 14:
-          soCash = 21.00;
-          soMarchandises = 550;
-          soMarchandises = 622;
-          soBeauty = 0;
+          soCash = 0.5;
+          soMarchandises = 0;
+          soLoyer = 612
+          soBeauty = 139;
           soFinance = 220;
-          soBoost = 40;
-          soSecurity = 0;
+          soBoost = 30;
+          soSecurity = 168;
           soPersonnel = 0;
           break;
         case 15:
@@ -156,10 +178,10 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
       marchandisesEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ["[510166]", "[510165]"], 'any').totalAmount,
       marchandisesSortiesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['[51003]'], 'any').totalAmount,
       loyerEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['[51055]'], 'any').totalAmount,
-      beautyEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['510174', '510081'], 'any').totalAmount,
+      beautyEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['510174',], 'any').totalAmount,
       beautySortiesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['0829473053'], 'any').totalAmount,
       boostEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ["510071"], 'any').totalAmount,
-      boostSortiesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['0860524829', '[5100577]'], 'any').totalAmount,
+      boostSortiesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['0860524829', '[5100577]', '[510081]' ], 'any').totalAmount,
       financeEntreeEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ["5100399", "510101", "510036"], "any").totalAmount,
       securityEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['[51020]'], 'any').totalAmount,
       personalEntreesEpargne: 0,
@@ -169,6 +191,58 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
   // États pour les données des caisses
   const [caissePrincipaleData, setCaissePrincipaleData] = useState<CaissePrincipaleRow[]>([]);
   const [caisseSecondaireData, setCaisseSecondaireData] = useState<CaisseSecondaireRow[]>([]);
+
+  useEffect(() => {
+    if (existingClosure && isReadOnly) {
+      // Mode lecture seule : charger les données de la clôture existante
+      loadExistingClosureData();
+    }
+  }, [existingClosure, isReadOnly, getOpeningBalances, savingsCalculations, calculations.calculatedCash, initialData]);
+
+  const loadExistingClosureData = () => {
+    if (!existingClosure) return;
+
+    // Charger la caisse principale depuis la clôture existante
+    // const mainCashFromClosure = existingClosure.cash_closure_main_cash || [];
+    // setCaissePrincipaleData(mainCashFromClosure.map(row => ({
+    //   modePaiement: row.payment_method_name,
+    //   paymentMethod: row.payment_method,
+    //   paymentMethodId: row.payment_method_id || undefined,
+    //   soldeOuverture: row.opening_balance,
+    //   ventesJour: row.daily_sales,
+    //   sortiesJour: row.daily_outflows,
+    //   clotureTheorique: row.theoretical_closure,
+    //   cashPhysique: row.physical_cash,
+    //   managerConfirmed: row.manager_confirmed,
+    //   financierConfirmed: row.financier_confirmed
+    // })));
+
+    // Charger la caisse secondaire depuis la clôture existante
+    // const secondaryCashFromClosure = existingClosure.cash_closure_secondary_cash || [];
+    // setCaisseSecondaireData(secondaryCashFromClosure.map(row => ({
+    //   categorie: row.savings_category_name,
+    //   savingsCategory: row.savings_category,
+    //   savingsCategoryId: row.savings_category_id || undefined,
+    //   soldeOuverture: row.opening_balance,
+    //   entreesEpargne: row.savings_inflows,
+    //   sortiesEpargne: row.savings_outflows,
+    //   soldeCloture: row.closure_balance,
+    //   validated: row.validated
+    // })));
+
+    // Charger la billeterie depuis la clôture existante
+    // const denominationsFromClosure = existingClosure.cash_denominations || [];
+    // const updatedDenominations = [...denominations];
+    // denominationsFromClosure.forEach(denom => {
+    //   const index = updatedDenominations.findIndex(d => 
+    //     d.currency === denom.currency && d.value === denom.denomination
+    //   );
+    //   if (index !== -1) {
+    //     updatedDenominations[index].quantity = denom.quantity;
+    //   }
+    // });
+    // Note: Vous devrez peut-être passer un setter pour denominations depuis le parent
+  };
 
   // Mettre à jour les données quand les calculs changent
   useEffect(() => {
@@ -305,7 +379,7 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
       {
         categorie: "Personnel",
         savingsCategory: "perssonal",
-        savingsCategoryId: 6,
+        savingsCategoryId: 7,
         soldeOuverture: soPersonnel,
         entreesEpargne: personalEntreesEpargne,
         sortiesEpargne: 0,
@@ -519,6 +593,25 @@ export default function ClotureVenteClose({denominations, decrementDenomination,
 
   return (
     <div className="container mx-auto px-4 py-8">
+      {isReadOnly && existingClosure && (
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-blue-800">
+              <Badge variant="outline" className="bg-blue-100 text-blue-700">
+                📋 Mode consultation
+              </Badge>
+              <span className="text-sm font-medium">
+                Clôture du {format(new Date(existingClosure.opening_date), 'dd/MM/yyyy')} - {existingClosure.closure_status}
+              </span>
+            </div>
+            <Button asChild variant="outline" size="sm" className="border-blue-300 text-blue-700">
+              <Link href={`/cloture-vente/${existingClosure.id}`}>
+                📊 Voir détail de la clôture
+              </Link>
+            </Button>
+          </div>
+        </div>
+      )}
       {negativeSaleJustifications.length > 0 && (
         <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
           <div className="flex items-center gap-2 text-green-800">

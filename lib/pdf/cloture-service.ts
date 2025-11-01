@@ -1,10 +1,11 @@
 // lib/pdf-service.ts
 import jsPDF from 'jspdf'
-import { CashClosure, MainCashRow, SecondaryCashRow, CashDenomination } from '@/app/types/cloture'
+import { MainCashRow, SecondaryCashRow, CashDenomination } from '@/app/types/cloture'
 import { format } from 'date-fns'
+import { ClotureDataView } from '../cloture-service'
 
 export interface PDFClotureData {
-  closure: CashClosure
+  closure: ClotureDataView
   mainCash: MainCashRow[]
   secondaryCash: SecondaryCashRow[]
   denominations: CashDenomination[]
@@ -18,42 +19,44 @@ export interface PDFClotureData {
 export const pdfService = {
   async generateCloturePDF(data: PDFClotureData): Promise<Blob> {
     const { closure, 
-      // mainCash, secondaryCash, denominations, shopInfo 
+      mainCash, 
+      secondaryCash, denominations, shopInfo 
     } = data
     
     const pdf = new jsPDF('p', 'mm', 'a4')
     const pageWidth = pdf.internal.pageSize.getWidth()
     const pageHeight = pdf.internal.pageSize.getHeight()
     
-    // Couleurs inspirées de votre design
+    // Couleurs
     const colors = {
-      primary: '#3B82F6', // blue-500
-      secondary: '#10B981', // green-500
-      accent: '#8B5CF6', // purple-500
-      danger: '#EF4444', // red-500
-      warning: '#F59E0B', // amber-500
-      dark: '#1F2937', // gray-800
-      light: '#6B7280' // gray-500
+      primary: '#3B82F6',
+      secondary: '#10B981',
+      accent: '#8B5CF6',
+      danger: '#EF4444',
+      warning: '#F59E0B',
+      dark: '#1F2937',
+      light: '#6B7280'
     }
 
-    // let yPosition = 20
+    let yPosition = 20
 
-    // // Header avec dégradé
-    // this.addHeader(pdf, closure, shopInfo, pageWidth)
-    // yPosition = 45
+    // Header avec dégradé
+    this.addHeader(pdf, closure, shopInfo, pageWidth)
+    yPosition = 45
 
-    // // Cartes de résumé (comme dans votre UI)
-    // yPosition = this.addSummaryCards(pdf, closure, pageWidth, yPosition, colors)
-    // yPosition += 25
+    // Cartes de résumé (comme dans votre UI)
+    yPosition = this.addSummaryCards(pdf, closure, pageWidth, yPosition, colors)
+    yPosition += 25
 
-    // // Caisse Principale - Tableau stylisé
-    // yPosition = this.addMainCashSection(pdf, mainCash, pageWidth, yPosition, colors)
+    // Caisse Principale - Tableau stylisé
+    yPosition = this.addMainCashSection(pdf, mainCash, pageWidth, yPosition, colors)
     
-    // // Caisse Secondaire
-    // yPosition = this.addSecondaryCashSection(pdf, secondaryCash, pageWidth, yPosition, colors)
+    // Caisse Secondaire
+    yPosition = this.addSecondaryCashSection(pdf, secondaryCash, pageWidth, yPosition, colors)
     
-    // // Billeterie détaillée
-    // yPosition = this.addDenominationsSection(pdf, denominations, closure.exchange_rate, pageWidth, yPosition, colors)
+    // Billeterie détaillée
+    const eR = closure.exchange_rate || 2450
+    yPosition = this.addDenominationsSection(pdf, denominations, eR, pageWidth, yPosition, colors)
 
     // Notes et signatures
     this.addNotesAndSignatures(pdf, closure, pageWidth, pageHeight, colors)
@@ -64,7 +67,7 @@ export const pdfService = {
     return pdf.output('blob')
   },
 
-  addHeader(pdf: jsPDF, closure: CashClosure, shopInfo: { name: string; address?: string; phone?: string } | undefined, pageWidth: number) {
+  addHeader(pdf: jsPDF, closure: ClotureDataView, shopInfo: { name: string; address?: string; phone?: string } | undefined, pageWidth: number) {
     // Fond dégradé
     pdf.setFillColor(59, 130, 246) // blue-500
     pdf.rect(0, 0, pageWidth, 40, 'F')
@@ -82,11 +85,11 @@ export const pdfService = {
     pdf.text(`Date: ${format(new Date(closure.closing_date), 'dd/MM/yyyy')}`, pageWidth - 20, 25, { align: 'right' })
     
     pdf.setFontSize(9)
-    pdf.text(`Statut: ${this.getStatusText(closure.closure_status)}`, 20, 32)
-    pdf.text(`N°: ${closure.id.slice(0, 8).toUpperCase()}`, pageWidth - 20, 32, { align: 'right' })
+    pdf.text(`Statut: ${this.getStatusText(closure.closure_status || "")}`, 20, 32)
+    pdf.text(`N°: ${closure?.id?.slice(0, 8).toUpperCase() || ""}`, pageWidth - 20, 32, { align: 'right' })
   },
 
-  addSummaryCards(pdf: jsPDF, closure: CashClosure, pageWidth: number, yStart: number, colors: { primary: string; secondary: string; accent?: string; danger: string; warning?: string; dark?: string; light?: string }): number {
+  addSummaryCards(pdf: jsPDF, closure: ClotureDataView, pageWidth: number, yStart: number, colors: { primary: string; secondary: string; accent?: string; danger: string; warning?: string; dark?: string; light?: string }): number {
     const cardWidth = (pageWidth - 60) / 2
     let yPosition = yStart
 
@@ -94,7 +97,7 @@ export const pdfService = {
     this.addSummaryCard(
       pdf, 
       '💰 Total Ventes', 
-      `${closure.total_sales.toLocaleString('fr-FR')} $`, 
+      `${closure?.total_sales?.toLocaleString('fr-FR')} $`, 
       colors.primary,
       20,
       yPosition,
@@ -105,7 +108,7 @@ export const pdfService = {
     this.addSummaryCard(
       pdf,
       '📊 Total Dépenses',
-      `${closure.total_expenses.toLocaleString('fr-FR')} $`,
+      `${(closure.total_expenses ?? 0).toLocaleString('fr-FR')} $`,
       colors.danger,
       40 + cardWidth,
       yPosition,
@@ -118,7 +121,7 @@ export const pdfService = {
     this.addSummaryCard(
       pdf,
       '🎯 Cash Théorique',
-      `${closure.expected_cash.toLocaleString('fr-FR')} $`,
+      `${(closure.expected_cash ?? 0).toLocaleString('fr-FR')} $`,
       colors.secondary,
       20,
       yPosition,
@@ -126,11 +129,11 @@ export const pdfService = {
     )
 
     // Carte Différence
-    const diffColor = closure.difference >= 0 ? colors.secondary : colors.danger
+    const diffColor = closure.difference && closure.difference >= 0 ? colors.secondary : colors.danger
     this.addSummaryCard(
       pdf,
       '⚖️ Différence',
-      `${closure.difference.toLocaleString('fr-FR')} $`,
+      `${(closure.difference ?? 0).toLocaleString('fr-FR')} $`,
       diffColor,
       40 + cardWidth,
       yPosition,
@@ -374,7 +377,7 @@ export const pdfService = {
     return yPosition + 20
   },
 
-  addNotesAndSignatures(pdf: jsPDF, closure: CashClosure, pageWidth: number, pageHeight: number, colors: { primary?: string; secondary?: string; accent?: string; danger?: string; warning?: string; dark: string; light: string }) {
+  addNotesAndSignatures(pdf: jsPDF, closure: ClotureDataView, pageWidth: number, pageHeight: number, colors: { primary?: string; secondary?: string; accent?: string; danger?: string; warning?: string; dark: string; light: string }) {
     const yStart = pageHeight - 80
 
     pdf.setFontSize(10)
