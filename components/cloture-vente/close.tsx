@@ -104,7 +104,6 @@ export default function ClotureVenteClose({
     let soBoost = 0;
     let soSecurity = 0;
     let soPersonnel = 0;
-    console.log(lastClosure);
     
     if (existingClosure) {
       soCash = existingClosure.cash_closure_main_cash.find(mc => mc.payment_method_id === 1)?.opening_balance || 0
@@ -166,15 +165,15 @@ export default function ClotureVenteClose({
           soPersonnel = 0;
           break;
         case 15:
-          soCash = 144.06;
+          soCash = 463;
           soBank = 110;
-          soMarchandises = 586;
-          soLoyer = 238;
-          soBeauty = 78;
-          soFinance = 195;
-          soBoost = 25;
-          soSecurity = 25;
-          soPersonnel = 120;
+          soMarchandises = 65;
+          soLoyer = 273;
+          soBeauty = 0;
+          soFinance = 235;
+          soBoost = 9.04;
+          soSecurity = 30;
+          soPersonnel = 160;
           break;
         case 17: soCash = 2.70; break;
         default: soCash = 0;
@@ -190,11 +189,11 @@ export default function ClotureVenteClose({
       marchandisesEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ["[510166]", "[510165]"], 'any').totalAmount,
       marchandisesSortiesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['[51003]'], 'any').totalAmount,
       loyerEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['[51055]'], 'any').totalAmount,
-      beautyEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['510174',], 'any').totalAmount,
+      beautyEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['510174','510101'], 'any').totalAmount,
       beautySortiesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['0829473053'], 'any').totalAmount,
-      boostEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ["510071"], 'any').totalAmount,
+      boostEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ["510071", "510111"], 'any').totalAmount,
       boostSortiesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['0860524829', '[5100577]', '[510081]' ], 'any').totalAmount,
-      financeEntreeEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ["5100399", "510101", "510036"], "any").totalAmount,
+      financeEntreeEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ["5100399", "510036"], "any").totalAmount,
       securityEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['[51020]'], 'any').totalAmount,
       personalEntreesEpargne: 0,
     };
