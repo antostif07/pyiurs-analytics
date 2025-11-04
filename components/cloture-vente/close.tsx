@@ -208,8 +208,8 @@ export default function ClotureVenteClose({
     }
   }, [existingClosure, isReadOnly, getOpeningBalances, savingsCalculations, calculations.calculatedCash, initialData]);
 
-  // const loadExistingClosureData = () => {
-  //   if (!existingClosure) return;
+  const loadExistingClosureData = () => {
+    if (!existingClosure) return;
 
     // Charger la caisse principale depuis la clôture existante
     // const mainCashFromClosure = existingClosure.cash_closure_main_cash || [];
@@ -251,7 +251,7 @@ export default function ClotureVenteClose({
     //   }
     // });
     // Note: Vous devrez peut-être passer un setter pour denominations depuis le parent
-  // };
+  };
 
   // Mettre à jour les données quand les calculs changent
   useEffect(() => {
