@@ -7,7 +7,7 @@ import { Expense } from "@/app/types/cloture";
 import { ChargeRow } from "./charge-row";
 import { POSOrder } from "@/app/types/pos";
 import { useEffect, useState } from "react";
-import { NegativeSaleJustification } from "@/lib/cloture-service";
+import { ClotureDataView, NegativeSaleJustification } from "@/lib/cloture-service";
 import { Button } from "../ui/button";
 import { NegativeSaleJustificationModal } from "./negative-sale-justification-modal";
 
@@ -15,6 +15,7 @@ interface DetailsAndAccountingProps {
     initialData: CloturePageDataType;
     onJustificationsUpdate?: (justifications: NegativeSaleJustification[]) => void;
     isReadOnly?: boolean;
+    currentClosure: ClotureDataView | null;
 }
 
 interface PaymentMethodGroup {

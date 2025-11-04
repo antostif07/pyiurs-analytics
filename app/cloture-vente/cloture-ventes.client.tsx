@@ -56,8 +56,9 @@ export default function ClotureVentesClient({
 }: ClotureVentesClientProps) {
   const [selectedShop, setSelectedShop] = useState(searchParams.shop || 'all')
   const [selectedDate, setSelectedDate] = useState(initialData.date)
+  
   const [isClotureExist, setIsClotureExist] = useState(false)
-  const [currentClosure, setCurrentClosure] = useState<CashClosure | null>(null)
+  const [currentClosure, setCurrentClosure] = useState<ClotureDataView | null>(null)
   const pathname = usePathname();
   const router = useRouter();
   
@@ -121,6 +122,9 @@ export default function ClotureVentesClient({
             .lte('opening_date', format(selectedDate, 'yyyy-MM-dd'))
             .gte('closing_date', format(selectedDate, 'yyyy-MM-dd'))
             .maybeSingle()
+          
+            console.log("Hello", selectedDate, data);
+            
 
           setIsClotureExist(!!data && !error)
           
@@ -235,7 +239,7 @@ export default function ClotureVentesClient({
       )}
 
       {/* Alerte si date dans période déjà cloturée */}
-      {isDateInClosedPeriod && shopLastClosure && (
+      {isDateInClosedPeriod && currentClosure && (
         <div className="container mx-auto px-4 py-4">
           <Alert className="bg-orange-50 border-orange-200">
             <LockIcon className="h-4 w-4 text-orange-600" />
@@ -243,13 +247,13 @@ export default function ClotureVentesClient({
               <div className="flex items-center gap-2">
                 <CalendarIcon className="h-4 w-4" />
                 <span>
-                  🔒 Cette date est dans une période déjà clôturée (du {format(new Date(shopLastClosure.opening_date), 'dd/MM/yyyy')} au {format(new Date(shopLastClosure.closing_date), 'dd/MM/yyyy')})
+                  🔒 Cette date est dans une période déjà clôturée (du {format(new Date(currentClosure.opening_date), 'dd/MM/yyyy')} au {format(new Date(currentClosure.closing_date), 'dd/MM/yyyy')})
                 </span>
               </div>
               
               <Button asChild variant="outline" size="sm" className="border-orange-300 text-orange-700">
                 <Link 
-                  href={`/cloture-vente/historique?date=${format(selectedDate, 'yyyy-MM-dd')}&shop=${selectedShop}`}
+                  href={`/cloture-vente/${currentClosure.id}`}
                 >
                   Voir la clôture
                 </Link>
@@ -260,7 +264,7 @@ export default function ClotureVentesClient({
       )}
 
       {/* Alerte si clôture existe déjà pour la date exacte */}
-      {isClotureExist && currentClosure && !isDateInClosedPeriod && (
+      {/* {isClotureExist && currentClosure && !isDateInClosedPeriod && (
         <div className="container mx-auto px-4 py-4">
           <Alert className="bg-yellow-50 border-yellow-200">
             <InfoIcon className="h-4 w-4 text-yellow-600" />
@@ -280,7 +284,7 @@ export default function ClotureVentesClient({
             </AlertDescription>
           </Alert>
         </div>
-      )}
+      )} */}
 
       {/* Alerte si aucun shop sélectionné */}
       {!canCreateClosure && !isClotureExist && !isDateInClosedPeriod && (
@@ -295,7 +299,7 @@ export default function ClotureVentesClient({
       )}
 
       <PaymentCards
-        totalEspeces={initialData.cashSalesTotal}
+        totalEspeces={currentClosure ? (currentClosure.cash_closure_main_cash.find(mc => mc.payment_method_id === 1)?.daily_sales ?? 0) : initialData.cashSalesTotal}
         totalBanque={initialData.bankSalesTotal}
         totalMobileMoney={initialData.mobileMoneySalesTotal} 
         totalOnline={initialData.onlSalesTotal}
@@ -309,6 +313,7 @@ export default function ClotureVentesClient({
         initialData={initialData}
         onJustificationsUpdate={handleJustificationsUpdate}
         isReadOnly={isClotureExist}
+        currentClosure={currentClosure}
       />
 
       {/* Afficher la section de clôture seulement si possible */}

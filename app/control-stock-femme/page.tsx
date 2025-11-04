@@ -99,16 +99,16 @@ async function getStockQuantsForProducts(productIds: number[]): Promise<{ record
 }
 
 async function getPurchaseOrders(startDate: string, endDate: string, partnerFilter?: string, orderNameFilter?: string) {
-  let domain = `[["partner_id", "ilike", "P.FEM"], ["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"]]`;
+  let domain = `[["partner_id.name", "ilike", "P.FEM"], ["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"]]`;
   
   // Ajouter les filtres optionnels
-  if (partnerFilter) {
-    domain = `[["partner_id", "ilike", "${partnerFilter}"], ["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"]]`;
-  }
+  // if (partnerFilter) {
+  //   domain = `[["partner_id", "ilike", "${partnerFilter}"], ["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"]]`;
+  // }
   
-  if (orderNameFilter) {
-    domain = `[["name", "ilike", "${orderNameFilter}"], ["partner_id", "ilike", "P.FEM"], ["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"]]`;
-  }
+  // if (orderNameFilter) {
+  //   domain = `[["name", "ilike", "${orderNameFilter}"], ["partner_id", "ilike", "P.FEM"], ["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"]]`;
+  // }
 
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/purchase.order?fields=id,create_date,partner_id,name&domain=${domain}`,
@@ -242,7 +242,7 @@ async function transformToControlStockModel(
     }
 
     currentStock.total += quantity;
-    // console.log(locationName, boutiqueCode, quant.location_id[0], quant, currentStock);
+    console.log(locationName, boutiqueCode, quant.location_id[0], quant, currentStock);
     
     stockByProductAndBoutique.set(productId, currentStock);
   })
@@ -310,7 +310,7 @@ async function transformToControlStockModel(
     const categ_id = product?.categ_id?.[1] ?? "";
     const category = categ_id.split("/").pop()?.trim() ?? "";
     const price = product.list_price;
-    const imageUrl = `https://images.pyiurs.com/images/${hsCode}_${product.x_studio_many2one_field_Arl5D![1]}.jpg`;
+    const imageUrl = `http://pyiurs.com/images/images/${hsCode}_${product.x_studio_many2one_field_Arl5D![1]}.jpg`;
     
     const stock = stockByProductAndBoutique.get(productId)
     
@@ -521,14 +521,14 @@ async function getData(
   });
 
   // Extraire les partenaires et noms de commande des purchase orders
-  // purchaseOrders.records.forEach((order: PurchaseOrder) => {
-  //   if (order.partner_id && order.partner_id[1]) {
-  //     partnersSet.add(order.partner_id[1]);
-  //   }
-  //   if (order.name) {
-  //     orderNamesSet.add(order.name);
-  //   }
-  // });
+  purchaseOrders.records.forEach((order: PurchaseOrder) => {
+    if (order.partner_id && order.partner_id[1]) {
+      partnersSet.add(order.partner_id[1]);
+    }
+    if (order.name) {
+      orderNamesSet.add(order.name);
+    }
+  });
 
   const brands = Array.from(brandsSet).sort();
   const colors = Array.from(colorsSet).sort();
@@ -569,6 +569,8 @@ export default async function ControlStockFemmePage({ searchParams }: PageProps)
   const selectedPurchaseOrder = params.purchase_order;
   
   const {data,brands, colors, partners, orderNames} = await getData(startDate, endDate,selectedPartner, selectedPurchaseOrder);
+  console.log(data);
+  
   // const stockLocations = await getStockLocations();
   
   // const { data: allData, brands, colors } = await getControlStockData();

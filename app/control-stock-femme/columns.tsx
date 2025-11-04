@@ -40,6 +40,7 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
             src={imageUrl}
             alt={row.getValue("name")}
             className="w-12 h-12 object-cover rounded"
+            width={164} height={164}
             onError={(e) => (e.currentTarget.src = "/file.svg")}
           />
           <div className="py-2">
@@ -356,8 +357,6 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
     accessorKey: "age",
     id: "stock_age",
     header: ({ column }) => {
-      console.log(column);
-      
       return (
         <Button
           variant="ghost"
