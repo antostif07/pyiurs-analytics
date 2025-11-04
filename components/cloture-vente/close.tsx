@@ -842,7 +842,6 @@ export default function ClotureVenteClose({
                   {caissePrincipaleData.filter(row => row.managerConfirmed && row.financierConfirmed).length}/{caissePrincipaleData.length} validés
                 </Badge>
               </CardTitle>
-              {/* Boutons de validation globale */}
               <div className="flex gap-2 mt-2">
                 <Button 
                   variant="outline" 

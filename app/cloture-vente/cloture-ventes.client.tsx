@@ -142,7 +142,7 @@ export default function ClotureVentesClient({
   // Vérifier si l'utilisateur peut créer une clôture pour le shop sélectionné
   const canCreateClosure = useMemo(() => {
     if (!selectedShop || selectedShop === 'all') return false
-    if (isClotureExist || isDateInClosedPeriod) return false
+    // if (isClotureExist || isDateInClosedPeriod) return false
     
     // Vérifier l'accès au shop si l'utilisateur est restreint
     if (isUserRestricted && !userShops.includes(selectedShop)) {
@@ -151,6 +151,9 @@ export default function ClotureVentesClient({
     
     return true
   }, [selectedShop, isClotureExist, isDateInClosedPeriod, isUserRestricted, userShops])
+
+  // console.log(canCreateClosure);
+  
 
   const updateDenomination = (index: number, quantity: number) => {
     const newDenominations = [...denominations]
@@ -309,7 +312,6 @@ export default function ClotureVentesClient({
       />
 
       {/* Afficher la section de clôture seulement si possible */}
-      {canCreateClosure && (
         <ClotureVenteClose
           denominations={denominations}
           incrementDenomination={incrementDenomination}
@@ -320,7 +322,6 @@ export default function ClotureVentesClient({
           existingClosure={currentClosure}
           isReadOnly={isClotureExist}
         />
-      )}
     </main>
   )
 }
