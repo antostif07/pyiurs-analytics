@@ -122,9 +122,6 @@ export default function ClotureVentesClient({
             .lte('opening_date', format(selectedDate, 'yyyy-MM-dd'))
             .gte('closing_date', format(selectedDate, 'yyyy-MM-dd'))
             .maybeSingle()
-          
-            console.log("Hello", selectedDate, data);
-            
 
           setIsClotureExist(!!data && !error)
           

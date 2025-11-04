@@ -104,6 +104,7 @@ export default function ClotureVenteClose({
     let soBoost = 0;
     let soSecurity = 0;
     let soPersonnel = 0;
+    console.log(lastClosure);
     
     if (existingClosure) {
       soCash = existingClosure.cash_closure_main_cash.find(mc => mc.payment_method_id === 1)?.opening_balance || 0
@@ -118,6 +119,8 @@ export default function ClotureVenteClose({
       soSecurity = existingClosure.cash_closure_secondary_cash.find(sc => sc.savings_category_id === 6)?.opening_balance || 0
       soPersonnel = existingClosure.cash_closure_secondary_cash.find(sc => sc.savings_category_id === 7)?.opening_balance || 0
     } else if(lastClosure) {
+      console.log(lastClosure);
+      
       soCash = lastClosure.cash_closure_main_cash.find(mc => mc.payment_method_id === 1)?.physical_cash || 0
       soBank = lastClosure.cash_closure_main_cash.find(mc => mc.payment_method_id === 2)?.physical_cash || 0
       soMobileMoney = lastClosure.cash_closure_main_cash.find(mc => mc.payment_method_id === 3)?.physical_cash || 0
