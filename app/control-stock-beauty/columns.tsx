@@ -35,7 +35,9 @@ function ProductNameWithTooltip({ name, brand, color, hs_code }: {
   color: string; 
   hs_code: string;
 }) {
-  const imageUrl = `https://images.pyiurs.com/images/${hs_code}_`;
+  const imageUrl = `http://pyiurs.com/images/images/${hs_code}_`;
+  console.log(`${imageUrl}.jpg`);
+  
   
   return (
     <div className="flex space-x-2 w-96">
@@ -53,6 +55,7 @@ function ProductNameWithTooltip({ name, brand, color, hs_code }: {
       </picture> */}
       <Image
           src={`${imageUrl}.jpg`}
+          width={124} height={124}
           alt={name}
           className="w-12 h-12 object-cover rounded flex-shrink-0"
           onError={(e) => (e.currentTarget.src = "/file.svg")}

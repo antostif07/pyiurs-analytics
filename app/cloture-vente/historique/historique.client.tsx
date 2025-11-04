@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ClotureData, ClotureDataView } from "@/lib/cloture-service"
+import { ClotureDataView } from "@/lib/cloture-service"
 import { pdfService } from "@/lib/pdf/cloture-service"
 import { format } from "date-fns"
 import { fr } from "date-fns/locale/fr"
@@ -187,7 +187,7 @@ export function Historique({clotures}: {clotures: ClotureDataView[]}) {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {clotures.map((cloture, i) => (
+                            {clotures.map((cloture) => (
                             <TableRow key={cloture.id}>
                                 <TableCell className="font-medium">
                                     <div className="flex items-center gap-2">
