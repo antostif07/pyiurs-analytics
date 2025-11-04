@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { POSConfig, POSOrder } from '../types/pos'
 import { format, isBefore } from 'date-fns'
-import { CashClosure, Expense } from '../types/cloture'
+import { Expense } from '../types/cloture'
 import { supabase } from '@/lib/supabase'
 import ClotureVenteHeader from '@/components/cloture-vente/header'
 import { usePathname, useRouter } from 'next/navigation'

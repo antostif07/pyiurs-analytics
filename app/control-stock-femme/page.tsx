@@ -102,13 +102,13 @@ async function getPurchaseOrders(startDate: string, endDate: string, partnerFilt
   let domain = `[["partner_id.name", "ilike", "P.FEM"], ["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"]]`;
   
   // Ajouter les filtres optionnels
-  // if (partnerFilter) {
-  //   domain = `[["partner_id", "ilike", "${partnerFilter}"], ["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"]]`;
-  // }
+  if (partnerFilter) {
+    domain = `[["partner_id", "ilike", "${partnerFilter}"], ["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"]]`;
+  }
   
-  // if (orderNameFilter) {
-  //   domain = `[["name", "ilike", "${orderNameFilter}"], ["partner_id", "ilike", "P.FEM"], ["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"]]`;
-  // }
+  if (orderNameFilter) {
+    domain = `[["name", "ilike", "${orderNameFilter}"], ["partner_id", "ilike", "P.FEM"], ["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"]]`;
+  }
 
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/purchase.order?fields=id,create_date,partner_id,name&domain=${domain}`,
