@@ -18,6 +18,7 @@ export default function Home() {
     { name: "Suivi des Ventes Beauty", icon: TrendingUp, color: "from-emerald-500 to-teal-600", href: "/control-revenue-beauty", },
     { name: "Suivi du Stock Beauty", icon: Package, color: "from-orange-500 to-yellow-500", href: "/control-stock-beauty", },
     { name: "Suivi du Stock Femme", icon: Package, color: "from-yellow-500 to-teal-500", href: "/control-stock-femme",},
+    { name: "Control Image Produit", icon: Package, color: "from-emerald-500 to-emerald-700", href: "/control-product-image",},
     { name: "Gestion des Clients", icon: Users, color: "from-indigo-500 to-blue-700", href: "/client-base",},
     { name: "Gestion des Clients Beauty", icon: Users, color: "from-blue-500 to-indigo-700", href: "/client-base-beauty", roles: ['admin', 'manager'] },
     { name: "Parc Client", icon: Users, color: "from-emerald-500 to-indigo-700", href: "/parc-client", roles: ['admin', 'manager'] },
@@ -102,7 +103,7 @@ export default function Home() {
         />
 
         {/* Cartes animées */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {filteredModules.map((mod, i) => (
             <motion.div
               key={i}

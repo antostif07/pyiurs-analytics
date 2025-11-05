@@ -9,6 +9,8 @@ export interface OdooProductTemplate {
     x_studio_many2one_field_QyelN?: [number, string];
     x_studio_many2one_field_Arl5D?: [number, string];
     description_pickingin?: string;
+    create_date: string;
+    image_1920: string;
 }
 
 export interface Product {
