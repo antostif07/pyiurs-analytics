@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useState } from "react";
-import { Moon, Sun, TrendingUp, Package, BarChart2, Users, LogOut, DollarSign } from "lucide-react";
+import { Moon, Sun, TrendingUp, Package, BarChart2, Users, LogOut, DollarSign, Euro } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
 import LoginForm from "@/components/login-form";
@@ -18,6 +18,7 @@ export default function Home() {
     { name: "Suivi des Ventes Beauty", icon: TrendingUp, color: "from-emerald-500 to-teal-600", href: "/control-revenue-beauty", },
     { name: "Suivi du Stock Beauty", icon: Package, color: "from-orange-500 to-yellow-500", href: "/control-stock-beauty", },
     { name: "Suivi du Stock Femme", icon: Package, color: "from-yellow-500 to-teal-500", href: "/control-stock-femme",},
+    { name: "Suivi du Epargne Femme", icon: Euro, color: "from-emerald-500 to-blue-500", href: "/suivi-epargne-femme",},
     { name: "Control Image Produit", icon: Package, color: "from-emerald-500 to-emerald-700", href: "/control-product-image",},
     { name: "Gestion des Clients", icon: Users, color: "from-indigo-500 to-blue-700", href: "/client-base",},
     { name: "Gestion des Clients Beauty", icon: Users, color: "from-blue-500 to-indigo-700", href: "/client-base-beauty", roles: ['admin', 'manager'] },
