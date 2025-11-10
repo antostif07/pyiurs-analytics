@@ -4,6 +4,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
+import SuiviEpargneFemme from "./page.client"
+import { POSConfig, POSOrderLine } from "../types/pos"
+import { Product, ProductProduct } from "../types/product_template"
 
 export const dynamic = 'force-dynamic'
 
@@ -15,64 +18,106 @@ interface DailySale {
   theoreticalSavings: number
 }
 
-interface BoutiqueSalesData {
-  boutique: string
-  dailySales: DailySale[]
-  totalSales: number
-  totalSavings: number
-  totalTheoreticalSavings: number
+
+
+export interface BoutiqueSalesData {
+    date: string;
+    total_qty: number;
+    total_sales: number;
+    items: POSOrderLine[];
 }
 
-// Données mockées
-const mockBoutiques = ["P24", "P.KTM", "LMB", "MTO", "ONL", "BC"]
-const mockMonths = [
-  { value: "2024-01", label: "Janvier 2024" },
-  { value: "2024-02", label: "Février 2024" },
-  { value: "2024-03", label: "Mars 2024" },
-  { value: "2024-04", label: "Avril 2024" },
-  { value: "2024-05", label: "Mai 2024" },
-  { value: "2024-06", label: "Juin 2024" },
-]
+/**
+ * Regroupe les lignes POS par jour (YYYY-MM-DD)
+ * et calcule le total des ventes et des quantités
+ */
+function groupOrdersByDay(records: POSOrderLine[]): { date: string; total_qty: number; total_sales: number; items: POSOrderLine[] }[] {
+  const grouped = records.reduce((acc, record) => {
+    const date = record.create_date.split(' ')[0]; // extrait 'YYYY-MM-DD'
+
+    if (!acc[date]) {
+      acc[date] = {
+        date,
+        total_qty: record.qty,
+        total_sales: record.qty * record.price_unit,
+        items: [record],
+      };
+    } else {
+      acc[date].total_qty += record.qty;
+      acc[date].total_sales += record.qty * record.price_unit;
+      acc[date].items.push(record);
+    }
+
+    return acc;
+  }, {} as Record<string, { date: string; total_qty: number; total_sales: number; items: POSOrderLine[] }>);
+
+  // Transformer l’objet en tableau trié par date
+  return Object.values(grouped).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+async function getPOSOrderLines(month?: string, year?: string, selectedBoutique?: string) {
+  const m = month || (new Date().getMonth() + 1).toString().padStart(2, '0');
+  const y = year || new Date().getFullYear().toString();
+  const date = `${y}-${m}-01`;
+  const lastDay = new Date(parseInt(y), parseInt(m), 0).getDate();
+
+  let domain = `[["create_date", ">=", "${date} 00:01:00"], ["create_date", "<=", "${y}-${m}-${lastDay} 23:59:59"], ["product_id.categ_id", "ilike", "fashion"], ["product_id.categ_id", "ilike", "vetement"]]`;
+
+  if (selectedBoutique) {
+    domain = `[["create_date", ">=", "${date} 00:01:00"], ["create_date", "<=", "${y}-${m}-${lastDay} 23:59:59"], ["order_id.config_id.id","=","${selectedBoutique}"], ["product_id.categ_id", "ilike", "fashion"], ["product_id.categ_id", "ilike", "vetement"]]`;
+  }
+
+  // 1️⃣ Récupération des lignes POS
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.order.line?fields=id,qty,name,product_id,price_unit,full_product_name,order_id,create_date&domain=${domain}`,
+    { next: { revalidate: 300 } }
+  );
+
+  if (!res.ok) throw new Error("Erreur API Odoo - Lignes de commande POS");
+
+  const orderLines = await res.json();
+  
+
+  // 2️⃣ Extraire les IDs produits
+//   const productIds = [...new Set(orderLines.records.map((l: any) => l.product_id?.[0]))].filter(Boolean);
+
+//   // 3️⃣ Récupérer les catégories des produits
+//   const resProducts = await fetch(
+//     `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/product.product?id,categ_id,namedomain=[["id","in",[${productIds.join(',')}] ]]`
+//   );
+
+//   const products = await resProducts.json();
+
+//   // 4️⃣ Mapper produit → catégorie
+//   const productCategoryMap = Object.fromEntries(
+//     products.records.map((p: ProductProduct) => [
+//       p.id,
+//       {
+//         category_id: p.categ_id?.[0] || null,
+//         category: p.categ_id?.[1] || null
+//       }
+//     ])
+//   );
+
+//   // 5️⃣ Fusionner les données
+//   const linesWithCategory = orderLines.records.map((line: POSOrderLine) => ({
+//     ...line,
+//     category_id: productCategoryMap[line.product_id?.[0]]?.category_id || null,
+//     category: productCategoryMap[line.product_id?.[0]]?.category || null
+//   }));
+
+//   console.log(linesWithCategory);
+  
+
+  return orderLines;
+}
 
 // Générer des données mockées réalistes
-function generateMockData(selectedMonth: string, selectedBoutiques: string[]): BoutiqueSalesData[] {
-  const [year, month] = selectedMonth.split('-').map(Number)
-  const daysInMonth = new Date(year, month, 0).getDate()
-  
-  return selectedBoutiques.map(boutique => {
-    const dailySales: DailySale[] = []
-    let totalSales = 0
-    let totalSavings = 0
-    let totalTheoreticalSavings = 0
+async function getData(selectedMonth?: string, selectedYear?: string, selectedBoutique?: string) {
+  const posOrderLines = await getPOSOrderLines(selectedMonth, selectedYear, selectedBoutique);
+  const groupedData = groupOrdersByDay(posOrderLines.records)
 
-    for (let day = 1; day <= daysInMonth; day++) {
-      const date = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
-      
-      // Générer des ventes aléatoires réalistes
-      const sales = Math.floor(Math.random() * 10) + 200 // 200-1200$ par jour
-      const savings = Math.floor(Math.random() * sales * 0.3) // Épargne réelle 0-30% des ventes
-      const theoreticalSavings = Math.floor(sales * 0.5) // Épargne théorique = 50% des ventes
-
-      dailySales.push({
-        date,
-        sales,
-        savings,
-        theoreticalSavings
-      })
-
-      totalSales += sales
-      totalSavings += savings
-      totalTheoreticalSavings += theoreticalSavings
-    }
-
-    return {
-      boutique,
-      dailySales,
-      totalSales,
-      totalSavings,
-      totalTheoreticalSavings
-    }
-  })
+  return groupedData
 }
 
 // Composant pour formater les montants
@@ -112,247 +157,29 @@ function PerformanceIndicator({ actual, theoretical }: { actual: number; theoret
 async function SalesDashboardContent({ 
   searchParams 
 }: { 
-  searchParams: Promise<{ month?: string; boutiques?: string }> 
+  searchParams: Promise<{ month?: string; year?:string; boutique?: string }> 
 }) {
-  const params = await searchParams
-  const selectedMonth = params.month || "2024-06"
-  const selectedBoutiques = params.boutiques ? params.boutiques.split(',') : mockBoutiques
+    const params = await searchParams
+    const selectedMonth = params.month
+    const selectedYear = params.year
+    const boutiqueId = params.boutique;
+    const posConfigData = await getPOSConfig();
+    const boutiques = posConfigData.records.map((config: POSConfig) => ({
+        id: config.id,
+        name: config.name
+    } as POSConfig));
+    const posData = await getData(selectedMonth, selectedYear, boutiqueId)
 
-  const data = generateMockData(selectedMonth, selectedBoutiques)
-  const [year, month] = selectedMonth.split('-').map(Number)
-  const daysInMonth = new Date(year, month, 0).getDate()
-
-  // Calcul des totaux globaux
-  const globalTotals = {
-    sales: data.reduce((sum, boutique) => sum + boutique.totalSales, 0),
-    savings: data.reduce((sum, boutique) => sum + boutique.totalSavings, 0),
-    theoreticalSavings: data.reduce((sum, boutique) => sum + boutique.totalTheoreticalSavings, 0)
-  }
+    console.log(posData);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* En-tête */}
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              Tableau de Bord des Ventes
-            </h1>
-            <p className="text-gray-600 dark:text-gray-300 mt-2">
-              Suivi quotidien des ventes et de l&apos;épargne par boutique
-            </p>
-          </div>
-        </div>
-
-        {/* Filtres */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Filtres</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="flex-1">
-                <Label htmlFor="month" className="text-sm font-medium mb-2 block">
-                  Mois/Année
-                </Label>
-                <Select defaultValue={selectedMonth}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {mockMonths.map(month => (
-                      <SelectItem key={month.value} value={month.value}>
-                        {month.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="flex-1">
-                <Label htmlFor="boutiques" className="text-sm font-medium mb-2 block">
-                  Boutiques
-                </Label>
-                <Select defaultValue="all">
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Toutes les boutiques</SelectItem>
-                    {mockBoutiques.map(boutique => (
-                      <SelectItem key={boutique} value={boutique}>
-                        {boutique}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Tableau principal */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Ventes Quotidiennes par Boutique</CardTitle>
-            <CardDescription>
-              {new Date(year, month - 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="min-w-32 sticky left-0 bg-white dark:bg-slate-800 z-10">
-                      Boutique
-                    </TableHead>
-                    <TableHead className="min-w-24 text-right font-bold bg-gray-50 dark:bg-slate-700">
-                      Total
-                    </TableHead>
-                    {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => (
-                      <TableHead key={day} className="min-w-20 text-center">
-                        {day}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {/* Ligne des ventes */}
-                  <TableRow className="bg-green-50 dark:bg-green-900/20">
-                    <TableCell className="font-medium sticky left-0 bg-green-50 dark:bg-green-900/20">
-                      Ventes ($)
-                    </TableCell>
-                    <TableCell className="text-right font-bold bg-green-100 dark:bg-green-800/30">
-                      {formatAmount(globalTotals.sales)}
-                    </TableCell>
-                    {Array.from({ length: daysInMonth }, (_, dayIndex) => {
-                      const dailyTotal = data.reduce((sum, boutique) => 
-                        sum + (boutique.dailySales[dayIndex]?.sales || 0), 0
-                      )
-                      return (
-                        <TableCell key={dayIndex} className="text-right">
-                          {dailyTotal > 0 ? formatAmount(dailyTotal) : "-"}
-                        </TableCell>
-                      )
-                    })}
-                  </TableRow>
-
-                  {/* Ligne de l'épargne théorique */}
-                  <TableRow className="bg-blue-50 dark:bg-blue-900/20">
-                    <TableCell className="font-medium sticky left-0 bg-blue-50 dark:bg-blue-900/20">
-                      Épargne Théorique ($)
-                    </TableCell>
-                    <TableCell className="text-right font-bold bg-blue-100 dark:bg-blue-800/30">
-                      {formatAmount(globalTotals.theoreticalSavings)}
-                    </TableCell>
-                    {Array.from({ length: daysInMonth }, (_, dayIndex) => {
-                      const dailyTotal = data.reduce((sum, boutique) => 
-                        sum + (boutique.dailySales[dayIndex]?.theoreticalSavings || 0), 0
-                      )
-                      return (
-                        <TableCell key={dayIndex} className="text-right">
-                          {dailyTotal > 0 ? formatAmount(dailyTotal) : "-"}
-                        </TableCell>
-                      )
-                    })}
-                  </TableRow>
-
-                  {/* Ligne de l'épargne réelle */}
-                  <TableRow className="bg-purple-50 dark:bg-purple-900/20">
-                    <TableCell className="font-medium sticky left-0 bg-purple-50 dark:bg-purple-900/20">
-                      Épargne Réelle ($)
-                    </TableCell>
-                    <TableCell className="text-right font-bold bg-purple-100 dark:bg-purple-800/30">
-                      {formatAmount(globalTotals.savings)}
-                    </TableCell>
-                    {Array.from({ length: daysInMonth }, (_, dayIndex) => {
-                      const dailyTotal = data.reduce((sum, boutique) => 
-                        sum + (boutique.dailySales[dayIndex]?.savings || 0), 0
-                      )
-                      return (
-                        <TableCell key={dayIndex} className="text-right">
-                          {dailyTotal > 0 ? formatAmount(dailyTotal) : "-"}
-                        </TableCell>
-                      )
-                    })}
-                  </TableRow>
-
-                  {/* Lignes par boutique */}
-                  {/* {data.map((boutiqueData) => (
-                    <TableRow key={boutiqueData.boutique}>
-                      <TableCell className="font-medium sticky left-0 bg-white dark:bg-slate-800">
-                        {boutiqueData.boutique}
-                      </TableCell>
-                      <TableCell className="text-right font-bold bg-gray-50 dark:bg-slate-700">
-                        <div className="space-y-1">
-                          <div className="text-green-600">{formatAmount(boutiqueData.totalSales)}</div>
-                          <div className="text-blue-600 text-sm">{formatAmount(boutiqueData.totalTheoreticalSavings)}</div>
-                          <div className="text-purple-600 text-sm">{formatAmount(boutiqueData.totalSavings)}</div>
-                          <div className="pt-1">
-                            <PerformanceIndicator 
-                              actual={boutiqueData.totalSavings} 
-                              theoretical={boutiqueData.totalTheoreticalSavings} 
-                            />
-                          </div>
-                        </div>
-                      </TableCell>
-                      {boutiqueData.dailySales.map((day, dayIndex) => (
-                        <TableCell key={dayIndex} className="text-right">
-                          <div className="space-y-1">
-                            <div className="text-green-600 font-medium">
-                              {day.sales > 0 ? formatAmount(day.sales) : "-"}
-                            </div>
-                            <div className="text-blue-600 text-xs">
-                              {day.theoreticalSavings > 0 ? formatAmount(day.theoreticalSavings) : "-"}
-                            </div>
-                            <div className="text-purple-600 text-xs">
-                              {day.savings > 0 ? formatAmount(day.savings) : "-"}
-                            </div>
-                          </div>
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))} */}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Légende */}
-        {/* <Card>
-          <CardContent className="pt-6">
-            <div className="flex flex-wrap gap-4 text-sm">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-green-500 rounded"></div>
-                <span>Ventes de la journée</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-blue-500 rounded"></div>
-                <span>Épargne théorique (50% des ventes)</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-purple-500 rounded"></div>
-                <span>Épargne réelle réalisée</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge className="bg-green-100 text-green-700">≥80%</Badge>
-                <span>Performance excellente</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge className="bg-yellow-100 text-yellow-700">50-79%</Badge>
-                <span>Performance moyenne</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge className="bg-red-100 text-red-700">{'<50%'}</Badge>
-                <span>Performance faible</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card> */}
-      </div>
-    </div>
+    <SuiviEpargneFemme
+        boutiques={boutiques}
+        selectedBoutiqueId={boutiqueId}
+        month={selectedMonth}
+        year={selectedYear}
+        data={posData}
+    />
   )
 }
 
@@ -382,4 +209,13 @@ export default async function SalesDashboardPage({
       <SalesDashboardContent searchParams={searchParams} />
     </Suspense>
   )
+}
+
+async function getPOSConfig() {
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.config?fields=id,name`,
+    { next: { revalidate: 300 } }
+  );
+  if (!res.ok) throw new Error("Erreur API Odoo - Configuration POS");
+  return res.json();
 }

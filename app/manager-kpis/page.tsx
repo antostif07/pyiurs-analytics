@@ -45,7 +45,6 @@ async function getPOSConfig() {
 
 async function getPOSOrders(boutiqueId?: string, month?: string, year?: string) {
     const { firstDay, lastDay } = getMonthDates(month, year);
-    console.log(lastDay);
     
     let domain = `[["create_date", ">", "${firstDay}"], ["create_date", "<=", "${lastDay}"]]`;
 
@@ -113,9 +112,7 @@ async function getProductsFromPOSLines(posLines: POSOrderLine[]) {
     const res = await fetch(
         `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/product.template?fields=id,name,list_price,categ_id,hs_code,product_variant_id&domain=${encodeURIComponent(domain)}`,
         {
-            next: { 
-                revalidate: 300 // 5 minutes
-            }
+          cache: "no-cache"
         }
     );
 

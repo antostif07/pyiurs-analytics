@@ -13,6 +13,12 @@ export interface OdooProductTemplate {
     image_1920: string;
 }
 
+export interface ProductProduct {
+  id: number;
+  name: string;
+  categ_id?: [number, string];
+}
+
 export interface Product {
     id: number;
     name: string;
