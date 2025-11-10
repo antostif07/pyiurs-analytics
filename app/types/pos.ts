@@ -8,6 +8,7 @@ export type POSOrderLine = {
   price_subtotal_incl: number;
   discount: number;
   order_id: [number, string]; // Tuple of [id, name]
+  partner_id: [number, string];
   create_date: string; // ISO date string
 };
 

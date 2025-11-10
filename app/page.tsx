@@ -26,6 +26,7 @@ export default function Home() {
     { name: "Cloture Vente", icon: DollarSign, color: "from-orange-500 to-yellow-700", href: "/cloture-vente", roles: ['admin', 'manager'] },
     { name: "Gestion de fonds", icon: DollarSign, color: "from-emerald-500 to-yellow-700", href: "/funds", roles: ['admin', 'manager-full'] },
     { name: "Revenu Global", icon: DollarSign, color: "from-indigo-500 to-yellow-700", href: "/revenue", roles: ['admin',] },
+    { name: "Suivi Vente agent", icon: DollarSign, color: "from-indigo-500 to-yellow-700", href: "/suivi-vente-agent", roles: ['admin',] },
   ];
 
   const filteredModules = modules

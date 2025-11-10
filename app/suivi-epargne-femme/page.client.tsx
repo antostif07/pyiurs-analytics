@@ -22,8 +22,6 @@ export default function SuiviEpargneFemme({month, year, selectedBoutiqueId, bout
     const router = useRouter()
     const pathname = usePathname()
 
-    // const columns = useMemo<ColumnDef<TableRowData>[]>(() => [])
-
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800 p-6">
             <div className="max-w-7xl mx-auto space-y-6">
