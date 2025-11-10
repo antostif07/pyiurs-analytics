@@ -27,79 +27,6 @@ export interface VendeuseSalesData {
   details: VenteDetail[];
 }
 
-// Fonction pour récupérer les données (mockées pour l'exemple)
-async function getVendeuseSalesData(month?: string, year?: string, agentId?: string): Promise<VendeuseSalesData> {
-  // Simuler un délai de chargement
-  await new Promise(resolve => setTimeout(resolve, 1000));
-
-  const currentMonth = month || new Date().getMonth() + 1;
-  const currentYear = year || new Date().getFullYear();
-
-  // Données mockées pour le résumé
-  const summary: VendeuseSummary = {
-    totalVentes: 12540.50,
-    totalCout: 8560.75,
-    totalCommission: 1254.05,
-    nombreVentes: 47
-  };
-
-  // Données mockées pour les détails
-  const details: VenteDetail[] = [
-    {
-      id: "1",
-      client: "Marie Dupont",
-      numero: "CMD-001",
-      total: 450.00,
-      facture: "FAC-2024-001",
-      produits: ["Robe été", "Sandales"],
-      pos: "P24",
-      date: `${currentYear}-${currentMonth.toString().padStart(2, '0')}-15`
-    },
-    {
-      id: "2",
-      client: "Sophie Martin",
-      numero: "CMD-002",
-      total: 320.50,
-      facture: "FAC-2024-002",
-      produits: ["Jupe lin", "Top coton"],
-      pos: "P.KTM",
-      date: `${currentYear}-${currentMonth.toString().padStart(2, '0')}-16`
-    },
-    {
-      id: "3",
-      client: "Julie Bernard",
-      numero: "CMD-003",
-      total: 890.00,
-      facture: "FAC-2024-003",
-      produits: ["Ensemble chic", "Sac main"],
-      pos: "LMB",
-      date: `${currentYear}-${currentMonth.toString().padStart(2, '0')}-17`
-    },
-    {
-      id: "4",
-      client: "Claire Petit",
-      numero: "CMD-004",
-      total: 210.75,
-      facture: "FAC-2024-004",
-      produits: ["Accessoires"],
-      pos: "MTO",
-      date: `${currentYear}-${currentMonth.toString().padStart(2, '0')}-18`
-    },
-    {
-      id: "5",
-      client: "Emma Roux",
-      numero: "CMD-005",
-      total: 670.25,
-      facture: "FAC-2024-005",
-      produits: ["Manteau", "Écharpe"],
-      pos: "ONL",
-      date: `${currentYear}-${currentMonth.toString().padStart(2, '0')}-19`
-    }
-  ];
-
-  return { summary, details };
-}
-
 interface PageProps {
   searchParams: Promise<{
     month?: string;
@@ -177,23 +104,18 @@ export default async function VendeuseSalesPage({ searchParams }: PageProps) {
   const year = params.year;
   const agentId = params.agent;
 
-  console.log(agentId);
-  
-
   // Simulation de la détection du rôle utilisateur
   // En pratique, cela viendrait de votre système d'authentification
   const isAdmin = true; // ou false selon l'utilisateur connecté
 
-  const [data, orderLines, pricelist] = await Promise.all([
-    getVendeuseSalesData(month, year, agentId),
+  const [orderLines, pricelist] = await Promise.all([
     getPOSOrderLinesWithAgent(month, year, agentId),
     getPriceList()
   ])
 
   return (
     <Suspense fallback={<TableSkeleton />}>
-      <VendeuseSalesDashboard 
-        data={data}
+      <VendeuseSalesDashboard
         month={month}
         year={year}
         agentId={agentId}

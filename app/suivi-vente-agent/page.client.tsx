@@ -11,7 +11,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { POSOrderLine } from "../types/pos";
 
 interface VendeuseSalesDashboardProps {
-  data: VendeuseSalesData;
   month?: string;
   year?: string;
   agentId?: string;
@@ -29,7 +28,6 @@ function formatDate(dateString: string): string {
 }
 
 export function VendeuseSalesDashboard({ 
-  data, 
   month, 
   year, 
   agentId,
@@ -309,7 +307,7 @@ export function VendeuseSalesDashboard({
                         </TableCell>
                       )}
                       <TableCell className="font-medium">
-                        {vente.partner_id[1]}
+                        {vente.partner_id && vente.partner_id[1]}
                       </TableCell>
                       {/* <TableCell>
                         <Badge variant="outline" className="font-mono">
@@ -357,7 +355,7 @@ export function VendeuseSalesDashboard({
             <div className="mt-4 p-4 bg-gray-50 dark:bg-slate-800 rounded-lg">
               <div className="flex justify-between items-center text-sm">
                 <span className="text-gray-600 dark:text-gray-300">
-                  Affichage de {data.details.length} ventes sur {data.summary.nombreVentes} total
+                  {/* Affichage de {data.details.length} ventes sur {data.summary.nombreVentes} total */}
                   {isAdmin && currentAgentId && ` pour ${getCurrentAgentName()}`}
                 </span>
                 <div className="flex gap-4">
