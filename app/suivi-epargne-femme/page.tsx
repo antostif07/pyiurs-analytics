@@ -1,30 +1,15 @@
 import { Suspense } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Label } from "@/components/ui/label"
 import SuiviEpargneFemme from "./page.client"
 import { POSConfig, POSOrderLine } from "../types/pos"
-import { Product, ProductProduct } from "../types/product_template"
 
 export const dynamic = 'force-dynamic'
-
-// Types
-interface DailySale {
-  date: string
-  sales: number
-  savings: number
-  theoreticalSavings: number
-}
-
-
 
 export interface BoutiqueSalesData {
     date: string;
     total_qty: number;
     total_sales: number;
     items: POSOrderLine[];
+    total_expense: number;
 }
 
 /**
@@ -55,6 +40,39 @@ function groupOrdersByDay(records: POSOrderLine[]): { date: string; total_qty: n
   return Object.values(grouped).sort((a, b) => a.date.localeCompare(b.date));
 }
 
+async function getExpenseNotes(month?: string, year?: string, selectedBoutique?: string) {
+  const m = month || (new Date().getMonth() + 1).toString().padStart(2, '0');
+  const y = year || new Date().getFullYear().toString();
+  const date = `${y}-${m}-01`;
+  const lastDay = new Date(parseInt(y), parseInt(m), 0).getDate();
+
+  let societe;
+
+  switch (selectedBoutique) {
+    case "1": societe = 1; break;
+    case "13": societe = 4; break;
+    case "14": societe = 5; break;
+    case "15": societe = 6; break;
+    case "17": societe = 8; break;
+    default: societe = undefined;
+  }
+
+  let domain = `[["create_date", ">=", "${date}"], ["create_date", "<=", "${y}-${m}-${lastDay}"], ["product_id", "ilike", "epargne marchandise"], ["sheet_id.payment_method_line_id.journal_id", "not ilike", "sortie"]]`;
+
+  if (societe) {
+    domain = `[["create_date", ">=", "${date}"], ["create_date", "<=", "${y}-${m}-${lastDay}"], ["product_id", "ilike", "epargne marchandise"], ["sheet_id.payment_method_line_id.journal_id", "not ilike", "sortie"], ["company_id", "=", ${societe}]]`;
+  }
+
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/hr.expense?domain=${domain}`,
+    { next: { revalidate: 300 } }
+  );
+
+  if (!res.ok) throw new Error("Erreur API Odoo - Notes de frais");
+
+  return res.json();
+}
+
 async function getPOSOrderLines(month?: string, year?: string, selectedBoutique?: string) {
   const m = month || (new Date().getMonth() + 1).toString().padStart(2, '0');
   const y = year || new Date().getFullYear().toString();
@@ -76,82 +94,70 @@ async function getPOSOrderLines(month?: string, year?: string, selectedBoutique?
   if (!res.ok) throw new Error("Erreur API Odoo - Lignes de commande POS");
 
   const orderLines = await res.json();
-  
-
-  // 2️⃣ Extraire les IDs produits
-//   const productIds = [...new Set(orderLines.records.map((l: any) => l.product_id?.[0]))].filter(Boolean);
-
-//   // 3️⃣ Récupérer les catégories des produits
-//   const resProducts = await fetch(
-//     `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/product.product?id,categ_id,namedomain=[["id","in",[${productIds.join(',')}] ]]`
-//   );
-
-//   const products = await resProducts.json();
-
-//   // 4️⃣ Mapper produit → catégorie
-//   const productCategoryMap = Object.fromEntries(
-//     products.records.map((p: ProductProduct) => [
-//       p.id,
-//       {
-//         category_id: p.categ_id?.[0] || null,
-//         category: p.categ_id?.[1] || null
-//       }
-//     ])
-//   );
-
-//   // 5️⃣ Fusionner les données
-//   const linesWithCategory = orderLines.records.map((line: POSOrderLine) => ({
-//     ...line,
-//     category_id: productCategoryMap[line.product_id?.[0]]?.category_id || null,
-//     category: productCategoryMap[line.product_id?.[0]]?.category || null
-//   }));
-
-//   console.log(linesWithCategory);
-  
 
   return orderLines;
 }
 
 // Générer des données mockées réalistes
 async function getData(selectedMonth?: string, selectedYear?: string, selectedBoutique?: string) {
+  // 🧾 Récupération des ventes POS
   const posOrderLines = await getPOSOrderLines(selectedMonth, selectedYear, selectedBoutique);
-  const groupedData = groupOrdersByDay(posOrderLines.records)
+  const groupedSales = groupOrdersByDay(posOrderLines.records);
 
-  return groupedData
+  // 💸 Récupération des notes de frais
+  const expenseNotes = await getExpenseNotes(selectedMonth, selectedYear, selectedBoutique);
+
+  // 🗓️ Grouper aussi les dépenses par jour
+interface ExpenseRecord {
+    date: string;
+    total_amount: number;
 }
 
-// Composant pour formater les montants
-function formatAmount(amount: number): string {
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount)
+const groupedExpenses: Record<string, number> = expenseNotes.records.reduce((acc: Record<string, number>, exp: ExpenseRecord) => {
+    const date: string = exp.date;
+    if (!acc[date]) acc[date] = 0;
+    acc[date] += exp.total_amount;
+    return acc;
+}, {} as Record<string, number>);
+
+  // 📊 Fusionner ventes + dépenses dans un seul tableau
+  const mergedData = groupedSales.map(day => ({
+    ...day,
+    total_expense: groupedExpenses[day.date] || 0,
+    net_sales: day.total_sales - (groupedExpenses[day.date] || 0)
+  }));
+  
+  return mergedData;
 }
+
 
 // Composant pour les indicateurs de performance
-function PerformanceIndicator({ actual, theoretical }: { actual: number; theoretical: number }) {
-  const percentage = theoretical > 0 ? (actual / theoretical) * 100 : 0
-  const isGood = percentage >= 80
-  const isWarning = percentage >= 50 && percentage < 80
-  const isBad = percentage < 50
+// function PerformanceIndicator({ actual, theoretical }: { actual: number; theoretical: number }) {
+//   const percentage = theoretical > 0 ? (actual / theoretical) * 100 : 0
+//   const isGood = percentage >= 80
+//   const isWarning = percentage >= 50 && percentage < 80
+//   const isBad = percentage < 50
 
-  let bgColor = "bg-gray-100"
-  let textColor = "text-gray-700"
+//   let bgColor = "bg-gray-100"
+//   let textColor = "text-gray-700"
 
-  if (isGood) {
-    bgColor = "bg-green-100"
-    textColor = "text-green-700"
-  } else if (isWarning) {
-    bgColor = "bg-yellow-100"
-    textColor = "text-yellow-700"
-  } else if (isBad) {
-    bgColor = "bg-red-100"
-    textColor = "text-red-700"
-  }
+//   if (isGood) {
+//     bgColor = "bg-green-100"
+//     textColor = "text-green-700"
+//   } else if (isWarning) {
+//     bgColor = "bg-yellow-100"
+//     textColor = "text-yellow-700"
+//   } else if (isBad) {
+//     bgColor = "bg-red-100"
+//     textColor = "text-red-700"
+//   }
 
-  return (
-    <Badge variant="secondary" className={`${bgColor} ${textColor} font-medium`}>
-      {percentage.toFixed(1)}%
-    </Badge>
-  )
-}
+//   return (
+//     <Badge variant="secondary" className={`${bgColor} ${textColor} font-medium`}>
+//       {percentage.toFixed(1)}%
+//     </Badge>
+//   )
+// }
 
 // Composant principal
 async function SalesDashboardContent({ 
@@ -169,8 +175,6 @@ async function SalesDashboardContent({
         name: config.name
     } as POSConfig));
     const posData = await getData(selectedMonth, selectedYear, boutiqueId)
-
-    console.log(posData);
 
   return (
     <SuiviEpargneFemme

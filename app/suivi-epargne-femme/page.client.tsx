@@ -1,29 +1,10 @@
 'use client'
-import Multiselect from "@/components/MultiSelect";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ColumnDef, getCoreRowModel, useReactTable } from "@tanstack/react-table";
 import { usePathname, useRouter } from "next/navigation";
-import { useMemo } from "react";
 import { BoutiqueSalesData } from "./page";
 import { format } from "date-fns";
-
-const months = [
-  { value: "1", label: "Janvier" },
-  { value: "2", label: "Février" },
-  { value: "3", label: "Mars" },
-  { value: "4", label: "Avril" },
-  { value: "5", label: "Mai" },
-  { value: "6", label: "Juin" },
-  { value: "7", label: "Juillet" },
-  { value: "8", label: "Août" },
-  { value: "9", label: "Septembre" },
-  { value: "10", label: "Octobre" },
-  { value: "11", label: "Novembre" },
-  { value: "12", label: "Décembre" }
-];
+import Link from "next/link";
 
 function formatAmount(amount: number): string {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'USD' }).format(amount)
@@ -48,14 +29,26 @@ export default function SuiviEpargneFemme({month, year, selectedBoutiqueId, bout
             <div className="max-w-7xl mx-auto space-y-6">
                 {/* En-tête */}
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                    Suivi Epargne Femme/Kids
-                    </h1>
-                    <p className="text-gray-600 dark:text-gray-300 mt-2">
-                    Suivi quotidien des ventes et de l&apos;épargne par boutique
-                    </p>
-                </div>
+                  <div className="flex items-center space-x-4">
+                    {/* Bouton de retour */}
+                    <Link 
+                      href="/"
+                      className="inline-flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors duration-200"
+                    >
+                      ← Retour
+                    </Link>
+
+                    <div className="flex items-center space-x-3">
+                      <div className="px-2">
+                        <h1 className="text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent truncate">
+                          Suivi Epargne Femme/Kids
+                        </h1>
+                        <p className="text-gray-600 dark:text-gray-300 mt-1 text-sm truncate">
+                          Suivi quotidien des ventes et de l&apos;épargne par boutique
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Filtres */}
@@ -208,56 +201,20 @@ export default function SuiviEpargneFemme({month, year, selectedBoutiqueId, bout
                             Épargne Réelle ($)
                             </TableCell>
                             <TableCell className="text-right font-bold bg-purple-100 dark:bg-purple-800/30">
-                            {/* {formatAmount(globalTotals.savings)} */}
+                            {formatAmount(data.reduce((acc, val) => (
+                                acc + val.total_expense
+                            ), 0))}
                             </TableCell>
-                            {/* {Array.from({ length: daysInMonth }, (_, dayIndex) => {
-                            const dailyTotal = data.reduce((sum, boutique) => 
-                                sum + (boutique.dailySales[dayIndex]?.savings || 0), 0
-                            )
-                            return (
-                                <TableCell key={dayIndex} className="text-right">
-                                {dailyTotal > 0 ? formatAmount(dailyTotal) : "-"}
-                                </TableCell>
-                            )
-                            })} */}
+                            {
+                                data.map(d => {
+                                    return (
+                                        <TableCell key={d.date} className="text-right">
+                                        {formatAmount(d.total_expense)}
+                                        </TableCell>
+                                    )
+                                })
+                            }
                         </TableRow>
-
-                        {/* Lignes par boutique */}
-                        {/* {data.map((boutiqueData) => (
-                            <TableRow key={boutiqueData.boutique}>
-                            <TableCell className="font-medium sticky left-0 bg-white dark:bg-slate-800">
-                                {boutiqueData.boutique}
-                            </TableCell>
-                            <TableCell className="text-right font-bold bg-gray-50 dark:bg-slate-700">
-                                <div className="space-y-1">
-                                <div className="text-green-600">{formatAmount(boutiqueData.totalSales)}</div>
-                                <div className="text-blue-600 text-sm">{formatAmount(boutiqueData.totalTheoreticalSavings)}</div>
-                                <div className="text-purple-600 text-sm">{formatAmount(boutiqueData.totalSavings)}</div>
-                                <div className="pt-1">
-                                    <PerformanceIndicator 
-                                    actual={boutiqueData.totalSavings} 
-                                    theoretical={boutiqueData.totalTheoreticalSavings} 
-                                    />
-                                </div>
-                                </div>
-                            </TableCell>
-                            {boutiqueData.dailySales.map((day, dayIndex) => (
-                                <TableCell key={dayIndex} className="text-right">
-                                <div className="space-y-1">
-                                    <div className="text-green-600 font-medium">
-                                    {day.sales > 0 ? formatAmount(day.sales) : "-"}
-                                    </div>
-                                    <div className="text-blue-600 text-xs">
-                                    {day.theoreticalSavings > 0 ? formatAmount(day.theoreticalSavings) : "-"}
-                                    </div>
-                                    <div className="text-purple-600 text-xs">
-                                    {day.savings > 0 ? formatAmount(day.savings) : "-"}
-                                    </div>
-                                </div>
-                                </TableCell>
-                            ))}
-                            </TableRow>
-                        ))} */}
                         </TableBody>
                     </Table>
                     </div>
