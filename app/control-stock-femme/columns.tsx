@@ -16,6 +16,18 @@ function getStockColor(qty: number): string {
 
 export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
   {
+    accessorKey: "po_name",
+    header: "PO",
+    enableHiding: true,          // on pourra la cacher
+    enableColumnFilter: true,    // elle reste filtrable
+    meta: { filterVariant: "multi-select", label: "PO" },
+    filterFn: (row, id, filterValues) => {
+      const value = row.getValue(id);
+      if (!filterValues?.length) return true;
+      return filterValues.includes(value);
+    },
+  },
+  {
     accessorKey: "name",
     header: ({ column }) => {
       return (

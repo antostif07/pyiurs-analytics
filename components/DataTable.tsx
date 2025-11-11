@@ -91,7 +91,8 @@ export default function DataTable<T>({tableData, cols}: {tableData: T[], cols: C
     state: {
       sorting,
       columnFilters,
-      pagination
+      pagination,
+      columnVisibility: { po_name: false }
     },
     onColumnFiltersChange: setColumnFilters,
     columnResizeMode: "onChange",

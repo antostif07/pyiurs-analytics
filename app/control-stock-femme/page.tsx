@@ -33,6 +33,7 @@ export interface ControlStockFemmeModel {
   stock_onl: number;
   stock_dc: number;
   stock_other: number;
+  po_name: string
 }
 
 // const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -289,8 +290,6 @@ async function transformToControlStockModel(
   }>();
 
   purchaseOrderLines.forEach((line: PurchaseOrderLine) => {
-    console.log(line);
-    
     let age = "";
     let lastdate;
     const productId = line.product_id?.[0];
@@ -329,7 +328,7 @@ async function transformToControlStockModel(
         imageUrl: imageUrl,
         age,
         stock: stock ? [stock] : [],
-        po_name: ""
+        po_name: line.order_id ? line.order_id[1].split(" ")[0] : "Aucun PO"
       });
     }
 
@@ -419,6 +418,7 @@ async function transformToControlStockModel(
         return acc + val.onl
       }, 0),
       stock_other: 0,
+      po_name: group.po_name
     });
   });
 
