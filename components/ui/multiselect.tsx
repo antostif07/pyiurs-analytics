@@ -536,7 +536,7 @@ const MultipleSelector = ({
       <div className="relative">
         <div
           className={cn(
-            "absolute top-2 z-10 w-full overflow-hidden rounded-md border border-input",
+            "absolute top-2 z-96 w-full overflow-hidden rounded-md border border-input",
             "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
             !open && "hidden"
           )}

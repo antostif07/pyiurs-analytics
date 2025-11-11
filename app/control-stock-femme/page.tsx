@@ -3,7 +3,7 @@ import { OdooProductTemplate } from "../types/product_template";
 import { PurchaseOrder, PurchaseOrderLine } from "../types/purchase";
 import { controlStockBeautyColumns } from "./columns";
 import { CompactFilters } from "./compact-filters";
-import { DataTable } from "./data-table";
+// import { DataTable } from "./data-table";
 import { Suspense } from "react";
 import { TableSkeleton } from "./table-skeleton";
 import { endOfMonth, format, isBefore, startOfMonth } from "date-fns";
@@ -11,6 +11,7 @@ import Link from "next/link";
 import { formatTimeShort } from "@/lib/format-time-short";
 import { StockQuant } from "../types/stock";
 import { extractBoutiqueCode } from "@/lib/utils";
+import Datatable from "@/components/DataTable";
 
 export const dynamic = 'force-dynamic'
 
@@ -242,7 +243,7 @@ async function transformToControlStockModel(
     }
 
     currentStock.total += quantity;
-    console.log(locationName, boutiqueCode, quant.location_id[0], quant, currentStock);
+    // console.log(locationName, boutiqueCode, quant.location_id[0], quant, currentStock);
     
     stockByProductAndBoutique.set(productId, currentStock);
   })
@@ -274,6 +275,7 @@ async function transformToControlStockModel(
     price: string;
     imageUrl: string;
     age: string;
+    po_name: string;
     stock: Array<{
       P24: number;
       ktm: number;
@@ -287,6 +289,8 @@ async function transformToControlStockModel(
   }>();
 
   purchaseOrderLines.forEach((line: PurchaseOrderLine) => {
+    console.log(line);
+    
     let age = "";
     let lastdate;
     const productId = line.product_id?.[0];
@@ -324,7 +328,8 @@ async function transformToControlStockModel(
         price: `${price} $`,
         imageUrl: imageUrl,
         age,
-        stock: stock ? [stock] : []
+        stock: stock ? [stock] : [],
+        po_name: ""
       });
     }
 
@@ -569,7 +574,6 @@ export default async function ControlStockFemmePage({ searchParams }: PageProps)
   const selectedPurchaseOrder = params.purchase_order;
   
   const {data,brands, colors, partners, orderNames} = await getData(startDate, endDate,selectedPartner, selectedPurchaseOrder);
-  console.log(data);
   
   // const stockLocations = await getStockLocations();
   
@@ -731,7 +735,11 @@ export default async function ControlStockFemmePage({ searchParams }: PageProps)
           {/* Table avec Suspense pour le loading */}
           <Suspense fallback={<TableSkeleton />}>
             <div className="p-4">
-              <DataTable columns={controlStockBeautyColumns} data={filteredData} />
+              {/* <DataTable columns={controlStockBeautyColumns} data={filteredData} /> */}
+              <Datatable
+              tableData={filteredData} 
+              cols={controlStockBeautyColumns}
+              />
             </div>
           </Suspense>
 

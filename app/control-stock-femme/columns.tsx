@@ -58,7 +58,14 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
         </div>
       );
     },
-    size: 280,
+    enableColumnFilter: true,
+    size: 300,
+    meta: { filterVariant: "multi-select", label: "Référence", },
+    filterFn: (row, id, filterValues) => {
+      const value = row.getValue(id);
+      if (!filterValues?.length) return true;
+      return filterValues.includes(value);
+    },
   },
   {
     accessorKey: "product_qty",
@@ -81,6 +88,15 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
           {value}
         </span>
       );
+    },
+    size: 90,
+    meta: { filterVariant: "range", label: "Achats", },
+    filterFn: (row, id, filterValue) => {
+      const value = Number(row.getValue(id))
+      const [min, max] = filterValue ?? []
+      if (min !== undefined && value < min) return false
+      if (max !== undefined && value > max) return false
+      return true
     },
   },
   {
@@ -105,7 +121,15 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
         </span>
       );
     },
-    size: 80,
+    size: 90,
+    meta: { filterVariant: "range", label: "Recu", },
+    filterFn: (row, id, filterValue) => {
+      const value = Number(row.getValue(id))
+      const [min, max] = filterValue ?? []
+      if (min !== undefined && value < min) return false
+      if (max !== undefined && value > max) return false
+      return true
+    },
   },
   {
     accessorKey: "not_received",
@@ -124,12 +148,20 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
     cell: ({ getValue }) => {
       const value = getValue<number>();
       return (
-        <span className={value > 0 ? "bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs font-medium" : "text-gray-400 text-sm"}>
+        <span className={value > 0 ? "bg-orange-100 text-orange-900 px-2 py-1 rounded text-xs font-medium" : "text-gray-400 text-sm"}>
           {value}
         </span>
       );
     },
     size: 90,
+    meta: { filterVariant: "range", label: "Rlq", },
+    filterFn: (row, id, filterValue) => {
+      const value = Number(row.getValue(id))
+      const [min, max] = filterValue ?? []
+      if (min !== undefined && value < min) return false
+      if (max !== undefined && value > max) return false
+      return true
+    },
   },
   {
     accessorKey: "qty_sold",
@@ -153,7 +185,15 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
         </span>
       );
     },
-    size: 80,
+    size: 90,
+    meta: { filterVariant: "range", label: "Vendu", },
+    filterFn: (row, id, filterValue) => {
+      const value = Number(row.getValue(id))
+      const [min, max] = filterValue ?? []
+      if (min !== undefined && value < min) return false
+      if (max !== undefined && value > max) return false
+      return true
+    },
   },
   {
     accessorKey: "qty_available",
@@ -178,7 +218,15 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
         </span>
       );
     },
-    size: 80,
+    size: 90,
+    meta: { filterVariant: "range", label: "Dispo", },
+    filterFn: (row, id, filterValue) => {
+      const value = Number(row.getValue(id))
+      const [min, max] = filterValue ?? []
+      if (min !== undefined && value < min) return false
+      if (max !== undefined && value > max) return false
+      return true
+    },
   },
   {
     accessorKey: "stock_24",
@@ -203,7 +251,15 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
         </span>
       );
     },
-    size: 80,
+    size: 90,
+    meta: { filterVariant: "range", label: "P.24", },
+    filterFn: (row, id, filterValue) => {
+      const value = Number(row.getValue(id))
+      const [min, max] = filterValue ?? []
+      if (min !== undefined && value < min) return false
+      if (max !== undefined && value > max) return false
+      return true
+    },
   },
   {
     accessorKey: "stock_ktm",
@@ -228,7 +284,15 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
         </span>
       );
     },
-    size: 80,
+    size: 90,
+    meta: { filterVariant: "range", label: "P.KTM", },
+    filterFn: (row, id, filterValue) => {
+      const value = Number(row.getValue(id))
+      const [min, max] = filterValue ?? []
+      if (min !== undefined && value < min) return false
+      if (max !== undefined && value > max) return false
+      return true
+    },
   },
   {
     accessorKey: "stock_lmb",
@@ -253,7 +317,15 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
         </span>
       );
     },
-    size: 80,
+    size: 90,
+    meta: { filterVariant: "range", label: "P.LMB", },
+    filterFn: (row, id, filterValue) => {
+      const value = Number(row.getValue(id))
+      const [min, max] = filterValue ?? []
+      if (min !== undefined && value < min) return false
+      if (max !== undefined && value > max) return false
+      return true
+    },
   },
   {
     accessorKey: "stock_mto",
@@ -278,7 +350,15 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
         </span>
       );
     },
-    size: 80,
+    size: 90,
+    meta: { filterVariant: "range", label: "P.MTO", },
+    filterFn: (row, id, filterValue) => {
+      const value = Number(row.getValue(id))
+      const [min, max] = filterValue ?? []
+      if (min !== undefined && value < min) return false
+      if (max !== undefined && value > max) return false
+      return true
+    },
   },
   {
     accessorKey: "stock_onl",
@@ -303,7 +383,15 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
         </span>
       );
     },
-    size: 80,
+    size: 90,
+    meta: { filterVariant: "range", label: "P.ONL", },
+    filterFn: (row, id, filterValue) => {
+      const value = Number(row.getValue(id))
+      const [min, max] = filterValue ?? []
+      if (min !== undefined && value < min) return false
+      if (max !== undefined && value > max) return false
+      return true
+    },
   },
   {
     accessorKey: "stock_dc",
@@ -327,6 +415,15 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
           {value}
         </span>
       );
+    },
+    size: 90,
+    meta: { filterVariant: "range", label: "DC", },
+    filterFn: (row, id, filterValue) => {
+      const value = Number(row.getValue(id))
+      const [min, max] = filterValue ?? []
+      if (min !== undefined && value < min) return false
+      if (max !== undefined && value > max) return false
+      return true
     },
   },
   // {
@@ -371,7 +468,7 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
     cell: ({ getValue }) => {
       const value = getValue<number>();
       return (
-        <span className={value > 0 ? "bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs font-medium" : "text-gray-400 text-sm"}>
+        <span className={value > 0 ? "bg-orange-100 text-orange-900 px-2 py-1 rounded text-xs font-medium" : "text-gray-400 text-sm"}>
           {value}
         </span>
       );

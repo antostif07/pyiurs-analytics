@@ -1,7 +1,7 @@
 import { Label } from "@/components/ui/label"
 import MultipleSelector, { Option } from "@/components/ui/multiselect"
 
-export default function Multiselect({label, options, placeholder}: {label: string, options: Option[], placeholder?: string}) {
+export default function Multiselect({label, options, placeholder,onChange}: {label: string, options: Option[], placeholder?: string, onChange: ((options: Option[]) => void) | undefined}) {
   return (
     <div className="*:not-first:mt-2">
       <Label>{label}</Label>
@@ -12,23 +12,8 @@ export default function Multiselect({label, options, placeholder}: {label: strin
         defaultOptions={options}
         placeholder={placeholder ?? ""}
         emptyIndicator={<p className="text-center text-sm">No results found</p>}
-        onChange={(e) => console.log(e)}
+        onChange={onChange}
       />
-      <p
-        className="mt-2 text-xs text-muted-foreground"
-        role="region"
-        aria-live="polite"
-      >
-        Inspired by{" "}
-        <a
-          className="underline hover:text-foreground"
-          href="https://shadcnui-expansions.typeart.cc/docs/multiple-selector"
-          target="_blank"
-          rel="noopener nofollow"
-        >
-          shadcn/ui expansions
-        </a>
-      </p>
     </div>
   )
 }
