@@ -43,6 +43,7 @@ interface ClotureVentesClientProps {
   isUserRestricted: boolean
   showShopSelector: boolean
   userRole?: string
+  userName?: string
 }
 
 export default function ClotureVentesClient({ 

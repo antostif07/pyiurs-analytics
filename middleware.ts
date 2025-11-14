@@ -1,37 +1,70 @@
 // middleware.ts
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
-import { getSession } from '@/lib/session';
-import { users, hasPermission } from '@/lib/users';
+import { createServerClient } from '@supabase/ssr'
+import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  const session = await getSession(request.headers.get('cookie'));
+  let response = NextResponse.next({
+    request,
+  })
 
-  if (!session?.isLoggedIn && !request.nextUrl.pathname.startsWith('/api/auth')) {
-    return NextResponse.redirect(new URL('/', request.url));
-  }
-
-  // Vérifier les permissions si l'utilisateur est connecté
-  if (session?.isLoggedIn) {
-    const user = users.find(u => u.id === session.userId);
-    
-    if (user && !hasPermission(user, request.nextUrl.pathname)) {
-      // Rediriger vers la page d'accueil si pas la permission
-      return NextResponse.redirect(new URL('/', request.url));
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            request.cookies.set(name, value)
+            response.cookies.set(name, value, options)
+          })
+        },
+      },
     }
+  )
+
+  // Rafraîchir la session
+  const { data: { session }, error } = await supabase.auth.getSession()
+
+  // Routes protégées
+  const protectedRoutes = ['/*', '/gestion-drive', '/cash-closures', '/reports', '/users'];
+  const isProtectedRoute = protectedRoutes.some(route => 
+    request.nextUrl.pathname.startsWith(route)
+  );
+
+  // Routes publiques
+  const publicRoutes = ['/login', ];
+  const isPublicRoute = publicRoutes.some(route => 
+    request.nextUrl.pathname.startsWith(route)
+  );
+
+  // Redirection si route protégée sans session
+  if (isProtectedRoute && !session) {
+    const redirectUrl = new URL('/login', request.url)
+    redirectUrl.searchParams.set('redirectedFrom', request.nextUrl.pathname)
+    return NextResponse.redirect(redirectUrl)
   }
 
-  return NextResponse.next();
+  // Redirection si déjà connecté et sur une route publique
+  if (isPublicRoute && session) {
+    const redirectUrl = new URL('/documents', request.url)
+    return NextResponse.redirect(redirectUrl)
+  }
+
+  return response
 }
 
 export const config = {
   matcher: [
-    '/manager-kpis/:path*',
-    '/control-revenue-beauty/:path*',
-    '/control-stock-beauty/:path*',
-    '/control-stock-femme/:path*',
-    '/client-base/:path*',
-    '/client-base-beauty/:path*',
-    '/parc-client/:path*',
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public folder
+     */
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
-};
+}

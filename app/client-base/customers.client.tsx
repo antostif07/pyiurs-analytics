@@ -1,4 +1,3 @@
-// app/customers/components/customers.client.tsx
 'use client';
 
 import { useMemo, useState, useCallback } from 'react';

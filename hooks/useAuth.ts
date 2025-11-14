@@ -1,11 +1,13 @@
 // hooks/useAuth.ts
 "use client";
 
-import { User } from '@/lib/users';
+import { UserWithPermissions } from '@/lib/users';
 import { useState, useEffect } from 'react';
+import { AuthService } from '@/lib/supabase/auth-service';
+import { ModuleService } from '@/lib/supabase/module-service';
 
 export function useAuth() {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<UserWithPermissions | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -15,10 +17,11 @@ export function useAuth() {
   const checkAuth = async () => {
     try {
       const response = await fetch('/api/auth/me');
-      const data = await response.json();
-      
-      if (data.user) {
-        setUser(data.user);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.user) {
+          setUser(data.user);
+        }
       }
     } catch (error) {
       console.error('Auth check failed:', error);
@@ -67,39 +70,39 @@ export function useAuth() {
     return user.permissions.includes(path);
   };
 
-  // Nouvelle méthode pour vérifier les rôles
   const hasRole = (roles: string[]): boolean => {
     if (!user) return false;
     return roles.includes(user.role);
   };
 
-  // Nouvelle méthode pour obtenir les shops attribués
   const getAssignedShops = (): string[] => {
     if (!user) return [];
     
-    if (user.assignedShop === 'all') {
-      return ['all']; // Accès à tous les shops
+    if (user.assigned_shop === 'all') {
+      return ['all'];
     }
     
-    return user.assignedShop || [];
+    return Array.isArray(user.assigned_shop) ? user.assigned_shop : [];
   };
 
-  // Vérifier si l'utilisateur a accès à un shop spécifique
   const hasShopAccess = (shopId: string): boolean => {
     if (!user) return false;
     
-    if (user.assignedShop === 'all') {
+    if (user.assigned_shop === 'all') {
       return true;
     }
     
-    return user.assignedShop?.includes(shopId) || false;
+    return Array.isArray(user.assigned_shop) 
+      ? user.assigned_shop.includes(shopId)
+      : false;
   };
 
-  // Vérifier si l'utilisateur est limité à des shops spécifiques
   const isShopRestricted = (): boolean => {
     if (!user) return true;
     
-    return user.assignedShop !== 'all' && (user.assignedShop?.length || 0) > 0;
+    return user.assigned_shop !== 'all' && 
+           Array.isArray(user.assigned_shop) && 
+           user.assigned_shop.length > 0;
   };
 
   return {

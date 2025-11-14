@@ -32,24 +32,7 @@ let cachedData: {
   timestamp: number;
 } | null = null;
 
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-
-// async function getStockLocations() {
-//   const res = await fetch(
-//     `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/stock.location?fields=id,name,complete_name,active`,
-//     { 
-//       next: { 
-//         revalidate: 300
-//       } 
-//     }
-//   );
-
-//   if (!res.ok) {
-//     throw new Error("Erreur API Odoo - Stock Location");
-//   }
-
-//   return res.json();
-// }
+const CACHE_DURATION = 5 * 60 * 1000;
 
 async function getStockQuantsForProducts(productIds: number[]): Promise<{ records: StockQuant[], success: boolean }> {
   if (productIds.length === 0) return { records: [], success: true };;
@@ -81,7 +64,8 @@ async function getStockQuantsForProducts(productIds: number[]): Promise<{ record
       );
 
       if (!res.ok) {
-        throw new Error(`Erreur lors de la récupération des stocks: ${res.statusText}`);
+        console.log(`Erreur lors de la récupération des stocks: ${res.statusText}`);
+        return {success: false, records: []}
       }
 
       const batchResults = await res.json();
@@ -211,8 +195,6 @@ async function getControlStockData(): Promise<{
     getStockQuantsForProducts(allProductIds),
     // getStockLocations(),
   ]);
-
-  console.log(purchaseOrderLines.records[0]);
   
   // viewer = stockLocations.records;
 

@@ -1,23 +1,43 @@
 // app/api/auth/me/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/session';
-import { users } from '@/lib/users';
+import { NextRequest, NextResponse } from 'next/server'
+import { AuthService } from '@/lib/supabase/auth-service'
 
 export async function GET(request: NextRequest) {
-  const session = await getSession(request.headers.get('cookie'));
+  try {
+    const userId = request.cookies.get('userId')?.value
 
-  if (!session?.isLoggedIn) {
-    return NextResponse.json({ user: null }, { status: 200 });
+    if (!userId) {
+      return NextResponse.json({ user: null })
+    }
+
+    const user = await AuthService.getUserById(userId)
+    
+    if (!user) {
+      // Clear invalid cookie
+      const response = NextResponse.json({ user: null })
+      response.cookies.set('userId', '', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 0,
+        path: '/'
+      })
+      return response
+    }
+
+    return NextResponse.json({ 
+      user: {
+        id: user.id,
+        username: user.username,
+        name: user.name,
+        role: user.role,
+        permissions: user.permissions,
+        assigned_shop: user.assigned_shop
+      }
+    })
+
+  } catch (error) {
+    console.error('Auth check error:', error)
+    return NextResponse.json({ user: null })
   }
-
-  const user = users.find(u => u.id === session.userId);
-  
-  if (!user) {
-    return NextResponse.json({ user: null }, { status: 200 });
-  }
-
-  // Ne pas renvoyer le mot de passe
-  const { ...userWithoutPassword } = user;
-
-  return NextResponse.json({ user: userWithoutPassword });
 }

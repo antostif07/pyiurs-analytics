@@ -33,7 +33,8 @@ export interface ControlStockFemmeModel {
   stock_onl: number;
   stock_dc: number;
   stock_other: number;
-  po_name: string
+  po_name: string;
+  posOrderLines?: ControlStockFemmeModel[] 
 }
 
 // const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -418,7 +419,8 @@ async function transformToControlStockModel(
         return acc + val.onl
       }, 0),
       stock_other: 0,
-      po_name: group.po_name
+      po_name: group.po_name,
+      posOrderLines: []
     });
   });
 

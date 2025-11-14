@@ -5,7 +5,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { VendeuseSalesData } from "./page";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { POSOrderLine } from "../types/pos";

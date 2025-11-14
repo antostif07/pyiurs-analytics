@@ -1,8 +1,10 @@
+// app/manager-kpis/page.tsx
 import { POSConfig, POSOrder, POSOrderLine } from "../types/pos";
 import { mapOdooProduct, Product } from "../types/product_template";
 import { isBeauty } from "@/lib/is_beauty";
 import DailySalesClient from "./components/daily-sales.client";
 import { getMonthDates } from "@/lib/date-utils";
+import { EnrichedPOSLine } from "../types/daily-sales";
 
 // Types
 export interface DailySaleData {
@@ -26,221 +28,255 @@ interface PageProps {
   }>;
 }
 
+// Configuration pour les requêtes API
+const API_CONFIG = {
+  revalidate: 300, // 5 minutes
+  next: {
+    tags: ['pos-data'] // Pour la revalidation par tag si nécessaire
+  }
+};
+
 async function getPOSConfig() {
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.config?fields=id,name`,
     { 
-      next: {
-        revalidate: 4
-      }
+      next: { revalidate: 3600 } // 1 heure - les configs changent rarement
     }
   );
 
   if (!res.ok) {
-    throw new Error("Erreur API Odoo - Ventes POS");
+    throw new Error("Erreur API Odoo - Configuration POS");
   }
 
   return res.json();
 }
 
 async function getPOSOrders(boutiqueId?: string, month?: string, year?: string) {
-    const { firstDay, lastDay } = getMonthDates(month, year);
-    
-    let domain = `[["create_date", ">", "${firstDay}"], ["create_date", "<=", "${lastDay}"]]`;
+  const { firstDay, lastDay } = getMonthDates(month, year);
+  
+  let domain = `[
+    ["create_date", ">", "${firstDay}"], 
+    ["create_date", "<=", "${lastDay}"],
+    ["state", "in", ["paid", "done", "invoiced"]]
+  ]`;
 
-    if (boutiqueId) {
-        domain = `[["config_id", "=", ${boutiqueId}], ["create_date", ">", "${firstDay}"], ["create_date", "<=", "${lastDay}"]]`;
-    }
-    
-    const res = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.order?fields=id,config_id,create_date&domain=${encodeURIComponent(domain)}`,
-    { 
-      next: { 
-        revalidate: 300 // 5 minutes
-      } 
-    }
+  if (boutiqueId) {
+    domain = `[
+      ["config_id", "=", ${boutiqueId}], 
+      ["create_date", ">", "${firstDay}"], 
+      ["create_date", "<=", "${lastDay}"],
+      ["state", "in", ["paid", "done", "invoiced"]]
+    ]`;
+  }
+  
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.order?fields=id,config_id,create_date,amount_total,state&domain=${encodeURIComponent(domain)}`,
+    API_CONFIG
   );
 
   if (!res.ok) {
-    throw new Error("Erreur API Odoo - Ventes POS");
+    throw new Error("Erreur API Odoo - Commandes POS");
   }
 
   return res.json();
 }
 
 async function getPOSOrderLines(boutiqueId?: string, month?: string, year?: string) {
-    const { firstDay, lastDay } = getMonthDates(month, year);
-    let domain = `[["create_date", ">", "${firstDay}"], ["create_date", "<=", "${lastDay}"]]`;
-    if (boutiqueId) {
-        const orders = await getPOSOrders(boutiqueId, month, year);
-        const orderIds = orders.records.map((order: POSOrder) => order.id);
-        
-        if (orderIds.length === 0) {
-          return { records: [] };
-        }
-        
-        domain = `[["order_id", "in", [${orderIds.join(',')}]]]`;
+  const { firstDay, lastDay } = getMonthDates(month, year);
+  let domain = `[
+    ["create_date", ">", "${firstDay}"], 
+    ["create_date", "<=", "${lastDay}"]
+  ]`;
+  
+  if (boutiqueId) {
+    const orders = await getPOSOrders(boutiqueId, month, year);
+    const orderIds = orders.records.map((order: POSOrder) => order.id);
+    
+    if (orderIds.length === 0) {
+      return { records: [] };
     }
     
-    const res = await fetch(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.order.line?fields=id,qty,product_id,qty,create_date,price_unit,order_id&domain=${encodeURIComponent(domain)}`,
-        { 
-        next: { 
-            revalidate: 300 // 5 minutes
-        } 
-        }
-    );
+    domain = `[["order_id", "in", [${orderIds.join(',')}]]]`;
+  }
+  
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.order.line?fields=id,qty,product_id,create_date,price_unit,order_id,price_subtotal&domain=${encodeURIComponent(domain)}`,
+    API_CONFIG
+  );
 
   if (!res.ok) {
-    console.log(res.statusText);
-    
-    throw new Error("Erreur API Odoo - Ventes POS");
+    console.error("Erreur API Odoo - Lignes de commande:", res.statusText);
+    throw new Error("Erreur API Odoo - Lignes de commande POS");
   }
 
   return res.json();
 }
 
 async function getProductsFromPOSLines(posLines: POSOrderLine[]) {
-    const productIds = [...new Set(posLines.map(line => line.product_id[0]))];
-    
-    if (productIds.length === 0) {
-        return { records: [] };
+  const productIds = [...new Set(posLines.map(line => line.product_id[0]))];
+  
+  if (productIds.length === 0) {
+    return { records: [] };
+  }
+
+  const domain = `[["product_variant_ids", "in", [${productIds.join(',')}]]]`;
+
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/product.template?fields=id,name,list_price,categ_id,hs_code,product_variant_id,categ_id&domain=${encodeURIComponent(domain)}`,
+    {
+      next: { revalidate: 3600 } // Cache plus long pour les produits
     }
+  );
 
-    const domain = `[["product_variant_ids", "in", [${productIds.join(',')}]]]`;
+  if (!res.ok) {
+    throw new Error("Erreur API Odoo - Produits");
+  }
 
-    const res = await fetch(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/product.template?fields=id,name,list_price,categ_id,hs_code,product_variant_id&domain=${encodeURIComponent(domain)}`,
-        {
-          cache: "no-cache"
-        }
-    );
-
-    if (!res.ok) {
-        throw new Error("Erreur API Odoo - Produits POS");
-    }
-
-    return res.json();
+  return res.json();
 }
 
 async function getPOSDataWithProducts(boutiqueId?: string, month?: string, year?: string) {
   try {
-    // Récupérer les lignes POS
-    const [posData, posConfigData] = await Promise.all([
+    // Récupérer les données en parallèle quand possible
+    const [posLinesData, posConfigData, ordersData] = await Promise.all([
       getPOSOrderLines(boutiqueId, month, year),
-      getPOSConfig()
+      getPOSConfig(),
+      getPOSOrders(boutiqueId, month, year)
     ]);
-    const posLines = posData.records;
+
+    const posLines = posLinesData.records;
     const posConfigs = posConfigData.records;
-    
+    const orders = ordersData.records;
+
+    if (posLines.length === 0) {
+      return [];
+    }
+
     // Récupérer les produits associés
     const productsData = await getProductsFromPOSLines(posLines);
     const products = productsData.records.map(mapOdooProduct);
-    
-    const ordersData = await getPOSOrders(boutiqueId);
-    const orders = ordersData.records;
 
-    // Mapper les IDs de configuration aux noms de boutique
+    // Créer un map pour les relations order -> boutique
     const orderToBoutiqueMap = new Map();
-
     orders.forEach((order: POSOrder) => {
-        const config = posConfigs.find((c: POSConfig) => c.id === order.config_id[0]);
-        if (config) {
-            orderToBoutiqueMap.set(order.id, {
-                id: config.id,
-                name: config.name
-            });
-        }
-    })
-    // Combiner les données
+      const config = posConfigs.find((c: POSConfig) => c.id === order.config_id[0]);
+      if (config) {
+        orderToBoutiqueMap.set(order.id, {
+          id: config.id,
+          name: config.name
+        });
+      }
+    });
+
+    // Enrichir les données
     const enrichedData = posLines.map((line: POSOrderLine) => {
-        const product = products.find((p: Product) => p.productVariantId === line.product_id[0]);
-        const boutiqueInfo = orderToBoutiqueMap.get(line.order_id[0]);
+      const product = products.find((p: Product) => p.productVariantId === line.product_id[0]);
+      const boutiqueInfo = orderToBoutiqueMap.get(line.order_id[0]);
 
       return {
-            ...line,
-            product_name: product?.name || 'Produit inconnu',
-            product_category: product?.categoryName || 'Non catégorisé',
-            product_price: product?.price_unit || 0,
-            total_amount: (line.qty * (line.price_unit || 0)),
-            boutique_id: boutiqueInfo?.id || null,
-            boutique_name: boutiqueInfo?.name || 'Inconnue'
-        };
-    });
-    
+        ...line,
+        product_name: product?.name || 'Produit inconnu',
+        product_category: product?.categ_id?.[1] || 'Non catégorisé',
+        product_price: product?.list_price || line.price_unit || 0,
+        total_amount: line.price_subtotal || (line.qty * (line.price_unit || 0)),
+        boutique_id: boutiqueInfo?.id || null,
+        boutique_name: boutiqueInfo?.name || 'Inconnue'
+      }
+    })
+
     return enrichedData;
-    
+
   } catch (error) {
     console.error('❌ Erreur lors de la récupération des données POS:', error);
     throw error;
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function calculateDailySales(data: any[]): DailySaleData[] {
-    const salesByDate: { [key: string]: DailySaleData } = {};
+function calculateDailySales(data: EnrichedPOSLine[]): DailySaleData[] {
+  const salesByDate: { [key: string]: DailySaleData } = {};
+
+  data.forEach(item => {
+    const date = item.create_date ? item.create_date.split(' ')[0] : new Date().toISOString().split('T')[0];
+
+    if (!salesByDate[date]) {
+      salesByDate[date] = {
+        id: date,
+        date: date,
+        boutique: item.boutique_name || "Pyiurs",
+        totalSales: 0,
+        rentAmount: 0,
+        safeAmount: 0,
+        ceoAmount: 0,
+        beautyAmount: 0,
+        dailyGoal: 2000,
+        progress: 0
+      };
+    }
+
+    const beautyAmount = isBeauty(item.product_category) ? (item.total_amount || 0) : 0;
     
-    data.forEach(item => {
-        const date = item.create_date ? item.create_date.split(' ')[0] : new Date().toISOString().split('T')[0];
+    // Ajouter au total des ventes
+    salesByDate[date].totalSales += item.total_amount || 0;
+    salesByDate[date].beautyAmount += beautyAmount;
+    
+    // Calcul du safe amount (50% du reste après beauty)
+    const nonBeautyAmount = item.total_amount - beautyAmount;
+    salesByDate[date].safeAmount += nonBeautyAmount * 0.5;
+  });
 
-        if (!salesByDate[date]) {
-            salesByDate[date] = {
-                id: date,
-                date: date,
-                boutique: item.boutique_name || "Pyiurs",
-                totalSales: 0,
-                rentAmount: 0,
-                safeAmount: 0,
-                ceoAmount: 0,
-                beautyAmount: 0,
-                dailyGoal: 2000,
-                progress: 0
-            };
-        }
+  // Calculer les épargnes pour chaque jour
+  Object.values(salesByDate).forEach((day: DailySaleData) => {
+    day.rentAmount = day.totalSales * 0.25; // 25% pour le loyer
+    day.ceoAmount = day.totalSales * 0.10;  // 10% pour le CEO
+    day.progress = (day.totalSales / day.dailyGoal) * 100;
+  });
 
-        const beautyAmount = isBeauty(item.product_category) ? (item.total_amount || 0) : 0;
-        
-        // Ajouter au total des ventes
-        salesByDate[date].totalSales += (item.total_amount) || 0;
-        salesByDate[date].beautyAmount += beautyAmount;
-        salesByDate[date].safeAmount += (item.total_amount - beautyAmount) / 2; // 50% du reste pour le coffre fort
-    });
-
-    // Calculer les épargnes pour chaque jour
-    Object.values(salesByDate).forEach((day: DailySaleData) => {
-        // Calcul des épargnes basé sur le total des ventes beauty
-        day.rentAmount = day.totalSales * 0.25; // 25% pour le loyer
-        day.ceoAmount = day.totalSales * 0.10; // 10% pour le CEO
-        day.progress = (day.totalSales / day.dailyGoal) * 100;
-    });
-
-    // Trier par date (du plus récent au plus ancien)
-    return Object.values(salesByDate)
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) as DailySaleData[];
+  // Trier par date (du plus récent au plus ancien)
+  return Object.values(salesByDate)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 }
 
-export default async function DailySalesTablePage({searchParams}: PageProps) {
-    const params = await searchParams;
-    const boutiqueId = params.boutique || undefined;
-    const month = params.month || undefined;
-    const year = params.year || undefined;
+export default async function DailySalesTablePage({ searchParams }: PageProps) {
+  const params = await searchParams;
+  const boutiqueId = params.boutique || undefined;
+  const month = params.month || undefined;
+  const year = params.year || undefined;
 
-    const posDataWithProducts = await getPOSDataWithProducts(boutiqueId, params.month, params.year);
+  try {
+    const posDataWithProducts = await getPOSDataWithProducts(boutiqueId, month, year);
     const salesData = calculateDailySales(posDataWithProducts);
 
     const posConfigData = await getPOSConfig();
     const boutiques = posConfigData.records.map((config: POSConfig) => ({
-        id: config.id,
-        name: config.name
+      id: config.id,
+      name: config.name
     }));
 
-  return (
-    <DailySalesClient
-      initialData={salesData}
-      boutiques={boutiques}
-      selectedBoutiqueId={boutiqueId}
-      selectedMonth={month}
-      selectedYear={year}
-    />
-  );
+    return (
+      <DailySalesClient
+        initialData={salesData}
+        boutiques={boutiques}
+        selectedBoutiqueId={boutiqueId}
+        selectedMonth={month}
+        selectedYear={year}
+      />
+    );
+  } catch (error) {
+    console.error('Error in page component:', error);
+    
+    // Vous pourriez retourner une page d'erreur ici
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-6xl mb-4">❌</div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+            Erreur de chargement
+          </h1>
+          <p className="text-gray-600 dark:text-gray-300">
+            Impossible de charger les données. Veuillez réessayer.
+          </p>
+        </div>
+      </div>
+    );
+  }
 }

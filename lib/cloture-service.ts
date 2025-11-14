@@ -1,3 +1,4 @@
+import { CashClosure } from "@/app/types/cloture"
 import { Database, supabase } from "./supabase"
 
 export interface NegativeSaleJustification {
@@ -61,7 +62,7 @@ export const clotureService = {
       }
 
       if (overlapping && overlapping.length > 0) {
-        const overlappingClosure = overlapping[0]
+        const overlappingClosure = overlapping[0] as CashClosure
         return {
           canClose: false,
           reason: `La période du ${startDate} au ${endDate} chevauche une clôture existante du ${overlappingClosure.opening_date} au ${overlappingClosure.closing_date}`,
@@ -122,12 +123,12 @@ export const clotureService = {
     const lastClosure = await this.getLastClosureByShop(closure.shop_id)
 
     if (lastClosure) {
-      const lastDate = new Date(lastClosure.closing_date)
+      const lastDate = new Date((lastClosure as CashClosure).closing_date)
       const newDate = new Date(closure.opening_date)
 
       if (newDate <= lastDate) {
         throw new Error(
-          `Impossible de clôturer une date antérieure ou égale à la dernière clôture (${lastClosure.closing_date})`
+          `Impossible de clôturer une date antérieure ou égale à la dernière clôture (${(lastClosure as CashClosure).closing_date})`
         )
       }
     }
@@ -154,7 +155,7 @@ export const clotureService = {
       throw new Error(`Erreur création clôture: ${closureError.message}`)
     }
 
-    const closureId = closureData.id
+    const closureId = (closureData as ClotureDataView).id
 
     // Sauvegarder les justifications des ventes négatives
     if (negativeSaleJustifications && negativeSaleJustifications.length > 0) {
@@ -261,7 +262,7 @@ export const clotureService = {
       .single()
 
     if (error) throw new Error(`Erreur récupération clôture: ${error.message}`)
-    return data
+    return data as ClotureDataView
   },
 
   // Vérifier si une clôture existe déjà pour cette date et boutique
