@@ -35,7 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -90,7 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // Rediriger seulement si nécessaire (éviter les boucles)
         if (event === 'SIGNED_IN' && pathname === '/login') {
-          router.push('/documents');
+          router.push('/');
           router.refresh();
         } else if (event === 'SIGNED_OUT' && pathname !== '/login') {
           router.push('/login');

@@ -152,6 +152,9 @@ export default function Home() {
   const { user, profile, loading, signOut } = useAuth(); // ← Ajouter signOut
   const router = useRouter();
 
+  console.log(loading);
+  
+
   // Rediriger vers login si non authentifié
   useEffect(() => {
     if (!loading && !user) {

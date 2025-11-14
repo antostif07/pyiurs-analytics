@@ -49,7 +49,7 @@ export async function middleware(request: NextRequest) {
 
   // Redirection si déjà connecté et sur une route publique
   if (isPublicRoute && session) {
-    const redirectUrl = new URL('/documents', request.url)
+    const redirectUrl = new URL('/', request.url)
     return NextResponse.redirect(redirectUrl)
   }
 

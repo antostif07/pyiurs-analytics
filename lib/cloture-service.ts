@@ -262,7 +262,7 @@ export const clotureService = {
       .single()
 
     if (error) throw new Error(`Erreur récupération clôture: ${error.message}`)
-    return data as ClotureDataView
+    return data
   },
 
   // Vérifier si une clôture existe déjà pour cette date et boutique
