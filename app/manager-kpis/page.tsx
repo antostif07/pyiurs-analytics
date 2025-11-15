@@ -2,7 +2,7 @@
 import { POSConfig, POSOrder, POSOrderLine } from "../types/pos";
 import { mapOdooProduct, Product } from "../types/product_template";
 import { isBeauty } from "@/lib/is_beauty";
-import DailySalesClient from "./components/daily-sales.client";
+import DailySalesClient from "./daily-sales.client";
 import { getMonthDates } from "@/lib/date-utils";
 import { EnrichedPOSLine } from "../types/daily-sales";
 

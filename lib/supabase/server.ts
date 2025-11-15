@@ -1,38 +1,100 @@
-"use server"
-
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
+// lib/supabase/server.ts
+import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { cache } from 'react'
 
-export const createClient = async (cookieStore: ReturnType<typeof cookies>) => {
+export const createClient = cache(() => {
+  const cookieStore = cookies()
+
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        async get(name: string) {
-          return (await cookieStore).get(name)?.value
+        async getAll() {
+          return (await cookieStore).getAll()
         },
-        async set(name: string, value: string, options: CookieOptions) {
+        setAll(cookiesToSet) {
           try {
-            (await cookieStore).set({ name, value, ...options })
+            cookiesToSet.forEach(async ({ name, value, options }) =>
+              (await cookieStore).set(name, value, options)
+            )
           } catch (error) {
-            console.log(error);
-            
-            // The `set` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing user sessions.
-          }
-        },
-        async remove(name: string, options: CookieOptions) {
-          try {
-            (await cookieStore).set({ name, value: '', ...options })
-          } catch (error) {
-            console.log(error);
-            
-            // The `delete` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing user sessions.
+            // Gérer l'erreur si nécessaire
           }
         },
       },
     }
   )
-}
+})
+
+// Fonction pour récupérer l'utilisateur côté serveur
+export const getServerUser = cache(async () => {
+  const supabase = createClient()
+  
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser()
+    
+    if (error) {
+      console.error('Error getting server user:', error)
+      return null
+    }
+    
+    return user
+  } catch (error) {
+    console.error('Error in getServerUser:', error)
+    return null
+  }
+})
+
+// Fonction pour récupérer le profil côté serveur
+export const getServerProfile = cache(async (userId: string) => {
+  const supabase = createClient()
+  
+  try {
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single()
+
+    if (error) {
+      console.error('Error getting server profile:', error)
+      return null
+    }
+
+    return profile
+  } catch (error) {
+    console.error('Error in getServerProfile:', error)
+    return null
+  }
+})
+
+// Fonction pour récupérer user + profile + session côté serveur
+export const getServerAuth = cache(async () => {
+  const supabase = createClient()
+  
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession()
+    
+    if (error || !session) {
+      return { user: null, profile: null, session: null }
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .single()
+
+    if (profileError) {
+      console.error('Error getting server profile:', profileError)
+      return { user: session.user, profile: null, session }
+    }
+
+    return { user: session.user, profile, session }
+  } catch (error) {
+    console.error('Error in getServerAuth:', error)
+    return { user: null, profile: null, session: null }
+  }
+})

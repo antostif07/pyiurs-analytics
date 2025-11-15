@@ -2,7 +2,7 @@
 'use client'
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DailySaleData } from "../page";
+import { DailySaleData } from "./page";
 import { BoutiqueSelector } from "@/components/boutique-selector";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";

@@ -1,7 +1,7 @@
 // components/boutique-selector.tsx
 'use client';
 
-import { Boutique } from "@/app/manager-kpis/components/daily-sales.client";
+import { Boutique } from "@/app/manager-kpis/daily-sales.client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
 interface BoutiqueSelectorProps {

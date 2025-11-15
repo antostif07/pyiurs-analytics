@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 export async function GET(req: Request, context: { params: Promise<{ model: string }> }) {
   const { model } = await context.params;
   const { searchParams } = new URL(req.url);
-
+  
   // ?fields=id,name,email
   const fields = searchParams.get("fields")?.split(",") || [];
 
@@ -26,6 +26,9 @@ export async function GET(req: Request, context: { params: Promise<{ model: stri
   }
 
   const result = await fetchFromOdoo(model, fields, domain);
+
+  console.log(result);
+  
 
   if (!result.success) {
     return NextResponse.json(result, { status: 500 });

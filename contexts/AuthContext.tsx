@@ -1,10 +1,10 @@
-// contexts/AuthContext.tsx
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, ReactNode, useContext, useEffect, useMemo, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { createBrowserClient } from '@supabase/ssr';
-import type { User, Session } from '@supabase/supabase-js';
+import type { User, Session, SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/supabase/client';
+import { Loader2 } from 'lucide-react';
 
 interface Profile {
   id: string;
@@ -24,47 +24,95 @@ interface AuthContextType {
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: any }>;
+  supabase: SupabaseClient;
   signOut: () => Promise<void>;
-  refreshSession: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(false);
+interface AuthProviderProps {
+  children: ReactNode;
+  serverUser?: User | null;
+  serverProfile?: Profile | null;
+}
+
+export function AuthProvider({ 
+  children, 
+  serverUser = null, 
+  serverProfile = null 
+}: AuthProviderProps) {
+  const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
-  const pathname = usePathname();
+  const [user, setUser] = useState<User | null>(serverUser);
+  const [profile, setProfile] = useState<Profile | null>(serverProfile);
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(!serverUser);
+  const [profileLoading, setProfileLoading] = useState(!serverProfile);
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  const fetchUserProfile = async (userId: string) => {
+    setProfileLoading(true);
+    
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+        
+      if (error) {
+        console.error('Erreur lors de la récupération du profil:', error);
+        setProfile(null);
+        return;
+      }
+
+      setProfile(data);
+    } catch (error) {
+      console.error('Erreur dans fetchUserProfile:', error);
+      setProfile(null);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const initializeAuth = async () => {
-      setLoading(true);
+    // Si on a déjà les données du serveur, on peut skip l'initialisation client
+    if (serverUser && serverProfile) {
+      setLoading(false);
+      setProfileLoading(false);
       
+      // Récupérer la session si on a un user
+      if (serverUser) {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          setSession(session);
+        });
+      }
+      return;
+    }
+
+    const initializeAuth = async () => {
       try {
-        const { data: { session: currentSession }, error } = await supabase.auth.getSession();
+        // Récupération de la session et de l'utilisateur
+        const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
           console.error('Error getting session:', error);
-          setLoading(false);
-          return;
+          throw error;
         }
+        
+        setSession(session);
+        setUser(session?.user ?? null);
 
-        setSession(currentSession);
-        setUser(currentSession?.user ?? null);
-
-        if (currentSession?.user) {
-          await fetchProfile(currentSession.user.id);
+        // Si un utilisateur est connecté, récupérer son profil
+        if (session?.user) {
+          await fetchUserProfile(session.user.id);
+        } else {
+          setProfile(null);
         }
       } catch (error) {
-        console.error('Auth initialization error:', error);
+        console.error("Erreur lors de l'initialisation auth:", error);
+        setUser(null);
+        setProfile(null);
+        setSession(null);
       } finally {
         setLoading(false);
       }
@@ -72,112 +120,67 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     initializeAuth();
 
-    // Écouter les changements d'authentification
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, currentSession) => {
-        console.log('Auth state changed:', event);
-        
-        setSession(currentSession);
-        setUser(currentSession?.user ?? null);
+    // Écouter les changements d'état d'authentification
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      const currentUser = session?.user ?? null;
+      const currentSession = session;
+      
+      setUser(currentUser);
+      setSession(currentSession);
 
-        if (currentSession?.user) {
-          await fetchProfile(currentSession.user.id);
-        } else {
-          setProfile(null);
-        }
-        
-        setLoading(false);
-
-        // Rediriger seulement si nécessaire (éviter les boucles)
-        if (event === 'SIGNED_IN' && pathname === '/login') {
-          router.push('/');
-          router.refresh();
-        } else if (event === 'SIGNED_OUT' && pathname !== '/login') {
-          router.push('/login');
-          router.refresh();
-        }
+      if (currentUser) {
+        await fetchUserProfile(currentUser.id);
+      } else {
+        setProfile(null);
       }
-    );
+
+      // Gérer les redirections basiques
+      if (event === 'SIGNED_OUT') {
+        router.push('/');
+        router.refresh();
+      }
+    });
 
     return () => {
-      subscription.unsubscribe();
+      subscription?.unsubscribe();
     };
-  }, [router, pathname]); // Ajouter pathname aux dépendances
-
-  const fetchProfile = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (error) {
-        console.error('Error fetching profile:', error);
-        return;
-      }
-
-      setProfile(data);
-    } catch (error) {
-      console.error('Error in fetchProfile:', error);
-    }
-  };
-
-  const signIn = async (email: string, password: string) => {
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      return { error };
-    } catch (error) {
-      return { error };
-    }
-  };
+  }, [supabase, router, serverUser, serverProfile]);
 
   const signOut = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-    } catch (error) {
-      console.error('Error signing out:', error);
-    }
+    await supabase.auth.signOut();
+    router.push('/');
+    router.refresh();
   };
 
-  const refreshSession = async () => {
-    const { data: { session: newSession }, error } = await supabase.auth.getSession();
-    if (!error && newSession) {
-      setSession(newSession);
-      setUser(newSession.user);
-      await fetchProfile(newSession.user.id);
-    }
+  const value = { 
+    user, 
+    session, 
+    profile, 
+    loading: loading || profileLoading,
+    supabase, 
+    signOut 
   };
 
-  const value = {
-    user,
-    session,
-    profile,
-    loading,
-    signIn,
-    signOut,
-    refreshSession,
-  };
+  // Afficher le loader seulement si nécessaire
+  if ((loading || profileLoading) && !serverUser) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-purple-700" />
+        <span className="ml-2">Chargement...</span>
+      </div>
+    );
+  }
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-export function useAuth() {
+export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-}
+};
 
 export const useShopAccess = () => {
   const { profile } = useAuth();
@@ -210,7 +213,7 @@ export const useShopAccess = () => {
     if (!profile) return [];
     
     if (profile.role === 'admin' || profile.shop_access_type === 'all') {
-      return ['all']; // Accès à toutes les boutiques
+      return ['all'];
     }
     
     return profile.assigned_shops;

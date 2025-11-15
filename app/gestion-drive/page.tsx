@@ -2,28 +2,26 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { Document } from '../types/documents';
 
 export default function DocumentsPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
-  const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [editingDocument, setEditingDocument] = useState<Document | null>(null);
   const [editName, setEditName] = useState('');
   const [darkMode, setDarkMode] = useState(false);
   const [search, setSearch] = useState('');
 
-  const { user, profile, loading: authLoading } = useAuth();
+  const { user, profile, loading, supabase } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!authLoading && !user) {
+    if (!loading && !user) {
       router.push('/login');
     }
-  }, [user, authLoading, router]);
+  }, [user, loading, router]);
 
   useEffect(() => {
     if (user) {
@@ -45,8 +43,6 @@ export default function DocumentsPage() {
       setDocuments(data || []);
     } catch (error) {
       console.error('Error fetching documents:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -133,7 +129,7 @@ export default function DocumentsPage() {
     (doc.description && doc.description.toLowerCase().includes(search.toLowerCase()))
   );
 
-  if (authLoading || loading) {
+  if (loading && !user) {
     return (
       <div className={`${darkMode ? 'dark' : ''} min-h-screen bg-gradient-to-br from-gray-50 to-gray-200 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center`}>
         <div className="text-center">

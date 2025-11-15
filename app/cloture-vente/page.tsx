@@ -5,7 +5,6 @@ import ClotureVentesClient from "./cloture-ventes.client"
 import { AccountAccount, Expense } from "../types/cloture"
 import { clotureService } from "@/lib/cloture-service"
 import { createClient } from "@/lib/supabase/server"
-import { cookies } from "next/headers"
 
 interface PageProps {
   searchParams: Promise<{
@@ -152,8 +151,7 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
   const selectedDate = params.date ? new Date(params.date) : new Date();
   
   // Récupérer l'utilisateur connecté via Supabase SSR
-  const cookieStore = cookies();
-  const supabase = await createClient(cookieStore);
+  const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   
   let selectedShop = params.shop || 'all';
