@@ -20,7 +20,8 @@ export const createClient = cache(() => {
               (await cookieStore).set(name, value, options)
             )
           } catch (error) {
-            // Gérer l'erreur si nécessaire
+            console.log(error);
+            
           }
         },
       },

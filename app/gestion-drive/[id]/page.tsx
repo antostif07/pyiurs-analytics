@@ -10,11 +10,8 @@ import SearchAndFilters from './components/SearchAndFilters';
 import ExportImport from './components/ExportImport';
 import PermissionManager from './components/PermissionManager';
 import { DocumentColumn, Document, DocumentRow, CellData } from '@/app/types/documents';
-import { supabase, Database } from '@/lib/supabase';
-
-interface FilterValue {
-
-}
+import { supabase } from '@/lib/supabase';
+import { FilterState, FilterValue } from '@/app/types/search';
 
 export default function DocumentEditor() {
   const params = useParams();
@@ -33,7 +30,7 @@ export default function DocumentEditor() {
   // États pour recherche/filtres
   const [filteredRows, setFilteredRows] = useState<DocumentRow[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filters, setFilters] = useState<FilterValue>({});
+  const [filters, setFilters] = useState<FilterState>({});
   const [sortConfig, setSortConfig] = useState<{ column: string; direction: 'asc' | 'desc' } | null>(null);
   
   useEffect(() => {
@@ -161,7 +158,7 @@ export default function DocumentEditor() {
           if (typeof filterValue === 'string') {
             return String(value).toLowerCase().includes(filterValue.toLowerCase());
           } else if (typeof filterValue === 'object') {
-            return applyComplexFilter(value, filterValue);
+            return applyComplexFilter(value, filterValue as { min: number | undefined; max: number; start: Date | undefined; end: Date | undefined });
           }
           return true;
         });
@@ -198,11 +195,11 @@ export default function DocumentEditor() {
     }
   };
 
-  const applyComplexFilter = (value: any, filter: any) => {
-    if (filter.min !== undefined && value < filter.min) return false;
-    if (filter.max !== undefined && value > filter.max) return false;
-    if (filter.start && new Date(value) < new Date(filter.start)) return false;
-    if (filter.end && new Date(value) > new Date(filter.end)) return false;
+  const applyComplexFilter = (value: string | number | boolean | undefined, filter: {min: number|undefined, max: number, start: Date|undefined, end: Date|undefined}) => {
+    if (filter.min !== undefined && typeof value === "number" && value < filter.min) return false;
+    if (filter.max !== undefined && typeof value === "number" && value > filter.max) return false;
+    if (filter.start && typeof value === "string" && new Date(value) < new Date(filter.start)) return false;
+    if (filter.end && typeof value === "string" && new Date(value) > new Date(filter.end)) return false;
     return true;
   };
 

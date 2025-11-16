@@ -14,28 +14,26 @@ export default function LoginPage() {
   const { signIn, user, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  // Rediriger si déjà connecté
-  useEffect(() => {
-    if (user && !authLoading) {
-      router.push('/');
-    }
-  }, [user, authLoading, router]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
     try {
-      await signIn(email, password);
-      // La redirection est gérée par le AuthContext
+      const { error } = await signIn(email, password);
+      
+      if (error) {
+        setError(error.message || 'Erreur de connexion');
+      }
+      // La redirection est gérée par l'AuthContext
     } catch (error: unknown) {
-      setError((error as {message: string}).message || 'Erreur de connexion');
+      setError((error as {message: string}).message || 'Une erreur inattendue est survenue');
     } finally {
       setLoading(false);
     }
   };
 
+  // Si déjà connecté, l'AuthContext redirigera automatiquement
   if (authLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">

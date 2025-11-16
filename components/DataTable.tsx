@@ -60,18 +60,6 @@ declare module "@tanstack/react-table" {
   }
 }
 
-type Item = {
-  id: string
-  keyword: string
-  intents: Array<
-    "Informational" | "Navigational" | "Commercial" | "Transactional"
-  >
-  volume: number
-  cpc: number
-  traffic: number
-  link: string
-}
-
 export default function DataTable<T>({tableData, cols}: {tableData: T[], cols: ColumnDef<T, unknown>[]}) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [sorting, setSorting] = useState<SortingState>([

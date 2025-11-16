@@ -2,12 +2,13 @@
 'use client';
 
 import { DocumentColumn } from '@/app/types/documents';
+import { DateRangeFilter, FilterState, FilterValue, NumberRangeFilter } from '@/app/types/search';
 import { useState } from 'react';
 
 interface SearchAndFiltersProps {
   columns: DocumentColumn[];
   onSearch: (query: string) => void;
-  onFilter: (filters: any) => void;
+  onFilter: (filters: FilterState) => void;
   onSort: (sort: { column: string; direction: 'asc' | 'desc' }) => void;
 }
 
@@ -18,7 +19,7 @@ export default function SearchAndFilters({
   onSort
 }: SearchAndFiltersProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [filters, setFilters] = useState<any>({});
+  const [filters, setFilters] = useState<FilterState>({});
   const [sortConfig, setSortConfig] = useState<{ column: string; direction: 'asc' | 'desc' } | null>(null);
   const [showFilters, setShowFilters] = useState(false);
 
@@ -27,7 +28,7 @@ export default function SearchAndFilters({
     onSearch(query);
   };
 
-  const handleFilterChange = (columnId: string, value: any) => {
+  const handleFilterChange = (columnId: string, value: FilterValue) => {
     const newFilters = { ...filters };
     if (value === '' || value === null) {
       delete newFilters[columnId];
@@ -100,7 +101,7 @@ export default function SearchAndFilters({
                   <input
                     type="text"
                     placeholder="Filtrer..."
-                    value={filters[column.id] || ''}
+                    value={(filters[column.id] as string) || ''}
                     onChange={(e) => handleFilterChange(column.id, e.target.value)}
                     className="w-full px-2 py-1 border rounded text-sm"
                   />
@@ -111,9 +112,9 @@ export default function SearchAndFilters({
                     <input
                       type="number"
                       placeholder="Min"
-                      value={filters[column.id]?.min || ''}
+                      value={(filters[column.id] as NumberRangeFilter)?.min || ''}
                       onChange={(e) => handleFilterChange(column.id, {
-                        ...filters[column.id],
+                        ...(filters[column.id] as NumberRangeFilter) || {},
                         min: e.target.value ? parseFloat(e.target.value) : null
                       })}
                       className="w-full px-2 py-1 border rounded text-sm"
@@ -121,9 +122,9 @@ export default function SearchAndFilters({
                     <input
                       type="number"
                       placeholder="Max"
-                      value={filters[column.id]?.max || ''}
+                      value={(filters[column.id] as NumberRangeFilter)?.max || ''}
                       onChange={(e) => handleFilterChange(column.id, {
-                        ...filters[column.id],
+                        ...(filters[column.id] as NumberRangeFilter) || {},
                         max: e.target.value ? parseFloat(e.target.value) : null
                       })}
                       className="w-full px-2 py-1 border rounded text-sm"
@@ -136,9 +137,9 @@ export default function SearchAndFilters({
                     <input
                       type="date"
                       placeholder="De"
-                      value={filters[column.id]?.start || ''}
+                      value={(filters[column.id] as DateRangeFilter)?.start || ''}
                       onChange={(e) => handleFilterChange(column.id, {
-                        ...filters[column.id],
+                        ...(filters[column.id] as DateRangeFilter) || {},
                         start: e.target.value
                       })}
                       className="w-full px-2 py-1 border rounded text-sm"
@@ -146,9 +147,9 @@ export default function SearchAndFilters({
                     <input
                       type="date"
                       placeholder="À"
-                      value={filters[column.id]?.end || ''}
+                      value={(filters[column.id] as DateRangeFilter)?.end || ''}
                       onChange={(e) => handleFilterChange(column.id, {
-                        ...filters[column.id],
+                        ...(filters[column.id] as DateRangeFilter) || {},
                         end: e.target.value
                       })}
                       className="w-full px-2 py-1 border rounded text-sm"
@@ -158,7 +159,7 @@ export default function SearchAndFilters({
                 
                 {column.data_type === 'boolean' && (
                   <select
-                    value={filters[column.id] || ''}
+                    value={(filters[column.id] as string) || ''}
                     onChange={(e) => handleFilterChange(column.id, e.target.value || null)}
                     className="w-full px-2 py-1 border rounded text-sm"
                   >

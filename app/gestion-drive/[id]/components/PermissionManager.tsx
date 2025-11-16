@@ -4,22 +4,14 @@
 import { supabase } from '@/lib/supabase';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { EnhancedUser } from '@/app/users/users.client';
+import { DocumentPermissions, PermissionAction, PermissionRole } from '@/app/types/documents';
 
 interface PermissionManagerProps {
   documentId: string;
   columnId?: string;
-  currentPermissions: any;
+  currentPermissions: DocumentPermissions;
   onPermissionsChange: (permissions: any) => void;
-}
-
-// Types pour les permissions
-type PermissionAction = 'read' | 'write' | 'delete';
-type PermissionRole = 'all' | 'authenticated' | string; // string pour les user IDs
-
-interface DocumentPermissions {
-  read: PermissionRole[];
-  write: PermissionRole[];
-  delete: PermissionRole[];
 }
 
 export default function PermissionManager({
@@ -28,7 +20,7 @@ export default function PermissionManager({
   currentPermissions,
   onPermissionsChange
 }: PermissionManagerProps) {
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<EnhancedUser[]>([]);
   const [showDialog, setShowDialog] = useState(false);
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
@@ -55,7 +47,7 @@ export default function PermissionManager({
         .order('full_name');
       
       if (usersError) throw usersError;
-      setUsers(usersData || []);
+      setUsers((usersData as EnhancedUser[]) || []);
     } catch (error) {
       console.error('Error fetching users:', error);
     } finally {

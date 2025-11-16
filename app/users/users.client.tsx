@@ -5,15 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useState } from "react";
-import { User } from "@supabase/supabase-js";
 import { POSConfig } from "../types/pos";
+import { CreateUserModal } from "./components/create-user-modal";
+import { ResCompany } from "../types/odoo";
 
-interface Company {
-  id: string;
-  name: string;
-}
 
-interface EnhancedUser {
+export interface EnhancedUser {
   id: string;
   email: string;
   full_name: string;
@@ -34,7 +31,7 @@ interface EnhancedUser {
 interface UsersClientProps {
   initialUsers: EnhancedUser[];
   shops: POSConfig[];
-  companies: any[];
+  companies: ResCompany[];
   search?: string;
   roleFilter?: string;
 }
@@ -107,6 +104,10 @@ export default function UsersClient({
       year: 'numeric'
     });
   };
+
+  const handleUserCreated = () => {
+    router.refresh() // Rafraîchir les données serveur
+  }
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
@@ -331,7 +332,7 @@ export default function UsersClient({
               Créer un nouvel utilisateur
             </h3>
             <p className="text-gray-600 dark:text-gray-300 mb-4">
-              Fonctionnalité à implémenter - Intégration avec l'authentification Supabase
+              Fonctionnalité à implémenter - Intégration avec l&apos;authentification Supabase
             </p>
             <div className="flex justify-end space-x-3">
               <button
@@ -353,6 +354,13 @@ export default function UsersClient({
           </div>
         </div>
       )}
+      <CreateUserModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onUserCreated={handleUserCreated}
+        shops={shops}
+        companies={companies}
+      />
     </main>
   );
 }

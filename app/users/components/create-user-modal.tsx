@@ -3,13 +3,15 @@
 
 import { useState } from 'react'
 import { X } from 'lucide-react'
+import { ResCompany } from '@/app/types/odoo'
+import { POSConfig } from '@/app/types/pos'
 
 interface CreateUserModalProps {
   isOpen: boolean
   onClose: () => void
   onUserCreated: () => void
-  shops: any[]
-  companies: any[]
+  shops: POSConfig[]
+  companies: ResCompany[]
 }
 
 interface UserFormData {
@@ -19,7 +21,7 @@ interface UserFormData {
   role: 'admin' | 'user' | 'manager' | 'financier'
   shop_access_type: 'all' | 'specific'
   assigned_shops: string[]
-  assigned_companies: string[]
+  assigned_companies: number[]
   send_invitation: boolean
 }
 
@@ -123,7 +125,7 @@ export function CreateUserModal({ isOpen, onClose, onUserCreated, shops, compani
     }))
   }
 
-  const handleCompanyToggle = (companyId: string) => {
+  const handleCompanyToggle = (companyId: number) => {
     setFormData(prev => ({
       ...prev,
       assigned_companies: prev.assigned_companies.includes(companyId)
@@ -231,7 +233,7 @@ export function CreateUserModal({ isOpen, onClose, onUserCreated, shops, compani
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <label htmlFor="send_invitation" className="text-sm text-gray-700 dark:text-gray-300">
-                Envoyer un email d'invitation
+                Envoyer un email d&apos;invitation
               </label>
             </div>
           </div>
@@ -259,7 +261,7 @@ export function CreateUserModal({ isOpen, onClose, onUserCreated, shops, compani
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Type d'accès boutique *
+                Type d&apos;accès boutique *
               </label>
               <select
                 value={formData.shop_access_type}

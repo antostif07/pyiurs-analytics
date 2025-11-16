@@ -9,14 +9,20 @@ export interface Document {
   updated_at: string;
   created_by: string;
   is_active: boolean;
-  default_permissions: {
-    read: string[];
-    write: string[];
-  };
+  default_permissions: DocumentPermissions;
   theme_config: Record<string, string>;
   isEditing?: boolean;
   editName?: string;
 }
+
+export interface DocumentPermissions {
+  read: PermissionRole[];
+  write: PermissionRole[];
+  delete: PermissionRole[];
+}
+
+export type PermissionAction = 'read' | 'write' | 'delete';
+export type PermissionRole = 'all' | 'authenticated' | string; // string pour les user IDs
 
 export interface DocumentColumn {
   id: string;
