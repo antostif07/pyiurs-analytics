@@ -195,40 +195,101 @@ export default function DataGrid({
     }
   };
 
-  const handleCellClick = (rowId: string, column: DocumentColumn) => {
-    const cell = cellData.find(c => c.row_id === rowId && c.column_id === column.id);
+  const handleCellClick = async (rowId: string, column: DocumentColumn) => {
+    console.log("🖱️ Clic sur cellule:", { rowId, columnId: column.id, columnType: column.data_type });
 
+    // Vérification de base
+    if (!user) {
+      console.error("❌ Utilisateur non authentifié");
+      return;
+    }
+
+    // Chercher la cellule existante
+    let cell = cellData.find(c => c.row_id === rowId && c.column_id === column.id);
+    
+    // Si la cellule n'existe pas, on la crée pour les types spéciaux
+    if (!cell && (column.data_type === 'multiline' || column.data_type === 'file')) {
+      try {
+        console.log("📝 Création d'une nouvelle cellule pour type spécial:", column.data_type);
+        
+        const { data: newCell, error } = await supabase
+          .from('cell_data')
+          .insert([
+            {
+              row_id: rowId,
+              column_id: column.id,
+              value_type: column.data_type,
+              created_by: user.id,
+              updated_by: user.id,
+              // Valeurs par défaut selon le type
+              text_value: column.data_type === 'multiline' ? '' : null,
+              number_value: null,
+              date_value: null,
+              boolean_value: null
+            }
+          ])
+          .select()
+          .single();
+
+        if (error) {
+          console.error("❌ Erreur création cellule:", error);
+          alert("Erreur lors de la création de la cellule");
+          return;
+        }
+
+        console.log("✅ Nouvelle cellule créée avec ID:", newCell.id);
+        
+        // Mettre à jour immédiatement l'état local
+        onCellDataChange([...cellData, newCell]);
+        cell = newCell;
+
+      } catch (error) {
+        console.error("💥 Erreur critique création cellule:", error);
+        return;
+      }
+    }
+
+    // Gestion selon le type de colonne
     if (column.data_type === 'multiline') {
-      // Ouvrir l'éditeur multiligne
+      if (!cell) {
+        console.error("❌ Cellule non trouvée pour éditeur multiligne");
+        return;
+      }
       setMultilineEditor({
         isOpen: true,
-        cellDataId: cell?.id || '',
+        cellDataId: cell.id,
         parentColumn: column
       });
     } else if (column.data_type === 'file') {
-      // Ouvrir le gestionnaire de fichiers
+      if (!cell) {
+        console.error("❌ Cellule non trouvée pour upload de fichiers");
+        return;
+      }
       setFileUploader({
         isOpen: true,
-        cellDataId: cell?.id || '',
+        cellDataId: cell.id,
         columnId: column.id
       });
     } else {
+      // Pour les types simples, on peut éditer directement
       startEditing(rowId, column.id);
     }
   };
 
   const getDisplayValue = (rowId: string, column: DocumentColumn) => {
-    const cell = cellData.find(c => c.row_id === rowId && c.column_id === column.id);
+  const cell = cellData.find(c => c.row_id === rowId && c.column_id === column.id);
 
-    if (column.data_type === 'multiline') {
-      const multilineCount = multilineData.filter(md => md.cell_data_id === cell?.id).length;
-      return multilineCount > 0 ? `${multilineCount} ligne(s)` : 'Cliquer pour éditer';
-    } else if (column.data_type === 'file') {
-      const fileCount = fileAttachments.filter(f => f.cell_data_id === cell?.id).length;
-      return fileCount > 0 ? `${fileCount} fichier(s)` : 'Cliquer pour ajouter';
-    }
-    return getCellValue(rowId, column.id);
-  };
+  if (column.data_type === 'multiline') {
+    const multilineCount = cell ? multilineData.filter(md => md.cell_data_id === cell.id).length : 0;
+    return multilineCount > 0 ? `${multilineCount} ligne(s)` : 'Cliquer pour éditer';
+  } else if (column.data_type === 'file') {
+    const fileCount = cell ? fileAttachments.filter(f => f.cell_data_id === cell.id).length : 0;
+    return fileCount > 0 ? `${fileCount} fichier(s)` : 'Cliquer pour ajouter';
+  }
+  
+  // Pour les autres types, si la cellule n'existe pas, afficher un placeholder
+  return cell ? getCellValue(rowId, column.id) : 'Cliquer pour éditer';
+};
 
   const renderCell = (rowId: string, column: DocumentColumn) => {
     const isEditing = editingCell?.rowId === rowId && editingCell?.columnId === column.id;

@@ -12,6 +12,7 @@ import PermissionManager from './components/PermissionManager';
 import { DocumentColumn, Document, DocumentRow, CellData } from '@/app/types/documents';
 import { supabase } from '@/lib/supabase';
 import { FilterState, FilterValue } from '@/app/types/search';
+import Footer from '@/components/footer';
 
 export default function DocumentEditor() {
   const params = useParams();
@@ -231,8 +232,6 @@ export default function DocumentEditor() {
       console.error('Error adding row:', error);
     }
   };
-
-  console.log(authLoading, loading);
   
   if (authLoading || loading) {
     return (
@@ -250,7 +249,11 @@ export default function DocumentEditor() {
   }
 
   return (
-    <div className={`${darkMode ? 'dark' : ''} min-h-screen bg-gradient-to-br from-gray-50 to-gray-200 dark:from-gray-900 dark:to-gray-800 transition-colors`}>
+    <div
+    className={`${darkMode ? 'dark' : ''} min-h-screen bg-gradient-to-br 
+    from-gray-50 to-gray-200 dark:from-gray-900 dark:to-gray-800 
+    transition-colors grid grid-rows-[auto_1fr_auto]`}
+  >
       
       {/* Header */}
       <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
@@ -421,7 +424,7 @@ export default function DocumentEditor() {
       </header>
 
       {/* Main Content */}
-      <div className="flex h-[calc(100vh-180px)]">
+      <div className="min-h-0 overflow-auto">
         {/* Configuration Panel */}
         {showConfig && (
           <div className="w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 overflow-y-auto">
@@ -447,18 +450,7 @@ export default function DocumentEditor() {
       </div>
 
       {/* Footer */}
-      <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
-        <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-3">
-          <div className="flex justify-between items-center text-sm text-gray-500 dark:text-gray-400">
-            <div>
-              {filteredRows.length} ligne(s) • {columns.length} colonne(s)
-            </div>
-            <div>
-              Dernière modification : {document.updated_at ? new Date(document.updated_at).toLocaleString('fr-FR') : 'N/A'}
-            </div>
-          </div>
-        </div>
-      </footer>
+      <Footer user={user} />
     </div>
   );
 }

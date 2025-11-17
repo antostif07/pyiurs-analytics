@@ -6,8 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useAuth } from "@/hooks/useAuth";
 import { POSOrderLine } from "../types/pos";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface VendeuseSalesDashboardProps {
   month?: string;
@@ -36,7 +36,7 @@ export function VendeuseSalesDashboard({
 }: VendeuseSalesDashboardProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const {user} = useAuth()
+  const {profile} = useAuth()
 
   const currentMonth = month || new Date().getMonth() + 1;
   const currentYear = year || new Date().getFullYear();
@@ -45,11 +45,11 @@ export function VendeuseSalesDashboard({
 
   useEffect(() => {
     // Si c'est un vendeuse et qu'aucun agent n'est sélectionné, rediriger vers son propre profil
-    if (user?.role === 'vendeuse' && !agentId) {
+    if (profile?.role === 'user' && !agentId) {
       const newParams = new URLSearchParams();
       if (month) newParams.set('month', month);
       if (year) newParams.set('year', year);
-      newParams.set('agent', user.id);
+      newParams.set('agent', profile.id);
       router.push(`${pathname}?${newParams.toString()}`);
     }
   }, [agentId, month, year, pathname, router]);
@@ -80,8 +80,8 @@ export function VendeuseSalesDashboard({
   const getCurrentAgentName = () => {
     if (!currentAgentId) return "Tous les agents";
     
-    if (currentAgentId === user?.id) {
-      return user.name;
+    if (currentAgentId === profile?.id) {
+      return profile.full_name;
     }
     
     const agent = agents.find(a => a.id === Number(currentAgentId));
@@ -90,7 +90,7 @@ export function VendeuseSalesDashboard({
   };
 
   // Si les informations utilisateur ne sont pas encore chargées
-  if (!user) {
+  if (!profile) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800 p-6">
         <div className="max-w-7xl mx-auto flex items-center justify-center">

@@ -134,11 +134,23 @@ async function getPOSConfig(): Promise<{records: POSConfig[]}> {
 }
 
 async function getCompanies() {
-  return [
-    { id: '1', name: 'Pyiurs SAS' },
-    { id: '2', name: 'Beauty Corp' },
-    { id: '3', name: 'Femme Enterprise' },
-  ];
+  try {
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/res.company?fields=id,name`,
+      { 
+        next: { revalidate: 3600 }
+      }
+    );
+    
+    if (!res.ok) {
+      throw new Error(`Erreur API: ${res.status}`);
+    }
+    
+    return await res.json();
+  } catch (error) {
+    console.error('Erreur getPOSConfig:', error);
+    return { records: [] };
+  }
 }
 
 export default async function UsersPage({ searchParams }: PageProps) {
@@ -165,13 +177,14 @@ export default async function UsersPage({ searchParams }: PageProps) {
       getCompanies()
     ]);
 
-  console.log(users);
+    console.log(companies);
+    
 
     return (
       <UsersClient
         initialUsers={users}
         shops={shops.records}
-        companies={companies}
+        companies={companies.records}
         search={search}
         roleFilter={role}
       />
