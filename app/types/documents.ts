@@ -38,7 +38,10 @@ export interface DocumentColumn {
     write: string[];
     delete: string[];
   };
-  config: Record<string, string>;
+  config: {
+    options?: string[]; // Pour les listes déroulantes
+    // Autres configurations selon le type
+  };
   created_at: string;
   updated_at: string;
 }

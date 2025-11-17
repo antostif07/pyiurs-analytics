@@ -292,11 +292,50 @@ export default function DataGrid({
 };
 
   const renderCell = (rowId: string, column: DocumentColumn) => {
-    const isEditing = editingCell?.rowId === rowId && editingCell?.columnId === column.id;
-    const displayValue = getDisplayValue(rowId, column);
+  const isEditing = editingCell?.rowId === rowId && editingCell?.columnId === column.id;
+  const displayValue = getDisplayValue(rowId, column);
+  const cell = cellData.find(c => c.row_id === rowId && c.column_id === column.id);
 
-    // Édition normale pour les types simples
-    if (isEditing && column.data_type !== 'multiline' && column.data_type !== 'file') {
+  // Édition pour les types spéciaux
+  if (isEditing) {
+    if (column.data_type === 'boolean') {
+      return (
+        <select
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={() => {
+            saveCell(rowId, column.id, editValue);
+            setEditingCell(null);
+          }}
+          className="w-full h-full px-2 py-1 border border-blue-500 outline-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+          autoFocus
+        >
+          <option value="true">Oui</option>
+          <option value="false">Non</option>
+        </select>
+      );
+    } else if (column.data_type === 'select') {
+      return (
+        <select
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={() => {
+            saveCell(rowId, column.id, editValue);
+            setEditingCell(null);
+          }}
+          className="w-full h-full px-2 py-1 border border-blue-500 outline-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+          autoFocus
+        >
+          <option value="">Sélectionnez...</option>
+          {column.config.options?.map((option, index) => (
+            <option key={index} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      );
+    } else {
+      // Édition normale pour les autres types
       return (
         <input
           type={column.data_type === 'number' ? 'number' : 
@@ -313,32 +352,33 @@ export default function DataGrid({
         />
       );
     }
+  }
 
-    // Affichage selon le type de colonne
-    let cellContent = displayValue;
-    let cellClassName = "w-full h-full px-2 py-1 cursor-cell hover:bg-gray-50 dark:hover:bg-gray-700";
+  // Affichage selon le type de colonne
+  let cellContent = displayValue;
+  let cellClassName = "w-full h-full px-2 py-1 cursor-cell hover:bg-gray-50 dark:hover:bg-gray-700";
 
-    if (column.data_type === 'multiline' || column.data_type === 'file') {
-      cellClassName += " text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium";
-    }
+  if (column.data_type === 'multiline' || column.data_type === 'file') {
+    cellClassName += " text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium";
+  }
 
-    if (column.data_type === 'boolean') {
-      cellContent = displayValue === 'Oui' ? '✅ Oui' : '❌ Non';
-    }
+  if (column.data_type === 'boolean') {
+    cellContent = displayValue === 'true' || displayValue === 'Oui' ? '✅ Oui' : '❌ Non';
+  }
 
-    return (
-      <div
-        onClick={() => handleCellClick(rowId, column)}
-        className={cellClassName}
-        style={{
-          backgroundColor: column.background_color,
-          color: column.text_color
-        }}
-      >
-        {cellContent}
-      </div>
-    );
-  };
+  return (
+    <div
+      onClick={() => handleCellClick(rowId, column)}
+      className={cellClassName}
+      style={{
+        backgroundColor: column.background_color,
+        color: column.text_color
+      }}
+    >
+      {cellContent}
+    </div>
+  );
+};
 
   const addNewRow = async () => {
     try {
