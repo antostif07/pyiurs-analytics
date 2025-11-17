@@ -5,9 +5,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { POSOrderLine } from "../types/pos";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getPaginationRowModel,
+  ColumnDef,
+  flexRender,
+  Row,
+} from '@tanstack/react-table';
+import { Button } from "@/components/ui/button";
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 
 interface VendeuseSalesDashboardProps {
   month?: string;
@@ -17,6 +27,16 @@ interface VendeuseSalesDashboardProps {
   agents?: { id: number; name: string }[];
   orderLines: POSOrderLine[]
 }
+
+// Types pour les cellules et rows
+type OrderLineRow = Row<POSOrderLine>;
+type OrderLineCell = {
+  id: string;
+  column: ColumnDef<POSOrderLine>;
+  getValue: () => unknown;
+  renderValue: () => unknown;
+  row: OrderLineRow;
+};
 
 function formatAmount(amount: number): string {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'USD' }).format(amount);
@@ -36,15 +56,17 @@ export function VendeuseSalesDashboard({
 }: VendeuseSalesDashboardProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const {profile} = useAuth()
+  const { profile } = useAuth();
+  const [pagination, setPagination] = useState({
+    pageIndex: 0,
+    pageSize: 10,
+  });
 
   const currentMonth = month || new Date().getMonth() + 1;
   const currentYear = year || new Date().getFullYear();
-  const currentAgentId = agentId
-  
+  const currentAgentId = agentId;
 
   useEffect(() => {
-    // Si c'est un vendeuse et qu'aucun agent n'est sélectionné, rediriger vers son propre profil
     if (profile?.role === 'user' && !agentId) {
       const newParams = new URLSearchParams();
       if (month) newParams.set('month', month);
@@ -52,16 +74,15 @@ export function VendeuseSalesDashboard({
       newParams.set('agent', profile.id);
       router.push(`${pathname}?${newParams.toString()}`);
     }
-  }, [agentId, month, year, pathname, router]);
+  }, [agentId, month, year, pathname, router, profile]);
 
-  const handleFilterChange = (type: 'month' | 'year' | 'agent', value: string) => {
+  const handleFilterChange = (type: 'month' | 'year' | 'agent', value: string): void => {
     const newParams = new URLSearchParams();
     
     if (type === 'month' && value) newParams.set('month', value);
     if (type === 'year' && value) newParams.set('year', value);
     if (type === 'agent' && value) newParams.set('agent', value);
     
-    // Garder les autres filtres s'ils existent
     if (type !== 'month' && month) newParams.set('month', month);
     if (type !== 'year' && year) newParams.set('year', year);
     if (type !== 'agent' && agentId) newParams.set('agent', agentId);
@@ -69,7 +90,7 @@ export function VendeuseSalesDashboard({
     router.push(`${pathname}?${newParams.toString()}`);
   };
 
-  const getMonthName = (monthNumber: string) => {
+  const getMonthName = (monthNumber: string): string => {
     const months = [
       "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
       "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
@@ -77,19 +98,114 @@ export function VendeuseSalesDashboard({
     return months[parseInt(monthNumber) - 1] || "";
   };
 
-  const getCurrentAgentName = () => {
+  const getCurrentAgentName = (): string => {
     if (!currentAgentId) return "Tous les agents";
     
     if (currentAgentId === profile?.id) {
-      return profile.full_name;
+      return profile.full_name || "Utilisateur";
     }
     
     const agent = agents.find(a => a.id === Number(currentAgentId));
-    
     return agent?.name || "Agent inconnu";
   };
 
-  // Si les informations utilisateur ne sont pas encore chargées
+  // Types pour les accesseurs
+  type PartnerIdAccessor = [number, string];
+  type OrderIdAccessor = [number, string];
+  type ProductIdAccessor = [number, string];
+
+  // Définition des colonnes avec TanStack Table
+  const columns = useMemo<ColumnDef<POSOrderLine>[]>(() => [
+    {
+      accessorKey: 'create_date',
+      header: 'Date',
+      cell: ({ row }: { row: OrderLineRow }) => (
+        <div className="text-sm text-gray-900 dark:text-gray-100">
+          {formatDate(row.original.create_date)}
+        </div>
+      ),
+      size: 120,
+    },
+    // ...(isAdmin && !currentAgentId ? [{
+    //   accessorKey: 'vendeuse',
+    //   header: 'Vendeuse',
+    //   cell: ({ row }: { row: OrderLineRow }) => (
+    //     <div className="flex items-center space-x-2">
+    //       <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+    //       <span className="font-medium">{row.original. || "Marie Dubois"}</span>
+    //     </div>
+    //   ),
+    //   size: 150,
+    // }] : []),
+    {
+      accessorKey: 'partner_id',
+      header: 'Client',
+      cell: ({ row }: { row: OrderLineRow }) => {
+        const partnerId = row.original.partner_id as PartnerIdAccessor;
+        return (
+          <div className="font-medium">
+            {partnerId && partnerId[1]}
+          </div>
+        );
+      },
+      size: 200,
+    },
+    {
+      accessorKey: 'price_subtotal',
+      header: 'Total',
+      cell: ({ row }: { row: OrderLineRow }) => (
+        <div className="text-right font-bold text-green-600">
+          {formatAmount(row.original.price_subtotal)}
+        </div>
+      ),
+      size: 120,
+    },
+    {
+      accessorKey: 'order_id',
+      header: 'Facture',
+      cell: ({ row }: { row: OrderLineRow }) => {
+        const orderId = row.original.order_id as OrderIdAccessor;
+        return (
+          <Badge variant="secondary" className="font-mono">
+            {orderId[1]}
+          </Badge>
+        );
+      },
+      size: 150,
+    },
+    {
+      accessorKey: 'product_id',
+      header: 'Produits',
+      cell: ({ row }: { row: OrderLineRow }) => {
+        const productId = row.original.product_id as ProductIdAccessor;
+        return (
+          <div className="flex flex-wrap gap-1 max-w-48">
+            <Badge variant="outline" className="text-xs">
+              {productId[1]}
+            </Badge>
+          </div>
+        );
+      },
+      size: 200,
+    },
+  ], [isAdmin, currentAgentId]);
+
+  const table = useReactTable({
+    data: orderLines,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    onPaginationChange: setPagination,
+    state: {
+      pagination,
+    },
+    pageCount: Math.ceil(orderLines.length / pagination.pageSize),
+  });
+
+  const totalVentes = orderLines.reduce((acc: number, ol: POSOrderLine) => acc + ol.price_subtotal, 0);
+  const totalCout = totalVentes * 0.485;
+  const totalCommission = totalCout * 0.12;
+
   if (!profile) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800 p-6">
@@ -134,27 +250,25 @@ export function VendeuseSalesDashboard({
 
           {/* Filtres */}
           <div className="flex flex-col sm:flex-row gap-4 mt-4 lg:mt-0">
-            {/* Filtre Agent (seulement pour les admins) */}
             {isAdmin && (
               <select 
                 value={currentAgentId || ''}
-                onChange={(e) => handleFilterChange('agent', e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleFilterChange('agent', e.target.value)}
                 className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-700 min-w-48"
               >
                 <option value="">Tous les agents</option>
-                {agents.map(agent => (
-                  <option key={agent.id} value={agent.id}>
+                {agents.map((agent: { id: number; name: string }) => (
+                  <option key={agent.id} value={agent.id.toString()}>
                     {agent.name}
                   </option>
                 ))}
               </select>
             )}
 
-            {/* Filtres Mois/Année */}
             <div className="flex gap-2">
               <select 
-                value={currentMonth}
-                onChange={(e) => handleFilterChange('month', e.target.value)}
+                value={currentMonth.toString()}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleFilterChange('month', e.target.value)}
                 className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-700"
               >
                 <option value="1">Janvier</option>
@@ -172,8 +286,8 @@ export function VendeuseSalesDashboard({
               </select>
 
               <select 
-                value={currentYear}
-                onChange={(e) => handleFilterChange('year', e.target.value)}
+                value={currentYear.toString()}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleFilterChange('year', e.target.value)}
                 className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-700"
               >
                 <option value="2023">2023</option>
@@ -216,9 +330,7 @@ export function VendeuseSalesDashboard({
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-600">
-                {formatAmount(orderLines.reduce((acc, ol) => {
-                    return acc + ol.price_subtotal
-                }, 0))}
+                {formatAmount(totalVentes)}
               </div>
               <p className="text-xs text-gray-500 mt-1">
                 {new Set(orderLines.map(r => r.order_id[0])).size} ventes
@@ -234,9 +346,7 @@ export function VendeuseSalesDashboard({
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-orange-600">
-                {formatAmount(orderLines.reduce((acc, ol) => {
-                    return acc + ol.price_subtotal
-                }, 0)*0.485)}
+                {formatAmount(totalCout)}
               </div>
               <p className="text-xs text-gray-500 mt-1">
                 Coût des marchandises
@@ -252,9 +362,7 @@ export function VendeuseSalesDashboard({
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-purple-600">
-                {formatAmount(orderLines.reduce((acc, ol) => {
-                    return acc + ol.price_subtotal
-                }, 0)*0.485*0.12)}
+                {formatAmount(totalCommission)}
               </div>
               <p className="text-xs text-gray-500 mt-1">
                 12%
@@ -263,7 +371,7 @@ export function VendeuseSalesDashboard({
           </Card>
         </div>
 
-        {/* Tableau des détails des ventes */}
+        {/* Tableau avec TanStack Table */}
         <Card>
           <CardHeader>
             <CardTitle>
@@ -283,86 +391,120 @@ export function VendeuseSalesDashboard({
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    {isAdmin && !currentAgentId && <TableHead>Vendeuse</TableHead>}
-                    <TableHead>Client</TableHead>
-                    {/* <TableHead>Numéro</TableHead> */}
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead>Facture</TableHead>
-                    <TableHead>Produits</TableHead>
-                    {/* <TableHead>POS</TableHead> */}
-                    <TableHead>Date</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {orderLines.map((vente) => (
-                    <TableRow key={vente.id}>
-                      {isAdmin && !currentAgentId && (
-                        <TableCell className="font-medium">
-                          <div className="flex items-center space-x-2">
-                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                            {/* <span>{vente.vendeuse || "Marie Dubois"}</span> */}
-                          </div>
-                        </TableCell>
-                      )}
-                      <TableCell className="font-medium">
-                        {vente.partner_id && vente.partner_id[1]}
-                      </TableCell>
-                      {/* <TableCell>
-                        <Badge variant="outline" className="font-mono">
-                          {vente.numero}
-                        </Badge>
-                      </TableCell> */}
-                      <TableCell className="text-right font-bold text-green-600">
-                        {formatAmount(vente.price_subtotal)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className="font-mono">
-                          {vente.order_id[1]}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1 max-w-48">
-                          <Badge variant="outline" className="text-xs">
-                              {vente.product_id[1]}
-                            </Badge>
-                        </div>
-                      </TableCell>
-                      {/* <TableCell>
-                        <Badge 
-                          className={
-                            // vente.pos === 'P24' ? 'bg-blue-100 text-blue-800' :
-                            // vente.pos === 'P.KTM' ? 'bg-green-100 text-green-800' :
-                            // vente.pos === 'LMB' ? 'bg-purple-100 text-purple-800' :
-                            // vente.pos === 'MTO' ? 'bg-orange-100 text-orange-800' :
-                            'bg-gray-100 text-gray-800'
-                          }
+                  {table.getHeaderGroups().map((headerGroup) => (
+                    <TableRow key={headerGroup.id}>
+                      {headerGroup.headers.map((header) => (
+                        <TableHead 
+                          key={header.id}
+                          style={{ width: header.getSize() }}
                         >
-                          {vente.pos}
-                        </Badge>
-                      </TableCell> */}
-                      <TableCell className="text-sm text-gray-500">
-                        {formatDate(vente.create_date)}
-                      </TableCell>
+                          {header.isPlaceholder
+                            ? null
+                            : flexRender(
+                                header.column.columnDef.header,
+                                header.getContext()
+                              )}
+                        </TableHead>
+                      ))}
                     </TableRow>
                   ))}
+                </TableHeader>
+                <TableBody>
+                  {table.getRowModel().rows?.length ? (
+                    table.getRowModel().rows.map((row: OrderLineRow) => (
+                      <TableRow key={row.id}>
+                        {row.getVisibleCells().map((cell) => (
+                          <TableCell key={cell.id}>
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext()
+                            )}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={columns.length} className="h-24 text-center">
+                        Aucune vente trouvée.
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
+            </div>
+
+            {/* Pagination */}
+            <div className="flex items-center justify-between mt-4">
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-600 dark:text-gray-400">
+                  Page {table.getState().pagination.pageIndex + 1} sur{' '}
+                  {table.getPageCount()}
+                </span>
+                <select
+                  value={table.getState().pagination.pageSize}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                    table.setPageSize(Number(e.target.value))
+                  }}
+                  className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-slate-700"
+                >
+                  {[10, 20, 30, 40, 50].map((pageSize: number) => (
+                    <option key={pageSize} value={pageSize}>
+                      {pageSize} lignes
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => table.setPageIndex(0)}
+                  disabled={!table.getCanPreviousPage()}
+                >
+                  <ChevronsLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => table.previousPage()}
+                  disabled={!table.getCanPreviousPage()}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => table.nextPage()}
+                  disabled={!table.getCanNextPage()}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => table.setPageIndex(table.getPageCount() - 1)}
+                  disabled={!table.getCanNextPage()}
+                >
+                  <ChevronsRight className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
 
             {/* Résumé du tableau */}
             <div className="mt-4 p-4 bg-gray-50 dark:bg-slate-800 rounded-lg">
               <div className="flex justify-between items-center text-sm">
                 <span className="text-gray-600 dark:text-gray-300">
-                  {/* Affichage de {data.details.length} ventes sur {data.summary.nombreVentes} total */}
+                  Affichage de {table.getRowModel().rows.length} ventes sur {orderLines.length} total
                   {isAdmin && currentAgentId && ` pour ${getCurrentAgentName()}`}
                 </span>
                 <div className="flex gap-4">
                   <span className="text-green-600 font-medium">
-                    Total: {formatAmount(orderLines.reduce((sum, vente) => sum + vente.price_subtotal, 0))}
+                    Total: {formatAmount(totalVentes)}
                   </span>
                   <span className="text-purple-600 font-medium">
-                    Commission: {formatAmount(orderLines.reduce((sum, vente) => sum + (vente.price_subtotal * 0.485 * 0.12), 0))}
+                    Commission: {formatAmount(totalCommission)}
                   </span>
                 </div>
               </div>

@@ -10,7 +10,7 @@ interface Profile {
   id: string;
   email: string;
   full_name: string;
-  role: 'admin' | 'user' | 'manager' | 'financier';
+  role: 'admin' | 'user' | 'manager' | 'financier' | 'sales_agent';
   assigned_shops: string[];
   assigned_companies: string[];
   shop_access_type: 'all' | 'specific';

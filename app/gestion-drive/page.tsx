@@ -13,6 +13,7 @@ export default function DocumentsPage() {
   const [editName, setEditName] = useState('');
   const [darkMode, setDarkMode] = useState(false);
   const [search, setSearch] = useState('');
+  const [loadingDocuments, setLoadingDocuments] = useState(true);
 
   const { user, profile, loading, supabase } = useAuth();
   const router = useRouter();
@@ -29,24 +30,115 @@ export default function DocumentsPage() {
     }
   }, [user]);
 
-  const fetchDocuments = async () => {
+  const fetchDocuments = async (): Promise<void> => {
+    if (!user) return;
+    
+    setLoadingDocuments(true);
     try {
-      if(!user) {
-        return;
-      }
-      const { data, error } = await supabase
+      // Récupérer tous les documents créés par l'utilisateur
+      const { data: myDocuments, error: myDocsError } = await supabase
         .from('documents')
         .select('*')
-        .eq('created_by', user.id)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      setDocuments(data || []);
+        .eq('created_by', user.id);
+
+      if (myDocsError) throw myDocsError;
+
+      // CORRECTION : Récupérer les documents accessibles avec une requête correcte
+      const { data: accessibleDocuments, error: accessibleDocsError } = await supabase
+        .from("documents")
+        .select("*")
+        .neq("created_by", user.id)
+        .or(`
+          default_permissions->'read' ? 'all',
+          default_permissions->'read' ? 'authenticated'
+        `);
+
+      if (accessibleDocsError) {
+        console.error('Error fetching accessible documents:', accessibleDocsError);
+        // Si la requête complexe échoue, on utilise une approche alternative
+        await fetchAccessibleDocumentsAlternative(myDocuments || []);
+        return;
+      }
+
+      // Fusionner et dédupliquer les documents
+      const allDocuments = [
+        ...(myDocuments || []),
+        ...(accessibleDocuments || [])
+      ];
+
+      // Dédupliquer par ID
+      const uniqueDocuments = allDocuments.reduce((acc: Document[], current: Document) => {
+        const exists = acc.find(doc => doc.id === current.id);
+        if (!exists) {
+          acc.push(current);
+        }
+        return acc;
+      }, []);
+
+      // Trier par date de création décroissante
+      uniqueDocuments.sort((a: Document, b: Document) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      setDocuments(uniqueDocuments as Document[]);
+
     } catch (error) {
       console.error('Error fetching documents:', error);
+      // En cas d'erreur, essayer l'approche alternative
+      await fetchAccessibleDocumentsAlternative([]);
+    } finally {
+      setLoadingDocuments(false);
     }
   };
 
-  const createNewDocument = async () => {
+  // Approche alternative si la requête complexe échoue
+  const fetchAccessibleDocumentsAlternative = async (myDocuments: Document[]): Promise<void> => {
+    try {
+      // Récupérer tous les documents et filtrer côté client
+      const { data: allDocuments, error } = await supabase
+        .from('documents')
+        .select('*')
+        .neq('created_by', user!.id);
+
+      if (error) throw error;
+
+      // Filtrer côté client les documents accessibles
+      const accessibleDocuments = (allDocuments || []).filter((doc: Document) => {
+        const permissions = doc.default_permissions as { read?: string[] };
+        return permissions?.read?.includes('all') || 
+               permissions?.read?.includes('authenticated') ||
+               permissions?.read?.includes(user!.id);
+      });
+
+      // Fusionner avec les documents de l'utilisateur
+      const mergedDocuments = [
+        ...myDocuments,
+        ...accessibleDocuments
+      ];
+
+      // Dédupliquer et trier
+      const uniqueDocuments = mergedDocuments.reduce((acc: Document[], current: Document) => {
+        const exists = acc.find(doc => doc.id === current.id);
+        if (!exists) {
+          acc.push(current);
+        }
+        return acc;
+      }, []);
+
+      uniqueDocuments.sort((a: Document, b: Document) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      setDocuments(uniqueDocuments);
+
+    } catch (error) {
+      console.error('Error in alternative fetch:', error);
+      // Si tout échoue, afficher seulement les documents de l'utilisateur
+      setDocuments(myDocuments);
+    }
+  };
+
+  const createNewDocument = async (): Promise<void> => {
     if (creating || !user) return;
     
     setCreating(true);
@@ -56,9 +148,16 @@ export default function DocumentsPage() {
         .insert([
           {
             name: 'Nouveau Document',
+            description: 'Document dynamique personnalisable',
             created_by: user.id,
-            default_permissions: { read: ['all'], write: ['all'] }
-          } as never
+            is_active: true,
+            default_permissions: { 
+              read: ['all'], 
+              write: ['all'],
+              delete: ['all']
+            },
+            theme_config: {}
+          }
         ])
         .select()
         .single();
@@ -75,18 +174,30 @@ export default function DocumentsPage() {
     }
   };
 
-  const startEditDocument = (doc: Document) => {
+  const startEditDocument = (doc: Document): void => {
     setEditingDocument(doc);
     setEditName(doc.name);
   };
 
-  const updateDocumentName = async () => {
-    if (!editingDocument) return;
+  const updateDocumentName = async (): Promise<void> => {
+    if (!editingDocument || !user) return;
 
     try {
+      // Vérifier que l'utilisateur a le droit de modifier ce document
+      const canEdit = editingDocument.created_by === user.id || 
+        hasPermission(editingDocument.default_permissions, 'write', user.id);
+
+      if (!canEdit) {
+        alert('Vous n\'avez pas les permissions pour modifier ce document.');
+        return;
+      }
+
       const { error } = await supabase
         .from('documents')
-        .update({ name: editName } as never)
+        .update({ 
+          name: editName,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', editingDocument.id);
 
       if (error) throw error;
@@ -104,10 +215,19 @@ export default function DocumentsPage() {
     }
   };
 
-  const deleteDocument = async (docId: string) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer ce document ?')) return;
+  const deleteDocument = async (docId: string): Promise<void> => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce document ?') || !user) return;
 
     try {
+      // Vérifier que l'utilisateur est le créateur du document
+      const documentToDelete = documents.find(doc => doc.id === docId);
+      if (!documentToDelete) return;
+
+      if (documentToDelete.created_by !== user.id) {
+        alert('Vous ne pouvez supprimer que vos propres documents.');
+        return;
+      }
+
       const { error } = await supabase
         .from('documents')
         .delete()
@@ -121,6 +241,34 @@ export default function DocumentsPage() {
       console.error('Error deleting document:', error);
       alert('Erreur lors de la suppression du document.');
     }
+  };
+
+  // Helper function pour vérifier les permissions
+  const hasPermission = (
+    permissions: any, 
+    action: 'read' | 'write' | 'delete', 
+    userId?: string
+  ): boolean => {
+    if (!permissions || !permissions[action]) return false;
+    
+    const actionPermissions = permissions[action];
+    return actionPermissions.includes('all') || 
+           actionPermissions.includes('authenticated') ||
+           (userId && actionPermissions.includes(userId));
+  };
+
+  // Vérifier si l'utilisateur peut modifier un document
+  const canEditDocument = (doc: Document): boolean => {
+    if (!user) return false;
+    return doc.created_by === user.id || 
+      hasPermission(doc.default_permissions, 'write', user.id);
+  };
+
+  // Vérifier si l'utilisateur peut supprimer un document
+  const canDeleteDocument = (doc: Document): boolean => {
+    if (!user) return false;
+    return doc.created_by === user.id ||
+      hasPermission(doc.default_permissions, 'delete', user.id);
   };
 
   // Filtrer les documents par recherche
@@ -237,101 +385,131 @@ export default function DocumentsPage() {
           </div>
         </div>
 
-        {/* Documents Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredDocuments.map((doc) => (
-            <div
-              key={doc.id}
-              className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-lg transition-all duration-200 group relative"
-            >
-              {/* Menu d'actions */}
-              <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex space-x-1">
-                <button
-                  onClick={() => startEditDocument(doc)}
-                  className="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors bg-white dark:bg-gray-700 rounded-lg shadow-sm"
-                  title="Renommer"
-                >
-                  ✏️
-                </button>
-                <button
-                  onClick={() => deleteDocument(doc.id)}
-                  className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors bg-white dark:bg-gray-700 rounded-lg shadow-sm"
-                  title="Supprimer"
-                >
-                  🗑️
-                </button>
-              </div>
+        {/* Loading State */}
+        {loadingDocuments ? (
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600 dark:text-gray-400">Chargement de vos documents...</p>
+          </div>
+        ) : (
+          /* Documents Grid */
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {filteredDocuments.map((doc) => (
+              <div
+                key={doc.id}
+                className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-lg transition-all duration-200 group relative"
+              >
+                {/* Indicateur de propriété */}
+                {doc.created_by === user.id && (
+                  <div className="absolute top-2 left-2">
+                    <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
+                      Propriétaire
+                    </span>
+                  </div>
+                )}
 
-              <Link href={`/gestion-drive/${doc.id}`} className="block">
-                {/* Icon */}
-                <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center text-white text-xl mb-4">
-                  📄
+                {/* Indicateur de document partagé */}
+                {doc.created_by !== user.id && (
+                  <div className="absolute top-2 left-2">
+                    <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
+                      Partagé
+                    </span>
+                  </div>
+                )}
+
+                {/* Menu d'actions */}
+                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex space-x-1">
+                  {canEditDocument(doc) && (
+                    <button
+                      onClick={() => startEditDocument(doc)}
+                      className="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors bg-white dark:bg-gray-700 rounded-lg shadow-sm"
+                      title="Renommer"
+                    >
+                      ✏️
+                    </button>
+                  )}
+                  {canDeleteDocument(doc) && (
+                    <button
+                      onClick={() => deleteDocument(doc.id)}
+                      className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors bg-white dark:bg-gray-700 rounded-lg shadow-sm"
+                      title="Supprimer"
+                    >
+                      🗑️
+                    </button>
+                  )}
                 </div>
 
-                {/* Document Info */}
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2 pr-12">
-                  {doc.name}
+                <Link href={`/gestion-drive/${doc.id}`} className="block">
+                  {/* Icon */}
+                  <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center text-white text-xl mb-4">
+                    📄
+                  </div>
+
+                  {/* Document Info */}
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2 pr-12">
+                    {doc.name}
+                  </h3>
+                  
+                  <p className="text-gray-600 dark:text-gray-300 text-sm mb-4 line-clamp-2">
+                    {doc.description || 'Document dynamique personnalisable'}
+                  </p>
+
+                  {/* Metadata */}
+                  <div className="flex justify-between items-center text-xs text-gray-500 dark:text-gray-400">
+                    <span>
+                      {new Date(doc.created_at).toLocaleDateString('fr-FR')}
+                    </span>
+                    <span className={`px-2 py-1 rounded-full ${
+                      doc.is_active 
+                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
+                        : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                    }`}>
+                      {doc.is_active ? 'Actif' : 'Inactif'}
+                    </span>
+                  </div>
+                </Link>
+              </div>
+            ))}
+
+            {/* Empty State */}
+            {filteredDocuments.length === 0 && (
+              <div className="col-span-full text-center py-12">
+                <div className="text-gray-400 dark:text-gray-500 mb-4">
+                  <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                  {search ? 'Aucun document trouvé' : 'Aucun document'}
                 </h3>
-                
-                <p className="text-gray-600 dark:text-gray-300 text-sm mb-4 line-clamp-2">
-                  {doc.description || 'Document dynamique personnalisable'}
+                <p className="text-gray-500 dark:text-gray-400 mb-4 max-w-md mx-auto">
+                  {search 
+                    ? 'Aucun document ne correspond à votre recherche. Essayez d\'autres termes.'
+                    : 'Commencez par créer votre premier document dynamique.'
+                  }
                 </p>
-
-                {/* Metadata */}
-                <div className="flex justify-between items-center text-xs text-gray-500 dark:text-gray-400">
-                  <span>
-                    {new Date(doc.created_at).toLocaleDateString('fr-FR')}
-                  </span>
-                  <span className={`px-2 py-1 rounded-full ${
-                    doc.is_active 
-                      ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
-                      : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                  }`}>
-                    {doc.is_active ? 'Actif' : 'Inactif'}
-                  </span>
-                </div>
-              </Link>
-            </div>
-          ))}
-
-          {/* Empty State */}
-          {filteredDocuments.length === 0 && (
-            <div className="col-span-full text-center py-12">
-              <div className="text-gray-400 dark:text-gray-500 mb-4">
-                <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
+                {search ? (
+                  <button
+                    onClick={() => setSearch('')}
+                    className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
+                  >
+                    Effacer la recherche
+                  </button>
+                ) : (
+                  <button
+                    onClick={createNewDocument}
+                    disabled={creating}
+                    className={`bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors ${
+                      creating ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    {creating ? 'Création...' : 'Créer un document'}
+                  </button>
+                )}
               </div>
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                {search ? 'Aucun document trouvé' : 'Aucun document'}
-              </h3>
-              <p className="text-gray-500 dark:text-gray-400 mb-4 max-w-md mx-auto">
-                {search 
-                  ? 'Aucun document ne correspond à votre recherche. Essayez d\'autres termes.'
-                  : 'Commencez par créer votre premier document dynamique.'
-                }
-              </p>
-              {search ? (
-                <button
-                  onClick={() => setSearch('')}
-                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
-                >
-                  Effacer la recherche
-                </button>
-              ) : (
-                <button
-                  onClick={createNewDocument}
-                  disabled={creating}
-                  className={`bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors ${
-                    creating ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
-                >
-                  {creating ? 'Création...' : 'Créer un document'}
-                </button>
-              )}
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </main>
 
       {/* Footer */}
