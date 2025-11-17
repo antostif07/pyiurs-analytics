@@ -83,12 +83,22 @@ export default function DataGrid({
     const cell = cellData.find(c => c.row_id === rowId && c.column_id === columnId);
     if (!cell) return '';
 
+    const column = columns.find(c => c.id === columnId);
+    
     switch (cell.value_type) {
-      case 'text': return cell.text_value || '';
-      case 'number': return cell.number_value?.toString() || '';
-      case 'date': return cell.date_value ? new Date(cell.date_value).toLocaleDateString() : '';
-      case 'boolean': return cell.boolean_value ? 'Oui' : 'Non';
-      default: return '';
+      case 'text': 
+        return cell.text_value || '';
+      case 'number': 
+        return cell.number_value?.toString() || '';
+      case 'date': 
+        return cell.date_value ? new Date(cell.date_value).toLocaleDateString('fr-FR') : '';
+      case 'boolean': 
+        return cell.boolean_value ? 'Oui' : 'Non';
+      case 'select':
+        // 🔥 CORRECTION : Pour les selects, utiliser text_value
+        return cell.text_value || '';
+      default: 
+        return cell.text_value || '';
     }
   };
 
@@ -98,8 +108,16 @@ export default function DataGrid({
       return; // Ne pas ouvrir l'édition directe pour ces types
     }
 
+    const currentValue = getCellValue(rowId, columnId);
+    
+    // 🔥 CORRECTION : Pour les boolean, convertir en string 'true'/'false'
+    if (column?.data_type === 'boolean') {
+      setEditValue(currentValue === 'Oui' ? 'true' : 'false');
+    } else {
+      setEditValue(currentValue);
+    }
+    
     setEditingCell({ rowId, columnId });
-    setEditValue(getCellValue(rowId, columnId));
   };
 
   // const { logAction } = useHistory(documentId);
@@ -111,7 +129,6 @@ export default function DataGrid({
         return;
       }
 
-      const oldCell = cellData.find(c => c.row_id === rowId && c.column_id === columnId);
       const column = columns.find(c => c.id === columnId);
       if (!column) return;
 
@@ -119,7 +136,12 @@ export default function DataGrid({
 
       let updateData: any = {
         value_type: column.data_type,
-        updated_by: user.id
+        updated_by: user.id,
+        // 🔥 CORRECTION : Réinitialiser toutes les valeurs pour éviter les conflits
+        text_value: null,
+        number_value: null,
+        date_value: null,
+        boolean_value: null
       };
 
       // Set value based on data type
@@ -133,32 +155,37 @@ export default function DataGrid({
         case 'boolean':
           updateData.boolean_value = value === 'true' || value === 'Oui';
           break;
+        case 'select':
+          // 🔥 CORRECTION : Pour les selects, sauvegarder comme text_value
+          updateData.text_value = value;
+          break;
         default:
           updateData.text_value = value;
       }
 
       if (existingCell) {
-        // Log avant la modification
-        // logAction('update', 'cell_data', existingCell.id,
-        //   `Cellule "${column?.label}" modifiée: ${getCellValue(rowId, columnId)} → ${value}`,
-        //   { value: getCellValue(rowId, columnId) },
-        //   { value }
-        // );
+        console.log('💾 Mise à jour cellule existante:', { rowId, columnId, value, updateData });
 
         // Update existing cell
         const { data, error } = await supabase
           .from('cell_data')
-          .update(updateData as never)
+          .update(updateData)
           .eq('id', existingCell.id)
           .select()
           .single();
 
-        if (error) throw error;
+        if (error) {
+          console.error('❌ Erreur Supabase:', error);
+          throw error;
+        }
         
+        console.log('✅ Cellule mise à jour:', data);
         onCellDataChange(cellData.map(cell => 
           cell.id === existingCell.id ? data : cell
         ));
       } else {
+        console.log('💾 Création nouvelle cellule:', { rowId, columnId, value, updateData });
+
         // Create new cell
         const { data: newCellData, error } = await supabase
           .from('cell_data')
@@ -166,23 +193,24 @@ export default function DataGrid({
             {
               row_id: rowId,
               column_id: columnId,
+              created_by: user.id,
               ...updateData
-            } as never
+            }
           ])
           .select()
           .single();
 
-        if (error) throw error;
+        if (error) {
+          console.error('❌ Erreur Supabase:', error);
+          throw error;
+        }
 
-        // Log pour la création
-        // logAction('create', 'cell_data', (newCellData as CellData).id,
-        //   `Nouvelle valeur dans "${column?.label}": ${value}`
-        // );
-
+        console.log('✅ Nouvelle cellule créée:', newCellData);
         onCellDataChange([...cellData, newCellData]);
       }
     } catch (error) {
       console.error('Error saving cell:', error);
+      alert('Erreur lors de la sauvegarde de la cellule');
     }
   };
 
@@ -277,19 +305,19 @@ export default function DataGrid({
   };
 
   const getDisplayValue = (rowId: string, column: DocumentColumn) => {
-  const cell = cellData.find(c => c.row_id === rowId && c.column_id === column.id);
+    const cell = cellData.find(c => c.row_id === rowId && c.column_id === column.id);
 
-  if (column.data_type === 'multiline') {
-    const multilineCount = cell ? multilineData.filter(md => md.cell_data_id === cell.id).length : 0;
-    return multilineCount > 0 ? `${multilineCount} ligne(s)` : '';
-  } else if (column.data_type === 'file') {
-    const fileCount = cell ? fileAttachments.filter(f => f.cell_data_id === cell.id).length : 0;
-    return fileCount > 0 ? `${fileCount} fichier(s)` : '';
-  }
-  
-  // Pour les autres types, si la cellule n'existe pas, afficher un placeholder
-  return cell ? getCellValue(rowId, column.id) : '';
-};
+    if (column.data_type === 'multiline') {
+      const multilineCount = cell ? multilineData.filter(md => md.cell_data_id === cell.id).length : 0;
+      return multilineCount > 0 ? `${multilineCount} ligne(s)` : '';
+    } else if (column.data_type === 'file') {
+      const fileCount = cell ? fileAttachments.filter(f => f.cell_data_id === cell.id).length : 0;
+      return fileCount > 0 ? `${fileCount} fichier(s)` : '';
+    }
+    
+    // 🔥 CORRECTION : Pour les autres types, utiliser getCellValue
+    return cell ? getCellValue(rowId, column.id) : '';
+  };
 
   const renderCell = (rowId: string, column: DocumentColumn) => {
   const isEditing = editingCell?.rowId === rowId && editingCell?.columnId === column.id;

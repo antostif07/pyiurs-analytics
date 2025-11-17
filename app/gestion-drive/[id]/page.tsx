@@ -40,7 +40,6 @@ export default function DocumentEditor() {
     }
   }, [user, authLoading, router]);
 
-
   const fetchDocumentData = useCallback(async () => {
     try {
       setLoading(true);
@@ -53,7 +52,7 @@ export default function DocumentEditor() {
         .single();
 
       if (docError) throw docError;
-      setDocument(docData)
+      setDocument(docData);
 
       // Fetch columns
       const { data: columnsData, error: columnsError } = await supabase
@@ -64,7 +63,6 @@ export default function DocumentEditor() {
 
       if (columnsError) throw columnsError;
       setColumns(columnsData || []);
-      
 
       // Fetch rows
       const { data: rowsData, error: rowsError } = await supabase
@@ -92,7 +90,7 @@ export default function DocumentEditor() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [documentId, user]);
 
   useEffect(() => {
     if (documentId && user) {
@@ -248,12 +246,15 @@ export default function DocumentEditor() {
     return null;
   }
 
+  // 🔥 Vérifier si l'utilisateur actuel est le propriétaire du document
+  const isOwner = user.id === document.created_by;
+
   return (
     <div
-    className={`${darkMode ? 'dark' : ''} min-h-screen bg-gradient-to-br 
-    from-gray-50 to-gray-200 dark:from-gray-900 dark:to-gray-800 
-    transition-colors grid grid-rows-[auto_1fr_auto]`}
-  >
+      className={`${darkMode ? 'dark' : ''} min-h-screen bg-gradient-to-br 
+      from-gray-50 to-gray-200 dark:from-gray-900 dark:to-gray-800 
+      transition-colors grid grid-rows-[auto_1fr_auto]`}
+    >
       
       {/* Header */}
       <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
@@ -309,8 +310,16 @@ export default function DocumentEditor() {
                   </div>
                 ) : (
                   <>
-                    <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                      {document.name}
+                    <h1 className="text-xl font-bold text-gray-900 dark:text-white flex items-center space-x-2">
+                      <span>{document.name}</span>
+                      {isOwner && (
+                        <span 
+                          className="text-xs bg-yellow-500 text-white px-2 py-1 rounded-full"
+                          title="Vous êtes le propriétaire de ce document"
+                        >
+                          👑 Propriétaire
+                        </span>
+                      )}
                     </h1>
                     <button
                       onClick={() => setDocument(prev => prev ? {...prev, isEditing: true, editName: prev.name} : null)}
@@ -365,6 +374,7 @@ export default function DocumentEditor() {
                 <span>{showConfig ? 'Masquer configuration' : 'Configurer colonnes'}</span>
               </button>
 
+              {/* 🔥 CORRECTION : Passer documentOwnerId au PermissionManager */}
               <PermissionManager
                 documentId={documentId}
                 currentPermissions={document?.default_permissions}
@@ -392,6 +402,7 @@ export default function DocumentEditor() {
                     alert('Erreur lors de la mise à jour des permissions.');
                   }
                 }}
+                documentOwnerId={document.created_by} // 🔥 IMPORTANT : Passer l'ID du propriétaire
               />
             </div>
             
@@ -424,7 +435,7 @@ export default function DocumentEditor() {
       </header>
 
       {/* Main Content */}
-      <div className="min-h-0 overflow-auto">
+      <div className="min-h-0 overflow-auto flex">
         {/* Configuration Panel */}
         {showConfig && (
           <div className="w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 overflow-y-auto">
