@@ -281,14 +281,14 @@ export default function DataGrid({
 
   if (column.data_type === 'multiline') {
     const multilineCount = cell ? multilineData.filter(md => md.cell_data_id === cell.id).length : 0;
-    return multilineCount > 0 ? `${multilineCount} ligne(s)` : 'Cliquer pour éditer';
+    return multilineCount > 0 ? `${multilineCount} ligne(s)` : '';
   } else if (column.data_type === 'file') {
     const fileCount = cell ? fileAttachments.filter(f => f.cell_data_id === cell.id).length : 0;
-    return fileCount > 0 ? `${fileCount} fichier(s)` : 'Cliquer pour ajouter';
+    return fileCount > 0 ? `${fileCount} fichier(s)` : '';
   }
   
   // Pour les autres types, si la cellule n'existe pas, afficher un placeholder
-  return cell ? getCellValue(rowId, column.id) : 'Cliquer pour éditer';
+  return cell ? getCellValue(rowId, column.id) : '';
 };
 
   const renderCell = (rowId: string, column: DocumentColumn) => {
