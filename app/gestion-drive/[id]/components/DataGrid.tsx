@@ -313,9 +313,12 @@ export default function DataGrid({
     } else if (column.data_type === 'file') {
       const fileCount = cell ? fileAttachments.filter(f => f.cell_data_id === cell.id).length : 0;
       return fileCount > 0 ? `${fileCount} fichier(s)` : '';
+    } else if (column.data_type === 'text' && cell?.text_value) {
+      // 🔥 Afficher les retours à ligne pour le texte
+      return cell.text_value;
     }
     
-    // 🔥 CORRECTION : Pour les autres types, utiliser getCellValue
+    // Pour les autres types, si la cellule n'existe pas, afficher un placeholder
     return cell ? getCellValue(rowId, column.id) : '';
   };
 
@@ -363,22 +366,47 @@ export default function DataGrid({
         </select>
       );
     } else {
-      // Édition normale pour les autres types
-      return (
-        <input
-          type={column.data_type === 'number' ? 'number' : 
-                column.data_type === 'date' ? 'date' : 'text'}
-          value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
-          onKeyDown={(e) => handleKeyDown(e, rowId, column.id)}
-          onBlur={() => {
+      if (column.data_type === 'text') {
+    return (
+      <textarea
+        value={editValue}
+        onChange={(e) => setEditValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && e.ctrlKey) {
+            // Ctrl+Enter pour sauvegarder
             saveCell(rowId, column.id, editValue);
             setEditingCell(null);
-          }}
-          className="w-full h-full px-2 py-1 border border-blue-500 outline-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-          autoFocus
-        />
-      );
+          } else if (e.key === 'Escape') {
+            setEditingCell(null);
+          }
+        }}
+        onBlur={() => {
+          console.log('💾 Sauvegarde texte:', { rowId, columnId: column.id, value: editValue });
+          saveCell(rowId, column.id, editValue);
+          setEditingCell(null);
+        }}
+        className="w-full h-full px-2 py-1 border border-blue-500 outline-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-y min-h-[80px]"
+        autoFocus
+        rows={3}
+      />
+    );
+  } else {
+    return (
+      <input
+        type={column.data_type === 'number' ? 'number' : 'date'}
+        value={editValue}
+        onChange={(e) => setEditValue(e.target.value)}
+        onKeyDown={(e) => handleKeyDown(e, rowId, column.id)}
+        onBlur={() => {
+          console.log('💾 Sauvegarde standard:', { rowId, columnId: column.id, value: editValue });
+          saveCell(rowId, column.id, editValue);
+          setEditingCell(null);
+        }}
+        className="w-full h-full px-2 py-1 border border-blue-500 outline-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+        autoFocus
+      />
+    );
+  }
     }
   }
 
@@ -395,17 +423,24 @@ export default function DataGrid({
   }
 
   return (
-    <div
-      onClick={() => handleCellClick(rowId, column)}
-      className={cellClassName}
-      style={{
-        backgroundColor: column.background_color,
-        color: column.text_color
-      }}
-    >
-      {cellContent}
-    </div>
-  );
+  <div
+    onClick={() => handleCellClick(rowId, column)}
+    className={cellClassName}
+    style={{
+      backgroundColor: column.background_color,
+      color: column.text_color
+    }}
+  >
+    {/* 🔥 Afficher les retours à ligne pour le texte */}
+    {column.data_type === 'text' && displayValue ? (
+      <div className="whitespace-pre-wrap break-words">
+        {displayValue}
+      </div>
+    ) : (
+      cellContent
+    )}
+  </div>
+);
 };
 
   const addNewRow = async () => {

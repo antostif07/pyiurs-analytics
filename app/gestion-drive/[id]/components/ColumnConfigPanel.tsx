@@ -436,7 +436,7 @@ function ColumnEditor({
             value={formData.width}
             onChange={(e) => setFormData({ ...formData, width: parseInt(e.target.value) })}
             className="flex-1"
-            min="100"
+            min="1"
             max="500"
             step="10"
           />
