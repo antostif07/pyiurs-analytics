@@ -141,8 +141,6 @@ export default function DetailsAndAccounting({initialData, onJustificationsUpdat
 
     // Séparer les dépenses par type de caisse
     const expensesByCash: ExpenseByCash = initialData.expenses.reduce((acc, expense) => {
-        console.log(expense);
-        
         const isEpargne = expense.journal_id && typeof expense.journal_id === 'object' 
             ? expense.journal_id[1].toLowerCase().includes('épargne') || expense.journal_id[1].toLowerCase().includes('epargne')
             : false;

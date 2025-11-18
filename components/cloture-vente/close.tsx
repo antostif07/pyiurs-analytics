@@ -434,7 +434,7 @@ export default function ClotureVenteClose({
         soldeOuverture: soLoyer,
         entreesEpargne: loyerEntreesEpargne,
         sortiesEpargne: loyerSortiesEpargne,
-        soldeCloture: soLoyer + loyerEntreesEpargne,
+        soldeCloture: soLoyer + loyerEntreesEpargne - loyerSortiesEpargne,
         validated: false
       },
       {
@@ -870,7 +870,7 @@ export default function ClotureVenteClose({
               
               <Button
                 onClick={handleSaveClosure}
-                disabled={existingClosure || isSubmitting ? false : true}
+                disabled={existingClosure || isSubmitting ? true : false}
                 className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 h-11 text-base font-semibold shadow-md"
                 size="lg"
               >

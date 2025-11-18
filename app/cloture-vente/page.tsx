@@ -374,8 +374,7 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
   };
 
   const showShopSelector = !isUserRestricted || profile.assigned_shops.length > 1 || profile.shop_access_type === 'all';
-
-  console.log(expe.records);
+  
   
   return (
     <ClotureVentesClient 
