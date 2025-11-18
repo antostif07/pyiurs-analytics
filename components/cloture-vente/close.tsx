@@ -185,12 +185,13 @@ export default function ClotureVenteClose({
         const isEpargne = expense.journal_id && typeof expense.journal_id === 'object' 
             ? expense.journal_id[1].toLowerCase().includes('épargne') || expense.journal_id[1].toLowerCase().includes('epargne')
             : false;
-
         if (isEpargne) {
-            acc.caisseEpargne.push(...expense.expenses);
+          const newExpenses = expense.expenses.filter(exp => format(exp.create_date, 'yyyy-MM-dd') === format(initialData.date, 'yyyy-MM-dd'));
+            acc.caisseEpargne.push(...newExpenses);
             acc.totalEpargne += expense.total_amount || 0;
         } else {
-            acc.caissePrincipale.push(...expense.expenses);
+          const newExpenses = expense.expenses.filter(exp => format(exp.create_date, 'yyyy-MM-dd') === format(initialData.date, 'yyyy-MM-dd'));
+            acc.caissePrincipale.push(...newExpenses);
             acc.totalPrincipal += expense.total_amount || 0;
         }
         
@@ -201,7 +202,7 @@ export default function ClotureVenteClose({
         totalPrincipal: 0,
         totalEpargne: 0
     } as ExpenseByCash);
-  
+    
   // Calcul des données de caisse secondaire
   const savingsCalculations = useMemo(() => {
     return {
@@ -328,7 +329,7 @@ export default function ClotureVenteClose({
       securitySortiesEpargne: expensesByCash.caisseEpargne.reduce((sum, expense) => {
         if(expense.product_id[1]) {
           const productName = expense.product_id[1].toLowerCase();
-          if (productName.includes('secur')) {
+          if (productName.includes('securite') || productName.includes('sécurité')) {
             return sum + (expense.total_amount || 0);
           } else {
             return sum;
