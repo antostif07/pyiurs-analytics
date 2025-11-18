@@ -161,7 +161,7 @@ export function EditUserModal({ user, isOpen, onClose, onUserUpdated, shops, com
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-            Modifier l'utilisateur
+            Modifier l&apos;utilisateur
           </h3>
           <button
             onClick={onClose}
@@ -261,7 +261,7 @@ export function EditUserModal({ user, isOpen, onClose, onUserUpdated, shops, com
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Type d'accès boutique *
+                Type d&apos;accès boutique *
               </label>
               <select
                 value={formData.shop_access_type}

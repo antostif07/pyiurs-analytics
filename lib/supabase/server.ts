@@ -1,7 +1,15 @@
 // lib/supabase/server.ts
+import { Profile } from '@/contexts/AuthContext'
 import { createServerClient } from '@supabase/ssr'
+import { Session, User } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { cache } from 'react'
+
+export interface ServerAuthResult {
+  user: User | null
+  profile: Profile | null
+  session: Session | null
+}
 
 export const createClient = cache(() => {
   const cookieStore = cookies()
@@ -72,7 +80,7 @@ export const getServerProfile = cache(async (userId: string) => {
 })
 
 // Fonction pour récupérer user + profile + session côté serveur
-export const getServerAuth = cache(async () => {
+export const getServerAuth = cache(async (): Promise<ServerAuthResult> => {
   const supabase = createClient()
   
   try {

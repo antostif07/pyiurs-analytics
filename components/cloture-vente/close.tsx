@@ -201,57 +201,16 @@ export default function ClotureVenteClose({
   const [caissePrincipaleData, setCaissePrincipaleData] = useState<CaissePrincipaleRow[]>([]);
   const [caisseSecondaireData, setCaisseSecondaireData] = useState<CaisseSecondaireRow[]>([]);
 
-  useEffect(() => {
-    if (existingClosure && isReadOnly) {
-      // Mode lecture seule : charger les données de la clôture existante
-      loadExistingClosureData();
-    }
-  }, [existingClosure, isReadOnly, getOpeningBalances, savingsCalculations, calculations.calculatedCash, initialData]);
+  // useEffect(() => {
+  //   if (existingClosure && isReadOnly) {
+  //     // Mode lecture seule : charger les données de la clôture existante
+  //     loadExistingClosureData();
+  //   }
+  // }, [existingClosure, isReadOnly, getOpeningBalances, savingsCalculations, calculations.calculatedCash, initialData]);
 
-  const loadExistingClosureData = () => {
-    if (!existingClosure) return;
-
-    // Charger la caisse principale depuis la clôture existante
-    // const mainCashFromClosure = existingClosure.cash_closure_main_cash || [];
-    // setCaissePrincipaleData(mainCashFromClosure.map(row => ({
-    //   modePaiement: row.payment_method_name,
-    //   paymentMethod: row.payment_method,
-    //   paymentMethodId: row.payment_method_id || undefined,
-    //   soldeOuverture: row.opening_balance,
-    //   ventesJour: row.daily_sales,
-    //   sortiesJour: row.daily_outflows,
-    //   clotureTheorique: row.theoretical_closure,
-    //   cashPhysique: row.physical_cash,
-    //   managerConfirmed: row.manager_confirmed,
-    //   financierConfirmed: row.financier_confirmed
-    // })));
-
-    // Charger la caisse secondaire depuis la clôture existante
-    // const secondaryCashFromClosure = existingClosure.cash_closure_secondary_cash || [];
-    // setCaisseSecondaireData(secondaryCashFromClosure.map(row => ({
-    //   categorie: row.savings_category_name,
-    //   savingsCategory: row.savings_category,
-    //   savingsCategoryId: row.savings_category_id || undefined,
-    //   soldeOuverture: row.opening_balance,
-    //   entreesEpargne: row.savings_inflows,
-    //   sortiesEpargne: row.savings_outflows,
-    //   soldeCloture: row.closure_balance,
-    //   validated: row.validated
-    // })));
-
-    // Charger la billeterie depuis la clôture existante
-    // const denominationsFromClosure = existingClosure.cash_denominations || [];
-    // const updatedDenominations = [...denominations];
-    // denominationsFromClosure.forEach(denom => {
-    //   const index = updatedDenominations.findIndex(d => 
-    //     d.currency === denom.currency && d.value === denom.denomination
-    //   );
-    //   if (index !== -1) {
-    //     updatedDenominations[index].quantity = denom.quantity;
-    //   }
-    // });
-    // Note: Vous devrez peut-être passer un setter pour denominations depuis le parent
-  };
+  // const loadExistingClosureData = () => {
+  //   if (!existingClosure) return;
+  // };
 
   // Mettre à jour les données quand les calculs changent
   useEffect(() => {

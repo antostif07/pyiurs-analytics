@@ -56,7 +56,7 @@ export const pdfService = {
     
     // Billeterie détaillée
     const eR = closure.exchange_rate || 2450
-    yPosition = this.addDenominationsSection(pdf, denominations, eR, pageWidth, yPosition, colors)
+    this.addDenominationsSection(pdf, denominations, eR, pageWidth, yPosition, colors)
 
     // Notes et signatures
     this.addNotesAndSignatures(pdf, closure, pageWidth, pageHeight, colors)

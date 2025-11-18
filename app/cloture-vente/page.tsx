@@ -4,7 +4,9 @@ import { POSConfig, POSOrder, POSPayment } from "../types/pos"
 import ClotureVentesClient from "./cloture-ventes.client"
 import { AccountAccount, Expense } from "../types/cloture"
 import { clotureService } from "@/lib/cloture-service"
-import { createClient } from "@/lib/supabase/server"
+import { createClient, getServerAuth } from "@/lib/supabase/server"
+import { Profile } from "@/contexts/AuthContext"
+import { User } from "@supabase/supabase-js"
 
 interface PageProps {
   searchParams: Promise<{
@@ -144,7 +146,7 @@ async function getDailyExpensesReport(date: Date, company_name?: string) {
     ...sheet,
     expenses: (sheet.expense_line_ids || [])
       .map((expenseId: number) => expensesMap.get(expenseId))
-      .filter((expense: any) => expense !== undefined)
+      .filter((expense: Expense) => expense !== undefined)
   }));
 
   return { success: true, records: sheetWithExpenses };
@@ -220,20 +222,20 @@ async function getPOSConfig() {
 }
 
 // Fonction pour filtrer les shops selon les permissions
-function filterShopsByUserAccess(allShops: POSConfig[], userShops: string[], userRole: string): POSConfig[] {
+function filterShopsByUserAccess(allShops: POSConfig[], profile: Profile): POSConfig[] {
   // Les admins voient tout
-  if (userRole === 'admin') {
+  if (profile.role === 'admin') {
     return allShops;
   }
   
   // Si l'utilisateur a accès à tout
-  if (userShops.includes('all')) {
+  if (profile.assigned_shops.includes('all')) {
     return allShops;
   }
   
   // Filtrer selon les boutiques assignées
   return allShops.filter(shop => 
-    userShops.includes(shop.id.toString())
+    profile.assigned_shops.includes(shop.id.toString())
   );
 }
 
@@ -241,66 +243,26 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const selectedDate = params.date ? new Date(params.date) : new Date();
   
-  // Récupérer l'utilisateur connecté via Supabase SSR
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  
+  const { user, profile } = await getServerAuth();
+
+  if (!user || !profile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">
+            Accès non autorisé
+          </h1>
+          <p className="text-gray-600">
+            Vous devez être connecté pour accéder à la clôture des ventes.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   let selectedShop = params.shop || 'all';
-  let userShops: string[] = [];
-  let userRole = 'user';
   let userName = 'Utilisateur';
   let isUserRestricted = true;
-  
-  if (user) {
-    try {
-      // Récupérer le profil utilisateur
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-
-      if (profile && !error) {
-        userRole = profile.role;
-        userName = profile.full_name || user.email || 'Utilisateur';
-        
-        // Déterminer les boutiques accessibles
-        if (profile.role === 'admin' || profile.shop_access_type === 'all') {
-          userShops = ['all'];
-          isUserRestricted = false;
-        } else {
-          // S'assurer que assigned_shops est un tableau
-          userShops = Array.isArray(profile.assigned_shops) 
-            ? profile.assigned_shops 
-            : (typeof profile.assigned_shops === 'string' 
-                ? JSON.parse(profile.assigned_shops) 
-                : []);
-          isUserRestricted = true;
-        }
-
-        // Gestion automatique du shop sélectionné pour les utilisateurs restreints
-        if (isUserRestricted) {
-          // Si un seul shop est assigné, le sélectionner automatiquement
-          if (userShops.length === 1 && userShops[0] !== 'all') {
-            selectedShop = userShops[0];
-          }
-          
-          // Vérifier que le shop demandé est autorisé
-          if (params.shop && params.shop !== 'all' && !userShops.includes(params.shop)) {
-            // Rediriger vers le premier shop autorisé
-            if (userShops.length > 0 && userShops[0] !== 'all') {
-              selectedShop = userShops[0];
-            } else {
-              // Aucun shop autorisé - afficher erreur plus tard
-              selectedShop = 'none';
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Erreur récupération profil:', error);
-    }
-  }
 
   // Récupérer les données
   const [salesData, exchangeRate, allShopsData, expe] = await Promise.all([
@@ -313,10 +275,10 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
   const allShops = allShopsData.records as POSConfig[];
   
   // Filtrer les shops selon les permissions
-  const availableShops = filterShopsByUserAccess(allShops, userShops, userRole);
+  const availableShops = filterShopsByUserAccess(allShops, profile);
   
   // Vérifier si l'utilisateur a accès
-  const hasAccess = availableShops.length > 0 || userRole === 'admin';
+  const hasAccess = availableShops.length > 0 || profile?.role === 'admin';
   
   if (!hasAccess) {
     return (
@@ -412,17 +374,17 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
     shops: availableShops
   };
 
-  const showShopSelector = !isUserRestricted || userShops.length > 1 || userShops.includes('all');
+  const showShopSelector = !isUserRestricted || profile.assigned_shops.length > 1 || profile.assigned_shops.includes('all');
 
   return (
     <ClotureVentesClient 
       initialData={initialData} 
       searchParams={params} 
       shopLastClosure={lastClosure} 
-      userShops={userShops}
+      userShops={profile.assigned_shops}
       isUserRestricted={isUserRestricted}
       showShopSelector={showShopSelector}
-      userRole={userRole}
+      userRole={profile.role}
       userName={userName}
     />
   );

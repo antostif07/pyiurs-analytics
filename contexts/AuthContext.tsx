@@ -6,7 +6,7 @@ import type { User, Session, SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import { Loader2 } from 'lucide-react';
 
-interface Profile {
+export interface Profile {
   id: string;
   email: string;
   full_name: string;

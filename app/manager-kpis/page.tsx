@@ -5,6 +5,8 @@ import { isBeauty } from "@/lib/is_beauty";
 import DailySalesClient from "./daily-sales.client";
 import { getMonthDates } from "@/lib/date-utils";
 import { EnrichedPOSLine } from "../types/daily-sales";
+import { getServerAuth, getServerUser } from "@/lib/supabase/server";
+import { Profile } from "@/contexts/AuthContext";
 
 // Types
 export interface DailySaleData {
@@ -36,7 +38,7 @@ const API_CONFIG = {
   }
 };
 
-async function getPOSConfig() {
+async function getPOSConfig(profile?: { profile?: Profile}) {
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.config?fields=id,name`,
     { 
@@ -124,7 +126,7 @@ async function getProductsFromPOSLines(posLines: POSOrderLine[]) {
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/product.template?fields=id,name,list_price,categ_id,hs_code,product_variant_id,categ_id&domain=${encodeURIComponent(domain)}`,
     {
-      next: { revalidate: 3600 } // Cache plus long pour les produits
+      next: { revalidate: 900 } // Cache plus long pour les produits
     }
   );
 
@@ -240,12 +242,22 @@ export default async function DailySalesTablePage({ searchParams }: PageProps) {
   const boutiqueId = params.boutique || undefined;
   const month = params.month || undefined;
   const year = params.year || undefined;
+  const {user, profile} = await getServerAuth();
+
+  console.log(profile);
+  
 
   try {
-    const posDataWithProducts = await getPOSDataWithProducts(boutiqueId, month, year);
+    let posDataWithProducts: EnrichedPOSLine[] = [];
+    if(profile?.role === 'manager' && profile?.assigned_shops?.length === 1) {
+      posDataWithProducts = await getPOSDataWithProducts(profile?.assigned_shops[0], month, year);
+    } else {
+      posDataWithProducts = await getPOSDataWithProducts(boutiqueId, month, year);
+    }
+    
     const salesData = calculateDailySales(posDataWithProducts);
 
-    const posConfigData = await getPOSConfig();
+    const posConfigData = await getPOSConfig(profile);
     const boutiques = posConfigData.records.map((config: POSConfig) => ({
       id: config.id,
       name: config.name
