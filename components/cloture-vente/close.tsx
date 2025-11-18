@@ -118,8 +118,6 @@ export default function ClotureVenteClose({
       soSecurity = existingClosure.cash_closure_secondary_cash.find(sc => sc.savings_category_id === 6)?.opening_balance || 0
       soPersonnel = existingClosure.cash_closure_secondary_cash.find(sc => sc.savings_category_id === 7)?.opening_balance || 0
     } else if(lastClosure) {
-      console.log(lastClosure);
-      
       soCash = lastClosure.cash_closure_main_cash.find(mc => mc.payment_method_id === 1)?.physical_cash || 0
       soBank = lastClosure.cash_closure_main_cash.find(mc => mc.payment_method_id === 2)?.physical_cash || 0
       soMobileMoney = lastClosure.cash_closure_main_cash.find(mc => mc.payment_method_id === 3)?.physical_cash || 0
@@ -134,14 +132,14 @@ export default function ClotureVenteClose({
     } else {
       switch (shopId) {
         case 1: 
-          soCash = 274.25;
+          soCash = 100.86;
           soBank = 1167.5;
           soMarchandises = 0;
-          soLoyer = 128;
-          soBeauty = 144;
-          soFinance = 60;
-          soBoost = 40;
-          soSecurity = 0;
+          soLoyer = 0;
+          soBeauty = 0;
+          soFinance = 180;
+          soBoost = 10;
+          soSecurity = 20;
           soPersonnel = 0;
           break; // 24
         case 13: 
@@ -155,25 +153,25 @@ export default function ClotureVenteClose({
           soPersonnel = 0;
           break;
         case 14:
-          soCash = 0.5;
+          soCash = 1.5;
           soMarchandises = 0;
-          soLoyer = 612
-          soBeauty = 139;
-          soFinance = 220;
-          soBoost = 30;
-          soSecurity = 168;
+          soLoyer = 0;
+          soBeauty = 131;
+          soFinance = 100;
+          soBoost = 0;
+          soSecurity = 86;
           soPersonnel = 0;
           break;
         case 15:
-          soCash = 463;
+          soCash = 11;
           soBank = 110;
-          soMarchandises = 65;
-          soLoyer = 273;
-          soBeauty = 0;
-          soFinance = 235;
-          soBoost = 9.04;
-          soSecurity = 30;
-          soPersonnel = 160;
+          soMarchandises = 60;
+          soLoyer = 50;
+          soBeauty = 39;
+          soFinance = 34.15;
+          soBoost = 0;
+          soSecurity = 24.35;
+          soPersonnel = 0;
           break;
         case 17: soCash = 2.70; break;
         default: soCash = 0;
@@ -186,15 +184,15 @@ export default function ClotureVenteClose({
   // Calcul des données de caisse secondaire
   const savingsCalculations = useMemo(() => {
     return {
-      marchandisesEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ["[510166]", "[510165]"], 'any').totalAmount,
-      marchandisesSortiesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['[51003]'], 'any').totalAmount,
-      loyerEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['[51055]'], 'any').totalAmount,
-      beautyEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['510174','510101'], 'any').totalAmount,
-      beautySortiesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['0829473053'], 'any').totalAmount,
-      boostEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ["510071", "510111"], 'any').totalAmount,
-      boostSortiesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['0860524829', '[5100577]', '[510081]' ], 'any').totalAmount,
-      financeEntreeEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ["5100399", "510036"], "any").totalAmount,
-      securityEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ['[51020]'], 'any').totalAmount,
+      marchandisesEntreesEpargne: 0, //filterAndSumExpensesByKeywords(initialData.expenses, ["[510166]", "[510165]"], 'any').totalAmount,
+      marchandisesSortiesEpargne: 0, //filterAndSumExpensesByKeywords(initialData.expenses, ['[51003]'], 'any').totalAmount,
+      loyerEntreesEpargne: 0, //filterAndSumExpensesByKeywords(initialData.expenses, ['[51055]'], 'any').totalAmount,
+      beautyEntreesEpargne: 0, //filterAndSumExpensesByKeywords(initialData.expenses, ['510174','510101'], 'any').totalAmount,
+      beautySortiesEpargne: 0, //filterAndSumExpensesByKeywords(initialData.expenses, ['0829473053'], 'any').totalAmount,
+      boostEntreesEpargne: 0, //filterAndSumExpensesByKeywords(initialData.expenses, ["510071", "510111"], 'any').totalAmount,
+      boostSortiesEpargne: 0, //filterAndSumExpensesByKeywords(initialData.expenses, ['0860524829', '[5100577]', '[510081]' ], 'any').totalAmount,
+      financeEntreeEpargne: 0, //filterAndSumExpensesByKeywords(initialData.expenses, ["5100399", "510036"], "any").totalAmount,
+      securityEntreesEpargne: 0, //filterAndSumExpensesByKeywords(initialData.expenses, ['[51020]'], 'any').totalAmount,
       personalEntreesEpargne: 0,
     };
   }, [initialData.expenses]);

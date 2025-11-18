@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { POSConfig, POSOrder } from '../types/pos'
 import { format, isBefore } from 'date-fns'
-import { Expense } from '../types/cloture'
+import { Expense, ExpenseSheet } from '../types/cloture'
 import { supabase } from '@/lib/supabase'
 import ClotureVenteHeader from '@/components/cloture-vente/header'
 import { usePathname, useRouter } from 'next/navigation'
@@ -28,7 +28,7 @@ export type CloturePageDataType = {
   expectedCash: number
   exchangeRate: number
   sales: POSOrder[]
-  expenses: Expense[]
+  expenses: ExpenseSheet[]
   shops: POSConfig[]
 }
 
@@ -153,9 +153,6 @@ export default function ClotureVentesClient({
     
     return true
   }, [selectedShop, isClotureExist, isDateInClosedPeriod, isUserRestricted, userShops])
-
-  // console.log(canCreateClosure);
-  
 
   const updateDenomination = (index: number, quantity: number) => {
     const newDenominations = [...denominations]

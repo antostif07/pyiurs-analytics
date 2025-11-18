@@ -2,7 +2,7 @@
 import { redirect } from "next/navigation";
 import { createClient, getServerAuth } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import UsersClient from "./users.client";
+import UsersClient, { EnhancedUser } from "./users.client";
 import { POSConfig } from "../types/pos";
 
 interface PageProps {
@@ -11,28 +11,6 @@ interface PageProps {
     role?: string;
     page?: string;
   }>;
-}
-
-// Interface étendue avec les données auth
-interface EnhancedUser {
-  // Données du profile
-  id: string;
-  email: string;
-  full_name: string;
-  role: 'admin' | 'user' | 'manager' | 'financier';
-  assigned_shops: string[];
-  assigned_companies: string[];
-  shop_access_type: 'all' | 'specific';
-  avatar_url?: string;
-  created_at: string;
-  updated_at: string;
-  
-  // Données auth supplémentaires
-  last_sign_in_at?: string;
-  created_at_auth?: string;
-  email_confirmed_at?: string;
-  is_online?: boolean;
-  phone?: string;
 }
 
 async function getEnhancedUsers(search?: string, role?: string): Promise<EnhancedUser[]> {
@@ -176,9 +154,6 @@ export default async function UsersPage({ searchParams }: PageProps) {
       getPOSConfig(),
       getCompanies()
     ]);
-
-    console.log(companies);
-    
 
     return (
       <UsersClient

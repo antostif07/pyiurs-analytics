@@ -8,15 +8,16 @@ import { useState } from "react";
 import { POSConfig } from "../types/pos";
 import { CreateUserModal } from "./components/create-user-modal";
 import { ResCompany } from "../types/odoo";
+import { EditUserModal } from "./components/edit-user-modal";
 
 
 export interface EnhancedUser {
   id: string;
   email: string;
   full_name: string;
-  role: 'admin' | 'user' | 'manager' | 'financier';
+  role: 'admin' | 'user' | 'manager' | 'financier' | 'sales' | 'logistic';
   assigned_shops: string[];
-  assigned_companies: string[];
+  assigned_companies: number[];
   shop_access_type: 'all' | 'specific';
   avatar_url?: string;
   created_at: string;
@@ -46,8 +47,7 @@ export default function UsersClient({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isEditing, setIsEditing] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [editingUser, setEditingUser] = useState<EnhancedUser | null>(null);
 
   const handleFilterChange = (updates: { search?: string; role?: string }) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -274,7 +274,7 @@ export default function UsersClient({
                       <td className="py-4 px-6 text-right">
                         <div className="flex items-center justify-end space-x-2">
                           <button
-                            onClick={() => setIsEditing(user.id)}
+                            onClick={() => setEditingUser(user)}
                             className="px-3 py-1 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors duration-200"
                           >
                             Modifier
@@ -361,6 +361,16 @@ export default function UsersClient({
         shops={shops}
         companies={companies}
       />
+      {editingUser && (
+        <EditUserModal
+          user={editingUser}
+          isOpen={!!editingUser}
+          onClose={() => setEditingUser(null)}
+          onUserUpdated={handleUserCreated}
+          shops={shops}
+          companies={companies}
+        />
+      )}
     </main>
   );
 }

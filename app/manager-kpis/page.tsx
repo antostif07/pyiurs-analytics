@@ -1,6 +1,6 @@
 // app/manager-kpis/page.tsx
 import { POSConfig, POSOrder, POSOrderLine } from "../types/pos";
-import { mapOdooProduct, Product } from "../types/product_template";
+import { mapOdooProduct, OdooProductTemplate, Product } from "../types/product_template";
 import { isBeauty } from "@/lib/is_beauty";
 import DailySalesClient from "./daily-sales.client";
 import { getMonthDates } from "@/lib/date-utils";
@@ -154,7 +154,6 @@ async function getPOSDataWithProducts(boutiqueId?: string, month?: string, year?
 
     // Récupérer les produits associés
     const productsData = await getProductsFromPOSLines(posLines);
-    const products = productsData.records.map(mapOdooProduct);
 
     // Créer un map pour les relations order -> boutique
     const orderToBoutiqueMap = new Map();
@@ -170,8 +169,8 @@ async function getPOSDataWithProducts(boutiqueId?: string, month?: string, year?
 
     // Enrichir les données
     const enrichedData = posLines.map((line: POSOrderLine) => {
-      const product = products.find((p: Product) => p.productVariantId === line.product_id[0]);
-      const boutiqueInfo = orderToBoutiqueMap.get(line.order_id[0]);
+      const product = productsData.records?.find((p: OdooProductTemplate) => p.product_variant_id?.[0] === line.product_id?.[0]);
+      const boutiqueInfo = orderToBoutiqueMap.get(line.order_id?.[0]);
 
       return {
         ...line,
@@ -212,7 +211,7 @@ function calculateDailySales(data: EnrichedPOSLine[]): DailySaleData[] {
         progress: 0
       };
     }
-
+    
     const beautyAmount = isBeauty(item.product_category) ? (item.total_amount || 0) : 0;
     
     // Ajouter au total des ventes

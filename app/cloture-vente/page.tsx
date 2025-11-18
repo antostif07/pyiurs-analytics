@@ -59,6 +59,97 @@ async function getDailySales(date: Date, shop?: string) {
   return { success: true, records: enrichedOrders };
 }
 
+async function getDailyExpensesReport(date: Date, company_name?: string) {
+  const startDate = format(startOfDay(date), "yyyy-MM-dd HH:mm:ss")
+  const endDate = format(endOfDay(date), "yyyy-MM-dd HH:mm:ss")
+  
+  const fields = 'id,name,expense_line_ids,state,company_id,product_ids,display_name,total_amount,payment_state,payment_mode,journal_id';
+  let domain = `[["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"]]`
+  
+  if (company_name && company_name !== 'all') {
+    domain = `[["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"], ["company_id", "ilike", "${company_name}"]]`
+  }
+  
+  const expenseRes = await fetch(
+    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/hr.expense.sheet?fields=${fields}&domain=${encodeURIComponent(domain)}`,
+    { cache: 'no-store' }
+  )
+
+  if (!expenseRes.ok) throw new Error("Erreur API Odoo - Recuperation des dépenses")
+  const expenseData = await expenseRes.json();
+  if (!expenseData.success) throw new Error(expenseData.error || "Erreur Odoo (he.expense)");
+
+  // Récupérer tous les IDs d'expenses de tous les sheets
+  const allExpenseIds = expenseData.records.flatMap((sheet: any) => 
+    sheet.expense_line_ids || []
+  );
+
+  if (allExpenseIds.length === 0) {
+    return { 
+      success: true, 
+      records: expenseData.records.map((sheet: any) => ({ ...sheet, expenses: [] })) 
+    };
+  }
+
+  // Récupérer toutes les expenses en un seul appel
+  const expenseLinesDomain = `[["id", "in", [${allExpenseIds.join(",")}]]]`;
+  const expenseLinesRes = await fetch(
+    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/hr.expense?fields=id,total_amount,name,create_date,product_id,company_id,account_id&domain=${encodeURIComponent(expenseLinesDomain)}`,
+    { cache: 'no-store' }
+  );
+
+  if (!expenseLinesRes.ok) throw new Error("Erreur API Odoo - Recuperation des lignes de dépenses")
+  const expenseLinesData = await expenseLinesRes.json();
+  if (!expenseLinesData.success) throw new Error(expenseLinesData.error || "Erreur Odoo (he.expense)");
+
+  // Récupérer tous les comptes en un seul appel
+  const accountIds = expenseLinesData.records
+    .map((expense: any) => expense.account_id && expense.account_id[0])
+    .filter((id: number) => id !== undefined);
+
+  let accountsMap = new Map();
+  
+  if (accountIds.length > 0) {
+    const accountsDomain = `[["id", "in", [${accountIds.join(",")}]]]`;
+    const accountsRes = await fetch(
+      `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/account.account?fields=id,name,code,x_studio_categorie_compte&domain=${encodeURIComponent(accountsDomain)}`,
+      { cache: 'no-store' }
+    );
+
+    if (accountsRes.ok) {
+      const accountsData = await accountsRes.json();
+      if (accountsData.success) {
+        accountsData.records.forEach((account: any) => {
+          accountsMap.set(account.id, account);
+        });
+      }
+    }
+  }
+
+  // Créer un map des expenses par ID pour un accès rapide
+  const expensesMap = new Map();
+  expenseLinesData.records.forEach((expense: any) => {
+    const accountData = expense.account_id && expense.account_id[0] 
+      ? accountsMap.get(expense.account_id[0])
+      : null;
+    
+    expensesMap.set(expense.id, {
+      ...expense,
+      account: accountData
+    });
+  });
+
+  // Associer les expenses enrichies à chaque sheet
+  const sheetWithExpenses = expenseData.records.map((sheet: any) => ({
+    ...sheet,
+    expenses: (sheet.expense_line_ids || [])
+      .map((expenseId: number) => expensesMap.get(expenseId))
+      .filter((expense: any) => expense !== undefined)
+  }));
+
+  return { success: true, records: sheetWithExpenses };
+}
+
 // Récupérer les dépenses du jour
 async function getDailyExpenses(date: Date, company_name?: string) {
   const startDate = format(startOfDay(date), "yyyy-MM-dd HH:mm:ss")
@@ -212,10 +303,11 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
   }
 
   // Récupérer les données
-  const [salesData, exchangeRate, allShopsData] = await Promise.all([
+  const [salesData, exchangeRate, allShopsData, expe] = await Promise.all([
     getDailySales(selectedDate, selectedShop),
     getExchangeRate(),
     getPOSConfig(),
+    getDailyExpensesReport(selectedDate, selectedShop)
   ]);
 
   const allShops = allShopsData.records as POSConfig[];
@@ -316,7 +408,7 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
     bankSalesTotal,
     mobileMoneySalesTotal,
     onlSalesTotal,
-    expenses: expensesData.records,
+    expenses: expe.records,
     shops: availableShops
   };
 

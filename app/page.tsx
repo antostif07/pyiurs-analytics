@@ -81,14 +81,6 @@ const modules = [
     permissions: ["admin", "manager"]
   },
   {
-    name: "Cloture Vente",
-    description: "Clôture de Ventes",
-    icon: "💰",
-    color: "bg-yellow-600",
-    href: "/cloture-vente",
-    permissions: ["admin", "manager"]
-  },
-  {
     name: "Gestion de fonds",
     description: "Gestion des Fonds",
     icon: "💸",
@@ -123,7 +115,7 @@ const modules = [
   {
     name: "Clôtures de Caisse",
     description: "Gérez les clôtures quotidiennes de caisse",
-    href: "/cash-closures",
+    href: "/cloture-vente",
     icon: "💰",
     color: "bg-green-500",
     permissions: ["admin", "manager", "financier"]
@@ -348,7 +340,7 @@ export default function Home() {
                   {module.description}
                 </p>
                 
-                {module.permissions.length > 0 && (
+                {/* {module.permissions.length > 0 && (
                   <div className="mt-2 sm:mt-3 flex flex-wrap gap-1">
                     {module.permissions.map(perm => (
                       <span
@@ -367,7 +359,7 @@ export default function Home() {
                       </span>
                     ))}
                   </div>
-                )}
+                )} */}
               </div>
             </Link>
           ))}

@@ -11,6 +11,22 @@ export interface Expense {
   account?: AccountAccount
 }
 
+export interface ExpenseSheet {
+  id: number,
+  display_name: string,
+  expense_line_ids: number[],
+  expenses: Expense[],
+  journal_id: [number, string] | null,
+  name: string,
+  payment_mode: string,
+  payment_state: string,
+  total_amount: number,
+  state: string,
+  create_date: string,
+  company_id: [number, string],
+  product_ids: [number]
+}
+
 export interface AccountAccount {
   id: number
   name: string

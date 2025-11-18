@@ -27,9 +27,6 @@ export async function GET(req: Request, context: { params: Promise<{ model: stri
 
   const result = await fetchFromOdoo(model, fields, domain);
 
-  console.log(result);
-  
-
   if (!result.success) {
     return NextResponse.json(result, { status: 500 });
   }
