@@ -27,7 +27,7 @@ interface PaymentMethodGroup {
     color: string;
 }
 
-interface ExpenseByCash {
+export interface ExpenseByCash {
     caissePrincipale: Expense[];
     caisseEpargne: Expense[];
     totalPrincipal: number;

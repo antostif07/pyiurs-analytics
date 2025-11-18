@@ -1,4 +1,4 @@
-import { Expense, FilteredExpensesResult } from "@/app/types/cloture";
+import { Expense, ExpenseSheet, FilteredExpensesResult } from "@/app/types/cloture";
 import { Product } from "@/app/types/product_template";
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
@@ -45,7 +45,7 @@ export function extractColorFromProduct(product: Product): string {
  * @returns Objet avec dépenses filtrées, total et count
  */
 export function filterAndSumExpensesByKeywords(
-  expenses: Expense[], 
+  expenses: ExpenseSheet[], 
   keywords: string | string[],
   matchType: 'any' | 'all' = 'any'
 ): FilteredExpensesResult {
@@ -54,19 +54,31 @@ export function filterAndSumExpensesByKeywords(
   
   // Filtrer les dépenses selon les mots-clés
   const filteredExpenses = expenses.filter(expense => {
-    const productName = expense.product_id[1]?.toLowerCase() || '';
-    
-    if (matchType === 'any') {
-      // Au moins un mot doit matcher
-      return keywordArray.some(keyword => 
-        productName.includes(keyword.toLowerCase())
-      );
-    } else {
-      // Tous les mots doivent matcher
-      return keywordArray.every(keyword => 
-        productName.includes(keyword.toLowerCase())
-      );
-    }
+    console.log(expense.expenses);
+
+    const result = [];
+
+    expense.expenses.forEach((exp) => {
+      const productName = exp.product_id[1]?.toLowerCase() || '';
+
+      if (matchType === 'any') {
+        // Au moins un mot doit matcher
+        const match = keywordArray.some(keyword => 
+          productName.includes(keyword.toLowerCase())
+        );
+        if (match) {
+          result.push(exp);
+        }
+      } else {
+        // Tous les mots doivent matcher
+        const match = keywordArray.every(keyword => 
+          productName.includes(keyword.toLowerCase())
+        );
+        if (match) {
+          result.push(exp);
+        }
+      }
+    });
   });
   
   // Calculer le total
@@ -75,8 +87,8 @@ export function filterAndSumExpensesByKeywords(
   );
   
   return {
-    filteredExpenses,
-    totalAmount,
-    count: filteredExpenses.length
+    filteredExpenses: [], // filteredExpenses,
+    totalAmount: 0,
+    count: 0
   };
 }

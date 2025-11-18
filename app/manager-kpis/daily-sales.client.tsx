@@ -7,6 +7,7 @@ import { BoutiqueSelector } from "@/components/boutique-selector";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useMemo } from "react";
+import { Profile } from "@/contexts/AuthContext";
 
 export interface Boutique {
   id: number;
@@ -19,6 +20,7 @@ interface DailySalesClientProps {
   selectedBoutiqueId?: string;
   selectedMonth?: string;
   selectedYear?: string;
+  profile: Profile|null;
 }
 
 function SalesTable({ data }: { data: DailySaleData[] }) {
@@ -162,7 +164,8 @@ export default function DailySalesClient({
   boutiques, 
   selectedBoutiqueId, 
   selectedMonth, 
-  selectedYear
+  selectedYear,
+  profile
 }: DailySalesClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -273,6 +276,7 @@ export default function DailySalesClient({
                   </div>
 
                   {/* Boutique */}
+                  
                   <BoutiqueSelector 
                     boutiques={boutiques} 
                     selectedBoutique={selectedBoutiqueId} 

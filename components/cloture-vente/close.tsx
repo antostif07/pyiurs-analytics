@@ -16,6 +16,7 @@ import { toast } from "sonner"
 import { PDFClotureData, pdfService } from "@/lib/pdf/cloture-service"
 import { filterAndSumExpensesByKeywords } from "@/lib/utils"
 import Link from "next/link"
+import { ExpenseByCash } from "./details-and-accounting"
 
 interface ClotureVenteCloseProps {
   denominations: Denomination[]
@@ -69,7 +70,6 @@ export default function ClotureVenteClose({
   const searchParams = useSearchParams()
   const selectedShopId = parseInt(searchParams.get('shop') || initialData.shops[0]?.id.toString() || '1');
 
-  // Calculs de la billeterie - DOIT ÊTRE EN PREMIER
   const calculations = useMemo(() => {
     const physicalCashUSD = denominations
       .filter(d => d.currency === 'USD')
@@ -181,10 +181,35 @@ export default function ClotureVenteClose({
     return { soCash, soBank, soMobileMoney, soOnline, soMarchandises, soBeauty, soBoost, soFinance, soLoyer, soPersonnel, soSecurity };
   }, [selectedShopId, lastClosure, initialData.exchangeRate]);
 
+  const expensesByCash: ExpenseByCash = initialData.expenses.reduce((acc, expense) => {
+        console.log(expense);
+        
+        const isEpargne = expense.journal_id && typeof expense.journal_id === 'object' 
+            ? expense.journal_id[1].toLowerCase().includes('épargne') || expense.journal_id[1].toLowerCase().includes('epargne')
+            : false;
+
+        if (isEpargne) {
+            acc.caisseEpargne.push(...expense.expenses);
+            acc.totalEpargne += expense.total_amount || 0;
+        } else {
+            acc.caissePrincipale.push(...expense.expenses);
+            acc.totalPrincipal += expense.total_amount || 0;
+        }
+        
+        return acc;
+    }, {
+        caissePrincipale: [],
+        caisseEpargne: [],
+        totalPrincipal: 0,
+        totalEpargne: 0
+    } as ExpenseByCash);
+  
+  console.log(expensesByCash);
+  
   // Calcul des données de caisse secondaire
   const savingsCalculations = useMemo(() => {
     return {
-      marchandisesEntreesEpargne: 0, //filterAndSumExpensesByKeywords(initialData.expenses, ["[510166]", "[510165]"], 'any').totalAmount,
+      marchandisesEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ["[510166]", "[510165]"], 'any').totalAmount,
       marchandisesSortiesEpargne: 0, //filterAndSumExpensesByKeywords(initialData.expenses, ['[51003]'], 'any').totalAmount,
       loyerEntreesEpargne: 0, //filterAndSumExpensesByKeywords(initialData.expenses, ['[51055]'], 'any').totalAmount,
       beautyEntreesEpargne: 0, //filterAndSumExpensesByKeywords(initialData.expenses, ['510174','510101'], 'any').totalAmount,
@@ -238,8 +263,8 @@ export default function ClotureVenteClose({
         paymentMethodId: 1,
         soldeOuverture: soCash,
         ventesJour: initialData.cashSalesTotal,
-        sortiesJour: sortiesCash,
-        clotureTheorique: soCash + initialData.cashSalesTotal - sortiesCash,
+        sortiesJour: expensesByCash.totalPrincipal,
+        clotureTheorique: soCash + initialData.cashSalesTotal - expensesByCash.totalPrincipal,
         cashPhysique: calculations.calculatedCash,
         managerConfirmed: false,
         financierConfirmed: false

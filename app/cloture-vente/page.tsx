@@ -263,13 +263,25 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
   let selectedShop = params.shop || 'all';
   let userName = 'Utilisateur';
   let isUserRestricted = true;
+  let company_name = 'all';
+  let lastClosure = null;
+
+  // Déterminer le nom de la compagnie selon le shop
+  switch (selectedShop) {
+    case "1": company_name = "PB - 24"; break;
+    case "13": company_name = "PB - LMB"; break;
+    case "14": company_name = "PB - KTM"; break;
+    case "15": company_name = "PB - MTO"; break;
+    case "17": company_name = "PB - BC"; break;
+    default: company_name = 'all';
+  }
 
   // Récupérer les données
   const [salesData, exchangeRate, allShopsData, expe] = await Promise.all([
     getDailySales(selectedDate, selectedShop),
     getExchangeRate(),
     getPOSConfig(),
-    getDailyExpensesReport(selectedDate, selectedShop)
+    getDailyExpensesReport(selectedDate, company_name)
   ]);
 
   const allShops = allShopsData.records as POSConfig[];
@@ -298,21 +310,8 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
     );
   }
 
-  let company_name = 'all';
-  let lastClosure = null;
-
   if (selectedShop !== 'all') {
     lastClosure = await clotureService.getLastClosureByShop(parseInt(selectedShop));
-  }
-
-  // Déterminer le nom de la compagnie selon le shop
-  switch (selectedShop) {
-    case "1": company_name = "PB - 24"; break;
-    case "13": company_name = "PB - LMB"; break;
-    case "14": company_name = "PB - KTM"; break;
-    case "15": company_name = "PB - MTO"; break;
-    case "17": company_name = "PB - BC"; break;
-    default: company_name = 'all';
   }
   
   const expensesData = await getDailyExpenses(selectedDate, company_name);
@@ -374,8 +373,10 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
     shops: availableShops
   };
 
-  const showShopSelector = !isUserRestricted || profile.assigned_shops.length > 1 || profile.assigned_shops.includes('all');
+  const showShopSelector = !isUserRestricted || profile.assigned_shops.length > 1 || profile.shop_access_type === 'all';
 
+  console.log(expe.records);
+  
   return (
     <ClotureVentesClient 
       initialData={initialData} 

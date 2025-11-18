@@ -38,7 +38,7 @@ const API_CONFIG = {
   }
 };
 
-async function getPOSConfig(profile?: { profile?: Profile}) {
+async function getPOSConfig() {
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.config?fields=id,name`,
     { 
@@ -242,9 +242,7 @@ export default async function DailySalesTablePage({ searchParams }: PageProps) {
   const boutiqueId = params.boutique || undefined;
   const month = params.month || undefined;
   const year = params.year || undefined;
-  const {user, profile} = await getServerAuth();
-
-  console.log(profile);
+  const {profile} = await getServerAuth();
   
 
   try {
@@ -252,16 +250,24 @@ export default async function DailySalesTablePage({ searchParams }: PageProps) {
     if(profile?.role === 'manager' && profile?.assigned_shops?.length === 1) {
       posDataWithProducts = await getPOSDataWithProducts(profile?.assigned_shops[0], month, year);
     } else {
-      posDataWithProducts = await getPOSDataWithProducts(boutiqueId, month, year);
+      posDataWithProducts = await getPOSDataWithProducts(profile?.assigned_shops[0], month, year);
     }
     
     const salesData = calculateDailySales(posDataWithProducts);
 
-    const posConfigData = await getPOSConfig(profile);
-    const boutiques = posConfigData.records.map((config: POSConfig) => ({
+    const posConfigData = await getPOSConfig();
+    let boutiques = posConfigData.records.map((config: POSConfig) => ({
       id: config.id,
       name: config.name
-    }));
+    }))
+
+    if(profile == null) {
+      throw new Error("Utilisateur non authentifié");
+    }
+    
+    if(profile.shop_access_type === 'specific') {
+      boutiques = boutiques.filter((boutique: { id: number; name: string }) => profile?.assigned_shops?.includes(boutique.id.toString()));
+    }
 
     return (
       <DailySalesClient
@@ -270,6 +276,7 @@ export default async function DailySalesTablePage({ searchParams }: PageProps) {
         selectedBoutiqueId={boutiqueId}
         selectedMonth={month}
         selectedYear={year}
+        profile={profile}
       />
     );
   } catch (error) {
