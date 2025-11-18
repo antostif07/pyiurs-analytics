@@ -182,8 +182,6 @@ export default function ClotureVenteClose({
   }, [selectedShopId, lastClosure, initialData.exchangeRate]);
 
   const expensesByCash: ExpenseByCash = initialData.expenses.reduce((acc, expense) => {
-        console.log(expense);
-        
         const isEpargne = expense.journal_id && typeof expense.journal_id === 'object' 
             ? expense.journal_id[1].toLowerCase().includes('épargne') || expense.journal_id[1].toLowerCase().includes('epargne')
             : false;
@@ -204,20 +202,129 @@ export default function ClotureVenteClose({
         totalEpargne: 0
     } as ExpenseByCash);
   
-  console.log(expensesByCash);
-  
   // Calcul des données de caisse secondaire
   const savingsCalculations = useMemo(() => {
     return {
-      marchandisesEntreesEpargne: filterAndSumExpensesByKeywords(initialData.expenses, ["[510166]", "[510165]"], 'any').totalAmount,
-      marchandisesSortiesEpargne: 0, //filterAndSumExpensesByKeywords(initialData.expenses, ['[51003]'], 'any').totalAmount,
-      loyerEntreesEpargne: 0, //filterAndSumExpensesByKeywords(initialData.expenses, ['[51055]'], 'any').totalAmount,
-      beautyEntreesEpargne: 0, //filterAndSumExpensesByKeywords(initialData.expenses, ['510174','510101'], 'any').totalAmount,
-      beautySortiesEpargne: 0, //filterAndSumExpensesByKeywords(initialData.expenses, ['0829473053'], 'any').totalAmount,
-      boostEntreesEpargne: 0, //filterAndSumExpensesByKeywords(initialData.expenses, ["510071", "510111"], 'any').totalAmount,
-      boostSortiesEpargne: 0, //filterAndSumExpensesByKeywords(initialData.expenses, ['0860524829', '[5100577]', '[510081]' ], 'any').totalAmount,
-      financeEntreeEpargne: 0, //filterAndSumExpensesByKeywords(initialData.expenses, ["5100399", "510036"], "any").totalAmount,
-      securityEntreesEpargne: 0, //filterAndSumExpensesByKeywords(initialData.expenses, ['[51020]'], 'any').totalAmount,
+      marchandisesEntreesEpargne: expensesByCash.caissePrincipale.reduce((sum, expense) => {
+        if(expense.product_id[1]) {
+          const productName = expense.product_id[1].toLowerCase();
+          if (productName.includes('marchandise')) {
+            return sum + (expense.total_amount || 0);
+          } else {
+            return sum;
+          }
+        } else {
+          return sum;
+        }
+      }, 0),
+      marchandisesSortiesEpargne: expensesByCash.caisseEpargne.reduce((sum, expense) => {
+        if(expense.product_id[1]) {
+          const productName = expense.product_id[1].toLowerCase();
+          if (productName.includes('marchandise')) {
+            return sum + (expense.total_amount || 0);
+          } else {
+            return sum;
+          }
+        } else {
+          return sum;
+        }
+      }, 0),
+      loyerSortiesEpargne: expensesByCash.caisseEpargne.reduce((sum, expense) => {
+        if(expense.product_id[1]) {
+          const productName = expense.product_id[1].toLowerCase();
+          if (productName.includes('loyer')) {
+            return sum + (expense.total_amount || 0);
+          } else {
+            return sum;
+          }
+        } else {
+          return sum;
+        }
+      }, 0),
+      loyerEntreesEpargne: expensesByCash.caissePrincipale.reduce((sum, expense) => {
+        if(expense.product_id[1]) {
+          const productName = expense.product_id[1].toLowerCase();
+          if (productName.includes('loyer')) {
+            return sum + (expense.total_amount || 0);
+          } else {
+            return sum;
+          }
+        } else {
+          return sum;
+        }
+      }, 0),
+      beautyEntreesEpargne: expensesByCash.caissePrincipale.reduce((sum, expense) => {
+        if(expense.product_id[1]) {
+          const productName = expense.product_id[1].toLowerCase();
+          if (productName.includes('bty') || productName.includes('beauty')) {
+            return sum + (expense.total_amount || 0);
+          } else {
+            return sum;
+          }
+        } else {
+          return sum;
+        }
+      }, 0),
+      beautySortiesEpargne: expensesByCash.caisseEpargne.reduce((sum, expense) => {
+        if(expense.product_id[1]) {
+          const productName = expense.product_id[1].toLowerCase();
+          if (productName.includes('bty') || productName.includes('beauty')) {
+            return sum + (expense.total_amount || 0);
+          } else {
+            return sum;
+          }
+        } else {
+          return sum;
+        }
+      }, 0), //filterAndSumExpensesByKeywords(initialData.expenses, ['0829473053'], 'any').totalAmount,
+      boostEntreesEpargne: expensesByCash.caissePrincipale.reduce((sum, expense) => {
+        if(expense.product_id[1]) {
+          const productName = expense.product_id[1].toLowerCase();
+          if (productName.includes('boost')) {
+            return sum + (expense.total_amount || 0);
+          } else {
+            return sum;
+          }
+        } else {
+          return sum;
+        }
+      }, 0),
+      boostSortiesEpargne: expensesByCash.caisseEpargne.reduce((sum, expense) => {
+        if(expense.product_id[1]) {
+          const productName = expense.product_id[1].toLowerCase();
+          if (productName.includes('boost')) {
+            return sum + (expense.total_amount || 0);
+          } else {
+            return sum;
+          }
+        } else {
+          return sum;
+        }
+      }, 0),
+      financeEntreeEpargne: expensesByCash.caissePrincipale.reduce((sum, expense) => {
+        if(expense.product_id[1]) {
+          const productName = expense.product_id[1].toLowerCase();
+          if (productName.includes('epargne f')) {
+            return sum + (expense.total_amount || 0);
+          } else {
+            return sum;
+          }
+        } else {
+          return sum;
+        }
+      }, 0), //filterAndSumExpensesByKeywords(initialData.expenses, ["5100399", "510036"], "any").totalAmount,
+      securityEntreesEpargne: expensesByCash.caissePrincipale.reduce((sum, expense) => {
+        if(expense.product_id[1]) {
+          const productName = expense.product_id[1].toLowerCase();
+          if (productName.includes('secur')) {
+            return sum + (expense.total_amount || 0);
+          } else {
+            return sum;
+          }
+        } else {
+          return sum;
+        }
+      }, 0), //filterAndSumExpensesByKeywords(initialData.expenses, ['[51020]'], 'any').totalAmount,
       personalEntreesEpargne: 0,
     };
   }, [initialData.expenses]);
@@ -244,6 +351,7 @@ export default function ClotureVenteClose({
       marchandisesEntreesEpargne,
       marchandisesSortiesEpargne, 
       loyerEntreesEpargne,
+      loyerSortiesEpargne,
       beautyEntreesEpargne,
       beautySortiesEpargne, 
       boostEntreesEpargne,
@@ -325,7 +433,7 @@ export default function ClotureVenteClose({
         savingsCategoryId: 2,
         soldeOuverture: soLoyer,
         entreesEpargne: loyerEntreesEpargne,
-        sortiesEpargne: 0,
+        sortiesEpargne: loyerSortiesEpargne,
         soldeCloture: soLoyer + loyerEntreesEpargne,
         validated: false
       },
