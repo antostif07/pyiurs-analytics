@@ -88,7 +88,7 @@ export default function ClotureVenteClose({
       calculatedCash,
       difference
     }
-  }, [denominations, initialData.exchangeRate, initialData.expectedCash])
+  }, [denominations, initialData.exchangeRate, initialData.expectedCash, initialData.date])
 
   // Fonction pour calculer les soldes d'ouverture
   const getOpeningBalances = useMemo(() => {
@@ -179,18 +179,22 @@ export default function ClotureVenteClose({
     }
 
     return { soCash, soBank, soMobileMoney, soOnline, soMarchandises, soBeauty, soBoost, soFinance, soLoyer, soPersonnel, soSecurity };
-  }, [selectedShopId, lastClosure, initialData.exchangeRate]);
+  }, [selectedShopId, lastClosure, initialData.exchangeRate, initialData.date, existingClosure]);
 
   const expensesByCash: ExpenseByCash = initialData.expenses.reduce((acc, expense) => {
         const isEpargne = expense.journal_id && typeof expense.journal_id === 'object' 
             ? expense.journal_id[1].toLowerCase().includes('épargne') || expense.journal_id[1].toLowerCase().includes('epargne')
             : false;
         if (isEpargne) {
-          const newExpenses = expense.expenses.filter(exp => format(exp.create_date, 'yyyy-MM-dd') === format(initialData.date, 'yyyy-MM-dd'));
+          const newExpenses = expense.expenses
+            .filter(exp => format(exp.create_date, 'yyyy-MM-dd') === format(initialData.date, 'yyyy-MM-dd'))
+            .map(exp => ({...exp, journal_id: expense.journal_id}));
             acc.caisseEpargne.push(...newExpenses);
             acc.totalEpargne += expense.total_amount || 0;
         } else {
-          const newExpenses = expense.expenses.filter(exp => format(exp.create_date, 'yyyy-MM-dd') === format(initialData.date, 'yyyy-MM-dd'));
+          const newExpenses = expense.expenses
+            .filter(exp => format(exp.create_date, 'yyyy-MM-dd') === format(initialData.date, 'yyyy-MM-dd'))
+            .map(exp => ({...exp, journal_id: expense.journal_id}));
             acc.caissePrincipale.push(...newExpenses);
             acc.totalPrincipal += expense.total_amount || 0;
         }
@@ -220,7 +224,7 @@ export default function ClotureVenteClose({
       }, 0),
       marchandisesSortiesEpargne: expensesByCash.caisseEpargne.reduce((sum, expense) => {
         if(expense.product_id[1]) {
-          const productName = expense.product_id[1].toLowerCase();
+          const productName = expense.journal_id ? expense.journal_id[1].toLowerCase() : expense.product_id[1].toLowerCase();
           if (productName.includes('marchandise')) {
             return sum + (expense.total_amount || 0);
           } else {
@@ -232,7 +236,7 @@ export default function ClotureVenteClose({
       }, 0),
       loyerSortiesEpargne: expensesByCash.caisseEpargne.reduce((sum, expense) => {
         if(expense.product_id[1]) {
-          const productName = expense.product_id[1].toLowerCase();
+          const productName = expense.journal_id ? expense.journal_id[1].toLowerCase() : expense.product_id[1].toLowerCase();
           if (productName.includes('loyer')) {
             return sum + (expense.total_amount || 0);
           } else {
@@ -268,7 +272,7 @@ export default function ClotureVenteClose({
       }, 0),
       beautySortiesEpargne: expensesByCash.caisseEpargne.reduce((sum, expense) => {
         if(expense.product_id[1]) {
-          const productName = expense.product_id[1].toLowerCase();
+          const productName = expense.journal_id ? expense.journal_id[1].toLowerCase() : expense.product_id[1].toLowerCase();
           if (productName.includes('bty') || productName.includes('beauty')) {
             return sum + (expense.total_amount || 0);
           } else {
@@ -277,7 +281,7 @@ export default function ClotureVenteClose({
         } else {
           return sum;
         }
-      }, 0), //filterAndSumExpensesByKeywords(initialData.expenses, ['0829473053'], 'any').totalAmount,
+      }, 0),
       boostEntreesEpargne: expensesByCash.caissePrincipale.reduce((sum, expense) => {
         if(expense.product_id[1]) {
           const productName = expense.product_id[1].toLowerCase();
@@ -292,7 +296,7 @@ export default function ClotureVenteClose({
       }, 0),
       boostSortiesEpargne: expensesByCash.caisseEpargne.reduce((sum, expense) => {
         if(expense.product_id[1]) {
-          const productName = expense.product_id[1].toLowerCase();
+          const productName = expense.journal_id ? expense.journal_id[1].toLowerCase() : expense.product_id[1].toLowerCase();
           if (productName.includes('boost')) {
             return sum + (expense.total_amount || 0);
           } else {
@@ -328,7 +332,7 @@ export default function ClotureVenteClose({
       }, 0),
       securitySortiesEpargne: expensesByCash.caisseEpargne.reduce((sum, expense) => {
         if(expense.product_id[1]) {
-          const productName = expense.product_id[1].toLowerCase();
+          const productName = expense.journal_id ? expense.journal_id[1].toLowerCase() : expense.product_id[1].toLowerCase();
           if (productName.includes('securite') || productName.includes('sécurité')) {
             return sum + (expense.total_amount || 0);
           } else {
@@ -340,7 +344,7 @@ export default function ClotureVenteClose({
       }, 0),
       personalEntreesEpargne: 0,
     };
-  }, [initialData.expenses]);
+  }, [initialData.expenses, initialData.date]);
 
   // États pour les données des caisses
   const [caissePrincipaleData, setCaissePrincipaleData] = useState<CaissePrincipaleRow[]>([]);

@@ -48,6 +48,14 @@ const modules = [
     href: "/suivi-epargne-femme",
     permissions: ["admin", "manager", "user"]
   },
+  { 
+    name: "Suivi Epargne Beauty",
+    description: "KPI Manager",
+    icon: "💵",
+    color: "bg-purple-600",
+    href: "/suivi-epargne-beauty",
+    permissions: ["admin", "manager"]
+  },
   {
     name: "Control Image Produit",
     description: "Contrôle des Images Produits",

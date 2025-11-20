@@ -9,6 +9,7 @@ export interface Expense {
   company_id: [number, string]
   account_id: [number, string]
   account?: AccountAccount
+  journal_id: [number, string] | null
 }
 
 export interface ExpenseSheet {
