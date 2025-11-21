@@ -30,8 +30,8 @@ function SalesTable({ data }: { data: DailySaleData[] }) {
     
     const valueTypes = [
       // { key: 'totalSales', label: 'CA Total', color: 'text-gray-900 dark:text-white', bgColor: 'bg-blue-50 dark:bg-blue-900/20' },
-      { key: 'beautyAmount', label: 'Beauty', color: 'text-gray-900 dark:text-white', bgColor: 'bg-pink-50 dark:bg-pink-900/20' },
-      { key: 'safeAmount', label: 'Marchandises', color: 'text-gray-900 dark:text-white', bgColor: 'bg-green-50 dark:bg-green-900/20' },
+      { key: 'totalSales', label: 'Vente Générale', color: 'text-gray-900 dark:text-white', bgColor: 'bg-pink-50 dark:bg-pink-900/20' },
+      { key: 'beautyAmount', label: 'Epargne', color: 'text-gray-900 dark:text-white', bgColor: 'bg-green-50 dark:bg-green-900/20' },
       // { key: 'rentAmount', label: 'Loyer', color: 'text-gray-900 dark:text-white', bgColor: 'bg-purple-50 dark:bg-purple-900/20' },
       // { key: 'ceoAmount', label: 'CEO', color: 'text-gray-900 dark:text-white', bgColor: 'bg-orange-50 dark:bg-orange-900/20' },
     ];
@@ -215,7 +215,7 @@ export default function DailySalesClient({
             </div>
             <div>
               <h1 className="text-3xl lg:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                Tableau des Ventes Quotidiennes
+                Suivi Epargne Beauty
               </h1>
               <p className="text-gray-600 dark:text-gray-300 mt-2">
                 Vue par jour - Analyse horizontale des épargnes

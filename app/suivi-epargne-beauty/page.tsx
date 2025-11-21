@@ -209,16 +209,16 @@ function calculateDailySales(data: EnrichedPOSLine[]): DailySaleData[] {
         safeAmount: 0,
         ceoAmount: 0,
         beautyAmount: 0,
-        dailyGoal: 2000,
+        dailyGoal: 692.30,
         progress: 0
       };
     }
     
-    const beautyAmount = isBeauty(item.product_category) ? ((item.total_amount * 0.3) || 0) : 0;
+    const beautyAmount = isBeauty(item.product_category) ? (item.total_amount || 0) : 0;
     
     // Ajouter au total des ventes
-    salesByDate[date].totalSales += item.total_amount || 0;
-    salesByDate[date].beautyAmount += beautyAmount;
+    salesByDate[date].totalSales += beautyAmount || 0;
+    salesByDate[date].beautyAmount += beautyAmount * 0.7;
     
     // Calcul du safe amount (50% du reste après beauty)
     const nonBeautyAmount = item.total_amount - beautyAmount;
@@ -226,11 +226,11 @@ function calculateDailySales(data: EnrichedPOSLine[]): DailySaleData[] {
   });
 
   // Calculer les épargnes pour chaque jour
-  // Object.values(salesByDate).forEach((day: DailySaleData) => {
+  Object.values(salesByDate).forEach((day: DailySaleData) => {
   //   day.rentAmount = day.totalSales * 0.25; // 25% pour le loyer
   //   day.ceoAmount = day.totalSales * 0.10;  // 10% pour le CEO
-  //   day.progress = (day.totalSales / day.dailyGoal) * 100;
-  // });
+    day.progress = (day.totalSales / day.dailyGoal) * 100;
+  });
 
   // Trier par date (du plus récent au plus ancien)
   return Object.values(salesByDate)
