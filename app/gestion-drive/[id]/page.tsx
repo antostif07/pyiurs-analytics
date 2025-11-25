@@ -59,7 +59,7 @@ export default function DocumentEditor() {
         .from('document_columns')
         .select('*')
         .eq('document_id', documentId)
-        .order('order_index');
+        .order('order_index', { ascending: true });
 
       if (columnsError) throw columnsError;
       setColumns(columnsData || []);

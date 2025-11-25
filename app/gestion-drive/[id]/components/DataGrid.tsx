@@ -42,6 +42,7 @@ export default function DataGrid({
     cellDataId: string;
     columnId: string;
   }>({ isOpen: false, cellDataId: '', columnId: '' });
+  const sortedColumns = [...columns].sort((a, b) => a.order_index - b.order_index);
 
   const { user } = useAuth();
 
@@ -515,7 +516,7 @@ export default function DataGrid({
               <th className="sticky left-0 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 p-2 min-w-12 z-10 text-gray-900 dark:text-white">
                 #
               </th>
-              {columns.map(column => (
+              {sortedColumns.map(column => (
                 <th
                   key={column.id}
                   className="border border-gray-300 dark:border-gray-600 p-2 sticky top-0 bg-gray-100 dark:bg-gray-800 z-10"
@@ -544,7 +545,7 @@ export default function DataGrid({
                 <td className="sticky left-0 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 p-2 text-center text-gray-500 dark:text-gray-400 group-hover:bg-gray-50 dark:group-hover:bg-gray-800">
                   {index + 1}
                 </td>
-                {columns.map(column => (
+                {sortedColumns.map(column => (
                   <td
                     key={`${row.id}-${column.id}`}
                     className="border border-gray-300 dark:border-gray-600 p-0 h-10"

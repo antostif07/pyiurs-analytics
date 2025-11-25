@@ -99,38 +99,56 @@ export default function ColumnConfigPanel({
 
   const onDragEnd = async (result: DropResult): Promise<void> => {
     if (!result.destination) return;
+    if (result.destination.index === result.source.index) return;
 
     setIsReordering(true);
 
+    // 1. Calcul du nouvel ordre localement
     const reorderedColumns = Array.from(columns);
     const [movedColumn] = reorderedColumns.splice(result.source.index, 1);
     reorderedColumns.splice(result.destination.index, 0, movedColumn);
 
-    // Update order indices
+    // Réassignation des index (0, 1, 2...)
     const updatedColumns = reorderedColumns.map((col, index) => ({
       ...col,
       order_index: index
     }));
 
-    // Mettre à jour immédiatement l'UI
+    // Mise à jour optimiste de l'UI
     onColumnsChange(updatedColumns);
 
-    // Update in database
     try {
-      // Utiliser une transaction pour mettre à jour tous les ordres
       const updatePromises = updatedColumns.map((column) =>
         supabase
           .from('document_columns')
           .update({ order_index: column.order_index })
           .eq('id', column.id)
+          .select('id, label, order_index') // On demande le retour pour confirmer
       );
 
-      await Promise.all(updatePromises);
-      console.log('✅ Ordre des colonnes sauvegardé');
+      const results = await Promise.all(updatePromises);
+      
+      // Vérification des erreurs dans les promesses
+      const errors = results.filter(r => r.error);
+      if (errors.length > 0) {
+        console.error('❌ [DB] Erreurs lors de la mise à jour :', errors);
+        throw new Error('Erreur lors de la sauvegarde de l\'ordre');
+      }
+
+      console.log('✅ [DB] Mise à jour terminée avec succès.');
+
+      // 3. VERIFICATION ULTIME : On relit la base de données
+      // C'est ce bloc qui te dira si la BDD a vraiment changé
+      const { data: verifyData, error: verifyError } = await supabase
+        .from('document_columns')
+        .select('label, order_index')
+        .eq('document_id', documentId)
+        .order('order_index', { ascending: true });
     } catch (error) {
-      console.error('Error updating column order:', error);
-      // Revert en cas d'erreur
+      console.error('💥 [CRASH] Erreur critique :', error);
+      // En cas d'erreur, on remet l'ancien état pour éviter la désynchronisation
       onColumnsChange(columns);
+      alert("Erreur lors de la sauvegarde de l'ordre des colonnes");
     } finally {
       setIsReordering(false);
     }
