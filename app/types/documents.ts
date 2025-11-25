@@ -101,14 +101,27 @@ export interface MultilineData {
 
 export interface FileAttachment {
   id: string;
-  cell_data_id: string;
-  column_id: string;
+  
+  // Devient nullable car un fichier peut être lié à une cellule OU une cellule multiligne
+  cell_data_id: string | null; 
+  
+  // NOUVEAU: Le champ pour la liaison aux données multilignes, également nullable
+  multiline_data_id: string | null;
+  
+  // Devient nullable, car il n'est pas toujours pertinent (surtout pour les multilignes)
+  column_id: string | null; 
+  
   file_path: string;
   file_name: string;
   file_type: string;
-  file_size: number;
+  
+  // Il est plus sûr de le considérer comme potentiellement null
+  file_size: number | null; 
+  
   uploaded_by: string;
   uploaded_at: string;
   order_index: number;
-  url?: string; // Generated URL
+  
+  // Reste optionnel car c'est une propriété ajoutée côté client
+  url?: string; 
 }

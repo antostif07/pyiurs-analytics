@@ -102,7 +102,7 @@ const modules = [
     icon: "📈",
     color: "bg-indigo-700",
     href: "/revenue",
-    permissions: ["admin"]
+    permissions: ["admin", "financier" ]
   },
   {
     name: "Suivi Vente agent",
@@ -118,7 +118,7 @@ const modules = [
     href: "/gestion-drive",
     icon: "📊",
     color: "bg-blue-500",
-    permissions: ["admin", "user", "manager"]
+    permissions: ["admin", "user", "manager", "financier"]
   },
   {
     name: "Clôtures de Caisse",
