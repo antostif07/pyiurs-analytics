@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { Document } from '../types/documents';
+import { duplicateDocumentProcess } from '@/lib/documentUtils';
 
 export default function DocumentsPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -14,6 +15,47 @@ export default function DocumentsPage() {
   const [darkMode, setDarkMode] = useState(false);
   const [search, setSearch] = useState('');
   const [loadingDocuments, setLoadingDocuments] = useState(true);
+
+  // NOUVEAUX ÉTATS POUR LA DUPLICATION
+  const [duplicatingDoc, setDuplicatingDoc] = useState<Document | null>(null);
+  const [duplicateName, setDuplicateName] = useState('');
+  const [duplicateWithData, setDuplicateWithData] = useState(true);
+  const [isProcessingDuplicate, setIsProcessingDuplicate] = useState(false);
+
+  const startDuplicate = (doc: Document) => {
+    setDuplicatingDoc(doc);
+    setDuplicateName(`${doc.name} (Copie)`);
+    setDuplicateWithData(true); // Par défaut avec données
+  };
+
+  const handleDuplicate = async () => {
+    if (!duplicatingDoc || !user) return;
+
+    setIsProcessingDuplicate(true);
+    try {
+      const newDoc = await duplicateDocumentProcess({
+        originalDocId: duplicatingDoc.id,
+        newTitle: duplicateName,
+        userId: user.id,
+        includeData: duplicateWithData,
+        supabase: supabase
+      });
+
+      // Rafraîchir la liste localement
+      setDocuments([newDoc as Document, ...documents]);
+      
+      // Fermer la modale
+      setDuplicatingDoc(null);
+      
+      // Optionnel : rediriger vers le nouveau doc
+      // router.push(`/gestion-drive/${newDoc.id}`);
+    } catch (error) {
+      console.error('Error duplicating document:', error);
+      alert('Une erreur est survenue lors de la duplication.');
+    } finally {
+      setIsProcessingDuplicate(false);
+    }
+  };
 
   const { user, profile, loading, supabase } = useAuth();
   const router = useRouter();
@@ -419,6 +461,16 @@ export default function DocumentsPage() {
 
                 {/* Menu d'actions */}
                 <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex space-x-1">
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault(); // Empêcher la navigation
+                      startDuplicate(doc);
+                    }}
+                    className="p-1.5 text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors bg-white dark:bg-gray-700 rounded-lg shadow-sm"
+                    title="Dupliquer"
+                  >
+                    📋
+                  </button>
                   {canEditDocument(doc) && (
                     <button
                       onClick={() => startEditDocument(doc)}
@@ -558,6 +610,89 @@ export default function DocumentsPage() {
                 className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
               >
                 Sauvegarder
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {duplicatingDoc && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-11/12 max-w-md shadow-2xl">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center">
+              <span className="bg-green-100 text-green-600 p-2 rounded-lg mr-3">📋</span>
+              Dupliquer le document
+            </h3>
+            
+            <div className="space-y-4">
+              {/* Nom */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Nouveau nom
+                </label>
+                <input
+                  type="text"
+                  value={duplicateName}
+                  onChange={(e) => setDuplicateName(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                  autoFocus
+                />
+              </div>
+
+              {/* Options */}
+              <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg space-y-3">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-2">
+                  Que voulez-vous copier ?
+                </label>
+                
+                <label className="flex items-center space-x-3 cursor-pointer">
+                  <input 
+                    type="radio" 
+                    checked={duplicateWithData === false} 
+                    onChange={() => setDuplicateWithData(false)}
+                    className="w-4 h-4 text-green-600 focus:ring-green-500 border-gray-300"
+                  />
+                  <span className="text-gray-900 dark:text-gray-200">
+                    Structure uniquement
+                    <span className="block text-xs text-gray-500 mt-0.5">Copie les colonnes, mais laisse le document vide.</span>
+                  </span>
+                </label>
+
+                <label className="flex items-center space-x-3 cursor-pointer">
+                  <input 
+                    type="radio" 
+                    checked={duplicateWithData === true} 
+                    onChange={() => setDuplicateWithData(true)}
+                    className="w-4 h-4 text-green-600 focus:ring-green-500 border-gray-300"
+                  />
+                  <span className="text-gray-900 dark:text-gray-200">
+                    Structure et Données
+                    <span className="block text-xs text-gray-500 mt-0.5">Copie tout le contenu (lignes, fichiers, etc.).</span>
+                  </span>
+                </label>
+              </div>
+            </div>
+            
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={() => setDuplicatingDoc(null)}
+                disabled={isProcessingDuplicate}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleDuplicate}
+                disabled={isProcessingDuplicate}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center space-x-2"
+              >
+                {isProcessingDuplicate ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Copie en cours...</span>
+                  </>
+                ) : (
+                  <span>Confirmer la copie</span>
+                )}
               </button>
             </div>
           </div>
