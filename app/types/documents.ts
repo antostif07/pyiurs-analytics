@@ -75,10 +75,10 @@ export interface CellData {
   id: string;
   row_id: string;
   column_id: string;
-  text_value?: string;
-  number_value?: number;
-  date_value?: string;
-  boolean_value?: boolean;
+  text_value?: string|null;
+  number_value?: number|null;
+  date_value?: string|null;
+  boolean_value?: boolean|null;
   value_type: string;
   created_at: string;
   updated_at: string;

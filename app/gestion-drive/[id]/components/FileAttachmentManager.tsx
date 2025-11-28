@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { FileAttachment } from '@/app/types/documents';
+import { createPortal } from 'react-dom';
 
 type ParentType = 'cell' | 'multiline';
 
@@ -36,8 +37,10 @@ export default function FileAttachmentManager({
   const [error, setError] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     const loadPreviewUrls = async () => {
       const urls: PreviewUrls = {};
       for (const file of existingFiles) {
@@ -120,16 +123,14 @@ export default function FileAttachmentManager({
     }
   };
 
-  // Le reste du JSX est identique à votre FileUploader.tsx (header, dropzone, liste des fichiers, etc.)
-  // On ne le recopie pas ici pour rester concis. Il suffit de copier le JSX de FileUploader ici.
-  // ... (copiez tout le contenu de la fonction `return` de `FileUploader.tsx` ici)
   if (!isOpen) return null;
-  // Assurez-vous d'utiliser les fonctions `handleFileSelect` et `deleteFile` de ce composant.
-  // Le JSX reste le même, la logique a juste été généralisée.
+  
+  // Si on n'est pas encore sur le client, ne rien rendre
+  if (!mounted) return null;
 
   // --- COPIE DU JSX DE VOTRE FILEUPLOADER ---
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+  return createPortal(
+    <div className="fixed inset-0 bg-black bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm">
       <div className="bg-white dark:bg-gray-800 rounded-lg w-11/12 max-w-4xl max-h-[90vh] flex flex-col">
         {/* ... Header ... */}
         <div className="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
@@ -182,5 +183,5 @@ export default function FileAttachmentManager({
         </div>
       </div>
     </div>
-  );
+  , document.body);
 }

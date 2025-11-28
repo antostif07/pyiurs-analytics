@@ -67,7 +67,7 @@ function MultilineCellDisplay({
                 switch (entry.value_type) {
                     case 'file':
                         const files = fileAttachments.filter(f => f.multiline_data_id === entry.id);
-                        content = <FileCellPreview files={files} onOpenManager={() => onOpenFileUploader(entry.id)} onOpenFile={onOpenFile} />;
+                        content = <FileCellPreview files={files} onOpenManager={() => onOpenFileUploader(entry.id)} />;
                         break;
                     case 'boolean':
                         content = entry.boolean_value ? '✅' : '❌';
@@ -342,7 +342,6 @@ export default function DataGrid({
                             <FileCellPreview
                                 files={cell ? fileAttachments.filter(f => f.cell_data_id === cell.id) : []}
                                 onOpenManager={() => handleCellClick(displayRow.originalRow.id, column)}
-                                onOpenFile={handleOpenFile}
                             />
                          ) : (
                             <div onClick={() => handleCellClick(displayRow.originalRow.id, column)} className="w-full h-full p-2 cursor-cell whitespace-pre-wrap break-words">

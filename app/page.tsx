@@ -129,12 +129,28 @@ const modules = [
     permissions: ["admin", "manager", "financier"]
   },
   {
+    name: "Cash Flow",
+    description: "Suivi des flux de trésorerie",
+    href: "/cash-flow",
+    icon: "💰",
+    color: "bg-green-500",
+    permissions: ["admin", "financier"]
+  },
+  {
     name: "Rapports",
     description: "Consultez les rapports et statistiques",
     href: "/reports",
     icon: "📈",
     color: "bg-purple-500",
     permissions: ["admin", "manager"]
+  },
+  {
+    name: "Marketing",
+    description: "Suivi et Rapports Marketing",
+    href: "/marketing",
+    icon: "📈",
+    color: "bg-purple-500",
+    permissions: ["admin"]
   },
   {
     name: "Utilisateurs",

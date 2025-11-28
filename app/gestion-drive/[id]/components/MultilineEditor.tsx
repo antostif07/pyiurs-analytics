@@ -9,27 +9,29 @@ import {
   MultilineData, 
   DocumentColumn, 
   DataType,
-  FileAttachment // Assurez-vous que cette interface est mise à jour
+  FileAttachment
 } from '@/app/types/documents';
 import FileAttachmentManager from './FileAttachmentManager';
 import FileCellPreview from './FileCellPreview';
+import { Paperclip } from 'lucide-react';
 
 // --- INTERFACES LOCALES ---
-
 interface MultilineEditorProps {
   cellDataId: string;
   parentColumn: DocumentColumn;
   isOpen: boolean;
   onClose: () => void;
 }
-
 interface EditingCellState {
   rowIndex: number;
   subColumnId: string;
 }
+interface ColumnConfig {
+  options?: string[];
+}
+
 
 // --- COMPOSANT PRINCIPAL ---
-
 export default function MultilineEditor({ 
   cellDataId, 
   parentColumn, 
@@ -44,10 +46,9 @@ export default function MultilineEditor({
   const [editingSubColumn, setEditingSubColumn] = useState<SubColumn | null>(null);
   const [editValue, setEditValue] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
-
   const [fileManager, setFileManager] = useState<{
     isOpen: boolean;
-    parentId: string; // ID de la multiline_data
+    parentId: string;
   }>({ isOpen: false, parentId: '' });
   
   const { user } = useAuth();
@@ -92,7 +93,6 @@ export default function MultilineEditor({
       } else {
         setFileAttachments([]);
       }
-
     } catch (error) {
       console.error('Error fetching multiline data:', error);
     } finally {
@@ -104,19 +104,7 @@ export default function MultilineEditor({
     try {
       if (!user) throw new Error('Not authenticated');
       const newOrderIndex = subColumns.length > 0 ? Math.max(...subColumns.map(sc => sc.order_index)) + 1 : 0;
-      const { data, error } = await supabase
-        .from('sub_columns')
-        .insert([{
-          parent_column_id: parentColumn.id,
-          label: 'Nouvelle Colonne',
-          data_type: 'text' as DataType,
-          order_index: newOrderIndex,
-          width: 150,
-          permissions: { read: ['all'], write: ['all'] }, 
-          config: {} 
-        }])
-        .select()
-        .single();
+      const { data, error } = await supabase.from('sub_columns').insert([{ parent_column_id: parentColumn.id, label: 'Nouvelle Colonne', data_type: 'text' as DataType, order_index: newOrderIndex, width: 150, permissions: { read: ['all'], write: ['all'] }, config: {} }]).select().single();
       if (error) throw error;
       setSubColumns([...subColumns, data as SubColumn]);
       setEditingSubColumn(data as SubColumn);
@@ -127,12 +115,7 @@ export default function MultilineEditor({
 
   const updateSubColumn = async (subColumnId: string, updates: Partial<SubColumn>) => {
     try {
-      const { data, error } = await supabase
-        .from('sub_columns')
-        .update(updates as any)
-        .eq('id', subColumnId)
-        .select()
-        .single();
+      const { data, error } = await supabase.from('sub_columns').update(updates).eq('id', subColumnId).select().single();
       if (error) throw error;
       setSubColumns(subColumns.map(sc => sc.id === subColumnId ? (data as SubColumn) : sc));
       setEditingSubColumn(null);
@@ -146,9 +129,7 @@ export default function MultilineEditor({
     try {
       const { error } = await supabase.from('sub_columns').delete().eq('id', subColumnId);
       if (error) throw error;
-      setSubColumns(subColumns.filter(sc => sc.id !== subColumnId));
-      // Les données de multiline_data et file_attachments seront supprimées en cascade par la DB.
-      fetchMultilineData(); // Re-fetch pour rafraîchir
+      fetchMultilineData();
     } catch (error) {
       console.error('Error deleting sub-column:', error);
     }
@@ -168,10 +149,7 @@ export default function MultilineEditor({
       }));
 
       if(newCellsData.length > 0) {
-        const { data, error } = await supabase
-          .from('multiline_data')
-          .insert(newCellsData)
-          .select();
+        const { data, error } = await supabase.from('multiline_data').insert(newCellsData).select();
         if (error) throw error;
         setMultilineData(prev => [...prev, ...data]);
       }
@@ -185,24 +163,16 @@ export default function MultilineEditor({
       const subColumn = subColumns.find(sc => sc.id === subColumnId);
       if (!subColumn || subColumn.data_type === 'file') return;
 
-      const updateData: Partial<MultilineData> = { 
-        value_type: subColumn.data_type,
-        text_value: undefined, number_value: undefined, date_value: undefined, boolean_value: undefined
-      };
+      const updateData: Partial<MultilineData> = { value_type: subColumn.data_type, text_value: undefined, number_value: undefined, date_value: undefined, boolean_value: undefined };
 
       switch (subColumn.data_type) {
         case 'number': updateData.number_value = value ? parseFloat(value) : undefined; break;
         case 'date': updateData.date_value = value ? new Date(value).toISOString() : undefined; break;
-        case 'boolean': updateData.boolean_value = value === 'true' || value === 'Oui'; break;
+        case 'boolean': updateData.boolean_value = value === 'true'; break;
         default: updateData.text_value = value;
       }
 
-      const { data, error } = await supabase
-        .from('multiline_data')
-        .update(updateData as any)
-        .eq('id', multilineDataId)
-        .select()
-        .single();
+      const { data, error } = await supabase.from('multiline_data').update(updateData).eq('id', multilineDataId).select().single();
       if (error) throw error;
       setMultilineData(prev => prev.map(item => item.id === multilineDataId ? (data as MultilineData) : item));
     } catch (error) {
@@ -212,13 +182,8 @@ export default function MultilineEditor({
 
   const deleteRow = async (orderIndex: number) => {
     try {
-      const { error } = await supabase
-        .from('multiline_data')
-        .delete()
-        .eq('cell_data_id', cellDataId)
-        .eq('order_index', orderIndex);
+      const { error } = await supabase.from('multiline_data').delete().eq('cell_data_id', cellDataId).eq('order_index', orderIndex);
       if (error) throw error;
-      // Re-fetch to get consistent state after cascade delete
       fetchMultilineData();
     } catch (error) {
       console.error('Error deleting multiline row:', error);
@@ -228,7 +193,6 @@ export default function MultilineEditor({
   const getMultilineValue = (orderIndex: number, subColumnId: string): string => {
     const data = multilineData.find(md => md.order_index === orderIndex && md.sub_column_id === subColumnId);
     if (!data) return '';
-    
     switch (data.value_type) {
       case 'text': case 'select': return data.text_value || '';
       case 'number': return data.number_value?.toString() || '';
@@ -244,32 +208,12 @@ export default function MultilineEditor({
     setEditValue(getMultilineValue(orderIndex, subColumnId));
   };
   
-  const handleFilesChange = (newlyUploadedFiles: FileAttachment[], deletedFileId?: string) => {
-    if (deletedFileId) {
-      setFileAttachments(prev => prev.filter(f => f.id !== deletedFileId));
-    } else {
-      setFileAttachments(prev => [...prev, ...newlyUploadedFiles]);
-    }
+  const handleFilesChange = () => {
+    fetchMultilineData();
   };
 
   if (!isOpen) return null;
   const rowIndices = Array.from(new Set(multilineData.map(md => md.order_index))).sort((a,b) => a - b);
-
-  function MultilineFileCell({ multilineDataId }: { multilineDataId: string }) {
-    const filesForThisCell = fileAttachments.filter(f => f.multiline_data_id === multilineDataId);
-    const fileCount = filesForThisCell.length;
-
-    console.log(multilineData);
-    
-    return (
-      <div
-        onClick={() => setFileManager({ isOpen: true, parentId: multilineDataId })}
-        className="w-full h-full min-h-[40px] px-2 py-1 cursor-pointer flex items-center justify-center text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900 dark:text-blue-400 transition-colors"
-      >
-        {fileCount > 0 ? `📎 ${fileCount} fichier(s)` : '☁️ Ajouter'}
-      </div>
-    );
-  }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -315,42 +259,55 @@ export default function MultilineEditor({
                       <tr key={orderIndex} className="hover:bg-gray-50 dark:hover:bg-gray-800">
                         <td className="border border-gray-200 dark:border-gray-600 p-2 text-center text-gray-500 bg-white dark:bg-gray-900">{visualIndex + 1}</td>
                         {subColumns.map(subCol => {
-                          const cellData = multilineData.find(md => md.order_index === orderIndex && md.sub_column_id === subCol.id);
-                          if (!cellData) return <td key={subCol.id} className="border border-gray-200 dark:border-gray-600"></td>;
-
+                          const cellDataEntry = multilineData.find(md => md.order_index === orderIndex && md.sub_column_id === subCol.id);
+                          
                           if (subCol.data_type === 'file') {
-                            const filesForCell = fileAttachments.filter(f => f.multiline_data_id === cellData.id);
-                            return (
-                              <td key={subCol.id} className="border border-gray-200 dark:border-gray-600 p-0 h-12">
-                                <FileCellPreview
-                                  files={filesForCell}
-                                  onOpenManager={() => setFileManager({ isOpen: true, parentId: cellData.id })}
-                                />
-                              </td>
-            
-                            );
+                            // Si la cellule existe, on l'utilise pour trouver les fichiers
+                            if (cellDataEntry) {
+                              const filesForCell = fileAttachments.filter(f => f.multiline_data_id === cellDataEntry.id);
+                              return (
+                                <td key={subCol.id} className="border border-gray-200 dark:border-gray-600 p-0 h-12">
+                                  <FileCellPreview
+                                    files={filesForCell}
+                                    onOpenManager={() => setFileManager({ isOpen: true, parentId: cellDataEntry.id })}
+                                  />
+                                </td>
+                              );
+                            } 
+                            // Si la cellule n'existe pas, on affiche quand même la preview avec 0 fichier
+                            else {
+                               return (
+                                <td key={subCol.id} className="border border-gray-200 dark:border-gray-600 p-0 h-12">
+                                    <FileCellPreview
+                                        files={[]}
+                                        onOpenManager={() => alert("Sauvegardez d'abord une donnée sur cette ligne pour activer l'ajout de fichier.")}
+                                    />
+                                </td>
+                               );
+                            }
                           }
+
+                          if (!cellDataEntry) {
+                            return <td key={subCol.id} className="border border-gray-200 dark:border-gray-600"></td>;
+                          }
+
                           const isEditing = editingCell?.rowIndex === orderIndex && editingCell?.subColumnId === subCol.id;
                           const rawValue = getMultilineValue(orderIndex, subCol.id);
-                          const options = (subCol.config as any)?.options || [];
-
+                          
                           return (
                             <td key={subCol.id} className="border border-gray-200 dark:border-gray-600 p-0 h-auto min-h-[40px] bg-white dark:bg-gray-900 align-top">
                               {isEditing ? (
                                 <EditorInput 
                                   type={subCol.data_type}
                                   value={editValue}
-                                  options={options}
+                                  options={(subCol.config as ColumnConfig)?.options || []}
                                   onChange={setEditValue}
-                                  onBlur={() => { saveMultilineCell(cellData.id, subCol.id, editValue); setEditingCell(null); }}
-                                  onEnter={() => { saveMultilineCell(cellData.id, subCol.id, editValue); setEditingCell(null); }}
+                                  onBlur={() => { saveMultilineCell(cellDataEntry.id, subCol.id, editValue); setEditingCell(null); }}
+                                  onEnter={() => { saveMultilineCell(cellDataEntry.id, subCol.id, editValue); setEditingCell(null); }}
                                   onEscape={() => setEditingCell(null)}
                                 />
                               ) : (
-                                <div
-                                  onClick={() => startEditing(orderIndex, subCol.id, subCol.data_type)}
-                                  className="w-full h-full min-h-[40px] px-2 py-1 cursor-cell flex items-center text-gray-900 dark:text-white"
-                                >
+                                <div onClick={() => startEditing(orderIndex, subCol.id, subCol.data_type)} className="w-full h-full min-h-[40px] px-2 py-1 cursor-cell flex items-center text-gray-900 dark:text-white">
                                   {subCol.data_type === 'boolean' ? (rawValue === 'true' ? '✅ Oui' : '❌ Non') : (
                                     <span className="truncate block w-full">{rawValue}</span>
                                   )}
@@ -372,7 +329,9 @@ export default function MultilineEditor({
           )}
         </div>
       </div>
+      
       {editingSubColumn && <SubColumnConfigModal subColumn={editingSubColumn} onSave={updateSubColumn} onClose={() => setEditingSubColumn(null)} />}
+      
       <div className="z-[60] relative">
         <FileAttachmentManager
           parentId={fileManager.parentId}
