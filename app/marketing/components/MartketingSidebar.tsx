@@ -8,17 +8,21 @@ import {
   Megaphone, 
   Package, 
   FileBarChart, 
-  ArrowLeftCircle 
+  ArrowLeftCircle, 
+  Users,
+  Tag
 } from 'lucide-react';
 import clsx from 'clsx';
 import { motion } from 'framer-motion';
 
 const menuItems = [
   { name: 'Vue Globale', href: '/marketing', icon: LayoutDashboard },
-  { name: 'Agenda', href: '/marketing/agenda', icon: CalendarDays }, // Lien vers page dédiée
-  { name: 'Marketing', href: '/dashboard/marketing', icon: Megaphone },
-  { name: 'Stock & Arrivages', href: '/dashboard/stock', icon: Package },
-  { name: 'Rapports', href: '/dashboard/reports', icon: FileBarChart },
+  { name: 'Agenda', href: '/marketing/agenda', icon: CalendarDays },
+  { name: 'Clients / CRM', href: '/marketing/crm', icon: Users },
+  { name: 'Promos / Offres', href: '/marketing/promos', icon: Tag },
+  { name: 'Marketing', href: '/marketing/marketing', icon: Megaphone },
+  { name: 'Stock & Arrivages', href: '/marketing/stock', icon: Package },
+  { name: 'Rapports', href: '/marketing/reports', icon: FileBarChart },
 ];
 
 export default function MarketingSidebar() {
