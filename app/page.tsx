@@ -150,7 +150,7 @@ const modules = [
     href: "/marketing",
     icon: "📈",
     color: "bg-purple-500",
-    permissions: ["admin"]
+    permissions: ["admin", "manager"]
   },
   {
     name: "Utilisateurs",
