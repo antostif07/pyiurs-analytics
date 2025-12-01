@@ -11,11 +11,33 @@ import SearchAndFilters from "./components/SearchAndFilters";
 import Link from "next/link";
 import PermissionManager from "./components/PermissionManager";
 
-const applyComplexFilter = (value: string | number | boolean | undefined, filter: {min: number|undefined, max: number, start: Date|undefined, end: Date|undefined}) => {
+const applyComplexFilter = (
+    value: string | number | boolean | undefined | null, 
+    filter: { min?: number; max?: number; start?: Date | string; end?: Date | string }
+) => {
+    // Si la valeur est null ou undefined, elle ne passe pas les filtres de plage
+    if (value === undefined || value === null) return false;
+
+    // Filtres Numériques
     if (filter.min !== undefined && typeof value === "number" && value < filter.min) return false;
     if (filter.max !== undefined && typeof value === "number" && value > filter.max) return false;
-    if (filter.start && typeof value === "string" && new Date(value) < new Date(filter.start)) return false;
-    if (filter.end && typeof value === "string" && new Date(value) > new Date(filter.end)) return false;
+    
+    // Filtres Dates
+    if (filter.start || filter.end) {
+        // Tenter de convertir la valeur en Date si ce n'est pas déjà le cas
+        const dateValue: Date = (value as any) instanceof Date ? (value as unknown as Date) : new Date(String(value));
+        // Vérifier si la date est valide
+        if (isNaN(dateValue.getTime())) return false;
+
+        if (filter.start) {
+            const startDate = new Date(filter.start);
+            if (dateValue < startDate) return false;
+        }
+        if (filter.end) {
+            const endDate = new Date(filter.end);
+            if (dateValue > endDate) return false;
+        }
+    }
     return true;
 };
 
@@ -45,14 +67,15 @@ export default function DocumentEditor() {
         case 'number': return cell.number_value;
         case 'date': return cell.date_value;
         case 'boolean': return cell.boolean_value;
+        case 'select': return cell.text_value; // Gestion du type select
         default: return '';
       }
     };
 
-    const applyFiltersAndSearch = () => {
+    const applyFiltersAndSearch = useCallback(() => {
       let filtered = [...rows];
 
-      // Appliquer la recherche
+      // Appliquer la recherche globale
       if (searchQuery) {
         filtered = filtered.filter(row => {
           return columns.some(column => {
@@ -63,18 +86,25 @@ export default function DocumentEditor() {
         });
       }
 
-      // Appliquer les filtres
+      // Appliquer les filtres spécifiques par colonne
       if (Object.keys(filters).length > 0) {
         filtered = filtered.filter(row => {
           return Object.entries(filters).every(([columnId, filterValue]) => {
             const cell = cellData.find(c => c.row_id === row.id && c.column_id === columnId);
-            const value = cell ? getCellDisplayValue(cell) : '';
+            const value = cell ? getCellDisplayValue(cell) : undefined;
             
+            // Filtre Simple (Texte, Select, Boolean)
             if (typeof filterValue === 'string') {
-              return String(value).toLowerCase().includes(filterValue.toLowerCase());
-            } else if (typeof filterValue === 'object') {
-              // Convert potential null to undefined so it matches the applyComplexFilter parameter type
-              return applyComplexFilter(value ?? undefined, filterValue as { min: number | undefined; max: number; start: Date | undefined; end: Date | undefined });
+                // Pour un select ou boolean, on pourrait vouloir une égalité stricte, 
+                // mais includes permet plus de souplesse.
+                return String(value ?? '').toLowerCase().includes(filterValue.toLowerCase());
+            } 
+            // Filtre Complexe (Nombre, Date)
+            else if (typeof filterValue === 'object' && filterValue !== null) {
+              return applyComplexFilter(
+                value, 
+                filterValue as { min?: number; max?: number; start?: Date | string; end?: Date | string }
+              );
             }
             return true;
           });
@@ -90,6 +120,12 @@ export default function DocumentEditor() {
           const valueA = cellA ? getCellDisplayValue(cellA) : '';
           const valueB = cellB ? getCellDisplayValue(cellB) : '';
           
+          // Gestion du tri numérique pour éviter "10" < "2"
+          if (typeof valueA === 'number' && typeof valueB === 'number') {
+            return sortConfig.direction === 'asc' ? valueA - valueB : valueB - valueA;
+          }
+
+          // Tri alphabétique standard
           if (sortConfig.direction === 'asc') {
             return String(valueA).localeCompare(String(valueB));
           } else {
@@ -99,7 +135,11 @@ export default function DocumentEditor() {
       }
 
       setFilteredRows(filtered);
-    };
+    }, [rows, searchQuery, filters, sortConfig, cellData, columns]);
+
+    useEffect(() => {
+        applyFiltersAndSearch();
+    }, [rows, searchQuery, filters, sortConfig, cellData]);
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -237,10 +277,6 @@ export default function DocumentEditor() {
         fetchDocumentData();
         }
     }, [documentId, user, fetchDocumentData]);
-
-    useEffect(() => {
-        applyFiltersAndSearch();
-    }, [rows, searchQuery, filters, sortConfig, cellData]);
 
     if (!user || !document) {
         return null;

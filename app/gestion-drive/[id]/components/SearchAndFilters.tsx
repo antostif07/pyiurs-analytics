@@ -97,6 +97,7 @@ export default function SearchAndFilters({
                   {column.label}
                 </label>
                 
+                {/* Filtre Texte */}
                 {column.data_type === 'text' && (
                   <input
                     type="text"
@@ -107,6 +108,24 @@ export default function SearchAndFilters({
                   />
                 )}
                 
+                {/* Filtre Select (Liste déroulante) */}
+                {column.data_type === 'select' && (
+                  <select
+                    value={(filters[column.id] as string) || ''}
+                    onChange={(e) => handleFilterChange(column.id, e.target.value || null)}
+                    className="w-full px-2 py-1 border rounded text-sm bg-white"
+                  >
+                    <option value="">Tous</option>
+                    {/* On suppose que column.options est un tableau de strings */}
+                    {column.config.options?.map((option: string, index: number) => (
+                      <option key={index} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                {/* Filtre Nombre */}
                 {column.data_type === 'number' && (
                   <div className="flex space-x-2">
                     <input
@@ -132,6 +151,7 @@ export default function SearchAndFilters({
                   </div>
                 )}
                 
+                {/* Filtre Date */}
                 {column.data_type === 'date' && (
                   <div className="flex space-x-2">
                     <input
@@ -157,11 +177,12 @@ export default function SearchAndFilters({
                   </div>
                 )}
                 
+                {/* Filtre Booléen */}
                 {column.data_type === 'boolean' && (
                   <select
                     value={(filters[column.id] as string) || ''}
                     onChange={(e) => handleFilterChange(column.id, e.target.value || null)}
-                    className="w-full px-2 py-1 border rounded text-sm"
+                    className="w-full px-2 py-1 border rounded text-sm bg-white"
                   >
                     <option value="">Tous</option>
                     <option value="true">Oui</option>
