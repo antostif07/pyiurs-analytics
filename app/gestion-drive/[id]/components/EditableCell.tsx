@@ -302,7 +302,7 @@ export const EditableCell = ({ getValue, row, column, table, columns, subColumns
 
         // Par défaut (text, multiline, number)
         return (
-            <input
+            <textarea
                 value={value as string}
                 onChange={(e) => setValue(e.target.value)}
                 onBlur={onBlur}
@@ -328,7 +328,7 @@ export const EditableCell = ({ getValue, row, column, table, columns, subColumns
             case "file":
                  return <span className="underline cursor-pointer">Fichier</span>;
             default:
-                return <span className="truncate block">{value}</span>;
+                return <div style={{ whiteSpace: 'pre-wrap' }}>{value}</div>;
         }
     };
 

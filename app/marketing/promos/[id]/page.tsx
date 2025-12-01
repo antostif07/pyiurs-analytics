@@ -26,7 +26,7 @@ export default async function CampaignDetailsPage({ params }: { params: Promise<
       
       {/* HEADER NAVIGATION */}
       <div className="mb-6">
-        <Link href="/dashboard/promos" className="text-sm text-gray-500 hover:text-black flex items-center gap-1 mb-4">
+        <Link href="/marketing/promos" className="text-sm text-gray-500 hover:text-black flex items-center gap-1 mb-4">
             <ArrowLeft size={16} /> Retour aux campagnes
         </Link>
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">

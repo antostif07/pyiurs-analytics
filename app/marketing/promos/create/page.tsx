@@ -15,7 +15,7 @@ export default async function CreatePromoPage() {
             </h1>
             <p className="text-gray-500 text-sm mt-1">Sélectionnez les références à liquider.</p>
         </div>
-        <Link href="/dashboard/promos" className="text-sm font-medium text-gray-500 hover:text-gray-900">
+        <Link href="/marketing/promos" className="text-sm font-medium text-gray-500 hover:text-gray-900">
             Annuler et retour
         </Link>
       </div>
