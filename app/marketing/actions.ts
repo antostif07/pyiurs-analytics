@@ -670,8 +670,8 @@ export async function getCampaignDetails(campaignId: string) {
         // Sinon remplace p.list_price par p.standard_price.
         const cost = p.list_price || 0; 
         const shopPrice = cost * 1.25; // RÈGLE : BASE + 25%
-        const discountAmount = shopPrice * (campaign.discount_percent / 100);
-        const promoPrice = shopPrice - discountAmount;
+        const discountAmount = cost * (campaign.discount_percent / 100);
+        const promoPrice = cost - discountAmount;
 
         return {
             ...p,
