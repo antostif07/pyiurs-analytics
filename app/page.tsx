@@ -144,6 +144,14 @@ const modules = [
     color: "bg-purple-500",
     permissions: ["admin", "manager"]
   },
+  { 
+    name: "Analyse Beauty",
+    description: "Analyse et Gestion Beauty",
+    icon: "📊",
+    color: "bg-teal-600",
+    href: "/analyse-beauty",
+    permissions: ["admin", "manager"]
+  },
   {
     name: "Marketing",
     description: "Suivi et Rapports Marketing",

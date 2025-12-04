@@ -1,3 +1,5 @@
+import { OdooProductTemplate } from "./product_template";
+
 export type POSOrderLine = {
   id: number;
   product_id: [number, string]; // Tuple of [id, name]
@@ -10,6 +12,10 @@ export type POSOrderLine = {
   order_id: [number, string]; // Tuple of [id, name]
   partner_id: [number, string];
   create_date: string; // ISO date string
+  order_details: POSOrder;
+  product_details: OdooProductTemplate;
+  category_name?: string;
+  shop_name?: string;
 };
 
 export type POSOrder = {
@@ -21,13 +27,14 @@ export type POSOrder = {
   amount_paid: number;
   amount_return: number;
   session_id: [number, string]; // Tuple of [id, name]
-  lines: POSOrderLine[];
+  lines: [number];
   config_id: [number, string]; // Tuple of [id, name]
   partner_id: [number, string] | null; // Tuple of [id, name] or null if no customer
   state: "draft" | "paid" | "done" | "invoiced" | "cancelled";
   create_date: string; // ISO date string
-  payment_ids: [number, string][];
+  payment_ids: number[];
   payments?: POSPayment[]; // Populated when fetching enriched orders
+  pos_reference: string;
 };
 
 export type POSSession = {

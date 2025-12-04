@@ -4,6 +4,7 @@ export interface OdooProductTemplate {
     list_price: number;
     categ_id: [number, string];
     hs_code?: string;
+    default_code: string;
     product_variant_id?: [number, string];
     x_studio_many2one_field_21bvh?: [number, string];
     x_studio_many2one_field_QyelN?: [number, string];
@@ -11,12 +12,16 @@ export interface OdooProductTemplate {
     description_pickingin?: string;
     create_date: string;
     image_1920: string;
+    qty_available: number;
+    barcode: string;
 }
 
 export interface ProductProduct {
   id: number;
   name: string;
   categ_id?: [number, string];
+  default_code?: string;
+  product_tmpl_id: [number, string];
 }
 
 export interface Product {

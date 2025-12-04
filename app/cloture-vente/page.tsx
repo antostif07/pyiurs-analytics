@@ -1,242 +1,15 @@
-// app/cloture-ventes/page.tsx
-import { endOfDay, format, startOfDay } from "date-fns"
-import { POSConfig, POSOrder, POSPayment } from "../types/pos"
+import { POSConfig, POSOrder, POSOrderLine, POSPayment } from "../types/pos"
 import ClotureVentesClient from "./cloture-ventes.client"
-import { AccountAccount, Expense } from "../types/cloture"
 import { clotureService } from "@/lib/cloture-service"
-import { createClient, getServerAuth } from "@/lib/supabase/server"
-import { Profile } from "@/contexts/AuthContext"
-import { User } from "@supabase/supabase-js"
+import { getServerAuth } from "@/lib/supabase/server"
+import { filterShopsByUserAccess, getDailyExpenses, getDailyExpensesReport, getDailySalesLines, getExchangeRate, getPOSConfig } from "./actions"
+import { Expense } from "../types/cloture"
 
 interface PageProps {
   searchParams: Promise<{
     date?: string
     shop?: string
   }>
-}
-
-// Récupérer les ventes du jour avec filtre shop
-async function getDailySales(date: Date, shop?: string) {
-  const startDate = format(startOfDay(date), "yyyy-MM-dd HH:mm:ss")
-  const endDate = format(endOfDay(date), "yyyy-MM-dd HH:mm:ss")
-  
-  let domain = `[["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"], ["config_id", "not in", [19]]]`
-  
-  if (shop && shop !== 'all') {
-    domain = `[["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"], ["config_id.id", "=", "${shop}"]]`
-  }
-  
-  const ordersRes = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.order?fields=id,name,amount_total,create_date,config_id,payment_ids&domain=${encodeURIComponent(domain)}`,
-    { cache: 'no-store' }
-  );
-
-  if (!ordersRes.ok) throw new Error("Erreur API Odoo - Ventes du jour")
-  const ordersData = await ordersRes.json();
-  if (!ordersData.success) throw new Error(ordersData.error || "Erreur Odoo (pos.order)");
-
-  const orders = ordersData.records as POSOrder[];
-  const allPaymentIds = orders.flatMap((o: POSOrder) => o.payment_ids || []);
-
-  if (allPaymentIds.length === 0) {
-    return { success: true, records: orders.map((o: POSOrder) => ({ ...o, payments: [] })) };
-  }
-
-  const paymentsDomain = `[["id", "in", [${allPaymentIds.join(",")}]]]`;
-  const paymentsRes = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.payment?fields=id,amount,payment_method_id,pos_order_id&domain=${encodeURIComponent(paymentsDomain)}`,
-    { next: { revalidate: 300 } }
-  );
-
-  if (!paymentsRes.ok) throw new Error("Erreur API Odoo - Récupération des paiements");
-  const paymentsData = await paymentsRes.json();
-  if (!paymentsData.success) throw new Error(paymentsData.error || "Erreur Odoo (pos.payment)");
-
-  const payments = paymentsData.records;
-  const enrichedOrders = orders.map((order: POSOrder) => ({
-    ...order,
-    payments: payments.filter((p: POSPayment) => p.pos_order_id?.[0] === order.id),
-  }));
-
-  return { success: true, records: enrichedOrders };
-}
-
-async function getDailyExpensesReport(date: Date, company_name?: string) {
-  const startDate = format(startOfDay(date), "yyyy-MM-dd HH:mm:ss")
-  const endDate = format(endOfDay(date), "yyyy-MM-dd HH:mm:ss")
-  
-  const fields = 'id,name,expense_line_ids,state,company_id,product_ids,display_name,total_amount,payment_state,payment_mode,journal_id';
-  let domain = `[["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"]]`
-  
-  if (company_name && company_name !== 'all') {
-    domain = `[["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"], ["company_id", "ilike", "${company_name}"]]`
-  }
-  
-  const expenseRes = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/hr.expense.sheet?fields=${fields}&domain=${encodeURIComponent(domain)}`,
-    { cache: 'no-store' }
-  )
-
-  if (!expenseRes.ok) throw new Error("Erreur API Odoo - Recuperation des dépenses")
-  const expenseData = await expenseRes.json();
-  if (!expenseData.success) throw new Error(expenseData.error || "Erreur Odoo (he.expense)");
-
-  // Récupérer tous les IDs d'expenses de tous les sheets
-  const allExpenseIds = expenseData.records.flatMap((sheet: any) => 
-    sheet.expense_line_ids || []
-  );
-
-  if (allExpenseIds.length === 0) {
-    return { 
-      success: true, 
-      records: expenseData.records.map((sheet: any) => ({ ...sheet, expenses: [] })) 
-    };
-  }
-
-  // Récupérer toutes les expenses en un seul appel
-  const expenseLinesDomain = `[["id", "in", [${allExpenseIds.join(",")}]]]`;
-  const expenseLinesRes = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/hr.expense?fields=id,total_amount,name,create_date,product_id,company_id,account_id&domain=${encodeURIComponent(expenseLinesDomain)}`,
-    { cache: 'no-store' }
-  );
-
-  if (!expenseLinesRes.ok) throw new Error("Erreur API Odoo - Recuperation des lignes de dépenses")
-  const expenseLinesData = await expenseLinesRes.json();
-  if (!expenseLinesData.success) throw new Error(expenseLinesData.error || "Erreur Odoo (he.expense)");
-
-  // Récupérer tous les comptes en un seul appel
-  const accountIds = expenseLinesData.records
-    .map((expense: any) => expense.account_id && expense.account_id[0])
-    .filter((id: number) => id !== undefined);
-
-  let accountsMap = new Map();
-  
-  if (accountIds.length > 0) {
-    const accountsDomain = `[["id", "in", [${accountIds.join(",")}]]]`;
-    const accountsRes = await fetch(
-      `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/account.account?fields=id,name,code,x_studio_categorie_compte&domain=${encodeURIComponent(accountsDomain)}`,
-      { cache: 'no-store' }
-    );
-
-    if (accountsRes.ok) {
-      const accountsData = await accountsRes.json();
-      if (accountsData.success) {
-        accountsData.records.forEach((account: any) => {
-          accountsMap.set(account.id, account);
-        });
-      }
-    }
-  }
-
-  // Créer un map des expenses par ID pour un accès rapide
-  const expensesMap = new Map();
-  expenseLinesData.records.forEach((expense: any) => {
-    const accountData = expense.account_id && expense.account_id[0] 
-      ? accountsMap.get(expense.account_id[0])
-      : null;
-    
-    expensesMap.set(expense.id, {
-      ...expense,
-      account: accountData
-    });
-  });
-
-  // Associer les expenses enrichies à chaque sheet
-  const sheetWithExpenses = expenseData.records.map((sheet: any) => ({
-    ...sheet,
-    expenses: (sheet.expense_line_ids || [])
-      .map((expenseId: number) => expensesMap.get(expenseId))
-      .filter((expense: Expense) => expense !== undefined)
-  }));
-
-  return { success: true, records: sheetWithExpenses };
-}
-
-// Récupérer les dépenses du jour
-async function getDailyExpenses(date: Date, company_name?: string) {
-  const startDate = format(startOfDay(date), "yyyy-MM-dd HH:mm:ss")
-  const endDate = format(endOfDay(date), "yyyy-MM-dd HH:mm:ss")
-  
-  let domain = `[["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"]]`
-  
-  if (company_name && company_name !== 'all') {
-    domain = `[["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"], ["company_id", "ilike", "${company_name}"]]`
-  }
-  
-  const expenseRes = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/hr.expense?fields=id,total_amount,name,create_date,product_id,company_id,account_id&domain=${encodeURIComponent(domain)}`,
-    { cache: 'no-store' }
-  )
-
-  if (!expenseRes.ok) throw new Error("Erreur API Odoo - Recuperation des dépenses")
-  const expenseData = await expenseRes.json();
-  if (!expenseData.success) throw new Error(expenseData.error || "Erreur Odoo (he.expense)");
-
-  const expenses = expenseData.records as Expense[];
-  const allAccountIds = expenses.flatMap((e: Expense) => e.account_id?.[0] || []);
-
-  if (allAccountIds.length === 0) {
-    return { success: true, records: expenses };
-  }
-
-  const accountsDomain = `[["id", "in", [${allAccountIds.join(",")}]]]`;
-  const accountRes = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/account.account?fields=id,x_studio_categorie_compte,name,code&domain=${encodeURIComponent(accountsDomain)}`,
-    { next: { revalidate: 300 } }
-  );
-
-  if (!accountRes.ok) throw new Error("Erreur API Odoo - Récupération des comptes");
-  const accountsData = await accountRes.json();
-  if (!accountsData.success) throw new Error(accountsData.error || "Erreur Odoo (account.account)");
-
-  const accounts = accountsData.records;
-  const enrichedExpenses = expenses.map((expense: Expense) => ({
-    ...expense,
-    account: accounts.find((a: AccountAccount) => a.id === expense.account_id?.[0]) || null,
-  }));
-
-  return { success: true, records: enrichedExpenses };
-}
-
-// Récupérer le taux de change actuel
-async function getExchangeRate(): Promise<number> {
-  return 2450.00
-}
-
-// Récupérer la liste des shops disponibles
-async function getPOSConfig() {
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.config?fields=id,name&domain=[["id", "not in", [19]]]`,
-    { 
-      next: { 
-        revalidate: 300
-      } 
-    }
-  );
-
-  if (!res.ok) {
-    throw new Error("Erreur API Odoo - Configuration POS");
-  }
-
-  return res.json();
-}
-
-// Fonction pour filtrer les shops selon les permissions
-function filterShopsByUserAccess(allShops: POSConfig[], profile: Profile): POSConfig[] {
-  // Les admins voient tout
-  if (profile.role === 'admin') {
-    return allShops;
-  }
-  
-  // Si l'utilisateur a accès à tout
-  if (profile.assigned_shops.includes('all')) {
-    return allShops;
-  }
-  
-  // Filtrer selon les boutiques assignées
-  return allShops.filter(shop => 
-    profile.assigned_shops.includes(shop.id.toString())
-  );
 }
 
 export default async function ClotureVentesPage({ searchParams }: PageProps) {
@@ -278,7 +51,7 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
 
   // Récupérer les données
   const [salesData, exchangeRate, allShopsData, expe] = await Promise.all([
-    getDailySales(selectedDate, selectedShop),
+    getDailySalesLines(selectedDate, selectedShop),
     getExchangeRate(),
     getPOSConfig(),
     getDailyExpensesReport(selectedDate, company_name)
@@ -291,7 +64,7 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
   
   // Vérifier si l'utilisateur a accès
   const hasAccess = availableShops.length > 0 || profile?.role === 'admin';
-  
+
   if (!hasAccess) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -348,8 +121,8 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
     return sum + filteredPayments.reduce((pSum, p) => pSum + (p.amount || 0), 0);
   }, 0);
 
-  const dailySalesTotal = salesData.records.reduce((sum: number, order: POSOrder) => 
-    sum + (order.amount_total || 0), 0
+  const dailySalesTotal = salesData.records.reduce((sum: number, orderLine: POSOrder) => 
+    sum + (orderLine.amount_total || 0), 0
   );
 
   const expensesTotal = expensesData.records.reduce((sum: number, expense: Expense) => 
@@ -370,7 +143,10 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
     mobileMoneySalesTotal,
     onlSalesTotal,
     expenses: expe.records,
-    shops: availableShops
+    shops: availableShops,
+    totalFemme: salesData.stats?.femme || 0,
+    totalEnfant: salesData.stats?.enfants || 0,
+    totalBeauty: salesData.stats?.beauty || 0
   };
 
   const showShopSelector = !isUserRestricted || profile.assigned_shops.length > 1 || profile.shop_access_type === 'all';

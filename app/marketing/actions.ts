@@ -639,7 +639,6 @@ export async function getCampaignDetails(campaignId: string) {
     if(!campaign) return null;
 
     // B. Récup produits Odoo correspondants
-    // AJOUT DES CHAMPS : categ_id et x_studio_many2one_field_Arl5D
     const products: any = await odooClient('product.template', 'search_read', [
         [['id', 'in', campaign.product_ids]],
         ['name', 'hs_code', 'qty_available', 'standard_price', 'list_price', 'barcode', 'categ_id', 'x_studio_many2one_field_Arl5D']

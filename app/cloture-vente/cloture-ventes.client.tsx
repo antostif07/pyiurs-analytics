@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useCallback, useEffect } from 'react'
-import { POSConfig, POSOrder } from '../types/pos'
+import { POSConfig, POSOrder, POSOrderLine } from '../types/pos'
 import { format, isBefore } from 'date-fns'
 import { Expense, ExpenseSheet } from '../types/cloture'
 import { supabase } from '@/lib/supabase'
@@ -29,7 +29,10 @@ export type CloturePageDataType = {
   exchangeRate: number
   sales: POSOrder[]
   expenses: ExpenseSheet[]
-  shops: POSConfig[]
+  shops: POSConfig[],
+  totalFemme: number,
+  totalBeauty: number,
+  totalEnfant: number,
 }
 
 interface ClotureVentesClientProps {
@@ -301,7 +304,7 @@ export default function ClotureVentesClient({
         totalCarte={initialData.onlSalesTotal} 
         transactionsBanque={0} 
         transactionsMobileMoney={0} 
-        transactionsCarte={0}        
+        transactionsCarte={0}
       />
 
       <DetailsAndAccounting
