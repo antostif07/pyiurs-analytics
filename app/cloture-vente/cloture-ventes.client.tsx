@@ -302,7 +302,12 @@ export default function ClotureVentesClient({
         totalMobileMoney={initialData.mobileMoneySalesTotal} 
         totalOnline={initialData.onlSalesTotal}
         totalCarte={initialData.onlSalesTotal} 
-        transactionsBanque={0} 
+        transactionsBanque={0}
+        stats={{
+          femme: initialData.totalFemme,
+          enfants: initialData.totalEnfant,
+          beauty: initialData.totalBeauty
+        }}
         transactionsMobileMoney={0} 
         transactionsCarte={0}
       />

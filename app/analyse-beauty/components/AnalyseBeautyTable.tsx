@@ -44,7 +44,9 @@ export default function({ data, months }: {data: IDataAnalyseByProductData[], mo
                {months.previous.charAt(0).toUpperCase() + months.previous.slice(1)} <ArrowUpDown size={12}/>
             </button>
           ),
-          cell: info => <div className="text-center font-bold bg-gray-50 rounded py-1">{info.getValue() as number}</div>
+          cell: info => <div className="text-center font-bold bg-gray-50 rounded py-1">
+            {info.getValue() as number} 
+            <span></span>({(info.getValue() as number) / info.row.original.qty_prev1})</div>
         },
         {
           accessorKey: 'qty_current',
