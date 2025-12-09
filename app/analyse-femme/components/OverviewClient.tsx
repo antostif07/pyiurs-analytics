@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { 
   TrendingUp, ShoppingBag, Package, AlertTriangle, CreditCard, ArrowRight
 } from "lucide-react";
+import TargetEditor from "./TargetEditor";
 // import { 
 //   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
 // } from "recharts";
@@ -116,7 +117,15 @@ export default function OverviewClient({ data, currentRange }: OverviewProps) {
           <motion.div variants={itemVariants} className="bg-indigo-900 p-6 rounded-2xl shadow-sm text-white flex flex-col justify-between">
             <div>
               <div className="flex justify-between items-end mb-1">
-                <p className="text-indigo-200 text-sm font-medium">Objectif Mensuel</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-indigo-200 text-sm font-medium">Objectif Mensuel</p>
+                  <TargetEditor 
+                      currentTarget={data.target.goal} 
+                      currentMonth={new Date().getMonth() + 1}
+                      currentYear={new Date().getFullYear()}
+                  />
+
+                </div>
                 <span className="text-lg font-bold">{data.target.percent}%</span>
               </div>
               <div className="w-full bg-indigo-800 rounded-full h-2 mt-2 overflow-hidden">
