@@ -201,7 +201,7 @@ export default function DocumentEditor() {
     
             if (columnsError) throw columnsError;
             setColumns(columnsData || []);
-    
+
             // 3. Fetch rows
             const { data: rowsData, error: rowsError } = await supabase
                 .from('document_rows')
@@ -211,7 +211,7 @@ export default function DocumentEditor() {
     
             if (rowsError) throw rowsError;
             setRows(rowsData || []);
-    
+            
             // 4. Fetch Sub Columns
             const { data: subColsData, error: subColsError } = await supabase
                 .from('sub_columns')
@@ -221,8 +221,6 @@ export default function DocumentEditor() {
             if (subColsError) throw subColsError;
             setSubColumns(subColsData || []);
 
-            // --- CORRECTION ICI : Utilisation de variables locales ---
-            
             let fetchedCellData: CellData[] = [];
 
             // 5. Fetch cell data
@@ -242,26 +240,63 @@ export default function DocumentEditor() {
 
             // 6. Fetch Multiline Data (En utilisant la variable locale fetchedCellData)
             if (fetchedCellData.length > 0) {
-                const { data: multiData, error: multiError } = await supabase
-                    .from('multiline_data')
-                    .select('*')
-                    .in('cell_data_id', fetchedCellData.map(c => c.id));
-                    
-                if (multiError) throw multiError;
-                setMultilineData(multiData || []);
+                const ids = fetchedCellData
+                    .map(c => c.id)
+                    .filter(id => typeof id === "string" && id.length > 0);
+                const { data: multiData, error } = await supabase.rpc(
+                "get_multiline_by_cells",
+                { cell_ids: ids } // ton tableau de UUID
+                );
+
+                if (error) console.error(error);
+
+                const multiline = multiData || [];
+                setMultilineData(multiline);
+                // const { data: multiData, error: multiError } = await supabase
+                //     .from("multiline_data")
+                //     .select(`
+                //         id,
+                //         cell_data_id,
+                //         sub_column_id,
+                //         order_index,
+                //         text_value,
+                //         number_value,
+                //         date_value,
+                //         boolean_value,
+                //         value_type,
+                //         created_at,
+                //         updated_at,
+                //         sub_columns (
+                //         id,
+                //         label,
+                //         data_type,
+                //         order_index
+                //         )
+                //     `)
+                //     .in("cell_data_id", ids);
+
+                // if (multiError) throw multiError;
+
+                // setMultilineData(multiData || []);
             } else {
                 setMultilineData([]);
             }
 
             // 7. Fetch File Attachments (NOUVEAU)
-            if (fetchedCellData.length > 0) { // On réutilise fetchedCellData de l'étape 5
-                const { data: filesData, error: filesError } = await supabase
-                    .from('file_attachments')
-                    .select('*')
-                    .in('cell_data_id', fetchedCellData.map(c => c.id));
-                
-                if (filesError) throw filesError;
-                setFileAttachments(filesData || []);
+            if (fetchedCellData.length > 0) {
+                const ids = fetchedCellData.map(c => c.id);
+
+                const { data, error } = await supabase.rpc(
+                    "get_files_by_cells",
+                    { cell_ids: ids }
+                );
+
+                if (error) {
+                    console.error(error);
+                    throw error;
+                }
+
+                setFileAttachments(data || []);
             } else {
                 setFileAttachments([]);
             }

@@ -61,7 +61,7 @@ export function AuthProvider({
         .select('*')
         .eq('id', userId)
         .single();
-        
+      
       if (error) {
         console.error('Erreur lors de la récupération du profil:', error);
         setProfile(null);

@@ -3,16 +3,13 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
-  LayoutDashboard, 
-  CalendarDays, 
-  Megaphone, 
-  Package, 
-  FileBarChart, 
+  LayoutDashboard,
   ArrowLeftCircle, 
   Users,
   Tag,
   ChartColumnBig,
-  ChartArea
+  ChartArea,
+  ListOrdered
 } from 'lucide-react';
 import clsx from 'clsx';
 import { motion } from 'framer-motion';
@@ -25,7 +22,7 @@ const menuItems = [
   { name: 'Clients / CRM', href: `${mainPath}/clients`, icon: Users },
   { name: 'Promos / Offres', href: `${mainPath}/promotions`, icon: Tag },
   { name: 'Tendances', href: `${mainPath}/trends`, icon: ChartArea },
-  // { name: 'Stock & Arrivages', href: '/marketing/stock', icon: Package },
+  { name: 'Commandes & Retour', href: `${mainPath}/orders`, icon: ListOrdered },
   // { name: 'Rapports', href: '/marketing/reports', icon: FileBarChart },
 ];
 
