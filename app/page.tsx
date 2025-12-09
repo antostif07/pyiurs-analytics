@@ -152,6 +152,14 @@ const modules = [
     href: "/analyse-beauty",
     permissions: ["admin", "manager"]
   },
+  { 
+    name: "Analyse Femme",
+    description: "Analyse et Gestion Femme",
+    icon: "📊",
+    color: "bg-orange-600",
+    href: "/analyse-femme",
+    permissions: ["admin", "manager"]
+  },
   {
     name: "Marketing",
     description: "Suivi et Rapports Marketing",
