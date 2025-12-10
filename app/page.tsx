@@ -57,11 +57,11 @@ const modules = [
     permissions: ["admin", "manager"]
   },
   {
-    name: "Control Image Produit",
+    name: "Control Qualité",
     description: "Contrôle des Images Produits",
     icon: "🖼️",
     color: "bg-emerald-700",
-    href: "/control-product-image",
+    href: "/quality-control",
     permissions: ["admin", "manager", "user"]
   },
   {

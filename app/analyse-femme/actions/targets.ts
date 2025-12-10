@@ -8,12 +8,8 @@ export async function updateSalesTarget(targetAmount: number, month: number, yea
   const cookieStore = cookies();
   const supabase = createClient();
 
-  // On utilise "upsert" : si la ligne (tag, year, month) existe, on update. Sinon on crée.
-  // Pour que ça marche, il faut une contrainte d'unicité sur la table.
-  // Si tu n'as pas de contrainte unique, on fait un check manuel simple.
-
   try {
-    // 1. Vérifier si une target existe déjà pour ce mois
+    // Check existance
     const { data: existing } = await supabase
       .from('sales_targets')
       .select('id')
@@ -23,16 +19,12 @@ export async function updateSalesTarget(targetAmount: number, month: number, yea
       .single();
 
     if (existing) {
-      // UPDATE
-      const { error } = await supabase
+      await supabase
         .from('sales_targets')
         .update({ target_amount: targetAmount })
         .eq('id', existing.id);
-      
-      if (error) throw error;
     } else {
-      // INSERT
-      const { error } = await supabase
+      await supabase
         .from('sales_targets')
         .insert({
           category_tag: 'femme',
@@ -40,36 +32,31 @@ export async function updateSalesTarget(targetAmount: number, month: number, yea
           year: year,
           month: month
         });
-
-      if (error) throw error;
     }
 
-    // On rafraichit la page pour voir le nouveau %
     revalidatePath('/analyse-femme');
     return { success: true };
-
   } catch (error) {
-    console.error("Erreur Update Target:", error);
-    return { success: false, error: "Impossible de mettre à jour l'objectif." };
+    console.error(error);
+    return { success: false, error: "Erreur update" };
   }
 }
 
-export async function getTargetsHistory() {
+export async function getSalesTarget(month: number, year: number) {
   const cookieStore = cookies();
   const supabase = createClient();
 
   try {
     const { data } = await supabase
       .from('sales_targets')
-      .select('*')
+      .select('target_amount')
       .eq('category_tag', 'femme')
-      .order('year', { ascending: false })
-      .order('month', { ascending: false })
-      .limit(12); // Les 12 derniers/futurs enregistrés
+      .eq('year', year)
+      .eq('month', month)
+      .single();
 
-    return data || [];
+    return data?.target_amount || 0;
   } catch (error) {
-    console.error("Erreur Fetch Targets:", error);
-    return [];
+    return 0;
   }
 }

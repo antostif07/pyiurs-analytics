@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { Loader2 } from "lucide-react";
 import { format, subDays } from "date-fns";
 import { getPerformanceAnalysis } from "../actions/stocks";
-import { DateRangeFilter } from "../components/DateRangeFilter";
+import { DateRangeFilter } from "../../../components/DateRangeFilter";
 import PerformanceTable from "../components/PerformanceTable";
 
 type PageProps = {
