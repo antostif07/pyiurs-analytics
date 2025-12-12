@@ -260,7 +260,7 @@ export default function ClotureVenteClose({
       beautyEntreesEpargne: expensesByCash.caissePrincipale.reduce((sum, expense) => {
         if(expense.product_id[1]) {
           const productName = expense.product_id[1].toLowerCase();
-          if (productName.includes('bty') || productName.includes('beauty')) {
+          if (productName.includes('epargne bty')) {
             return sum + (expense.total_amount || 0);
           } else {
             return sum;
