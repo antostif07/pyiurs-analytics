@@ -85,7 +85,7 @@ export function getBoutiqueLabel(posConfigName: string): {name: string, phone: s
 
   const name = posConfigName.toLowerCase();
 
-  if(name.includes("PB. ONL Facturation")){
+  if(name.includes("pb. onl facturation")){
     return undefined;
   }
 
@@ -95,7 +95,9 @@ export function getBoutiqueLabel(posConfigName: string): {name: string, phone: s
     return {name: "Kintambo", phone: ""};
   } else if (name.includes("mto")) {
     return {name: "Météo", phone: "+243891829999"};
-  } else if (name.includes("onl")) {
+  } else if (name.includes("lmb")) {
+    return {name: "Lemba", phone: "+243843799999"};
+  }else if (name.includes("onl")) {
     return {name: "Service Livraison", phone: "+243899900151"};
   }
 

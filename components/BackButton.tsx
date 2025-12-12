@@ -8,7 +8,7 @@ export default function BackButton() {
 
   return (
     <button 
-      onClick={() => router.back()}
+      onClick={() => router.push('/')}
       className="p-2 mr-3 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 hover:text-indigo-600 transition-colors shadow-sm"
       aria-label="Retour"
     >

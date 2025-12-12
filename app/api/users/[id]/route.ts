@@ -14,10 +14,10 @@ interface UpdateUserRequest {
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const userId = params.id
+    const {id: userId} = await params
     const supabase = createClient()
     
     // Vérifier que l'utilisateur est admin
@@ -33,12 +33,13 @@ export async function PUT(
       .select('role')
       .eq('id', user.id)
       .single()
-
+    
     if (profileError || profile?.role !== 'admin') {
       return NextResponse.json({ error: 'Accès non autorisé' }, { status: 403 })
     }
 
     const body: UpdateUserRequest = await request.json()
+
     const { 
       email,
       full_name, 
@@ -79,6 +80,12 @@ export async function PUT(
     if (assigned_shops) updateData.assigned_shops = assigned_shops
     if (assigned_companies) updateData.assigned_companies = assigned_companies
 
+    const check = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId);
+
+    console.log("Check profile existence:", check);
     // Mettre à jour le profil
     const { data: profileData, error: profileUpdateError } = await supabase
       .from('profiles')

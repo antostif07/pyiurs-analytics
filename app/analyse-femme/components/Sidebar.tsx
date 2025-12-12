@@ -9,7 +9,8 @@ import {
   Tag,
   ChartColumnBig,
   ChartArea,
-  ListOrdered
+  ListOrdered,
+  ChartBarDecreasing
 } from 'lucide-react';
 import clsx from 'clsx';
 import { motion } from 'framer-motion';
@@ -23,7 +24,7 @@ const menuItems = [
   { name: 'Promos / Offres', href: `${mainPath}/promotions`, icon: Tag },
   { name: 'Tendances', href: `${mainPath}/trends`, icon: ChartArea },
   { name: 'Commandes & Retour', href: `${mainPath}/orders`, icon: ListOrdered },
-  // { name: 'Rapports', href: '/marketing/reports', icon: FileBarChart },
+  { name: 'Supply Chain', href: `${mainPath}/supply-chain`, icon: ChartBarDecreasing },
 ];
 
 export default function Sidebar() {

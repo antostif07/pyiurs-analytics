@@ -14,7 +14,6 @@ import { CashClosure } from "@/app/types/cloture"
 import { useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import { PDFClotureData, pdfService } from "@/lib/pdf/cloture-service"
-import { filterAndSumExpensesByKeywords } from "@/lib/utils"
 import Link from "next/link"
 import { ExpenseByCash } from "./details-and-accounting"
 
@@ -317,7 +316,20 @@ export default function ClotureVenteClose({
         } else {
           return sum;
         }
-      }, 0), //filterAndSumExpensesByKeywords(initialData.expenses, ["5100399", "510036"], "any").totalAmount,
+      }, 0),
+      financeSortieEpargne: expensesByCash.caisseEpargne.reduce((sum, expense) => {
+        if(expense.product_id[1]) {
+          const productName = expense.product_id[1].toLowerCase();
+          
+          if (productName.includes('epargne f') || productName.includes('versement holding - bc')) {
+            return sum + (expense.total_amount || 0);
+          } else {
+            return sum;
+          }
+        } else {
+          return sum;
+        }
+      }, 0),
       securityEntreesEpargne: expensesByCash.caissePrincipale.reduce((sum, expense) => {
         if(expense.product_id[1]) {
           const productName = expense.product_id[1].toLowerCase();
@@ -374,6 +386,7 @@ export default function ClotureVenteClose({
       boostEntreesEpargne,
       boostSortiesEpargne,
       financeEntreeEpargne,
+      financeSortieEpargne,
       securityEntreesEpargne,
       securitySortiesEpargne,
       personalEntreesEpargne,
@@ -471,8 +484,8 @@ export default function ClotureVenteClose({
         savingsCategoryId: 4,
         soldeOuverture: soFinance,
         entreesEpargne: financeEntreeEpargne,
-        sortiesEpargne: 0,
-        soldeCloture: soFinance + financeEntreeEpargne,
+        sortiesEpargne: financeSortieEpargne,
+        soldeCloture: soFinance + financeEntreeEpargne - financeSortieEpargne,
         validated: false
       },
       {
