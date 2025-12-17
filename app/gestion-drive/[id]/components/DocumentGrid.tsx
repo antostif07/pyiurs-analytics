@@ -3,7 +3,7 @@ import { CellData, Document, DocumentColumn, DocumentRow, FileAttachment, Multil
 import { generateColumns, transformToTableData } from "@/lib/utils";
 import { flexRender, getCoreRowModel, useReactTable, ColumnDef, RowData, } from "@tanstack/react-table";
 import ColumnModal from "./ColumnModal";
-import { addRow, deleteColumn, deleteRow, handleCellUpdate, saveColumnOrder, upsertColumn } from "@/lib/utils/documents";
+import { addRow, deleteColumn, deleteRow, duplicateColumn, duplicateRow, handleCellUpdate, saveColumnOrder, upsertColumn } from "@/lib/utils/documents";
 import { closestCenter, DndContext, DragEndEvent, KeyboardSensor, MouseSensor, PointerSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { arrayMove, horizontalListSortingStrategy, SortableContext } from "@dnd-kit/sortable";
 import { DragAlongCell, DraggableTableHeader } from "./DraggableComponents";
@@ -82,6 +82,26 @@ export default function DocumentGrid({document, columns, rows, cellData,subColum
         try { await deleteRow(rowId); await fetchDocumentData(); } catch(e) { alert("Erreur"); }
     };
 
+    const onDuplicateRow = async (rowId: string) => {
+        try {
+            await duplicateRow(rowId, document.id);
+            await fetchDocumentData();
+        } catch (e) {
+            console.error(e);
+            alert("Erreur lors de la duplication de la ligne");
+        }
+    };
+
+    const onDuplicateColumn = async (columnId: string) => {
+        try {
+            await duplicateColumn(columnId, document.id);
+            await fetchDocumentData();
+        } catch (e) {
+            console.error(e);
+            alert("Erreur lors de la duplication de la colonne");
+        }
+    };
+
     // 2. Ajout de ligne
     const onAddRow = async () => {
         try { await addRow(document.id, rows); await fetchDocumentData(); } catch(e) { alert("Erreur"); }
@@ -146,10 +166,24 @@ export default function DocumentGrid({document, columns, rows, cellData,subColum
             id: "actions",
             header: () => <span className="sr-only">Actions</span>,
             enableResizing: false,
-            size: 60,
+            size: 80,
             cell: ({ row }) => (
-                <div className="flex justify-center items-center h-full">
-                    <button onClick={() => onRemoveRow(row.original.id)} className="text-gray-400 hover:text-red-600 p-1.5 rounded">
+                <div className="flex justify-center items-center h-full gap-1">
+                    {/* Bouton Dupliquer */}
+                    <button 
+                        onClick={() => onDuplicateRow(row.original.id)} 
+                        className="text-gray-400 hover:text-blue-600 p-1.5 rounded transition-colors"
+                        title="Dupliquer la ligne"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                    </button>
+                    
+                    {/* Bouton Supprimer */}
+                    <button 
+                        onClick={() => onRemoveRow(row.original.id)} 
+                        className="text-gray-400 hover:text-red-600 p-1.5 rounded transition-colors"
+                        title="Supprimer la ligne"
+                    >
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
                     </button>
                 </div>

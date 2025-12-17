@@ -228,3 +228,93 @@ export const deleteSubColumn = async (subColumnId: string) => {
     const { error } = await supabase.from('sub_columns').delete().eq('id', subColumnId);
     if (error) throw error;
 };
+
+export const duplicateRow = async (rowId: string, documentId: string) => {
+    // 1. Trouver l'index le plus élevé pour ce document
+    const { data: maxRow } = await supabase
+        .from('document_rows')
+        .select('order_index')
+        .eq('document_id', documentId)
+        .order('order_index', { ascending: false })
+        .limit(1)
+        .single();
+
+    const nextIndex = (maxRow?.order_index ?? 0) + 1;
+
+    // 2. Créer la nouvelle ligne avec le nouvel index
+    const { data: newRow, error: rowError } = await supabase
+        .from('document_rows')
+        .insert([{ 
+            document_id: documentId, 
+            order_index: nextIndex 
+        }])
+        .select()
+        .single();
+
+    if (rowError) throw rowError;
+
+    // 3. Copier les cellules
+    const { data: originalCells } = await supabase
+        .from('cell_data')
+        .select('*')
+        .eq('row_id', rowId);
+
+    if (originalCells && originalCells.length > 0) {
+        const newCells = originalCells.map(({ id, created_at, updated_at, row_id, ...rest }) => ({
+            ...rest,
+            row_id: newRow.id
+        }));
+        await supabase.from('cell_data').insert(newCells);
+    }
+    return newRow;
+};
+
+/**
+ * Duplique une colonne et les données qu'elle contient pour toutes les lignes
+ */
+export const duplicateColumn = async (columnId: string, documentId: string) => {
+    const { data: originalCol } = await supabase
+        .from('document_columns')
+        .select('*')
+        .eq('id', columnId)
+        .single();
+
+    if (!originalCol) return;
+
+    // 1. Décaler les colonnes suivantes
+    await supabase
+        .from('document_columns')
+        .update({ order_index: originalCol.order_index + 2 } as any) // On fait de la place
+        .eq('document_id', documentId)
+        .gt('order_index', originalCol.order_index);
+
+    // 2. Insérer la nouvelle colonne
+    const { data: newCol, error: newColError } = await supabase
+        .from('document_columns')
+        .insert([{
+            ...originalCol,
+            id: undefined,
+            label: `${originalCol.label} (Copie)`,
+            order_index: originalCol.order_index + 1,
+            created_at: undefined,
+            updated_at: undefined
+        }])
+        .select()
+        .single();
+
+    if (newColError) throw newColError;
+
+    // 3. Copier les données (cell_data) pour chaque ligne sur cette nouvelle colonne
+    const { data: originalCells } = await supabase
+        .from('cell_data')
+        .select('*')
+        .eq('column_id', columnId);
+
+    if (originalCells && originalCells.length > 0) {
+        const newCells = originalCells.map(({ id, created_at, updated_at, column_id, ...rest }) => ({
+            ...rest,
+            column_id: newCol.id
+        }));
+        await supabase.from('cell_data').insert(newCells);
+    }
+};
