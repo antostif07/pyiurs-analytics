@@ -18,7 +18,7 @@ export async function getOdoo() {
     try {
       console.log('🔗 Connexion à Odoo...');
       odoo = new Odoo("http://pyiurs.odoo.com", "pyiurs");
-      await odoo.login("arnold.bopeto@pyiurs.com", process.env.ODOO_PASSWORD!);
+      await odoo.login(process.env.ODOO_USERNAME!, process.env.ODOO_PASSWORD!);
       connectionAttempts = 0; // Réinitialiser le compteur
       console.log('✅ Connexion Odoo réussie');
     } catch (error) {
