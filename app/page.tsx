@@ -9,6 +9,14 @@ import Footer from "@/components/footer";
 // Configuration des modules
 const modules = [
   { 
+    name: "Base Test Odoo",
+    description: "Base Test Odoo",
+    icon: "💵",
+    color: "bg-purple-600",
+    href: "/base-test-odoo",
+    permissions: ["admin",]
+  },
+  { 
     name: "KPI Manager",
     description: "KPI Manager",
     icon: "💵",
