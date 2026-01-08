@@ -1,12 +1,11 @@
 // app/manager-kpis/page.tsx
 import { POSConfig, POSOrder, POSOrderLine } from "../types/pos";
-import { mapOdooProduct, OdooProductTemplate, Product } from "../types/product_template";
+import { OdooProductTemplate, } from "../types/product_template";
 import { isBeauty } from "@/lib/is_beauty";
 import DailySalesClient from "./daily-sales.client";
 import { getMonthDates } from "@/lib/date-utils";
 import { EnrichedPOSLine } from "../types/daily-sales";
-import { getServerAuth, getServerUser } from "@/lib/supabase/server";
-import { Profile } from "@/contexts/AuthContext";
+import { getServerAuth, } from "@/lib/supabase/server";
 
 // Types
 export interface DailySaleData {

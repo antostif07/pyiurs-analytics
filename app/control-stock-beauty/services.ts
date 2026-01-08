@@ -50,12 +50,37 @@ async function getStockQuantsForProducts(productIds: number[]): Promise<{ record
 }
 
 async function getProducts() {
+  // 1. On définit le domaine proprement en JS (avec des vrais booléens, pas des strings "true")
+  const domain = [
+    ["categ_id", "ilike", "beauty"],
+    ["categ_id", "not ilike", "make-up"],
+    ["active", "=", true],            // IMPORTANT : true sans guillemets
+    ["available_in_pos", "=", true]   // IMPORTANT : true sans guillemets
+  ];
+
+  // 2. On utilise URLSearchParams pour construire une URL valide (encode les [ ] " etc.)
+  const params = new URLSearchParams({
+    fields: "id,name,list_price,categ_id,hs_code,product_variant_id,x_studio_many2one_field_21bvh,x_studio_many2one_field_QyelN,x_studio_many2one_field_Arl5D,description_pickingin",
+    domain: JSON.stringify(domain)
+  });
+
+  // 3. Appel
   const res = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/product.template?fields=id,name,list_price,categ_id,hs_code,product_variant_id,x_studio_many2one_field_21bvh,x_studio_many2one_field_QyelN,x_studio_many2one_field_Arl5D,description_pickingin&domain=[[\"categ_id\",\"ilike\",\"beauty\"],[\"categ_id\",\"not ilike\",\"make-up\"],["active","=","true"],["available_in_pos","=","true"]]`,
-    { next: { revalidate: 300 } }
+    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/product.template?${params.toString()}`,
+    { 
+      next: { revalidate: 300 } 
+    }
   );
-  if (!res.ok) throw new Error("Erreur API Odoo - Produits");
-  return res.json();
+
+  const json = await res.json();
+
+  if (!res.ok) {
+    console.error("Erreur API Odoo:", json);
+    throw new Error(json.error || "Erreur API Odoo - Produits");
+  }
+
+  // L'API renvoie { success: true, data: [...] }, on retourne data directement si c'est ce que ton app attend
+  return json; 
 }
 
 async function getPurchaseOrderLines() {

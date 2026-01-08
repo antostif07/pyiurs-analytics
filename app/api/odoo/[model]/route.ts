@@ -33,6 +33,3 @@ export async function GET(req: Request, context: { params: Promise<{ model: stri
 
   return NextResponse.json(result);
 }
-// Exemple d'appel : /api/odoo/res.partner?fields=id,name,email&domain=[["is_company","=",true]]
-// Exemple d'appel : /api/odoo/product.template?fields=id,name,list_price,qty_available
-// Exemple d'appel : /api/odoo/sale.order?fields=id,name,amount_total,date_order&domain=[["date_order",">=","2023-01-01"]]
