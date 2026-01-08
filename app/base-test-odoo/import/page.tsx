@@ -8,7 +8,49 @@ export default function ImportPage() {
   const [logs, setLogs] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Fonction utilitaire pour lire le fichier
+  // --- NOUVEAU : Fonction pour télécharger le modèle ---
+  const downloadTemplate = () => {
+    // Données d'exemple
+    const templateData = [
+      {
+        session_id: 1,
+        temp_id: 'CMD-001',
+        partner_id: 10, // ID Client (Optionnel)
+        date: '2024-01-01 10:00:00',
+        product_id: 50,
+        qty: 2,
+        price_unit: 10.0,
+        payment_method_id: 1
+      },
+      {
+        session_id: 1,
+        temp_id: 'CMD-001', // Même temp_id = Même commande, 2ème produit
+        partner_id: 10,
+        date: '2024-01-01 10:00:00',
+        product_id: 51,
+        qty: 1,
+        price_unit: 5.0,
+        payment_method_id: 1
+      },
+      {
+        session_id: 1,
+        temp_id: 'CMD-002',
+        partner_id: '', // Laisser vide pour Anonyme
+        date: '2024-01-01 10:30:00',
+        product_id: 50,
+        qty: 1,
+        price_unit: 10.0,
+        payment_method_id: 1
+      }
+    ];
+
+    const ws = XLSX.utils.json_to_sheet(templateData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Modele Import");
+    XLSX.writeFile(wb, "modele_import_pos.xlsx");
+  };
+  // ----------------------------------------------------
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) setFile(e.target.files[0]);
   };
@@ -25,14 +67,11 @@ export default function ImportPage() {
         const data = e.target?.result;
         let rows: any[] = [];
 
-        // 1. Détection du format (CSV ou Excel)
         if (file.name.endsWith('.csv')) {
-             // ... Code CSV existant ou via XLSX qui lit aussi les CSV
              const workbook = XLSX.read(data, { type: 'binary' });
              const sheetName = workbook.SheetNames[0];
              rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
         } else {
-             // Format Excel
              const workbook = XLSX.read(data, { type: 'array' });
              const sheetName = workbook.SheetNames[0];
              rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
@@ -40,29 +79,28 @@ export default function ImportPage() {
 
         setLogs(prev => [...prev, `${rows.length} lignes trouvées.`]);
         
-        // 2. GROUPING ALGORITHM (Magie ici 🪄)
-        // On transforme les lignes plates en objets Commandes imbriqués
+        // ALGORITHME DE REGROUPEMENT
         const groupedOrders = new Map();
 
         rows.forEach((row, index) => {
-            // Validation basique des champs obligatoires
             if (!row.session_id || !row.temp_id || !row.product_id) {
                 console.warn(`Ligne ${index + 2} ignorée : données manquantes`, row);
                 return;
             }
 
-            // Si la commande n'existe pas encore dans la Map, on l'initialise
             if (!groupedOrders.has(row.temp_id)) {
                 groupedOrders.set(row.temp_id, {
                     temp_id: row.temp_id,
                     session_id: row.session_id,
+                    // --- AJOUT : Gestion de partner_id ---
+                    partner_id: row.partner_id || null, 
+                    // -------------------------------------
                     date: row.date || new Date().toISOString().slice(0, 19).replace('T', ' '),
                     payment_method_id: row.payment_method_id,
                     lines: []
                 });
             }
 
-            // On ajoute la ligne produit à la commande existante
             const order = groupedOrders.get(row.temp_id);
             order.lines.push({
                 product_id: row.product_id,
@@ -74,7 +112,6 @@ export default function ImportPage() {
         const payload = Array.from(groupedOrders.values());
         setLogs(prev => [...prev, `${payload.length} commandes uniques identifiées.`]);
         
-        // 3. Envoi au Backend
         setLogs(prev => [...prev, "Envoi vers Odoo en cours..."]);
         
         const res = await fetch('/api/odoo-test/import', {
@@ -110,7 +147,18 @@ export default function ImportPage() {
 
   return (
     <div className="p-8 max-w-4xl mx-auto font-sans text-gray-800">
-      <h1 className="text-3xl font-bold mb-6">Import de Masse (Excel / CSV)</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">Import de Masse (Excel / CSV)</h1>
+        
+        {/* BOUTON TELECHARGEMENT MODELE */}
+        <button 
+          onClick={downloadTemplate}
+          className="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded text-sm font-bold shadow transition"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+          Télécharger le modèle Excel
+        </button>
+      </div>
 
       <div className="bg-white p-8 rounded-lg shadow border space-y-6">
         
@@ -119,8 +167,18 @@ export default function ImportPage() {
             <p className="font-bold mb-2">Format attendu du fichier :</p>
             <ul className="list-disc pl-5 space-y-1">
                 <li>Extensions : <strong>.xlsx, .xls, .csv</strong></li>
-                <li>Colonnes requises : <code className="bg-white px-1">session_id</code>, <code className="bg-white px-1">temp_id</code>, <code className="bg-white px-1">product_id</code>, <code className="bg-white px-1">qty</code>, <code className="bg-white px-1">price_unit</code>, <code className="bg-white px-1">payment_method_id</code></li>
-                <li>Optionnel : <code className="bg-white px-1">date</code> (Format YYYY-MM-DD HH:mm:ss)</li>
+                <li>Colonnes requises : 
+                    <code className="bg-white px-1 ml-1">session_id</code>, 
+                    <code className="bg-white px-1 ml-1">temp_id</code>, 
+                    <code className="bg-white px-1 ml-1">product_id</code>, 
+                    <code className="bg-white px-1 ml-1">qty</code>, 
+                    <code className="bg-white px-1 ml-1">price_unit</code>, 
+                    <code className="bg-white px-1 ml-1">payment_method_id</code>
+                </li>
+                <li>Optionnel : 
+                    <code className="bg-white px-1 ml-1">partner_id</code> (ID Client), 
+                    <code className="bg-white px-1 ml-1">date</code>
+                </li>
             </ul>
         </div>
 

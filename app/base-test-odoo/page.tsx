@@ -122,7 +122,7 @@ export default function Dashboard() {
             <select 
               value={selectedConfigId}
               onChange={(e) => setSelectedConfigId(e.target.value)}
-              className="border p-2 rounded text-sm min-w-[200px]"
+              className="border p-2 rounded text-sm min-w-50"
             >
               {configs.map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>
@@ -144,7 +144,7 @@ export default function Dashboard() {
              type="datetime-local" 
              value={closeDate}
              onChange={(e) => setCloseDate(e.target.value)}
-             className="border p-2 rounded text-sm w-[220px]"
+             className="border p-2 rounded text-sm w-55"
            />
         </div>
 
@@ -179,9 +179,19 @@ export default function Dashboard() {
                   {s.config_id ? s.config_id[1] : 'Inconnu'}
                 </td>
                 
+                {/* --- MODIFICATION ICI : ID À CÔTÉ DU NOM --- */}
                 <td className="px-5 py-4 text-sm text-gray-600">
-                  {s.name}
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{s.name}</span>
+                    <span 
+                      className="text-xs font-mono bg-blue-50 text-blue-700 px-2 py-1 rounded border border-blue-200 select-all cursor-copy"
+                      title="ID de session (cliquer pour sélectionner)"
+                    >
+                      {s.id}
+                    </span>
+                  </div>
                 </td>
+                {/* ------------------------------------------- */}
 
                 <td className="px-5 py-4 text-sm">
                   <span className={`px-2 py-1 rounded text-xs font-bold border ${
@@ -200,7 +210,6 @@ export default function Dashboard() {
                 <td className="px-5 py-4 text-sm text-right flex justify-end gap-2">
                   {s.state === 'opened' && (
                     <>
-                      {/* Petit bouton test pour injecter une vente rapidement */}
                       <a 
                         href={`${pathname}/sessions/${s.id}`}
                         className="bg-indigo-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-indigo-700 ml-2 no-underline"

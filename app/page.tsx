@@ -161,11 +161,11 @@ const modules = [
     permissions: ["admin", "manager"]
   },
   { 
-    name: "Analyse Femme",
-    description: "Analyse et Gestion Femme",
+    name: "Femme",
+    description: "Analyse et Gestion du Segment Femme",
     icon: "📊",
     color: "bg-orange-600",
-    href: "/analyse-femme",
+    href: "/women",
     permissions: ["admin", "manager"]
   },
   {
@@ -183,7 +183,15 @@ const modules = [
     icon: "👥",
     color: "bg-orange-500",
     permissions: ["admin"]
-  }
+  },
+  {
+    name: "Ressources Humaines",
+    description: "Pointage, Absences, Planning et Paie",
+    href: "/hr", // Ce sera notre route principale
+    icon: "🕒",
+    color: "bg-rose-600", // Une couleur distincte (Rose/Rouge)
+    permissions: ["admin", "manager", "user", "financier"] // Tout le monde doit y accéder pour pointer
+  },
 ];
 
 export default function Home() {
@@ -232,7 +240,7 @@ export default function Home() {
   }
 
   return (
-    <div className={`${darkMode ? "dark" : ""} min-h-screen bg-gradient-to-br from-gray-50 to-gray-200 dark:from-gray-900 dark:to-gray-800 transition-colors`}>
+    <div className={`${darkMode ? "dark" : ""} min-h-screen bg-linear-to-br from-gray-50 to-gray-200 dark:from-gray-900 dark:to-gray-800 transition-colors`}>
       
       {/* Header */}
       <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
@@ -384,7 +392,7 @@ export default function Home() {
                   {module.name}
                 </h3>
                 
-                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 leading-relaxed flex-grow line-clamp-2 sm:line-clamp-3">
+                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 leading-relaxed grow line-clamp-2 sm:line-clamp-3">
                   {module.description}
                 </p>
                 
@@ -447,7 +455,7 @@ export default function Home() {
 // Composant de chargement
 function LoadingScreen() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-200 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
+    <div className="min-h-screen bg-linear-to-br from-gray-50 to-gray-200 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
       <div className="text-center">
         <div className="animate-spin rounded-full h-8 w-8 sm:h-12 sm:w-12 border-b-2 border-blue-600 mx-auto mb-3 sm:mb-4"></div>
         <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">Chargement du tableau de bord...</p>

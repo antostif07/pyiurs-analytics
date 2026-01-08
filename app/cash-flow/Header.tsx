@@ -46,11 +46,11 @@ export default function RapportHeader({
                         <div className="w-px h-8 bg-gray-200 dark:bg-gray-700"></div>
 
                         <div className="flex items-center space-x-3">
-                            <div className="p-2 bg-gradient-to-br from-blue-500 to-sky-600 rounded-xl shadow-lg">
+                            <div className="p-2 bg-linear-to-br from-blue-500 to-sky-600 rounded-xl shadow-lg">
                                 <BarChart3 className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
                             </div>
                             <div>
-                                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-sky-600 bg-clip-text text-transparent">
+                                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-linear-to-r from-blue-600 to-sky-600 bg-clip-text text-transparent">
                                     Rapport Journalier
                                 </h1>
                                 <div className="flex items-center gap-2 mt-1">
@@ -86,7 +86,7 @@ export default function RapportHeader({
                                     <Button
                                         variant={"ghost"}
                                         className={cn(
-                                            "w-[200px] justify-start text-left font-normal p-0 h-auto hover:bg-transparent",
+                                            "w-50 justify-start text-left font-normal p-0 h-auto hover:bg-transparent",
                                             !selectedDate && "text-muted-foreground"
                                         )}
                                     >

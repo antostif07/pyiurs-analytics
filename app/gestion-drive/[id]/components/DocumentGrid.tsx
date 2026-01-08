@@ -8,6 +8,7 @@ import { closestCenter, DndContext, DragEndEvent, KeyboardSensor, MouseSensor, P
 import { arrayMove, horizontalListSortingStrategy, SortableContext } from "@dnd-kit/sortable";
 import { DragAlongCell, DraggableTableHeader } from "./DraggableComponents";
 import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
+import {toast} from 'sonner'
 
 interface Props {
     document: Document
@@ -70,7 +71,9 @@ export default function DocumentGrid({document, columns, rows, cellData,subColum
                 const newOrder = arrayMove(items, oldIndex, newIndex);
                 
                 // Sauvegarde BDD
-                saveColumnOrder(document.id, newOrder, columns);
+                saveColumnOrder(document.id, newOrder, columns)
+                    .then(() => toast.success("Ordre des colonnes enregistré"))
+                    .catch(() => toast.error("Erreur sauvegarde ordre colonnes"));
                 return newOrder;
             });
         }
@@ -78,17 +81,32 @@ export default function DocumentGrid({document, columns, rows, cellData,subColum
     
     // 1. Suppression de ligne
     const onRemoveRow = async (rowId: string) => {
-        if(!confirm("Supprimer la ligne ?")) return;
-        try { await deleteRow(rowId); await fetchDocumentData(); } catch(e) { alert("Erreur"); }
+        toast.warning("Supprimer cette ligne ?", {
+    action: {
+      label: "Supprimer",
+      onClick: async () => {
+        try {
+          await deleteRow(rowId);
+          await fetchDocumentData();
+          toast.success("Ligne supprimée");
+        } catch (e) {
+          console.error(e);
+          toast.error("Erreur lors de la suppression");
+        }
+      }
+    }
+  });
     };
 
     const onDuplicateRow = async (rowId: string) => {
+        const toastId = toast.loading("Duplication de la ligne...");
         try {
             await duplicateRow(rowId, document.id);
             await fetchDocumentData();
+            toast.success("Ligne dupliquée", { id: toastId });
         } catch (e) {
             console.error(e);
-            alert("Erreur lors de la duplication de la ligne");
+            toast.error("Erreur lors de la duplication", { id: toastId });
         }
     };
 
@@ -104,39 +122,63 @@ export default function DocumentGrid({document, columns, rows, cellData,subColum
 
     // 2. Ajout de ligne
     const onAddRow = async () => {
-        try { await addRow(document.id, rows); await fetchDocumentData(); } catch(e) { alert("Erreur"); }
+        const toastId = toast.loading("Ajout de la ligne...");
+        try {
+            await addRow(document.id, rows);
+            await fetchDocumentData();
+            toast.success("Ligne ajoutée", { id: toastId });
+        } catch (e) {
+            console.error(e);
+            toast.error("Erreur lors de l'ajout", { id: toastId });
+        }
     };
 
     // 3. Sauvegarde colonne (Create / Update)
     const onSaveColumn = async (colData: Partial<DocumentColumn> | Partial<SubColumn>) => {
+        const toastId = toast.loading("Sauvegarde de la colonne...");
         setIsSubmitting(true);
+      
         try {
-            const columnPayload = colData as Partial<DocumentColumn>;
-            await upsertColumn(document.id, columnPayload, columns);
-            await fetchDocumentData();
-            setIsColumnModalOpen(false);
-            setEditingColumn(null);
+          const columnPayload = colData as Partial<DocumentColumn>;
+          await upsertColumn(document.id, columnPayload, columns);
+          await fetchDocumentData();
+      
+          toast.success("Colonne sauvegardée", { id: toastId });
+      
+          setIsColumnModalOpen(false);
+          setEditingColumn(null);
         } catch (e) {
-            alert("Erreur sauvegarde colonne");
+          console.error(e);
+          toast.error("Erreur lors de la sauvegarde", { id: toastId });
         } finally {
-            setIsSubmitting(false);
+          setIsSubmitting(false);
         }
-    };
+      };
 
     // 4. Suppression colonne
     const onDeleteColumn = async (columnId: string) => {
-        setIsSubmitting(true);
-        try {
-            await deleteColumn(columnId);
-            await fetchDocumentData();
-            setIsColumnModalOpen(false);
-            setEditingColumn(null);
-        } catch (e) {
-            alert("Erreur suppression colonne");
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
+        toast.warning("Supprimer cette colonne ?", {
+          action: {
+            label: "Supprimer",
+            onClick: async () => {
+              const toastId = toast.loading("Suppression...");
+              setIsSubmitting(true);
+              try {
+                await deleteColumn(columnId);
+                await fetchDocumentData();
+                toast.success("Colonne supprimée", { id: toastId });
+                setIsColumnModalOpen(false);
+                setEditingColumn(null);
+              } catch (e) {
+                console.error(e);
+                toast.error("Erreur lors de la suppression", { id: toastId });
+              } finally {
+                setIsSubmitting(false);
+              }
+            }
+          }
+        });
+      };
 
     const data = useMemo(() => transformToTableData(rows, cellData), [rows, cellData]);
 

@@ -1,7 +1,7 @@
 // app/layout.tsx
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
+import "./globals.css"
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { getServerAuth } from "@/lib/supabase/server";
@@ -46,7 +46,7 @@ export default async function RootLayout({
         <AuthProvider serverUser={user} serverProfile={profile}>
           {children}
         </AuthProvider>
-        <Toaster />
+        <Toaster richColors position="top-right" />
       </body>
     </html>
   );

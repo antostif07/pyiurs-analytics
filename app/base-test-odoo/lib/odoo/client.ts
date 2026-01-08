@@ -5,7 +5,7 @@ const common = xmlrpc.createClient({ url: `${process.env.ODOO_TEST_URL}/xmlrpc/2
 const object = xmlrpc.createClient({ url: `${process.env.ODOO_TEST_URL}/xmlrpc/2/object` });
 
 const db = process.env.ODOO_TEST_DB as string;
-const username = process.env.ODOO_TEST_USERNAME as string;
+const username = process.env.ODOO_USERNAME as string;
 const password = process.env.ODOO_TEST_API_KEY as string;
 
 // Cache pour l'UID utilisateur pour ne pas se re-loguer à chaque requête

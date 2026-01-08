@@ -10,6 +10,7 @@ import { FilterState } from "@/app/types/search";
 import SearchAndFilters from "./components/SearchAndFilters";
 import Link from "next/link";
 import PermissionManager from "./components/PermissionManager";
+import { toast } from "sonner";
 
 const applyComplexFilter = (
     value: string | number | boolean | undefined | null, 
@@ -60,6 +61,14 @@ export default function DocumentEditor() {
     const [searchQuery, setSearchQuery] = useState('');
     const [filters, setFilters] = useState<FilterState>({});
     const [sortConfig, setSortConfig] = useState<{ column: string; direction: 'asc' | 'desc' } | null>(null);
+    const [isSaving, setIsSaving] = useState(false);
+    const [isDirty, setIsDirty] = useState(false);
+
+    const markDirty = () => {
+        setIsDirty(true);
+    };
+
+
 
     const getCellDisplayValue = (cell: CellData) => {
       switch (cell.value_type) {
@@ -317,11 +326,81 @@ export default function DocumentEditor() {
         return null;
     }
 
+    const saveAll = async () => {
+        const toastId = toast.loading('Enregistrement en cours...');
+        try {
+          setIsSaving(true);
+      
+          /* =========================
+             1. Sauvegarder les cellules
+             ========================= */
+          const { error: cellError } = await supabase
+            .from('cell_data')
+            .upsert(
+              cellData.map(c => ({
+                id: c.id,
+                row_id: c.row_id,
+                column_id: c.column_id,
+                text_value: c.text_value,
+                number_value: c.number_value,
+                date_value: c.date_value,
+                boolean_value: c.boolean_value,
+                value_type: c.value_type,
+                updated_at: new Date().toISOString()
+              })),
+              { onConflict: 'id' }
+            );
+      
+          if (cellError) throw cellError;
+      
+          /* =========================
+             2. Sauvegarder les multiline
+             ========================= */
+          if (multilineData.length > 0) {
+            const { error: multiError } = await supabase
+              .from('multiline_data')
+              .upsert(
+                multilineData.map(m => ({
+                  id: m.id,
+                  cell_data_id: m.cell_data_id,
+                  sub_column_id: m.sub_column_id,
+                  text_value: m.text_value,
+                  number_value: m.number_value,
+                  date_value: m.date_value,
+                  boolean_value: m.boolean_value,
+                  value_type: m.value_type,
+                  order_index: m.order_index,
+                  updated_at: new Date().toISOString()
+                })),
+                { onConflict: 'id' }
+              );
+      
+            if (multiError) throw multiError;
+          }
+      
+          toast.success('✅ Données enregistrées avec succès', {
+            id: toastId
+          });
+
+          setIsDirty(false);
+          await fetchDocumentData();
+      
+        } catch (err: any) {
+          console.error('SAVE ERROR', err);
+          toast.error(
+            err?.message || "❌ Erreur lors de l'enregistrement",
+            { id: toastId }
+          );
+        } finally {
+          setIsSaving(false);
+        }
+      };
+      
     const isOwner = user.id === document.created_by;
 
     return (
         <div
-        className={`${darkMode ? 'dark' : ''} min-h-screen bg-gradient-to-br 
+        className={`${darkMode ? 'dark' : ''} min-h-screen bg-linear-to-br 
         from-gray-50 to-gray-200 dark:from-gray-900 dark:to-gray-800 
         transition-colors grid grid-rows-[auto_1fr_auto]`}
         >
@@ -340,6 +419,19 @@ export default function DocumentEditor() {
                     
                     {/* Séparateur */}
                     <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
+                    <div className="flex items-center space-x-3">
+                    <button
+                      onClick={saveAll}
+                      disabled={!isDirty || isSaving}
+                      className={`px-4 py-2 rounded-lg font-medium transition
+                        ${(!isDirty || isSaving)
+                          ? 'bg-gray-400 cursor-not-allowed'
+                          : 'bg-blue-600 hover:bg-blue-700 text-white'
+                        }`}
+                    >
+                      {isSaving ? 'Enregistrement...' : '💾 Enregistrer'}
+                    </button>
+                    </div>
                     
                     {/* Nom du document avec édition */}
                     <div className="flex items-center space-x-2 group">
@@ -349,7 +441,7 @@ export default function DocumentEditor() {
                             type="text"
                             value={document.editName || document.name}
                             onChange={(e) => setDocument(prev => prev ? {...prev, editName: e.target.value} : null)}
-                            className="px-3 py-1 border border-blue-500 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-xl font-bold min-w-[200px]"
+                            className="px-3 py-1 border border-blue-500 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-xl font-bold min-w-50"
                             onKeyDown={async (e) => {
                                 if (e.key === 'Enter') {
                                 await updateDocumentName();
@@ -494,19 +586,7 @@ export default function DocumentEditor() {
                 />
                 </div>
             </header>
-            {/* <DocumentEditorHeader
-                document={document}
-                handleDocument={setDocument}
-                updateDocumentName={updateDocumentName}
-                isOwner={isOwner}
-                setDarkMode={setDarkMode}
-                darkMode={darkMode}
-                user={user}
-                profile={profile}
-                columns={columns}
-                cellData={cellData}
-                rows={rows}
-            /> */}
+            
             {/* <SearchAndFilters
               columns={columns}
               onSearch={setSearchQuery}

@@ -146,7 +146,7 @@ export default function RapportJournalierClient({ initialReportData }: RapportJo
     const soldeFinal = (initialReportData.totals as any)['solde'] || 0;
 
     return (
-        <div className="bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900 dark:to-blue-900/20 min-h-screen">
+        <div className="bg-linear-to-br from-gray-50 to-blue-50 dark:from-gray-900 dark:to-blue-900/20 min-h-screen">
             <RapportHeader
                 selectedDate={date || new Date()}
                 handleDateChange={handleDateChange}
@@ -229,19 +229,19 @@ export default function RapportJournalierClient({ initialReportData }: RapportJo
                         <div className="overflow-x-auto">
                             <Table className="min-w-full">
                                 <TableHeader>
-                                    <TableRow className="bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 border-b-2 border-gray-300 dark:border-gray-600">
+                                    <TableRow className="bg-linear-to-r from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 border-b-2 border-gray-300 dark:border-gray-600">
                                         <TableHead className="w-[320px] font-bold text-gray-900 dark:text-white sticky left-0 bg-gray-100 dark:bg-gray-800 z-20 shadow-lg border-r border-gray-200 dark:border-gray-700">
                                             <div className="flex items-center gap-2">
                                                 <span>Description</span>
                                             </div>
                                         </TableHead>
-                                        <TableHead className="text-right font-bold text-gray-900 dark:text-white min-w-[120px] bg-gray-50 dark:bg-gray-700/50">
+                                        <TableHead className="text-right font-bold text-gray-900 dark:text-white min-w-30 bg-gray-50 dark:bg-gray-700/50">
                                             Total Général
                                         </TableHead>
                                         {initialReportData.shops.map((shop, index) => (
                                             <TableHead 
                                                 key={shop.name} 
-                                                className="text-right font-bold text-gray-900 dark:text-white min-w-[120px] bg-gray-50 dark:bg-gray-700/50"
+                                                className="text-right font-bold text-gray-900 dark:text-white min-w-30 bg-gray-50 dark:bg-gray-700/50"
                                             >
                                                 <div className="flex flex-col">
                                                     <span>{shop.name}</span>
@@ -251,10 +251,10 @@ export default function RapportJournalierClient({ initialReportData }: RapportJo
                                                 </div>
                                             </TableHead>
                                         ))}
-                                        <TableHead className="text-right font-bold text-gray-900 dark:text-white min-w-[100px] bg-blue-50 dark:bg-blue-900/30">MM</TableHead>
-                                        <TableHead className="text-right font-bold text-gray-900 dark:text-white min-w-[100px] bg-green-50 dark:bg-green-900/30">BNK</TableHead>
-                                        <TableHead className="text-right font-bold text-gray-900 dark:text-white min-w-[100px] bg-yellow-50 dark:bg-yellow-900/30">CASH</TableHead>
-                                        <TableHead className="text-right font-bold text-gray-900 dark:text-white min-w-[100px] bg-purple-50 dark:bg-purple-900/30">ZMTEO</TableHead>
+                                        <TableHead className="text-right font-bold text-gray-900 dark:text-white min-w-25 bg-blue-50 dark:bg-blue-900/30">MM</TableHead>
+                                        <TableHead className="text-right font-bold text-gray-900 dark:text-white min-w-25 bg-green-50 dark:bg-green-900/30">BNK</TableHead>
+                                        <TableHead className="text-right font-bold text-gray-900 dark:text-white min-w-25 bg-yellow-50 dark:bg-yellow-900/30">CASH</TableHead>
+                                        <TableHead className="text-right font-bold text-gray-900 dark:text-white min-w-25 bg-purple-50 dark:bg-purple-900/30">ZMTEO</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>

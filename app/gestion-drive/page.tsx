@@ -321,7 +321,7 @@ export default function DocumentsPage() {
 
   if (loading && !user) {
     return (
-      <div className={`${darkMode ? 'dark' : ''} min-h-screen bg-gradient-to-br from-gray-50 to-gray-200 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center`}>
+      <div className={`${darkMode ? 'dark' : ''} min-h-screen bg-linear-to-br from-gray-50 to-gray-200 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center`}>
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600 dark:text-gray-400">Chargement des documents...</p>
@@ -335,7 +335,7 @@ export default function DocumentsPage() {
   }
 
   return (
-    <div className={`${darkMode ? 'dark' : ''} min-h-screen bg-gradient-to-br from-gray-50 to-gray-200 dark:from-gray-900 dark:to-gray-800 transition-colors`}>
+    <div className={`${darkMode ? 'dark' : ''} min-h-screen bg-linear-to-br from-gray-50 to-gray-200 dark:from-gray-900 dark:to-gray-800 transition-colors`}>
       
       {/* Header */}
       <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">

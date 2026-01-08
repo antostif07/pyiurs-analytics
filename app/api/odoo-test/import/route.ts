@@ -16,27 +16,27 @@ export async function POST(req: Request) {
       errors: [] as string[]
     };
 
-    // On traite commande par commande
     for (const order of orders) {
       try {
-        // 1. Calcul des totaux (Sécurité, même si calculé au front)
         const totalAmount = order.lines.reduce((sum: number, line: any) => 
             sum + (line.qty * line.price_unit), 0);
 
-        // 2. Structure Odoo POS Order
         const odooOrder = {
-          name: `IMP-${order.temp_id}`, // Référence import
+          name: `IMP-${order.temp_id}`,
           session_id: Number(order.session_id),
           date_order: order.date,
           pos_reference: `REF-${order.temp_id}`,
-          partner_id: false, // Client anonyme par défaut
           
+          // --- MODIFICATION ICI ---
+          // Si partner_id existe, on le convertit en nombre, sinon false (client anonyme)
+          partner_id: order.partner_id ? Number(order.partner_id) : false, 
+          // ------------------------
+
           amount_total: totalAmount,
           amount_tax: 0,
           amount_paid: totalAmount,
           amount_return: 0,
 
-          // Lignes Produits
           lines: order.lines.map((line: any) => [0, 0, {
             product_id: Number(line.product_id),
             qty: Number(line.qty),
@@ -45,7 +45,6 @@ export async function POST(req: Request) {
             price_subtotal_incl: Number(line.qty * line.price_unit),
           }]),
 
-          // Paiement (1 seul paiement global pour le total)
           payment_ids: [
             [0, 0, {
               amount: totalAmount,
@@ -55,7 +54,6 @@ export async function POST(req: Request) {
           ]
         };
 
-        // 3. Appel Odoo
         await odooCall('pos.order', 'create', [odooOrder]);
         results.success++;
 
