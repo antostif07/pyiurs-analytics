@@ -54,7 +54,13 @@ export async function POST(req: Request) {
           ]
         };
 
-        await odooCall('pos.order', 'create', [odooOrder]);
+        // 1. CRÉATION (Statut: Nouveau / Draft)
+        const orderId = await odooCall('pos.order', 'create', [odooOrder]);
+
+        // 2. VALIDATION (Statut: Payé / Paid)
+        // C'est cette ligne qui valide le paiement et déclenche les mouvements de stock
+        await odooCall('pos.order', 'action_pos_order_paid', [[Number(orderId)]]);
+        
         results.success++;
 
       } catch (e: any) {

@@ -5,11 +5,19 @@ import { NextResponse } from 'next/server';
 // GET: Récupérer les sessions ouvertes
 export async function GET() {
   try {
-    const sessions = await odooCall('pos.session', 'search_read', [], {
-      fields: ['name', 'state', 'start_at', 'stop_at', 'config_id'],
-      limit: 10,
-      order: 'start_at desc' // Les plus récentes d'abord
-    });
+    // FILTRE : On veut tout sauf ce qui est 'closed'
+    const domain = [['state', '!=', 'closed']];
+    
+    const fieldsToRead = ['name', 'state', 'start_at', 'stop_at', 'config_id'];
+
+    const sessions = await odooCall('pos.session', 'search_read', 
+      [domain, fieldsToRead], // Correction Odoo 17 : Domain en 1er, Fields en 2ème
+      {
+        limit: 10,
+        order: 'start_at desc' // Les plus récentes d'abord
+      }
+    );
+    
     return NextResponse.json(sessions);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

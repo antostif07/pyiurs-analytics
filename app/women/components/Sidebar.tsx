@@ -15,11 +15,11 @@ import {
 import clsx from 'clsx';
 import { motion } from 'framer-motion';
 
-const mainPath = '/analyse-femme'
+const mainPath = '/women'
 
 const menuItems = [
   { name: 'Vue Globale', href: mainPath, icon: LayoutDashboard },
-  { name: 'Stock', href: `${mainPath}/stocks`, icon: ChartColumnBig },
+  { name: 'Stock', href: `${mainPath}/stock`, icon: ChartColumnBig },
   { name: 'Clients / CRM', href: `${mainPath}/clients`, icon: Users },
   { name: 'Promos / Offres', href: `${mainPath}/promotions`, icon: Tag },
   { name: 'Tendances', href: `${mainPath}/trends`, icon: ChartArea },
