@@ -1,19 +1,34 @@
 import { odooClient } from "@/lib/odoo/xmlrpc";
 
 // --- TYPES ---
-export interface InventoryGroup {
+export interface ProductLifecycle {
   id: string;
-  displayName: string;
-  stockCount: number;
-  soldCount30d: number;
-  revenue30d: number;
-  sellThrough: number;
-  status: 'STAR' | 'HOT' | 'HEALTHY' | 'SLOW' | 'DEAD';
-  variantsCount: number;
+  modelName: string;
+  firstDropDate: string;
+  lastDropDate: string;
+  daysOnMarket: number;
+  totalOrdered: number;
+  totalSold: number;
+  lifetimeSellThrough: number;
+  stockCurrent: number;
+  sold30d: number;
+  revenueGenerated: number;
+  potentialRevenue: number;
+}
+
+export interface PaginatedResult {
+  data: ProductLifecycle[];
+  total: number; // Nombre total de groupes (HS Codes) pour savoir combien de pages on a
 }
 
 // --- CONFIG ---
-const PERIOD_DAYS = 30;
+const TARGET_LOCATION_IDS = [
+  89, //24 
+  160, 293, // LMB
+  170, // KTM
+  180, // MTO
+  200, 232, 259 // DC
+];
 
 export async function getWomenDashboardStats() {
   // 1. Période : Aujourd'hui (Attention aux fuseaux horaires si nécessaire)
@@ -69,148 +84,170 @@ export async function getWomenDashboardStats() {
   }
 }
 
-// --- INTELLIGENCE STOCK (CORRIGÉ) ---
-export async function getInventoryIntelligence(): Promise<InventoryGroup[]> {
-  const date = new Date();
-  date.setDate(date.getDate() - PERIOD_DAYS);
-  const dateStr = date.toISOString().split('T')[0];
-
+export async function getLifecycleData(page: number = 1, pageSize: number = 50): Promise<PaginatedResult> {
   try {
-    // 1. STOCKS RÉELS (Source: stock.quant)
-    // On groupe par 'product_id' pour avoir la somme des quants par produit.
-    // 'location_id.usage' = 'internal' est CRUCIAL pour ne pas compter les retours fournisseurs etc.
-    const stockData = await odooClient.execute(
-      'stock.quant',
-      'read_group',
-      [],
-      {
-        domain: [
-          ['product_id.x_studio_segment', '=', 'Femme'],
-          ['location_id.usage', '=', 'internal'] 
-        ],
+    const offset = (page - 1) * pageSize;
+
+    // --- ÉTAPE 1 : Récupérer la liste des HS Codes paginée ---
+    // On groupe d'abord les produits par HS Code pour savoir "Quoi afficher sur cette page ?"
+    // read_group nous donne aussi le count total implicitement si on ne met pas lazy=false trop tôt
+    // Note: Pour avoir le total exact avec read_group, c'est parfois complexe. 
+    // On va faire un search_count sur les produits uniques si besoin, ou se fier au length.
+    
+    // Pour simplifier et être précis sur la pagination des GROUPES :
+    // On utilise read_group sur product.product
+    const hsCodeGroups = await odooClient.execute('product.product', 'read_group', [], {
+      domain: [
+        ['x_studio_segment', '=', 'Femme'],
+        ['active', '=', true]
+      ],
+      fields: ['hs_code'],
+      groupby: ['hs_code'],
+      limit: pageSize,
+      offset: offset
+      // orderby: 'create_date desc' // Optionnel: Trier par nouveauté
+    }) as any[];
+    
+    // Si pas de résultats, on arrête
+    if (!hsCodeGroups || hsCodeGroups.length === 0) {
+      return { data: [], total: 0 };
+    }
+    // Pour le total, on peut faire un read_group sans limit/offset juste pour compter
+    const totalGroupsCount = await odooClient.execute('product.product', 'read_group', [], {
+       domain: [['x_studio_segment', '=', 'Femme'], ['active', '=', true]],
+       fields: ['hs_code'],
+       groupby: ['hs_code'],
+       lazy: true // Juste pour compter
+    }) as any[];
+    const total = totalGroupsCount.length; 
+
+
+    // --- ÉTAPE 2 : Récupérer les IDs produits de CES groupes ---
+    // On extrait les HS Codes de la page courante
+    const targetHsCodes = hsCodeGroups.map((g: any) => g.hs_code).filter(Boolean);
+    
+    // On cherche TOUS les produits qui ont ces HS Codes
+    const productsInPage = await odooClient.searchRead('product.product', {
+      domain: [
+        ['hs_code', 'in', targetHsCodes],
+        ['x_studio_segment', '=', 'Femme']
+      ],
+      fields: ['id', 'hs_code', 'categ_id', 'create_date', 'list_price']
+    }) as any[];
+
+    const productIds = productsInPage.map((p: any) => p.id);
+    
+    // Mapping ID -> Info
+    const productMap = new Map<number, any>();
+    productsInPage.forEach((p: any) => productMap.set(p.id, p));
+
+
+    // --- ÉTAPE 3 : Récupérer Stocks & Ventes pour CES IDs ---
+    const date30d = new Date();
+    date30d.setDate(date30d.getDate() - 30);
+    const date30dStr = date30d.toISOString().split('T')[0];
+
+    // Parallélisme (Vitesse max)
+    const [stockGroups, salesTotalGroups, sales30dGroups] = await Promise.all([
+      // Stocks
+      odooClient.execute('stock.quant', 'read_group', [], {
+        domain: [['product_id', 'in', productIds], ['location_id', 'in', TARGET_LOCATION_IDS]],
         fields: ['quantity', 'product_id'],
         groupby: ['product_id'],
         lazy: false
-      }
-    ) as any[];
-
-    // 2. VENTES (Source: pos.order.line)
-    const salesData = await odooClient.execute(
-      'pos.order.line',
-      'read_group',
-      [],
-      {
-        domain: [
-          ['order_id.date_order', '>=', dateStr],
-          ['order_id.state', 'in', ['paid', 'done', 'invoiced']],
-          ['product_id.x_studio_segment', '=', 'Femme'] // Optimisation
-        ],
-        fields: ['product_id', 'qty', 'price_subtotal_incl'],
+      }),
+      // Ventes Totales
+      odooClient.execute('pos.order.line', 'read_group', [], {
+        domain: [['product_id', 'in', productIds], ['order_id.state', 'in', ['paid', 'done', 'invoiced']]],
+        fields: ['qty', 'price_subtotal_incl', 'product_id'],
         groupby: ['product_id'],
         lazy: false
-      }
-    ) as any[];
+      }),
+      // Ventes 30j
+      odooClient.execute('pos.order.line', 'read_group', [], {
+        domain: [['product_id', 'in', productIds], ['order_id.date_order', '>=', date30dStr], ['order_id.state', 'in', ['paid', 'done', 'invoiced']]],
+        fields: ['qty', 'product_id'],
+        groupby: ['product_id'],
+        lazy: false
+      })
+    ]) as [any[], any[], any[]];
 
-    // 3. MAPPING (Récupérer les HS Codes)
-    // On collecte tous les IDs produits qui ont soit du stock, soit des ventes
-    const allProductIds = new Set<number>();
-    
-    stockData.forEach((s: any) => {
-      if(s.product_id) allProductIds.add(s.product_id[0]);
-    });
-    salesData.forEach((s: any) => {
-      if(s.product_id) allProductIds.add(s.product_id[0]);
-    });
 
-    // Si rien n'est trouvé, on arrête
-    if (allProductIds.size === 0) return [];
+    // --- ÉTAPE 4 : Consolidation (Identique à avant) ---
+    const lifecycleMap = new Map<string, ProductLifecycle>();
 
-    // On récupère les infos (hs_code) seulement pour ces produits utiles
-    // (Même si tu as 100k produits, tu n'en as peut-être que 5k avec du mouvement/stock)
-    const productInfos = await odooClient.searchRead('product.product', {
-      domain: [['id', 'in', Array.from(allProductIds)]],
-      fields: ['id', 'hs_code', 'categ_id']
-    }) as any[];
+    const getGroup = (hsCode: string, pInfo: any) => {
+      if (!lifecycleMap.has(hsCode)) {
+        const catNameRaw = Array.isArray(pInfo.categ_id) ? pInfo.categ_id[1] : 'Indéfini';
+        const catParts = catNameRaw.split(' / ');
+        const shortCat = catParts[catParts.length - 1].toUpperCase();
 
-    // Création d'un dictionnaire ID -> Info
-    const productMap = new Map<number, { code: string, cat: string }>();
-    productInfos.forEach((p: any) => {
-      const code = p.hs_code ? p.hs_code.toString().trim() : `NO_CODE_${p.id}`;
-      // Gestion propre du nom de catégorie
-      const catNameRaw = Array.isArray(p.categ_id) ? p.categ_id[1] : 'Indéfini';
-      // On prend la dernière partie de la catégorie si c'est "Vetement / Femme / Robe" -> "ROBE"
-      const catParts = catNameRaw.split(' / ');
-      const shortCat = catParts[catParts.length - 1].toUpperCase();
-      
-      productMap.set(p.id, { code, cat: shortCat });
-    });
-
-    // 4. CONSOLIDATION FINALE (Par HS Code)
-    const finalMap = new Map<string, InventoryGroup>();
-
-    // Helper pour initialiser ou récupérer un groupe
-    const getGroup = (code: string, catName: string) => {
-      if (!finalMap.has(code)) {
-        finalMap.set(code, {
-          id: code,
-          displayName: `${catName} - ${code}`,
-          stockCount: 0,
-          soldCount30d: 0,
-          revenue30d: 0,
-          sellThrough: 0,
-          status: 'HEALTHY',
-          variantsCount: 0
+        lifecycleMap.set(hsCode, {
+          id: hsCode,
+          modelName: `${shortCat} - ${hsCode}`,
+          firstDropDate: pInfo.create_date,
+          lastDropDate: pInfo.create_date,
+          daysOnMarket: 0,
+          totalOrdered: 0,
+          totalSold: 0,
+          lifetimeSellThrough: 0,
+          stockCurrent: 0,
+          sold30d: 0,
+          revenueGenerated: 0,
+          potentialRevenue: 0
         });
       }
-      return finalMap.get(code)!;
+      return lifecycleMap.get(hsCode)!;
     };
 
-    // A. Ajout des Stocks
-    stockData.forEach((s: any) => {
-      const pId = s.product_id ? s.product_id[0] : null;
-      const info = productMap.get(pId);
-      if (info && s.quantity > 0) {
-        const group = getGroup(info.code, info.cat);
-        group.stockCount += s.quantity;
-        group.variantsCount += 1; // Compte approximatif des variantes en stock
+    // Remplissage Stocks
+    stockGroups.forEach((s: any) => {
+      const pInfo = productMap.get(s.product_id[0]);
+      if (pInfo && s.quantity > 0) {
+        const hs = pInfo.hs_code || `UNK_${pInfo.id}`;
+        const group = getGroup(hs, pInfo);
+        group.stockCurrent += s.quantity;
+        group.potentialRevenue += (s.quantity * pInfo.list_price);
+        if (pInfo.create_date > group.lastDropDate) group.lastDropDate = pInfo.create_date;
       }
     });
 
-    // B. Ajout des Ventes
-    salesData.forEach((s: any) => {
-      const pId = s.product_id ? s.product_id[0] : null;
-      const info = productMap.get(pId);
-      if (info) {
-        const group = getGroup(info.code, info.cat);
-        group.soldCount30d += s.qty || 0;
-        group.revenue30d += s.price_subtotal_incl || 0;
+    // Remplissage Ventes
+    salesTotalGroups.forEach((s: any) => {
+      const pInfo = productMap.get(s.product_id[0]);
+      if (pInfo) {
+        const hs = pInfo.hs_code || `UNK_${pInfo.id}`;
+        const group = getGroup(hs, pInfo);
+        group.totalSold += s.qty || 0;
+        group.revenueGenerated += s.price_subtotal_incl || 0;
       }
     });
 
-    // 5. CALCULS KPIs
-    const results = Array.from(finalMap.values()).map(group => {
-       // Formule Sell-Through
-       const totalInventoryStart = group.stockCount + group.soldCount30d;
-       let sellThrough = 0;
-       if (totalInventoryStart > 0) {
-         sellThrough = (group.soldCount30d / totalInventoryStart) * 100;
-       }
-
-       // Logique de Status
-       let status: any = 'HEALTHY';
-       if (sellThrough >= 70) status = 'STAR';
-       else if (sellThrough >= 40) status = 'HOT';
-       else if (sellThrough < 10 && totalInventoryStart > 5) status = 'DEAD';
-       else if (sellThrough < 25) status = 'SLOW';
-
-       return { ...group, sellThrough: parseFloat(sellThrough.toFixed(1)), status };
+    sales30dGroups.forEach((s: any) => {
+      const pInfo = productMap.get(s.product_id[0]);
+      if (pInfo) {
+        const hs = pInfo.hs_code || `UNK_${pInfo.id}`;
+        getGroup(hs, pInfo).sold30d += s.qty || 0;
+      }
     });
 
-    // Tri : Stars d'abord
-    return results.sort((a, b) => b.sellThrough - a.sellThrough);
+    // Calculs Finaux
+    const data = Array.from(lifecycleMap.values()).map(item => {
+      item.totalOrdered = item.stockCurrent + item.totalSold;
+      if (item.totalOrdered > 0) item.lifetimeSellThrough = (item.totalSold / item.totalOrdered) * 100;
+      
+      const dropDate = new Date(item.firstDropDate);
+      const now = new Date();
+      const diffTime = Math.abs(now.getTime() - dropDate.getTime());
+      item.daysOnMarket = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      return item;
+    });
+
+    return { data, total };
 
   } catch (error) {
-    console.error("❌ Erreur Stock Logic:", error);
-    return [];
+    console.error("❌ Erreur Lifecycle Pagination:", error);
+    return { data: [], total: 0 };
   }
 }

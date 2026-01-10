@@ -1,9 +1,9 @@
-import { POSConfig, POSOrder, POSOrderLine, POSPayment } from "../types/pos"
-import ClotureVentesClient from "./cloture-ventes.client"
+import { POSConfig, POSOrder, POSPayment } from "../types/pos"
 import { clotureService } from "@/lib/cloture-service"
 import { getServerAuth } from "@/lib/supabase/server"
 import { filterShopsByUserAccess, getDailyExpenses, getDailyExpensesReport, getDailySalesLines, getExchangeRate, getPOSConfig } from "./actions"
-import { Expense } from "../types/cloture"
+import { Expense, ExpenseSheet } from "../types/cloture"
+import ClotureVentesClient from "./cloture-ventes.client"
 
 interface PageProps {
   searchParams: Promise<{
@@ -51,7 +51,7 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
 
   // Récupérer les données
   const [salesData, exchangeRate, allShopsData, expe] = await Promise.all([
-    getDailySalesLines(selectedDate, selectedShop),
+    getDailySalesLines(selectedDate, selectedShop), // Notre nouvelle fonction
     getExchangeRate(),
     getPOSConfig(),
     getDailyExpensesReport(selectedDate, company_name)
@@ -62,7 +62,7 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
   // Filtrer les shops selon les permissions
   const availableShops = filterShopsByUserAccess(allShops, profile);
   
-  // Vérifier si l'utilisateur a accès
+  // // Vérifier si l'utilisateur a accès
   const hasAccess = availableShops.length > 0 || profile?.role === 'admin';
 
   if (!hasAccess) {
@@ -87,79 +87,94 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
     lastClosure = await clotureService.getLastClosureByShop(parseInt(selectedShop));
   }
   
-  const expensesData = await getDailyExpenses(selectedDate, company_name);
+  const expensesTotal = expe.records.reduce((sum: number, sheet) => 
+    sum + (sheet.total_amount || 0), 0
+  );
+
+  // 2. Cash Attendu
+  const expectedCash = salesData.totals.daily - expensesTotal;
   
-  // Calculs des totaux
-  const cashSalesTotal = salesData.records.reduce((sum: number, order: POSOrder) => {
-    const cashPayments = order.payments ? order.payments.filter((payment: POSPayment) => 
-      payment.payment_method_id[1].toLowerCase().includes('esp')
-    ) : [];
-    return sum + cashPayments.reduce((pSum: number, p: POSPayment) => pSum + (p.amount || 0), 0);
-  }, 0);
+  // // Calculs des totaux
+  // const cashSalesTotal = salesData.records.reduce((sum: number, order: POSOrder) => {
+  //   const cashPayments = order.payments ? order.payments.filter((payment: POSPayment) => 
+  //     payment.payment_method_id[1].toLowerCase().includes('esp')
+  //   ) : [];
+  //   return sum + cashPayments.reduce((pSum: number, p: POSPayment) => pSum + (p.amount || 0), 0);
+  // }, 0);
 
-  const bankSalesTotal = salesData.records.reduce((sum: number, order: POSOrder) => {
-    const bankPayments = order.payments ? order.payments.filter((payment: POSPayment) => 
-      payment.payment_method_id[1].toLowerCase().includes('ban')
-    ) : [];
-    return sum + bankPayments.reduce((pSum: number, p: POSPayment) => pSum + (p.amount || 0), 0);
-  }, 0);
+  // const bankSalesTotal = salesData.records.reduce((sum: number, order: POSOrder) => {
+  //   const bankPayments = order.payments ? order.payments.filter((payment: POSPayment) => 
+  //     payment.payment_method_id[1].toLowerCase().includes('ban')
+  //   ) : [];
+  //   return sum + bankPayments.reduce((pSum: number, p: POSPayment) => pSum + (p.amount || 0), 0);
+  // }, 0);
 
-  const onlSalesTotal = salesData.records.reduce((sum: number, order: POSOrder) => {
-    const onlPayments = order.payments ? order.payments.filter((payment: POSPayment) => 
-      payment.payment_method_id[1].toLowerCase().includes('onl')
-    ) : [];
-    return sum + onlPayments.reduce((pSum: number, p: POSPayment) => pSum + (p.amount || 0), 0);
-  }, 0);
+  // const onlSalesTotal = salesData.records.reduce((sum: number, order: POSOrder) => {
+  //   const onlPayments = order.payments ? order.payments.filter((payment: POSPayment) => 
+  //     payment.payment_method_id[1].toLowerCase().includes('onl')
+  //   ) : [];
+  //   return sum + onlPayments.reduce((pSum: number, p: POSPayment) => pSum + (p.amount || 0), 0);
+  // }, 0);
 
-  const mobileMoneySalesTotal = salesData.records.reduce((sum: number, order: POSOrder) => {
-    if (!order.payments) return sum;
-    const keyWords = ['mobile','money', 'pesa', 'airtel', 'orange'];
-    const filteredPayments = order.payments.filter((payment: POSPayment) => {
-      const name = payment.payment_method_id?.[1]?.toLowerCase() || '';
-      return keyWords.some(keyword => name.includes(keyword));
-    });
-    return sum + filteredPayments.reduce((pSum, p) => pSum + (p.amount || 0), 0);
-  }, 0);
+  // const mobileMoneySalesTotal = salesData.records.reduce((sum: number, order: POSOrder) => {
+  //   if (!order.payments) return sum;
+  //   const keyWords = ['mobile','money', 'pesa', 'airtel', 'orange'];
+  //   const filteredPayments = order.payments.filter((payment: POSPayment) => {
+  //     const name = payment.payment_method_id?.[1]?.toLowerCase() || '';
+  //     return keyWords.some(keyword => name.includes(keyword));
+  //   });
+  //   return sum + filteredPayments.reduce((pSum, p) => pSum + (p.amount || 0), 0);
+  // }, 0);
 
-  const dailySalesTotal = salesData.records.reduce((sum: number, orderLine: POSOrder) => 
-    sum + (orderLine.amount_total || 0), 0
-  );
+  // const dailySalesTotal = salesData.records.reduce((sum: number, orderLine: POSOrder) => 
+  //   sum + (orderLine.amount_total || 0), 0
+  // );
 
-  const expensesTotal = expensesData.records.reduce((sum: number, expense: Expense) => 
-    sum + (expense.total_amount || 0), 0
-  );
+  // const expensesTotal = expensesData.records.reduce((sum: number, expense: Expense) => 
+  //   sum + (expense.total_amount || 0), 0
+  // );
 
-  const expectedCash = dailySalesTotal - expensesTotal;
+  // const expectedCash = dailySalesTotal - expensesTotal;
   
   const initialData = {
     date: selectedDate,
-    dailySalesTotal,
+    exchangeRate,
+    
+    // Totaux Financiers (Directement de la fonction optimisée)
+    dailySalesTotal: salesData.totals.daily,
+    cashSalesTotal: salesData.totals.cash,
+    bankSalesTotal: salesData.totals.bank,
+    mobileMoneySalesTotal: salesData.totals.mobile,
+    onlSalesTotal: salesData.totals.onl,
+    
+    // Compteurs de transactions (Ajoutés pour PaymentCards)
+    counts: salesData.counts, 
+
     expensesTotal,
     expectedCash,
-    exchangeRate,
+    
+    // Listes pour l'UI
     sales: salesData.records,
-    cashSalesTotal,
-    bankSalesTotal,
-    mobileMoneySalesTotal,
-    onlSalesTotal,
     expenses: expe.records,
     shops: availableShops,
-    totalFemme: salesData.stats?.femme || 0,
-    totalEnfant: salesData.stats?.enfants || 0,
-    totalBeauty: salesData.stats?.beauty || 0
+    
+    // Stats Segments (Directement de la fonction optimisée)
+    totalFemme: salesData.stats.femme,
+    totalEnfant: salesData.stats.enfants,
+    totalBeauty: salesData.stats.beauty
   };
 
-  const showShopSelector = !isUserRestricted || profile.assigned_shops.length > 1 || profile.shop_access_type === 'all';
+  // const showShopSelector = !isUserRestricted || profile.assigned_shops.length > 1 || profile.shop_access_type === 'all';
   
   
   return (
     <ClotureVentesClient 
-      initialData={initialData} 
+      initialData={initialData}
       searchParams={params} 
       shopLastClosure={lastClosure} 
       userShops={profile.assigned_shops}
       isUserRestricted={isUserRestricted}
-      showShopSelector={showShopSelector}
+      showShopSelector={true}
       userRole={profile.role}
       userName={userName}
     />

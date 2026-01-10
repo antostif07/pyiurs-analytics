@@ -68,7 +68,7 @@ export default function ClotureVenteHeader({
                         <div className="flex items-center space-x-2 sm:space-x-3">
                             <Calculator className="w-6 h-6 sm:w-8 sm:h-8 text-green-500" />
                             <div>
-                                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
+                                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-linear-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
                                     Clôture des Ventes
                                 </h1>
                                 <div className="flex items-center gap-2 mt-1">
@@ -98,7 +98,7 @@ export default function ClotureVenteHeader({
                                         <Button
                                             variant={"outline"}
                                             className={cn(
-                                                "w-[140px] justify-start text-left font-normal",
+                                                "w-35 justify-start text-left font-normal",
                                                 !selectedDate && "text-muted-foreground"
                                             )}
                                         >
@@ -129,9 +129,9 @@ export default function ClotureVenteHeader({
                                             <SelectValue placeholder="Sélectionner" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {!isUserRestricted && (
+                                            {/* {!isUserRestricted && ( */}
                                                 <SelectItem value="all">Tous</SelectItem>
-                                            )}
+                                            {/* )} */}
                                             {shops.map((shop) => (
                                                 <SelectItem key={shop.id} value={shop.id.toString()}>
                                                     {shop.name}
@@ -181,7 +181,7 @@ export default function ClotureVenteHeader({
                                         variant={"outline"}
                                         size="sm"
                                         className={cn(
-                                            "w-[100px] justify-start text-left font-normal",
+                                            "w-25 justify-start text-left font-normal",
                                             !selectedDate && "text-muted-foreground"
                                         )}
                                     >
@@ -205,16 +205,18 @@ export default function ClotureVenteHeader({
                                     value={selectedShop}
                                     onValueChange={handleShopChange}
                                 >
-                                    <SelectTrigger className="w-24 bg-white border-gray-300 text-gray-900 text-sm">
-                                        <SelectValue placeholder="Shop" />
+                                    <SelectTrigger className="w-32 bg-white border-gray-300 text-gray-900">
+                                        <SelectValue placeholder="Sélectionner" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {!isUserRestricted && (
+                                        {/* On affiche 'Tous' si l'user n'est pas restreint OU s'il a accès à plus d'une boutique */}
+                                        {(!isUserRestricted || userShops.length > 1 || userShops.includes('all')) && (
                                             <SelectItem value="all">Tous</SelectItem>
                                         )}
+                                        
                                         {shops.map((shop) => (
                                             <SelectItem key={shop.id} value={shop.id.toString()}>
-                                                {shop.name.length > 8 ? `${shop.name.substring(0, 8)}...` : shop.name}
+                                                {shop.name}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>

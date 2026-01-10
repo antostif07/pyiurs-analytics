@@ -9,9 +9,35 @@ import {
   createColumnHelper 
 } from "@tanstack/react-table";
 import { 
-  Crown, Heart, AlertOctagon, Sprout, User, Phone, Mail 
+  Crown, Heart, AlertOctagon, Sprout, User, Phone, Mail, 
+  Download
 } from "lucide-react";
 import { CustomerRFM } from "../actions/customers";
+
+const downloadCSV = (data: CustomerRFM[]) => {
+  const headers = ["Nom", "Telephone", "Email", "Segment", "Depenses", "Articles", "Dernier Achat"];
+  const rows = data.map(c => [
+    `"${c.name}"`, // Guillemets pour gérer les virgules dans les noms
+    c.phone,
+    c.email,
+    c.segment,
+    c.total_spent,
+    c.order_count,
+    c.last_purchase
+  ]);
+  
+  const csvContent = "data:text/csv;charset=utf-8," 
+    + headers.join(",") + "\n" 
+    + rows.map(e => e.join(",")).join("\n");
+    
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
+  link.setAttribute("download", `clients_femme_${new Date().toISOString().split('T')[0]}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
 
 // --- BADGES RFM ---
 const SegmentBadge = ({ segment }: { segment: CustomerRFM['segment'] }) => {
@@ -44,7 +70,10 @@ export default function CustomerTable({ data }: { data: CustomerRFM[] }) {
         <div className="flex flex-col">
           <span className="font-semibold text-slate-900">{info.getValue()}</span>
           <div className="flex gap-2 text-[10px] text-slate-400 mt-0.5">
-            {info.row.original.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3"/> {info.row.original.phone}</span>}
+             <span className="flex items-center gap-1">
+               {/* Affichage des jours depuis visite */}
+               {info.row.original.days_since_last}j sans achat
+             </span>
           </div>
         </div>
       ),
@@ -54,34 +83,23 @@ export default function CustomerTable({ data }: { data: CustomerRFM[] }) {
       cell: (info) => <SegmentBadge segment={info.getValue()} />,
     }),
     columnHelper.accessor("total_spent", {
-      header: "CA Total (Femme)",
-      cell: (info) => <span className="font-bold text-slate-700">{info.getValue().toLocaleString()} $</span>,
-    }),
-    columnHelper.accessor("order_count", {
-      header: "Articles",
-      cell: (info) => <span className="text-slate-600">{info.getValue()}</span>,
+      header: "CA Total",
+      cell: (info) => <span className="font-bold text-slate-700">{info.getValue().toLocaleString()}</span>, // Ajoute ta devise
     }),
     columnHelper.accessor("id", {
       header: "Action",
       cell: (info) => (
-        <div className="flex gap-2">
-            {info.row.original.phone && (
+        <div className="flex gap-2 justify-end">
+            {/* Bouton WhatsApp avec le lien pré-calculé fiable */}
+            {info.row.original.whatsapp_link && (
                 <a 
-                    href={`https://wa.me/${info.row.original.phone.replace(/\D/g, '')}`} 
+                    href={`https://wa.me/${info.row.original.whatsapp_link}`} 
                     target="_blank"
-                    className="p-1.5 bg-green-50 text-green-600 rounded hover:bg-green-100 transition-colors"
+                    rel="noopener noreferrer"
+                    className="p-1.5 bg-green-50 text-green-600 rounded hover:bg-green-100 transition-colors border border-green-200"
                     title="WhatsApp"
                 >
                     <Phone className="w-4 h-4"/>
-                </a>
-            )}
-            {info.row.original.email && (
-                <a 
-                    href={`mailto:${info.row.original.email}`}
-                    className="p-1.5 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors"
-                    title="Email"
-                >
-                    <Mail className="w-4 h-4"/>
                 </a>
             )}
         </div>
@@ -98,36 +116,57 @@ export default function CustomerTable({ data }: { data: CustomerRFM[] }) {
   });
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-      <table className="w-full text-left">
-        <thead className="bg-slate-50 text-xs font-bold text-slate-500 uppercase border-b border-slate-200">
-          {table.getHeaderGroups().map(headerGroup => (
-            <tr key={headerGroup.id}>
-              {headerGroup.headers.map(header => (
-                <th key={header.id} className="px-6 py-4">
-                  {flexRender(header.column.columnDef.header, header.getContext())}
-                </th>
-              ))}
-            </tr>
-          ))}
-        </thead>
-        <tbody className="divide-y divide-slate-100 text-sm">
-          {table.getRowModel().rows.map(row => (
-            <tr key={row.id} className="hover:bg-slate-50">
-              {row.getVisibleCells().map(cell => (
-                <td key={cell.id} className="px-6 py-3">
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      
-      {/* Pagination (Simplifiée) */}
-      <div className="p-4 border-t border-slate-100 flex justify-end gap-2">
-         <button onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()} className="px-3 py-1 border rounded text-xs disabled:opacity-50">Précédent</button>
-         <button onClick={() => table.nextPage()} disabled={!table.getCanNextPage()} className="px-3 py-1 border rounded text-xs disabled:opacity-50">Suivant</button>
+    <div className="space-y-4">
+      {/* Barre d'outils au dessus du tableau */}
+      <div className="flex justify-between items-center">
+         <div className="text-sm text-slate-500">
+            {data.length} clientes trouvées sur les 12 derniers mois
+         </div>
+         <button 
+            onClick={() => downloadCSV(data)}
+            className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-300 text-slate-700 rounded-md text-sm hover:bg-slate-50 font-medium"
+         >
+            <Download className="w-4 h-4" />
+            Exporter CSV
+         </button>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+        <table className="w-full text-left">
+          <thead className="bg-slate-50 text-xs font-bold text-slate-500 uppercase border-b border-slate-200">
+            {table.getHeaderGroups().map(headerGroup => (
+              <tr key={headerGroup.id}>
+                {headerGroup.headers.map(header => (
+                  <th key={header.id} className="px-6 py-4">
+                    {flexRender(header.column.columnDef.header, header.getContext())}
+                  </th>
+                ))}
+              </tr>
+            ))}
+          </thead>
+          <tbody className="divide-y divide-slate-100 text-sm">
+            {table.getRowModel().rows.map(row => (
+              <tr key={row.id} className="hover:bg-slate-50">
+                {row.getVisibleCells().map(cell => (
+                  <td key={cell.id} className="px-6 py-3">
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        
+        {/* Pagination */}
+        <div className="p-4 border-t border-slate-100 flex justify-between items-center">
+           <span className="text-xs text-slate-400">
+              Page {table.getState().pagination.pageIndex + 1} sur {table.getPageCount()}
+           </span>
+           <div className="flex gap-2">
+            <button onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()} className="px-3 py-1 border rounded text-xs disabled:opacity-50 hover:bg-slate-50">Précédent</button>
+            <button onClick={() => table.nextPage()} disabled={!table.getCanNextPage()} className="px-3 py-1 border rounded text-xs disabled:opacity-50 hover:bg-slate-50">Suivant</button>
+           </div>
+        </div>
       </div>
     </div>
   );

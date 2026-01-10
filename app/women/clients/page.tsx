@@ -39,11 +39,13 @@ export default async function ClientsPage() {
         </div>
 
         <div className="bg-white p-6 rounded-2xl border border-slate-200 flex items-center justify-between shadow-sm">
-           <div>
-             <p className="text-slate-500 text-sm font-bold uppercase">CA Top 100</p>
-             <p className="text-3xl font-bold text-slate-900 mt-1">{totalRev.toLocaleString()} $</p>
-           </div>
-           <Users className="w-8 h-8 text-slate-400 opacity-50"/>
+          <div>
+              <p className="text-slate-500 text-sm font-bold uppercase">CA Top 100</p>
+              <p className="text-3xl font-bold text-slate-900 mt-1">
+                  {totalRev ? totalRev.toLocaleString() : 0} <span className="text-lg text-slate-400">$</span>
+              </p>
+          </div>
+          <Users className="w-8 h-8 text-slate-400 opacity-50"/>
         </div>
       </div>
 

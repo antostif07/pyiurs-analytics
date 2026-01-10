@@ -34,7 +34,7 @@ export default function PaymentCards({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         {/* --- Carte principale - Espèces + Stats Catégories --- */}
-        <Card className="lg:col-span-1 bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-xl">
+        <Card className="lg:col-span-1 bg-linear-to-br from-blue-500 to-blue-600 text-white shadow-xl">
           <CardContent className="p-8">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center space-x-4">
@@ -87,7 +87,7 @@ export default function PaymentCards({
         {/* --- Autres Cartes (Banque, MM, Online) --- */}
         <div className="grid grid-cols-1 gap-4">
             {/* Carte Banque */}
-            <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-lg">
+            <Card className="bg-linear-to-br from-purple-500 to-purple-600 text-white shadow-lg">
               <CardContent className="py-6">
                 <div className="flex flex-row items-center justify-between">
                     <div className="flex items-center space-x-3">
@@ -112,7 +112,7 @@ export default function PaymentCards({
             </Card>
 
             {/* Carte Mobile Money */}
-            <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white shadow-lg">
+            <Card className="bg-linear-to-br from-green-500 to-green-600 text-white shadow-lg">
               <CardContent className="py-6">
                 <div className="flex flex-row items-center justify-between">
                     <div className="flex items-center space-x-3">
@@ -137,7 +137,7 @@ export default function PaymentCards({
             </Card>
 
             {/* Carte Online */}
-            <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-lg">
+            <Card className="bg-linear-to-br from-orange-500 to-orange-600 text-white shadow-lg">
               <CardContent className="py-6">
                 <div className="flex flex-row items-center justify-between">
                     <div className="flex items-center space-x-3">

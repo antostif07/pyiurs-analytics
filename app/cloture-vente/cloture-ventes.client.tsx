@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { POSConfig, POSOrder, POSOrderLine } from '../types/pos'
 import { format, isBefore } from 'date-fns'
-import { Expense, ExpenseSheet } from '../types/cloture'
+import { ExpenseSheet } from '../types/cloture'
 import { supabase } from '@/lib/supabase'
 import ClotureVenteHeader from '@/components/cloture-vente/header'
 import { usePathname, useRouter } from 'next/navigation'
@@ -28,11 +28,12 @@ export type CloturePageDataType = {
   expectedCash: number
   exchangeRate: number
   sales: POSOrder[]
-  expenses: ExpenseSheet[]
+  expenses: any[]
   shops: POSConfig[],
   totalFemme: number,
   totalBeauty: number,
   totalEnfant: number,
+  counts: { cash: number; bank: number; mobile: number; onl: number; };
 }
 
 interface ClotureVentesClientProps {
@@ -209,7 +210,7 @@ export default function ClotureVentesClient({
   }, [router, pathname, selectedShop])
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
+    <main className="min-h-screen bg-linear-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
       {/* Header */}
       <ClotureVenteHeader
         selectedShop={selectedShop}
@@ -227,12 +228,12 @@ export default function ClotureVentesClient({
       {/* Alerte si l'utilisateur est restreint à des shops spécifiques */}
       {isUserRestricted && (
         <div className="container mx-auto px-4 py-4">
-          <Alert className="bg-blue-50 border-blue-200">
+          {/* <Alert className="bg-blue-50 border-blue-200">
             <InfoIcon className="h-4 w-4 text-blue-600" />
             <AlertDescription className="text-blue-800">
               🔐 Accès restreint - Vous avez accès {userShops.length === 1 ? 'à 1 boutique' : `à ${userShops.length} boutiques`}
             </AlertDescription>
-          </Alert>
+          </Alert> */}
         </div>
       )}
 
@@ -262,7 +263,7 @@ export default function ClotureVentesClient({
       )}
 
       {/* Alerte si clôture existe déjà pour la date exacte */}
-      {/* {isClotureExist && currentClosure && !isDateInClosedPeriod && (
+      {isClotureExist && currentClosure && !isDateInClosedPeriod && (
         <div className="container mx-auto px-4 py-4">
           <Alert className="bg-yellow-50 border-yellow-200">
             <InfoIcon className="h-4 w-4 text-yellow-600" />
@@ -282,7 +283,7 @@ export default function ClotureVentesClient({
             </AlertDescription>
           </Alert>
         </div>
-      )} */}
+      )}
 
       {/* Alerte si aucun shop sélectionné */}
       {!canCreateClosure && !isClotureExist && !isDateInClosedPeriod && (
@@ -302,14 +303,14 @@ export default function ClotureVentesClient({
         totalMobileMoney={initialData.mobileMoneySalesTotal} 
         totalOnline={initialData.onlSalesTotal}
         totalCarte={initialData.onlSalesTotal} 
-        transactionsBanque={0}
+        transactionsBanque={initialData.counts.bank}
         stats={{
           femme: initialData.totalFemme,
           enfants: initialData.totalEnfant,
           beauty: initialData.totalBeauty
         }}
-        transactionsMobileMoney={0} 
-        transactionsCarte={0}
+        transactionsMobileMoney={initialData.counts.mobile} 
+        transactionsCarte={initialData.counts.onl}
       />
 
       <DetailsAndAccounting
@@ -320,7 +321,7 @@ export default function ClotureVentesClient({
       />
 
       {/* Afficher la section de clôture seulement si possible */}
-        <ClotureVenteClose
+        {/* <ClotureVenteClose
           denominations={denominations}
           incrementDenomination={incrementDenomination}
           decrementDenomination={decrementDenomination}
@@ -329,7 +330,7 @@ export default function ClotureVentesClient({
           negativeSaleJustifications={negativeSaleJustifications}
           existingClosure={currentClosure}
           isReadOnly={isClotureExist}
-        />
+        /> */}
     </main>
   )
 }

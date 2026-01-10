@@ -138,7 +138,7 @@ export default function DataTable<T>({tableData, cols}: {tableData: T[], cols: C
         )}
       </div>
 
-      <div className="[&>div]:h-[560px]">
+      <div className="[&>div]:h-140">
         <Table 
         className="table-fixed border-separate border-spacing-0 [&_td]:border-border [&_tfoot_td]:border-t [&_th]:border-b [&_th]:border-border [&_tr]:border-none [&_tr:not(:last-child)_td]:border-b"
         style={{
