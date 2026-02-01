@@ -153,11 +153,11 @@ const modules = [
     permissions: ["admin", "manager"]
   },
   { 
-    name: "Analyse Beauty",
+    name: "Gestion Beauty",
     description: "Analyse et Gestion Beauty",
     icon: "📊",
     color: "bg-teal-600",
-    href: "/analyse-beauty",
+    href: "/gestion-beauty",
     permissions: ["admin", "manager"]
   },
   { 

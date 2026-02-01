@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import SearchableSelect from '@/app/api/odoo-test/components/SearchableSelect';
 import { usePathname } from 'next/navigation';
+import SearchableSelect from '../components/SearchableSelect';
 
 export default function PurchasesPage() {
-    const pathname = usePathname();
+  const pathname = usePathname();
+  
   // --- ÉTATS DE DONNÉES ---
   const [purchases, setPurchases] = useState<any[]>([]);
   const [taxes, setTaxes] = useState<any[]>([]);
@@ -32,14 +33,12 @@ export default function PurchasesPage() {
     fetchBaseData();
   }, []);
 
-  // Charger la liste des achats existants
   const fetchPurchases = async () => {
     const res = await fetch('/api/odoo-test/purchases');
     const data = await res.json();
     if (Array.isArray(data)) setPurchases(data);
   };
 
-  // Charger les données statiques (Taxes, Devises)
   const fetchBaseData = async () => {
     const res = await fetch('/api/odoo-test/data');
     const data = await res.json();
@@ -47,15 +46,12 @@ export default function PurchasesPage() {
     setTaxes(data.taxes || []);
     setCurrencies(data.currencies || []);
     
-    // Sélectionner la première devise par défaut
     if (data.currencies?.length > 0) {
         setSelectedCurrency(data.currencies[0].id);
     }
   };
 
-  // --- FONCTIONS DE RECHERCHE ASYNCHRONE (Pour SearchableSelect) ---
-
-  // 1. Chercher Fournisseurs (API)
+  // --- RECHERCHES ASYNCHRONES ---
   const searchPartners = async (query: string) => {
     const res = await fetch(`/api/odoo-test/partners?search=${query}`);
     const data = await res.json();
@@ -66,7 +62,6 @@ export default function PurchasesPage() {
     })) : [];
   };
 
-  // 2. Chercher Produits (API)
   const searchProducts = async (query: string) => {
     const res = await fetch(`/api/odoo-test/products?search=${query}`);
     const data = await res.json();
@@ -77,14 +72,10 @@ export default function PurchasesPage() {
     })) : [];
   };
 
-  // --- GESTION DU PANIER ---
-
-  // Ajouter un produit au panier
+  // --- GESTION PANIER ---
   const addToCart = async () => {
     if (!tempProductId) return;
 
-    // On doit récupérer les détails du produit (Prix notamment) via l'ID
-    // car le Select ne nous donne que l'ID sélectionné.
     const res = await fetch(`/api/odoo-test/products?id=${tempProductId}`);
     const data = await res.json();
     const product = Array.isArray(data) && data.length > 0 ? data[0] : null;
@@ -95,27 +86,23 @@ export default function PurchasesPage() {
             name: product.display_name, 
             qty: 1, 
             price_unit: product.list_price,
-            tax_id: tempTaxId || '' // Taxe sélectionnée ou vide
+            tax_id: tempTaxId || '' 
         }]);
-        setTempProductId(''); // Reset du champ recherche
+        setTempProductId(''); 
     }
   };
 
-  // Mettre à jour une ligne du panier (Qté, Prix, Taxe)
   const updateCart = (index: number, field: string, value: any) => {
     const newCart = [...cart];
     newCart[index][field] = value;
     setCart(newCart);
   };
 
-  // Supprimer une ligne
   const removeLine = (index: number) => {
     setCart(cart.filter((_, i) => i !== index));
   };
 
-  // --- ACTIONS PRINCIPALES (API) ---
-
-  // 1. Créer la Commande
+  // --- ACTIONS ---
   const createPurchase = async () => {
     if (!selectedPartner || cart.length === 0) return alert("Veuillez choisir un fournisseur et des produits.");
     
@@ -137,17 +124,15 @@ export default function PurchasesPage() {
     const data = await res.json();
     if (data.success) {
         setStatus("Commande créée ! Validation automatique en cours...");
-        // On enchaîne directement avec la confirmation
         await confirmPurchase(data.purchaseId, formattedDate);
-        setCart([]); // Vider le panier
-        fetchPurchases(); // Rafraîchir la liste
+        setCart([]); 
+        fetchPurchases(); 
     } else {
         setStatus("Erreur Création : " + data.error);
     }
     setLoading(false);
   };
 
-  // 2. Confirmer la Commande (Bouton ou Automatique)
   const confirmPurchase = async (id: number, dateStr: string) => {
     setStatus(`Confirmation PO #${id}...`);
     await fetch('/api/odoo-test/purchases/confirm', {
@@ -158,7 +143,6 @@ export default function PurchasesPage() {
     fetchPurchases();
   };
 
-  // 3. Réceptionner le Stock (Stock Picking)
   const receiveGoods = async (poName: string, dateStr: string) => {
     if (!confirm(`Confirmer la réception totale pour ${poName} à la date du ${dateStr} ?`)) return;
     
@@ -182,22 +166,33 @@ export default function PurchasesPage() {
   return (
     <div className="p-8 max-w-7xl mx-auto font-sans text-gray-800">
       
-      {/* HEADER */}
+      {/* HEADER AVEC LES BOUTONS D'ACTION */}
       <div className="flex justify-between items-center mb-8">
         <div className="flex items-center gap-4">
             <h1 className="text-3xl font-bold">Gestion des Achats</h1>
             <Link href="/" className="text-sm text-blue-600 hover:underline">← Dashboard</Link>
         </div>
         
-        {/* Bouton Import */}
-        <Link 
-            href={`${pathname}/import`}
-            className="bg-gray-800 text-white px-4 py-2 rounded shadow text-sm font-bold flex items-center gap-2 hover:bg-gray-700"
-        >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-            Import Excel
-        </Link>
+        <div className="flex gap-3">
+            {/* Bouton Duplication */}
+            <Link 
+                href={`${pathname}/duplicate`}
+                className="bg-purple-600 text-white px-4 py-2 rounded shadow text-sm font-bold flex items-center gap-2 hover:bg-purple-700 transition"
+            >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" /></svg>
+                Dupliquer 2024 ➔ 2025
+            </Link>
+
+            {/* Bouton Import */}
+            <Link 
+                href={`${pathname}/import`}
+                className="bg-gray-800 text-white px-4 py-2 rounded shadow text-sm font-bold flex items-center gap-2 hover:bg-gray-700 transition"
+            >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                Import Excel
+            </Link>
         </div>
+      </div>
 
       {status && <div className="bg-blue-50 border border-blue-200 p-3 rounded mb-6 text-blue-800 font-medium shadow-sm">{status}</div>}
 
@@ -207,10 +202,9 @@ export default function PurchasesPage() {
         <div className="bg-white p-6 rounded-lg shadow-md border h-fit flex flex-col gap-5">
             <h2 className="font-bold text-lg border-b pb-2 text-gray-700">Nouvel Achat</h2>
             
-            {/* Date & Devise */}
             <div className="grid grid-cols-2 gap-3">
                 <div>
-                    <label className="block text-xs font-bold text-gray-500 mb-1">Date (Commande & Stock)</label>
+                    <label className="block text-xs font-bold text-gray-500 mb-1">Date</label>
                     <input 
                         type="datetime-local" 
                         value={newOrderDate} 
@@ -230,7 +224,6 @@ export default function PurchasesPage() {
                 </div>
             </div>
 
-            {/* Recherche Fournisseur */}
             <div className="z-20 relative">
                 <SearchableSelect 
                     label="Fournisseur"
@@ -241,7 +234,6 @@ export default function PurchasesPage() {
                 />
             </div>
 
-            {/* Ajout Produits */}
             <div className="bg-gray-50 p-3 rounded border border-gray-200 mt-2">
                 <label className="block text-xs font-bold text-gray-500 mb-2">Ajouter un produit</label>
                 
@@ -255,7 +247,6 @@ export default function PurchasesPage() {
                 </div>
 
                 <div className="flex gap-2">
-                   {/* Choix Taxe à l'ajout */}
                    <select 
                         className="w-full border p-2 rounded text-xs bg-white"
                         value={tempTaxId}
@@ -274,7 +265,6 @@ export default function PurchasesPage() {
                 </div>
             </div>
 
-            {/* Panier */}
             <div className="border rounded bg-white max-h-64 overflow-y-auto shadow-inner">
                 {cart.length === 0 && <p className="text-gray-400 text-xs italic text-center py-4">Le panier est vide</p>}
                 
@@ -365,8 +355,6 @@ export default function PurchasesPage() {
                                     </span>
                                 </td>
                                 <td className="px-4 py-3 text-right">
-                                    
-                                    {/* Action Confirmer (si brouillon) */}
                                     {(p.state === 'draft' || p.state === 'sent') && (
                                         <button 
                                             onClick={() => confirmPurchase(p.id, p.date_order)}
@@ -376,7 +364,6 @@ export default function PurchasesPage() {
                                         </button>
                                     )}
 
-                                    {/* Action Recevoir Stock (si confirmé) */}
                                     {p.state === 'purchase' && (
                                         <button 
                                             onClick={() => receiveGoods(p.name, p.date_approve || p.date_order)}
@@ -386,7 +373,6 @@ export default function PurchasesPage() {
                                         </button>
                                     )}
 
-                                    {/* Indicateur Fini */}
                                     {p.state === 'done' && (
                                         <span className="text-gray-400 text-xs">Terminé</span>
                                     )}

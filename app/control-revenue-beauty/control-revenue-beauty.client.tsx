@@ -21,10 +21,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sparkles, Users, TrendingUp, Target } from 'lucide-react';
 import { BeautyBrandsData, BrandData } from '../types/product_template';
 import React from 'react';
+import { POSConfig } from '../types/pos';
 
 interface BeautyBrandsClientProps {
   initialData: BeautyBrandsData;
-  boutiques: { id: string; name: string }[];
+  boutiques: POSConfig[];
   selectedBoutiqueId?: string;
   selectedMonth?: string;
   selectedYear?: string;
@@ -131,7 +132,7 @@ export default function BeautyBrandsClient({
         
         return (
           <div 
-            className="flex items-center space-x-2 sticky left-0 bg-inherit min-w-[300px]"
+            className="flex items-center space-x-2 sticky left-0 bg-inherit min-w-75"
             style={{ paddingLeft }}
           >
             {(isBrand || isHsCodeGroup) && row.getCanExpand() && (
@@ -327,7 +328,7 @@ export default function BeautyBrandsClient({
   }, [initialData]);
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-50 to-purple-50 dark:from-slate-900 dark:to-slate-800">
+    <main className="min-h-screen bg-linear-to-br from-slate-50 to-purple-50 dark:from-slate-900 dark:to-slate-800">
       {/* Header */}
       <div className="border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
         <div className="container mx-auto px-6 py-8">
@@ -343,7 +344,7 @@ export default function BeautyBrandsClient({
               <div className="flex items-center space-x-3">
                 <Sparkles className="w-8 h-8 text-purple-500" />
                 <div>
-                  <h1 className="text-3xl lg:text-4xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                  <h1 className="text-3xl lg:text-4xl font-bold bg-linear-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
                     Ventes Beauty
                   </h1>
                   <p className="text-gray-600 dark:text-gray-300 mt-2">
@@ -359,7 +360,7 @@ export default function BeautyBrandsClient({
       {/* Statistiques */}
       <div className="container mx-auto px-6 py-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white">
+          <Card className="bg-linear-to-br from-purple-500 to-purple-600 text-white">
             <CardContent className="p-4">
               <Sparkles className="w-8 h-8 mb-2 opacity-90" />
               <p className="text-sm opacity-90">CA Total Beauty</p>
@@ -368,7 +369,7 @@ export default function BeautyBrandsClient({
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+          <Card className="bg-linear-to-br from-blue-500 to-blue-600 text-white">
             <CardContent className="p-4">
               <Users className="w-8 h-8 mb-2 opacity-90" />
               <p className="text-sm opacity-90">Marques</p>
@@ -377,7 +378,7 @@ export default function BeautyBrandsClient({
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white">
+          <Card className="bg-linear-to-br from-green-500 to-green-600 text-white">
             <CardContent className="p-4">
               <TrendingUp className="w-8 h-8 mb-2 opacity-90" />
               <p className="text-sm opacity-90">Moyenne par Marque</p>
@@ -386,7 +387,7 @@ export default function BeautyBrandsClient({
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white">
+          <Card className="bg-linear-to-br from-orange-500 to-orange-600 text-white">
             <CardContent className="p-4">
               <Target className="w-8 h-8 mb-2 opacity-90" />
               <p className="text-sm opacity-90">Période</p>
