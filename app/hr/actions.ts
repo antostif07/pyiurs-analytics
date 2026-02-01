@@ -16,3 +16,47 @@ export async function getHROverview(range: string) {
     ]
   };
 }
+
+import { odooClient } from "@/lib/odoo/xmlrpc";
+
+export async function getOdooCompanies() {
+  try {
+    const companies = await odooClient.searchRead("res.company", {
+      fields: ["id", "name"],
+    }) as { id: number; name: string }[];
+
+    return companies;
+  } catch (error) {
+    console.error("Erreur lors de la récupération des compagnies Odoo:", error);
+    return [];
+  }
+}
+
+export async function getOdooHRData() {
+  try {
+    const [employees, products] = await Promise.all([
+      // Récupération des employés Odoo
+      odooClient.searchRead("hr.employee", {
+        fields: ["id", "name"],
+        order: "name asc"
+      }),
+      
+      // Récupération des produits de tarification Odoo
+      odooClient.searchRead("product.pricelist", {
+        fields: ["id", "name"],
+        order: "name asc"
+      })
+    ]);
+
+    return {
+      employees: (employees as any[]).map(e => ({ value: String(e.id), label: e.name })),
+      products: (products as any[]).map(p => ({ 
+        value: String(p.id), 
+        label: `${p.name} (${p.list_price} $)` 
+      }))
+    };
+  } catch (error) {
+    console.error("Odoo Fetch Error:", error);
+    return { employees: [], products: [] };
+  }
+}

@@ -8,22 +8,28 @@ import {
   Clock, 
   CalendarDays, 
   FileText,
-  LogOut 
+  LogOut, 
+  Store
 } from "lucide-react";
+import clsx from "clsx";
 
 const menuItems = [
   { name: "Tableau de bord", href: "/hr", icon: LayoutDashboard },
-  { name: "Pointage", href: "/hr/attendance", icon: Clock },
+  { name: "Présences & Pointage", href: "/hr/attendance", icon: Clock },
   { name: "Employés", href: "/hr/employees", icon: Users },
-  { name: "Planning", href: "/hr/schedule", icon: CalendarDays },
-  { name: "Rapports", href: "/hr/reports", icon: FileText },
+  { name: "Boutiques", href: "/hr/shops", icon: Store },
+  { name: "Fiches de Paie", href: "/hr/payroll", icon: FileText }, // Crucial fin de mois
+  { name: "Planning & Congés", href: "/hr/schedule", icon: CalendarDays },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const pathname = usePathname();
 
   return (
-    <aside className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 fixed h-full flex flex-col z-10">
+    <aside className={clsx(
+      "fixed left-0 top-0 h-full w-64 bg-white border-r border-gray-200 z-50 transition-transform duration-300",
+      isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+    )}>
       <div className="h-16 flex items-center px-6 border-b border-gray-200 dark:border-gray-700">
         <span className="text-xl font-bold text-rose-600">RH Module</span>
       </div>
@@ -34,6 +40,7 @@ export default function Sidebar() {
           return (
             <Link
               key={item.href}
+              onClick={() => onClose()}
               href={item.href}
               className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
                 isActive
