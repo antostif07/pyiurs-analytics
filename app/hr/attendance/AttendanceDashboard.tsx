@@ -6,57 +6,30 @@ import {
   Check, ShieldCheck, MessageSquare, 
   Calendar as CalendarIcon, Loader2, Save, User as UserIcon,
   MapPin,
-  CheckCircle2
+  CheckCircle2,
+  Printer
 } from 'lucide-react'
 import { Card } from "@/components/ui/card"
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { format, endOfMonth, startOfMonth, eachDayOfInterval } from 'date-fns'
+import { format, endOfMonth, startOfMonth, eachDayOfInterval, getDay } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { AttendanceStatus } from '../types'
+import { STATUS_CONFIG } from '../utils'
+import { generateAttendancePDF } from './exportPDF'
 
 const STATUS_OPTIONS = [
   { val: 'present', label: 'Présent' },
   { val: 'absent', label: 'Absent' },
   { val: 'late', label: 'Retard' },
   { val: 'repos', label: 'Repos' },
+  { val: 'sick', label: 'Maladie' },
   { val: 'congé circonstaciel', label: 'C. Circonstanciel' },
   { val: 'congé non circonstaciel', label: 'C. Non Circonstanciel' },
   { val: 'suspension', label: 'Suspension' },
 ];
-
-const STATUS_CONFIG: Record<AttendanceStatus, { label: string; className: string }> = {
-  'present': { 
-    label: 'PRÉSENT', 
-    className: 'bg-emerald-500 text-white border-emerald-600' 
-  },
-  'absent': { 
-    label: 'ABSENT', 
-    className: 'bg-red-500 text-white border-red-600' 
-  },
-  'late': { // La clé est 'late' comme en base, le label reste 'RETARD'
-    label: 'RETARD', 
-    className: 'bg-amber-500 text-white border-amber-600' 
-  },
-  'repos': { 
-    label: 'REPOS', 
-    className: 'bg-slate-400 text-white border-slate-500' 
-  },
-  'congé circonstaciel': { 
-    label: 'C. CIRCONS.', 
-    className: 'bg-indigo-500 text-white border-indigo-600' 
-  },
-  'congé non circonstanciel': { 
-    label: 'C. NON CIRC.', 
-    className: 'bg-pink-500 text-white border-pink-600' 
-  },
-  'suspension': { 
-    label: 'SUSPENSION', 
-    className: 'bg-gray-900 text-white border-black' 
-  },
-};
 
 export default function AttendanceDashboard({ shops }: { shops: any[] }) {
     const supabase = createClient()
@@ -66,6 +39,8 @@ export default function AttendanceDashboard({ shops }: { shops: any[] }) {
     const [employees, setEmployees] = useState<any[]>([])
     const [attendances, setAttendances] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
+    const [updatingId, setUpdatingId] = useState<string | null>(null);
+    const [isBulkLoading, setIsBulkLoading] = useState(false);
 
     const currentYear = new Date().getFullYear();
     const years = Array.from(
@@ -104,32 +79,124 @@ export default function AttendanceDashboard({ shops }: { shops: any[] }) {
         }
     }
 
-  const fetchEmployeeMonthlyData = async () => {
-    setLoading(true)
-    const start = `${selectedYear}-${selectedMonth}-01`
-    const end = format(endOfMonth(new Date(`${selectedYear}-${selectedMonth}-01`)), 'yyyy-MM-dd')
+    const isFullyConfirmed = attendances.length > 0 && attendances.every(a => a.is_confirmed);
 
-    const { data } = await supabase
-      .from('attendances')
-      .select('*')
-      .eq('employee_id', selectedEmployeeId)
-      .gte('date', start)
-      .lte('date', end)
-      .order('date', { ascending: true })
+    const handlePrintPDF = () => {
+        const emp = employees.find(e => e.id === selectedEmployeeId);
 
-    setAttendances(data || [])
-    setLoading(false)
-  }
+        // On calcule les stats pour le PDF
+        const stats = (Object.keys(STATUS_CONFIG) as AttendanceStatus[]).reduce((acc, statusKey) => {
+            acc[statusKey] = attendances.filter(a => {
+                // 1. On vérifie si c'est un dimanche (0 = Dimanche)
+                const isSunday = getDay(new Date(a.date)) === 0;
+                if (isSunday) return false;
 
-  // --- ACTIONS ---
+                // 2. Sinon, on compte normalement
+                const effectiveStatus = a.is_validated ? a.validated_status : a.status;
+                return effectiveStatus === statusKey;
+            }).length;
+            return acc;
+        }, {} as any);
 
-  const handleUpdateLine = async (id: string, updates: any) => {
-    const { error } = await supabase.from('attendances').update(updates).eq('id', id)
-    if (!error) fetchEmployeeMonthlyData()
-  }
+        generateAttendancePDF(emp, attendances, selectedMonth, selectedYear, stats);
+    };
 
-  const canConfirm = (empUserId: string) => 
-    currentUser?.role === 'admin' || currentUser?.id === empUserId
+    const handleBulkConfirmAll = async () => {
+        const emp = employees.find(e => e.id === selectedEmployeeId);
+        if (!canConfirm(emp?.user_id)) return;
+
+        // On ne confirme que les lignes qui ne le sont pas encore
+        const idsToConfirm = attendances
+            .filter(a => !a.is_confirmed)
+            .map(a => a.id);
+
+        if (idsToConfirm.length === 0) return;
+
+        setIsBulkLoading(true);
+        const { error } = await supabase
+            .from('attendances')
+            .update({ 
+                is_confirmed: true, 
+                confirmed_by: currentUser.id 
+            })
+            .in('id', idsToConfirm);
+
+        if (error) alert(error.message);
+        await fetchEmployeeMonthlyData();
+        setIsBulkLoading(false);
+    };
+
+    const handleBulkValidateAll = async () => {
+        const emp = employees.find(e => e.id === selectedEmployeeId);
+        if (!canValidate(emp?.shop_id)) return;
+
+        // On ne valide que les lignes non encore validées
+        const linesToValidate = attendances.filter(a => !a.is_validated);
+        if (linesToValidate.length === 0) return;
+
+        setIsBulkLoading(true);
+        
+        // Pour chaque ligne, on s'assure que le validated_status est rempli 
+        // (on prend le status machine si l'utilisateur n'a rien choisi)
+        const updates = linesToValidate.map(line => ({
+            id: line.id,
+            is_validated: true,
+            validated_by: currentUser.id,
+            validated_status: line.validated_status || line.status
+        }));
+
+        const { error } = await supabase
+            .from('attendances')
+            .update({ 
+                is_validated: true, 
+                validated_by: currentUser.id
+            })
+            .in('id', linesToValidate.map(l => l.id));
+
+        if (error) alert(error.message);
+        await fetchEmployeeMonthlyData();
+        setIsBulkLoading(false);
+    };
+
+    const fetchEmployeeMonthlyData = async () => {
+        setLoading(true)
+        const start = `${selectedYear}-${selectedMonth}-01`
+        const end = format(endOfMonth(new Date(`${selectedYear}-${selectedMonth}-01`)), 'yyyy-MM-dd')
+
+        const { data } = await supabase
+            .from('attendances')
+            .select('*')
+            .eq('employee_id', selectedEmployeeId)
+            .gte('date', start)
+            .lte('date', end)
+            .order('date', { ascending: true })
+
+        setAttendances(data || [])
+        setLoading(false)
+    }
+     // --- ACTIONS ---
+    const handleUpdateLine = async (id: string, updates: any) => {
+        setUpdatingId(id); // On active le loader spécifique à cette ligne
+        try {
+            const { error } = await supabase
+                .from('attendances')
+                .update(updates)
+                .eq('id', id);
+
+            if (error) throw error;
+            
+            // Au lieu de mettre setLoading(true) global, on recharge les données 
+            // silencieusement ou on met à jour l'état local
+            await fetchEmployeeMonthlyData(); 
+        } catch (error: any) {
+            alert(error.message);
+        } finally {
+            setUpdatingId(null); // On désactive le loader
+        }
+    };
+
+    const canConfirm = (empUserId: string) => 
+        currentUser?.role === 'admin' || currentUser?.id === empUserId
 
   const canValidate = (empShopId: string) => 
     currentUser?.role === 'admin' || (currentUser?.role === 'manager' && currentUser?.assigned_shops?.includes(empShopId))
@@ -216,6 +283,38 @@ export default function AttendanceDashboard({ shops }: { shops: any[] }) {
                     </SelectContent>
                 </Select>
             </div>
+
+            <div className="flex gap-2 w-full lg:w-auto">
+                <Button 
+                    variant="outline"
+                    onClick={handlePrintPDF}
+                    disabled={!isFullyConfirmed}
+                    className="rounded-xl border-gray-200 text-gray-700 hover:bg-gray-50 font-bold h-10 px-4"
+                >
+                    <Printer size={16} className="mr-2" />
+                    Imprimer Journal PDF
+                </Button>
+                <Button 
+                    variant="outline" 
+                    size="sm"
+                    disabled={isBulkLoading || loading || attendances.every(a => a.is_confirmed)}
+                    onClick={handleBulkConfirmAll}
+                    className="rounded-xl border-blue-200 text-blue-600 hover:bg-blue-50 font-bold h-10 px-4"
+                >
+                    {isBulkLoading ? <Loader2 size={16} className="animate-spin mr-2" /> : <CheckCircle2 size={16} className="mr-2" />}
+                    Confirmer tout le mois
+                </Button>
+
+                <Button 
+                    size="sm"
+                    disabled={isBulkLoading || loading || attendances.every(a => a.is_validated)}
+                    onClick={handleBulkValidateAll}
+                    className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold h-10 px-4 shadow-md shadow-rose-100"
+                >
+                    {isBulkLoading ? <Loader2 size={16} className="animate-spin mr-2" /> : <ShieldCheck size={16} className="mr-2" />}
+                    Tout Valider
+                </Button>
+            </div>
         </Card>
 
         {/* SYNTHÈSE MENSUELLE */}
@@ -242,7 +341,10 @@ export default function AttendanceDashboard({ shops }: { shops: any[] }) {
                             <th className="px-4 py-5 text-center">Status Machine</th>
                             <th className="px-4 py-5">Status à Valider</th>
                             <th className="px-4 py-5">Observations</th>
-                            <th className="px-6 py-5 text-right">Actions</th>
+                            <th className="px-6 py-5 text-right flex items-center justify-end gap-2">
+                                Actions
+                                {isBulkLoading && <Loader2 size={12} className="animate-spin text-rose-500" />}
+                            </th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
@@ -297,11 +399,22 @@ export default function AttendanceDashboard({ shops }: { shops: any[] }) {
                                             <Button
                                                 size="sm"
                                                 variant="ghost"
-                                                disabled={row.is_confirmed || !canConfirm(emp?.user_id)}
-                                                onClick={() => handleUpdateLine(row.id, { is_confirmed: true, confirmed_by: currentUser.id })}
-                                                className={`h-7 px-2 rounded-lg text-[9px] font-black ${row.is_confirmed ? 'text-emerald-600 bg-emerald-50' : 'text-blue-600 bg-blue-50'}`}
+                                                disabled={row.is_confirmed || !canConfirm(emp?.user_id) || updatingId === row.id}
+                                                onClick={() => handleUpdateLine(row.id, { 
+                                                    is_confirmed: true, 
+                                                    confirmed_by: currentUser.id 
+                                                })}
+                                                className={`h-7 px-2 rounded-lg text-[9px] font-black ${
+                                                    row.is_confirmed ? 'text-emerald-600 bg-emerald-50' : 'text-blue-600 bg-blue-50'
+                                                }`}
                                             >
-                                                {row.is_confirmed ? <CheckCircle2 size={12} /> : 'Confirmer'}
+                                                {updatingId === row.id ? (
+                                                    <Loader2 size={12} className="animate-spin" />
+                                                ) : row.is_confirmed ? (
+                                                    <CheckCircle2 size={12} />
+                                                ) : (
+                                                    'Confirmer'
+                                                )}
                                             </Button>
 
                                             <Button
@@ -332,12 +445,19 @@ export default function AttendanceDashboard({ shops }: { shops: any[] }) {
 
 function MonthlySummary({ attendances }: { attendances: any[] }) {
   // Calcul des totaux basés sur le statut validé (ou le statut machine si non validé)
-  const stats = (Object.keys(STATUS_CONFIG) as AttendanceStatus[]).reduce((acc, statusKey) => {
-    acc[statusKey] = attendances.filter(a => 
-      (a.is_validated ? a.validated_status : a.status) === statusKey
-    ).length;
-    return acc;
-  }, {} as Record<AttendanceStatus, number>);
+    const stats = (Object.keys(STATUS_CONFIG) as AttendanceStatus[]).reduce((acc, statusKey) => {
+        acc[statusKey] = attendances.filter(a => {
+            // 1. On vérifie si c'est un dimanche (0 = Dimanche)
+            const isSunday = getDay(new Date(a.date)) === 0;
+            if (isSunday) return false;
+
+            // 2. Sinon, on compte normalement
+            const effectiveStatus = a.is_validated ? a.validated_status : a.status;
+            return effectiveStatus === statusKey;
+        }).length;
+        
+        return acc;
+    }, {} as Record<AttendanceStatus, number>);
 
   const totalDays = attendances.length;
   const validatedCount = attendances.filter(a => a.is_validated).length;
@@ -385,14 +505,18 @@ function MonthlySummary({ attendances }: { attendances: any[] }) {
 
         {/* Note pour la paie */}
         <div className="pt-6 border-t border-white/5 flex flex-col md:flex-row gap-6">
-          <div className="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-2xl">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-            <span className="text-xs font-bold">Jours à rémunérer : <span className="text-emerald-400">{stats['present'] + (stats['repos'] || 0) + (stats['congé circonstaciel'] || 0)}</span></span>
-          </div>
-          <div className="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-2xl">
-            <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
-            <span className="text-xs font-bold">Dépassement / Retards : <span className="text-red-400">{stats['late']}</span></span>
-          </div>
+            <div className="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-2xl">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                <span className="text-xs font-bold">Jours à rémunérer : <span className="text-emerald-400">{stats['present'] + (stats['repos'] || 0)}</span></span>
+            </div>
+            <div className="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-2xl">
+                <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
+                <span className="text-xs font-bold">Dépassement / Retards : <span className="text-red-400">{stats['late']}</span></span>
+            </div>
+            <div className="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-2xl">
+                <div className="w-2 h-2 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)]" />
+                <span className="text-xs font-bold">Maladie : <span className="text-orange-400">{stats['sick']}</span></span>
+            </div>
         </div>
       </div>
     </Card>

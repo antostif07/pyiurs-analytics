@@ -5,4 +5,5 @@ export type AttendanceStatus =
   | 'repos' 
   | 'congé circonstaciel' 
   | 'congé non circonstanciel' 
-  | 'suspension';
+  | 'suspension'
+  | 'sick';

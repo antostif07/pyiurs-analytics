@@ -9,7 +9,8 @@ import {
   CalendarDays, 
   FileText,
   LogOut, 
-  Store
+  Store,
+  CircleDollarSign
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -18,6 +19,7 @@ const menuItems = [
   { name: "Présences & Pointage", href: "/hr/attendance", icon: Clock },
   { name: "Employés", href: "/hr/employees", icon: Users },
   { name: "Boutiques", href: "/hr/shops", icon: Store },
+  { name: "Primes & Dettes", href: "/hr/bonuses-debts", icon: CircleDollarSign },
   { name: "Fiches de Paie", href: "/hr/payroll", icon: FileText }, // Crucial fin de mois
   { name: "Planning & Congés", href: "/hr/schedule", icon: CalendarDays },
 ];
