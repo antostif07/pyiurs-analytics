@@ -72,6 +72,7 @@ export default function EmployeeList() {
                             <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Employé</th>
                             <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Lien Odoo</th>
                             <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Salaire Base</th>
+                            <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Transport</th>
                             <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Statut</th>
                             <th className="px-6 py-4 w-24"></th>
                         </tr>
@@ -105,6 +106,12 @@ export default function EmployeeList() {
                                     <div className="flex items-center gap-2 font-bold text-gray-700">
                                         <CreditCard size={14} className="text-gray-400" />
                                         {emp.base_salary?.toLocaleString()} $
+                                    </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                    <div className="flex items-center gap-2 font-bold text-gray-700">
+                                        <CreditCard size={14} className="text-gray-400" />
+                                        {emp.transport_allowance?.toLocaleString()} $
                                     </div>
                                 </td>
                                 <td className="px-6 py-4 text-center">

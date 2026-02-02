@@ -25,7 +25,7 @@ export default function HRLayout({ children }: { children: React.ReactNode }) {
               <Menu size={20} className="text-gray-600" />
             </button>
             <h1 className="text-sm font-bold text-gray-700 uppercase tracking-wider">
-              Gestion RH <span className="text-rose-600">| Janvier 2025</span>
+              Gestion RH {/* <span className="text-rose-600"></span> */}
             </h1>
           </div>
         </header>
