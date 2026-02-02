@@ -1,4 +1,5 @@
 "use server";
+import { odooClient } from "@/lib/odoo/xmlrpc";
 
 export async function getHROverview(range: string) {
   // Simulation d'un délai réseau (ex: interrogation Supabase)
@@ -16,8 +17,6 @@ export async function getHROverview(range: string) {
     ]
   };
 }
-
-import { odooClient } from "@/lib/odoo/xmlrpc";
 
 export async function getOdooCompanies() {
   try {

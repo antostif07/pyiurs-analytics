@@ -7,7 +7,8 @@ import {
   ArrowRightLeft, Printer, TrendingUp, DollarSign,
   Wallet,
   FileDown,
-  MapPin
+  MapPin,
+  BadgeCheck
 } from 'lucide-react'
 import { Card } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -20,6 +21,7 @@ import { generateTransportPDF } from './exportTransportPDF'
 import { generateGlobalTransportPDF } from './exportGlobalTransportPDF'
 import Link from 'next/link'
 import { MONTHS } from '../utils'
+import { generateFullPayslipPDF } from './exportFullPayslipPDF'
 
 export default function PayrollPage() {
     const supabase = createClient()
@@ -36,9 +38,7 @@ export default function PayrollPage() {
     const [selectedShopId, setSelectedShopId] = useState<string>('all')
     const [debtDeductions, setDebtDeductions] = useState<Record<string, number>>({})
     const [hasAttendance, setHasAttendance] = useState(true);
-
-    // Calcul précis du nombre de jours dans le mois sélectionné
-    const daysInMonth = endOfMonth(new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, 1)).getDate()
+    const [isSaving, setIsSaving] = useState(false)
 
     useEffect(() => {
         fetchInitialData()
@@ -66,7 +66,8 @@ export default function PayrollPage() {
                 shops(name),
                 attendances(*),
                 employee_bonuses(*),
-                employee_debts(*)
+                employee_debts(*),
+                payslips(*)
             `)
             .eq('is_active', true)
             .order('name')
@@ -91,6 +92,11 @@ export default function PayrollPage() {
                     return !isSunday && ['absent', 'sick', 'congé circonstaciel', 'congé non circonstanciel', 'suspension'].includes(status);
                 }).length;
 
+                const existingPayslip = emp.payslips?.find((p: any) => 
+                    p.month === parseInt(selectedMonth) && 
+                    p.year === parseInt(selectedYear)
+                );
+
                 const transportEligibleDays = Math.max(0, PAYROLL_BASIS - penaltyDays)
                 const netTransport = (emp.transport_allowance / PAYROLL_BASIS) * transportEligibleDays
                 const deductionAbsence = (emp.base_salary / PAYROLL_BASIS) * penaltyDays
@@ -105,7 +111,9 @@ export default function PayrollPage() {
                     deductionAbsence,
                     totalBonuses,
                     totalDebtRemaining,
-                    filteredAttendances // utile pour l'export individuel
+                    filteredAttendances,
+                    isPaid: !!existingPayslip, // true si une fiche existe, false sinon
+                    payslipData: existingPayslip || null
                 }
             })
             setEmployees(processed)
@@ -138,6 +146,82 @@ export default function PayrollPage() {
         const shopName = selectedShopId === 'all' ? 'Tous les sites' : shops.find(s => s.id === selectedShopId)?.name
         await generateGlobalTransportPDF(employees, selectedMonth, selectedYear, shopName)
     }
+
+    const handleProcessPayment = async (emp: any) => {
+        const deductionValue = debtDeductions[emp.id] || 0;
+        
+        // 1. Calculs finaux (identiques à l'affichage)
+        const totalNet = (emp.base_salary - emp.deductionAbsence) + emp.netTransport + emp.totalBonuses - deductionValue;
+
+        setIsSaving(true);
+        
+        try {
+            // --- ÉTAPE A : Enregistrer la fiche de paie ---
+            const { data: payslip, error: payslipError } = await supabase
+                .from('payslips')
+                .insert({
+                    employee_id: emp.id,
+                    month: parseInt(selectedMonth),
+                    year: parseInt(selectedYear),
+                    base_salary_snapshot: emp.base_salary,
+                    transport_allowance_paid: emp.netTransport,
+                    absences_deduction: emp.deductionAbsence,
+                    bonuses_total: emp.totalBonuses,
+                    debt_deduction: deductionValue,
+                    net_paid: totalNet,
+                    status: 'paid'
+                })
+                .select()
+                .single();
+
+            if (payslipError) {
+                if (payslipError.code === '23505') throw new Error("Cet employé a déjà été payé pour ce mois.");
+                throw payslipError;
+            }
+
+            // --- ÉTAPE B : Mettre à jour les dettes si une retenue a été faite ---
+            if (deductionValue > 0) {
+                // On récupère les dettes actives de l'employé
+                const activeDebts = emp.activeDebts.sort((a: any, b: any) => 
+                    new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+                );
+
+                let remainingDeduction = deductionValue;
+
+                for (const debt of activeDebts) {
+                    if (remainingDeduction <= 0) break;
+
+                    const amountToDeductFromThisDebt = Math.min(debt.remaining_amount, remainingDeduction);
+                    const newRemaining = debt.remaining_amount - amountToDeductFromThisDebt;
+                    
+                    await supabase
+                        .from('employee_debts')
+                        .update({ 
+                            remaining_amount: newRemaining,
+                            status: newRemaining <= 0 ? 'cleared' : 'active'
+                        })
+                        .eq('id', debt.id);
+
+                    remainingDeduction -= amountToDeductFromThisDebt;
+                }
+            }
+
+            alert(`Paie de ${emp.name} clôturée avec succès !`);
+            fetchPayrollData(); // Rafraîchir la liste
+
+        } catch (error: any) {
+            alert(error.message);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handlePrintFullPayslip = async (emp: any) => {
+        // On appelle la fonction seulement si l'employé est payé (pour avoir payslipData)
+        if (emp.isPaid) {
+            await generateFullPayslipPDF(emp, selectedMonth, selectedYear);
+        }
+    };
 
     return (
         <div className="space-y-6 pb-20">
@@ -233,6 +317,7 @@ export default function PayrollPage() {
             ) : (
                 <div className="space-y-4">
                     {employees.map((emp) => {
+                        const isPaid = emp.isPaid;
                         return (
                             <Card key={emp.id} className="p-0 border-none shadow-sm rounded-[32px] bg-white overflow-hidden group border border-gray-100 transition-all hover:shadow-md">
                                 <div className="grid grid-cols-1 lg:grid-cols-12 items-stretch">
@@ -312,13 +397,33 @@ export default function PayrollPage() {
                                             </div>
                                         </div>
                                         <p className="text-3xl font-black text-white my-2">
-                                            {(emp.base_salary - emp.deductionAbsence + emp.netTransport + emp.totalBonuses - (debtDeductions[emp.id] || 0)).toLocaleString()}$
+                                            {isPaid ? emp.payslipData.net_paid.toLocaleString() : (emp.base_salary - emp.deductionAbsence + emp.netTransport + emp.totalBonuses - (debtDeductions[emp.id] || 0)).toLocaleString()}$
                                         </p>
                                         <div className="grid grid-cols-5 gap-2 mt-2">
-                                            <Button className="col-span-4 h-9 rounded-xl bg-rose-600 hover:bg-rose-700 text-[9px] font-black uppercase tracking-widest">
-                                                Valider Paiement
+                                            <Button 
+                                                disabled={loading || isSaving || isPaid}
+                                                onClick={() => handleProcessPayment(emp)}
+                                                className={`col-span-4 h-9 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                                                    isPaid 
+                                                    ? 'bg-emerald-500 text-white cursor-default opacity-100' 
+                                                    : 'bg-rose-600 hover:bg-rose-700'
+                                                }`}
+                                            >
+                                                {isSaving === emp.id ? (
+                                                    <Loader2 className="animate-spin mr-2" size={14} />
+                                                ) : isPaid ? (
+                                                    <BadgeCheck className="mr-2 text-white" size={16} />
+                                                ) : null}
+                                                {isPaid ? 'PAIEMENT EFFECTUÉ' : 'VALIDER PAIEMENT'}
                                             </Button>
-                                            <Button variant="outline" className="h-9 rounded-xl border-white/10 bg-white/5 hover:bg-white/10 p-0 text-white">
+                                            
+                                            {/* Le bouton imprimer reste actif si payé pour ressortir la fiche plus tard */}
+                                            <Button 
+                                                variant="outline" 
+                                                disabled={!isPaid} // On ne peut imprimer la fiche totale que si c'est payé
+                                                onClick={() => handlePrintFullPayslip(emp)}
+                                                className="h-9 rounded-xl border-white/10 bg-white/5 hover:bg-white/10 p-0 text-white disabled:opacity-20"
+                                            >
                                                 <Printer size={16} />
                                             </Button>
                                         </div>
