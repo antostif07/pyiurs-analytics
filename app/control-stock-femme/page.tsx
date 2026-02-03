@@ -114,7 +114,7 @@ async function getPurchaseOrders(startDate: string, endDate: string, partnerFilt
   }
 
   const res = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/purchase.order?fields=id,create_date,partner_id,name&domain=${domain}`,
+    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/purchase.order?fields=id,create_date,partner_id,name,partner_ref,partner_id&domain=${domain}`,
     { 
       next: { 
         revalidate: 300
@@ -201,7 +201,7 @@ async function transformToControlStockModel(
   stockQuants: StockQuant[]
 ): Promise<ControlStockFemmeModel[]> {
   const allProductIds = products.map((product: OdooProductTemplate) => product.product_variant_id ? product.product_variant_id[0] : 0);
-
+  
   // Créer une map des stocks par produit et par boutique
   const stockByProductAndBoutique = new Map<number, {
     P24: number;
@@ -334,6 +334,8 @@ async function transformToControlStockModel(
     const stock = stockByProductAndBoutique.get(productId)
     
     if (!linesByHsCode.has(hsCode)) {
+      const po = line.order_id ? purchaseOrders.find(p => p.id === line.order_id[0]) : null;
+      const po_name = po ? `${po.partner_id[1].split("-")[1]} - ${po.partner_ref}`: "Aucune Reference"
       linesByHsCode.set(hsCode, {
         lines: [],
         productNames: new Set<string>(),
@@ -344,7 +346,7 @@ async function transformToControlStockModel(
         imageUrl: imageUrl,
         age,
         stock: stock ? [stock] : [],
-        po_name: line.order_id ? line.order_id[1].split(" ")[0] : "Aucun PO"
+        po_name
       });
     }
 

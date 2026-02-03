@@ -62,16 +62,12 @@ declare module "@tanstack/react-table" {
 
 export default function DataTable<T>({tableData, cols}: {tableData: T[], cols: ColumnDef<T, unknown>[]}) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
-  const [sorting, setSorting] = useState<SortingState>([
-    
-  ])
+  const [sorting, setSorting] = useState<SortingState>([])
   const pageSize = 10
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: pageSize,
   })
-
-  console.log(tableData[0]);
 
   const table = useReactTable({
     data: tableData,

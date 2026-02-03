@@ -16,4 +16,5 @@ export type PurchaseOrder = {
   partner_id: [number, string];
   create_date: string;
   name: string;
+  partner_ref: string|false;
 }
