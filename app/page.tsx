@@ -81,14 +81,6 @@ const modules = [
     permissions: ["admin", "manager", "user"]
   },
   {
-    name: "Gestion des Clients Beauty",
-    description: "Gestion des Clients Beauty",
-    icon: "👥",
-    color: "bg-blue-600",
-    href: "/client-base-beauty",
-    permissions: ["admin", "manager"]
-  },
-  {
     name: "Parc Client",
     description: "Parc Client",
     icon: "👥",

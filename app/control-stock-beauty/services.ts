@@ -30,6 +30,8 @@ async function getStockQuantsForProducts(productIds: number[]): Promise<{ record
         ['location_id', 'in', [8,58,62,89,99,100,105,107,121,160,169,170,180,225,226,231,232,244,245,259,261]],
       ]);
       
+      console.log(process.env.BASE_URL);
+      
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/stock.quant?fields=id,product_id,product_tmpl_id,location_id,quantity&domain=${domain}`,
         { next: { revalidate: 300 } }
@@ -64,9 +66,11 @@ async function getProducts() {
     domain: JSON.stringify(domain)
   });
 
+  console.log(process.env.BASE_URL);
+  
   // 3. Appel
   const res = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/product.template?${params.toString()}`,
+    `${process.env.BASE_URL}/api/odoo/product.template?${params.toString()}`,
     { 
       next: { revalidate: 300 } 
     }
@@ -92,6 +96,8 @@ async function getPurchaseOrderLines() {
     ['partner_id', "not ilike",["pb - ktm"]],
     ["partner_id", "not in", [24099, 23705, 1, 23706, 23707, 23708, 27862]]
   ]);
+  console.log(process.env.BASE_URL);
+  
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/purchase.order.line?fields=id,product_id,product_qty,qty_received,price_unit,order_id&domain=${domain}`,
     { next: { revalidate: 300 } }
