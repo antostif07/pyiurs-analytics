@@ -65,8 +65,6 @@ async function getProducts() {
     fields: "id,name,list_price,categ_id,hs_code,product_variant_id,x_studio_many2one_field_21bvh,x_studio_many2one_field_QyelN,x_studio_many2one_field_Arl5D,description_pickingin",
     domain: JSON.stringify(domain)
   });
-
-  console.log(process.env.BASE_URL);
   
   // 3. Appel
   const res = await fetch(

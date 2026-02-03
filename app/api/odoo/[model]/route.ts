@@ -16,8 +16,7 @@ export async function GET(req: Request, context: { params: Promise<{ model: stri
     try {
       domain = JSON.parse(domainParam);
     } catch (e) {
-        console.log(e);
-        
+        console.error(e)
       return NextResponse.json(
         { success: false, error: "Domaine invalide (JSON attendu)" },
         { status: 400 }

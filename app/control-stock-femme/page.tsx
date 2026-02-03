@@ -134,24 +134,39 @@ async function getProductsByIds(productIds: number[]) {
     return { records: [] };
   }
 
-  const domain = `[["product_variant_ids", "in", [${productIds.join(',')}]]]`;
-  
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/product.template?fields=id,name,list_price,categ_id,hs_code,product_variant_id,x_studio_many2one_field_21bvh,x_studio_many2one_field_QyelN,x_studio_many2one_field_Arl5D&domain=${domain}`,
-    { 
-      next: { 
-        revalidate: 300
-      } 
-    }
-  );
+  const CHUNK_SIZE = 50; // tu peux ajuster (30, 50, 100 selon Odoo)
+  const chunks: number[][] = [];
 
-  if (!res.ok) {
-    console.log(res);
-    
-    throw new Error("Erreur API Odoo - Produits par IDs");
+  // 1️⃣ Découper les IDs en chunks
+  for (let i = 0; i < productIds.length; i += CHUNK_SIZE) {
+    chunks.push(productIds.slice(i, i + CHUNK_SIZE));
   }
 
-  return res.json();
+  // 2️⃣ Faire les requêtes en parallèle
+  const requests = chunks.map(async (chunk) => {
+    const domain = JSON.stringify([
+      ["product_variant_ids", "in", chunk],
+    ]);
+
+    const url = `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/product.template?fields=id,name,list_price,categ_id,hs_code,product_variant_id,x_studio_many2one_field_21bvh,x_studio_many2one_field_QyelN,x_studio_many2one_field_Arl5D&domain=${encodeURIComponent(domain)}`;
+
+    const res = await fetch(url, {
+      next: { revalidate: 300 },
+    });
+
+    if (!res.ok) {
+      throw new Error("Erreur API Odoo - Produits par IDs");
+    }
+
+    return res.json();
+  });
+
+  // 3️⃣ Fusionner les résultats
+  const results = await Promise.all(requests);
+
+  const records = results.flatMap((r) => r.records ?? []);
+
+  return { records };
 }
 
 async function getPurchaseOrderLinesByIds(purchaseOrderIds: number[]) {
@@ -162,7 +177,7 @@ async function getPurchaseOrderLinesByIds(purchaseOrderIds: number[]) {
   const domain = `[["order_id", "in", [${purchaseOrderIds.join(',')}]]]`;
   
   const res = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/purchase.order.line?fields=id,order_id,product_id,product_qty,qty_received,price_unit,product_uom,write_date&domain=${domain}`,
+    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/purchase.order.line?fields=id,order_id,product_id,product_qty,qty_received,price_unit,write_date&domain=${domain}`,
     { 
       next: { 
         revalidate: 300
@@ -432,21 +447,38 @@ async function getPOSOrderLines(productIds: number[]) {
     return { records: [] };
   }
 
-  const domain = `[["product_id", "in", [${productIds.join(',')}]]]`;
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.order.line?fields=id,qty,product_id,qty&domain=${domain}`,
-    { 
-      next: { 
-        revalidate: 300
-      } 
-    }
-  );
+  const CHUNK_SIZE = 50; // ajuste selon Odoo (30–100 recommandé)
+  const chunks: number[][] = [];
 
-  if (!res.ok) {
-    throw new Error("Erreur API Odoo - Ventes POS");
+  // 1️⃣ Découper les IDs en chunks
+  for (let i = 0; i < productIds.length; i += CHUNK_SIZE) {
+    chunks.push(productIds.slice(i, i + CHUNK_SIZE));
   }
 
-  return res.json();
+  // 2️⃣ Requêtes parallèles
+  const requests = chunks.map(async (chunk) => {
+    const domain = JSON.stringify([
+      ["product_id", "in", chunk],
+    ]);
+
+    const url = `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.order.line?fields=id,qty,product_id&domain=${encodeURIComponent(domain)}`;
+
+    const res = await fetch(url, {
+      next: { revalidate: 300 },
+    });
+
+    if (!res.ok) {
+      throw new Error("Erreur API Odoo - Ventes POS");
+    }
+
+    return res.json();
+  });
+
+  // 3️⃣ Fusionner les résultats
+  const results = await Promise.all(requests);
+  const records = results.flatMap((r) => r.records ?? []);
+
+  return { records };
 }
 
 async function getData(
