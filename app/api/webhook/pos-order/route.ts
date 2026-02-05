@@ -269,7 +269,7 @@ export async function POST(req: NextRequest) {
 
                     const currentStock = quants[0]?.quantity || 0; 
 
-                    if(currentStock < 24) {
+                    if(currentStock < 12) {
                         const sl = await odooClient.execute("pos.order.line", "read_group",[
                             [
                                 ["product_id.hs_code", "=", hs_code],
