@@ -84,9 +84,9 @@ export default async function ControlStockBeautyPage({ searchParams }: PageProps
   if (selectedBrand && selectedBrand !== 'all') activeFilters.push(selectedBrand);
   if (selectedColor && selectedColor !== 'all') activeFilters.push(selectedColor);
   if (selectedStock && selectedStock !== 'all') activeFilters.push(selectedStock); // Simplifié pour l'affichage
-
+  
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
+    <main className="min-h-screen bg-linear-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
       {/* Header */}
       <div className="border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
         <div className="container mx-auto px-6 py-6">
@@ -99,7 +99,7 @@ export default async function ControlStockBeautyPage({ searchParams }: PageProps
                 ← Retour
               </Link>
               <div className="flex-1 min-w-0 ml-4">
-                <h1 className="text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent truncate">
+                <h1 className="text-2xl lg:text-3xl font-bold bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent truncate">
                   Control Stock Beauty
                 </h1>
                 <p className="text-gray-600 dark:text-gray-300 mt-1 text-sm truncate">

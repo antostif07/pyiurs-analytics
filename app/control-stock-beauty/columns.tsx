@@ -34,7 +34,7 @@ const SortableHeader = ({ column, title, align = "center" }: { column: Column<Co
     <Button
       variant="ghost"
       onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-      className={`p-2 h-auto text-xs font-semibold w-full ${align === "center" ? "justify-center" : align === "right" ? "justify-end" : "justify-start"}`}
+      className={`h-auto px-0 text-xs font-semibold ${align === "center" ? "justify-center" : align === "right" ? "justify-end" : "justify-start"}`}
     >
       {title}
       <ArrowUpDown className="ml-1 h-3 w-3" />
@@ -99,9 +99,9 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockBeautyModel>[] = [
   },
   {
     accessorKey: "product_qty",
-    header: ({ column }) => <SortableHeader column={column} title="Achats" />,
+    header: ({ column }) => <SortableHeader column={column} title="Ach." />,
     cell: ({ getValue }) => <span className="font-medium text-blue-600 text-sm">{getValue<number>()}</span>,
-    size: 80,
+    size: 40,
   },
   {
     accessorKey: "qty_received",
@@ -124,13 +124,13 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockBeautyModel>[] = [
   },
   {
     accessorKey: "qty_sold",
-    header: ({ column }) => <SortableHeader column={column} title="Vendu" />,
+    header: ({ column }) => <SortableHeader column={column} title="Ven." />,
     cell: ({ getValue }) => <span className="font-medium text-purple-600 text-sm">{getValue<number>()}</span>,
     size: 80,
   },
   {
     accessorKey: "qty_available",
-    header: ({ column }) => <SortableHeader column={column} title="Dispo" />,
+    header: ({ column }) => <SortableHeader column={column} title="Disp." />,
     cell: ({ getValue }) => {
       const value = getValue<number>();
       return (
@@ -180,10 +180,16 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockBeautyModel>[] = [
     cell: ({ row }) => <div className="text-center">{row.getValue("stock_dc") || 0}</div>,
     size: 70,
   },
+  // {
+  //   accessorKey: "stock_other",
+  //   header: ({ column }) => <SortableHeader column={column} title="Autre" />,
+  //   cell: ({ row }) => <div className="text-center">{row.getValue("stock_other") || 0}</div>,
+  //   size: 70,
+  // },
   {
-    accessorKey: "stock_other",
-    header: ({ column }) => <SortableHeader column={column} title="Autre" />,
-    cell: ({ row }) => <div className="text-center">{row.getValue("stock_other") || 0}</div>,
+    accessorKey: "sales_last_30_days",
+    header: ({ column }) => <SortableHeader column={column} title="Ven. 7j" />,
+    cell: ({ row }) => <div className="text-center">{row.getValue("sales_last_30_days") || 0}</div>,
     size: 70,
   },
 
@@ -225,10 +231,6 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockBeautyModel>[] = [
           <Tooltip>
             <TooltipTrigger asChild>
               <div className="text-xs space-y-1 cursor-help">
-                <div className="flex justify-between">
-                  <span>Ventes 7j:</span>
-                  <span className="font-medium">{sales30d}</span>
-                </div>
                 <div className="flex justify-between">
                   <span>Jours rest.:</span>
                   <span className={`font-medium ${daysColor}`}>{daysLeft}j</span>
