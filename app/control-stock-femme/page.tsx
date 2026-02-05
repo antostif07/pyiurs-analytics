@@ -688,7 +688,7 @@ export default async function ControlStockFemmePage({ searchParams }: PageProps)
   if (selectedPurchaseOrder && selectedPurchaseOrder !== 'all') activeFilters.push(`Commande: ${selectedPurchaseOrder}`);
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
+    <main className="min-h-screen bg-linear-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
       {/* <code>{JSON.stringify(stockLocations.records,null,2)}</code> */}
       {/* Header */}
       <div className="border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
@@ -704,7 +704,7 @@ export default async function ControlStockFemmePage({ searchParams }: PageProps)
 
                 <div className="flex items-center space-x-3">
                   <div className="px-2">
-                    <h1 className="text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent truncate">
+                    <h1 className="text-2xl lg:text-3xl font-bold bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent truncate">
                   Control Stock Femme
                 </h1>
                 <p className="text-gray-600 dark:text-gray-300 mt-1 text-sm truncate">

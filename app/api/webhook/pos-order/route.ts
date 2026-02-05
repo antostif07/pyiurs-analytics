@@ -1,6 +1,10 @@
+import { getAIStockAnalysis } from "@/lib/ai/inventory-engine";
+import { odooClient } from "@/lib/odoo/xmlrpc";
 import { Redis } from "@upstash/redis";
-import { format } from 'date-fns';
+import { format, subDays } from 'date-fns';
 import { NextRequest, NextResponse } from 'next/server';
+import nodemailer from 'nodemailer';
+import { parseOdooFrenchDate } from "../utils";
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
@@ -71,6 +75,40 @@ async function getPOSConfig(id: number) {
     return res.json();
 }
 
+async function getPOSOrderLines(posOrderId: number) {
+    const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.order.line?fields=id,name,product_id&domain=[["order_id.id", "=", ${posOrderId}]]`,
+        { next: { revalidate: 300 } }
+    );
+    if (!res.ok) throw new Error("Erreur API Odoo - Configuration POS");
+    return res.json();
+}
+
+async function getProductInfo(id: number) {
+    const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/product.product?fields=id,name,x_studio_segment,hs_code&domain=[["id", "=", ${id}]]`,
+        { next: { revalidate: 300 } }
+    );
+    if (!res.ok) throw new Error("Erreur API Odoo - Product Product");
+    return res.json();
+}
+
+function aggregateRestocks(moves: any[]) {
+  const grouped = moves.reduce((acc: Record<string, number>, move) => {
+    // On groupe par jour (YYYY-MM-DD)
+    const dateKey = move.date.split(' ')[0]; 
+    acc[dateKey] = (acc[dateKey] || 0) + move.product_uom_qty;
+    return acc;
+  }, {});
+
+  // On transforme l'objet en tableau pour l'IA
+  return Object.entries(grouped).map(([date, qty]) => ({
+    date,
+    qty
+  }));
+}
+
+
 async function getPartner(id: number) {
     const res = await fetch(
         `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/res.partner?fields=id,name,phone&domain=[["id", "=", ${id}]]`,
@@ -128,6 +166,9 @@ async function sendMessage(payload: PayloadWhatsappMessage) {
     }
 }
 
+// AI Stock Report
+
+
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
@@ -145,72 +186,150 @@ export async function POST(req: NextRequest) {
         if(alreadyProcessed) {
             console.log(`⚠️ Commande ${orderId} déjà traitée, on ignore.`);
             return NextResponse.json({ success: false, duplicate: true, orderId });
-        }
+        } else {
+            // ✅ Marquer la commande comme traitée pour 10 minutes
+            await redis.set(`pyiurs-order:${orderId}`, "processed", { ex: 1200 });
 
-        // ✅ Marquer la commande comme traitée pour 10 minutes
-        await redis.set(`pyiurs-order:${orderId}`, "processed", { ex: 1200 });
+            const [posConfigData, partnerData] = await Promise.all([
+                getPOSConfig(config_id),
+                getPartner(partner_id)
+            ]);
 
-        const [posConfigData, partnerData] = await Promise.all([
-            getPOSConfig(config_id),
-            getPartner(partner_id)
-        ]);
+            const partner = partnerData?.records?.[0];
+            const posConfig = posConfigData?.records?.[0];
 
-        const partner = partnerData?.records?.[0];
-        const posConfig = posConfigData?.records?.[0];
+            const boutique = getBoutiqueLabel(posConfig?.name);
 
-        const boutique = getBoutiqueLabel(posConfig?.name);
+            // if(!boutique){
+            //     console.error(`❌ Boutique non gérée pour la commande ${orderId} (config POS: ${posConfig?.name})`);
+            //     return NextResponse.json({ error: "Boutique non gérée" }, { status: 400 });
+            // }
 
-        // if(!boutique){
-        //     console.error(`❌ Boutique non gérée pour la commande ${orderId} (config POS: ${posConfig?.name})`);
-        //     return NextResponse.json({ error: "Boutique non gérée" }, { status: 400 });
-        // }
+            const clientPhone = partner?.phone || "";
+            const formattedPhone = formatPhoneNumber(clientPhone);
 
-        const clientPhone = partner?.phone || "";
-        const formattedPhone = formatPhoneNumber(clientPhone);
-
-        if (!formattedPhone) {
-            console.error(`❌ Numéro client invalide: ${clientPhone}`);
-            return NextResponse.json({ error: "Numéro client invalide" }, { status: 400 });
-        }
-        
-        const payload_client: PayloadWhatsappMessage = {
-            messaging_product: "whatsapp",
-            recipient_type: "individual",
-            to: formattedPhone,
-            type: "template",
-            template: {
-                name: "envoi_details_facture",
-                language: { code: "fr" },
-                components: [
-                    {
-                        type: "body",
-                        parameters: [
-                            { type: "text", text: partner?.name || "Cher(e) Client(e)", parameter_name: "nom_client" },
-                            { type: "text", text: ` ${boutique?.name}`, parameter_name: "shop_name" },
-                            { type: "text", text: name, parameter_name: "numero_commande" },
-                            { type: "text", text: format(create_date, "dd MMM yyyy"), parameter_name: "date_commande" },
-                            { type: "text", text: `${amount_paid}$`, parameter_name: "montant_total" },
-                            { type: "text", text: "Espèces", parameter_name: "mode_paiement" },
-                            { type: "text", text: ` ${boutique?.name}`, parameter_name: "shop_name_2" },
-                            { type: "text", text: ` ${boutique?.phone}`, parameter_name: "shop_number" },
-                            { type: "text", text: `+243899900151`, parameter_name: "service_number" },
-                            { type: "text", text: `info@pyiurs.com`, parameter_name: "email_support" },
-                        ]
-                    }
-                ]
+            if (!formattedPhone) {
+                console.error(`❌ Numéro client invalide: ${clientPhone}`);
+                return NextResponse.json({ error: "Numéro client invalide" }, { status: 400 });
             }
-        };
-        
-        if(boutique){
-            await sendMessage(payload_client);
+            
+            const payload_client: PayloadWhatsappMessage = {
+                messaging_product: "whatsapp",
+                recipient_type: "individual",
+                to: formattedPhone,
+                type: "template",
+                template: {
+                    name: "envoi_details_facture",
+                    language: { code: "fr" },
+                    components: [
+                        {
+                            type: "body",
+                            parameters: [
+                                { type: "text", text: partner?.name || "Cher(e) Client(e)", parameter_name: "nom_client" },
+                                { type: "text", text: ` ${boutique?.name}`, parameter_name: "shop_name" },
+                                { type: "text", text: name, parameter_name: "numero_commande" },
+                                { type: "text", text: format(create_date, "dd MMM yyyy"), parameter_name: "date_commande" },
+                                { type: "text", text: `${amount_paid}$`, parameter_name: "montant_total" },
+                                { type: "text", text: "Espèces", parameter_name: "mode_paiement" },
+                                { type: "text", text: ` ${boutique?.name}`, parameter_name: "shop_name_2" },
+                                { type: "text", text: ` ${boutique?.phone}`, parameter_name: "shop_number" },
+                                { type: "text", text: `+243899900151`, parameter_name: "service_number" },
+                                { type: "text", text: `info@pyiurs.com`, parameter_name: "email_support" },
+                            ]
+                        }
+                    ]
+                }
+            };
+            
+            if(boutique){
+                await sendMessage(payload_client);
+            }
+            await sendMessage({...payload_client, to: "+243841483052"} as PayloadWhatsappMessage)
         }
-        await sendMessage({...payload_client, to: "+243841483052"} as PayloadWhatsappMessage)
+
+        // Send Report
+        const productLines = await getPOSOrderLines(orderId);
+
+        await Promise.all(
+            productLines.records.map(async (pl: {id: number, product_id: [number, string]}) => {
+                const product = await getProductInfo(pl.product_id[0])
+                const productName = product.records[0].name.split("[")[0];
+
+                if(product.records && product.records[0].x_studio_segment.toLowerCase() === "beauty" ) {
+                    const hs_code = product.records[0].hs_code;
+
+                    const quants = await odooClient.execute("stock.quant", "read_group", [
+                        [
+                            ["product_id.hs_code", "=", hs_code],
+                            ["location_id.id", "in", [226, 180, 170, 160, 293, 89]]
+                        ],
+                        ["quantity"],
+                        []
+                    ]) as any[];
+
+                    const currentStock = quants[0]?.quantity || 0; 
+
+                    if(currentStock < 24) {
+                        const sl = await odooClient.execute("pos.order.line", "read_group",[
+                            [
+                                ["product_id.hs_code", "=", hs_code],
+                                ["order_id.state", "in", ["paid", "done", "invoiced"]],
+                                // ["create_date", ">=", startDate]
+                            ],
+                            ["qty"],
+                            ["create_date:day"]
+                        ]) as Array<{"create_date:day": string; qty: number}>
+
+                        const lines = sl.map(s => ({date: parseOdooFrenchDate(s["create_date:day"]), qty: s.qty}))
+
+                        const rM = await odooClient.execute("stock.move", "read_group", [
+                            [
+                                ["product_id.hs_code", "=", product.records[0].hs_code],
+                                ["state", "=", "done"],
+                                // ["date", ">=", startDate],
+                                ["location_dest_id", "=", 226]
+                            ],
+                            ["product_uom_qty"],
+                            ["date:day"]
+                        ]) as Array<{"date:day": string; product_uom_qty: number}>
+
+                        const moves = rM.map(m => ({date: parseOdooFrenchDate(m["date:day"]), qty: m.product_uom_qty}))
+                    
+                        const history = {
+                            sales: lines,
+                            restocks: moves,
+                        };
+
+                        const aiInsight = await getAIStockAnalysis({
+                            productName,
+                            currentStock,
+                            history: history
+                        });
+                        
+                        const transporter = nodemailer.createTransport({
+                            host: process.env.SMTP_HOST,
+                            port: Number(process.env.SMTP_PORT),
+                            secure: true,
+                            auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+                        });
+
+                        await transporter.sendMail({
+                            from: `"RAPPORT STOCK" <${process.env.SMTP_USER}>`,
+                            to: process.env.SUPPLY_CHAIN_EMAIL,
+                            cc: process.env.SUPPLY_CHAIN_EMAIL_2,
+                            subject: aiInsight.email_subject,
+                            html: aiInsight.email_body
+                        });
+                    }
+                }
+            })
+        )
 
         return NextResponse.json({
             success: true,
             // message_id: result.messages?.[0]?.id || null,
-            to: payload_client.to,
-            template: payload_client.template?.name,
+            // to: payload_client.to,
+            // template: payload_client.template?.name,
         });
     } catch (error: unknown) {
         console.error('💥 Webhook Error:', error);
@@ -221,3 +340,4 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: errorMessage }, { status: 500 });
     }
 }
+
