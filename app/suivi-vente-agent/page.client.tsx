@@ -167,7 +167,7 @@ export function VendeuseSalesDashboard({
         const orderId = row.original.order_id as OrderIdAccessor;
         return (
           <Badge variant="secondary" className="font-mono">
-            {/* {orderId[1]} */}
+            {orderId[1]}
           </Badge>
         );
       },
@@ -181,9 +181,9 @@ export function VendeuseSalesDashboard({
 
         return (
           <div className="flex flex-wrap gap-1 max-w-48">
-            {/* <Badge variant="outline" className="text-xs">
+            <Badge variant="outline" className="text-xs">
               {productId[1]}
-            </Badge> */}
+            </Badge>
           </div>
         );
       },
