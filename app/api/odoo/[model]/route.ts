@@ -1,4 +1,5 @@
 import { fetchFromOdoo } from "@/lib/odoo-client";
+import { odooClient } from "@/lib/odoo/xmlrpc";
 import { NextResponse } from "next/server";
 
 export async function GET(req: Request, context: { params: Promise<{ model: string }> }) {
@@ -23,6 +24,15 @@ export async function GET(req: Request, context: { params: Promise<{ model: stri
       );
     }
   }
+
+  const res = await odooClient.searchRead(model, {
+    domain,
+    fields
+  })
+
+  console.log(res);
+  
+  
 
   const result = await fetchFromOdoo(model, fields, domain);
 

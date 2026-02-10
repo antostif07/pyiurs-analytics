@@ -41,6 +41,9 @@ async function getPOSOrderLinesWithAgent(month?: string, year?: string, agentId?
   const date = `${y}-${m}-01`;
   const lastDay = new Date(parseInt(y), parseInt(m), 0).getDate();
 
+  // const fields = "id,qty,name,product_id,price_unit,price_subtotal,full_product_name,order_id,create_date"
+  const fields = "id"
+
   // Base domain
   let domain = `[["create_date", ">=", "${date} 00:01:00"], ["create_date", "<=", "${y}-${m}-${lastDay} 23:59:59"]]`;
 
@@ -50,10 +53,10 @@ async function getPOSOrderLinesWithAgent(month?: string, year?: string, agentId?
 
   // 1️⃣ Récupérer les lignes POS
   const res = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.order.line?fields=id,qty,name,product_id,price_unit,price_subtotal,full_product_name,order_id,create_date&domain=${domain}`,
+    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.order.line?fields=${fields}&domain=${domain}`,
     { next: { revalidate: 300 } }
   );
-
+  
   if (!res.ok) throw new Error("Erreur API Odoo - POS Order Lines");
 
   const { records: orderLines } = await res.json();
@@ -113,16 +116,19 @@ export default async function VendeuseSalesPage({ searchParams }: PageProps) {
     getPriceList()
   ])
 
+  console.log(orderLines, pricelist);
+  
+
   return (
     <Suspense fallback={<TableSkeleton />}>
-      <VendeuseSalesDashboard
+      {/* <VendeuseSalesDashboard
         month={month}
         year={year}
         agentId={agentId}
         isAdmin={isAdmin}
         agents={pricelist.records}
         orderLines={orderLines.records}
-      />
+      /> */}
     </Suspense>
   );
 }

@@ -208,7 +208,7 @@ export function VendeuseSalesDashboard({
 
   if (!profile) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800 p-6">
+      <div className="min-h-screen bg-linear-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800 p-6">
         <div className="max-w-7xl mx-auto flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
@@ -220,7 +220,7 @@ export function VendeuseSalesDashboard({
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800 p-6">
+    <div className="min-h-screen bg-linear-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* En-tête */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
@@ -234,7 +234,7 @@ export function VendeuseSalesDashboard({
 
             <div className="flex items-center space-x-3">
               <div className="px-2">
-                <h1 className="text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent truncate">
+                <h1 className="text-2xl lg:text-3xl font-bold bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent truncate">
                   Tableau de Bord {isAdmin ? 'Administrateur' : 'Vendeuse'}
                 </h1>
                 <p className="text-gray-600 dark:text-gray-300 mt-1 text-sm truncate">
@@ -293,6 +293,8 @@ export function VendeuseSalesDashboard({
                 <option value="2023">2023</option>
                 <option value="2024">2024</option>
                 <option value="2025">2025</option>
+                <option value="2026">2026</option>
+                <option value="2027">2027</option>
               </select>
             </div>
           </div>

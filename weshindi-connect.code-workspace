@@ -1,0 +1,20 @@
+{
+	"folders": [
+		{
+			"path": "../weshindi-connect"
+		},
+		{
+			"path": "."
+		},
+		{
+			"path": "../pyiurs-application"
+		},
+		{
+			"path": "../snel"
+		},
+		{
+			"path": "../la-poste"
+		}
+	],
+	"settings": {}
+}

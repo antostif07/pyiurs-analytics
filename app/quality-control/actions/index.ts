@@ -50,12 +50,9 @@ export async function getProductQualityData(
       }
     }
 
-    const templates = await odooClient('product.template', 'search_read', 
-      [
-        domain, 
-        ['name', 'default_code', 'hs_code', 'create_date', 'x_studio_many2one_field_Arl5D'] // Les champs sont ici maintenant
-      ], 
-      {
+    const templates = await odooClient.searchRead('product.template', {
+        domain,
+        fields: ['name', 'default_code', 'hs_code', 'create_date', 'x_studio_many2one_field_Arl5D'],
         limit: 2000,
         order: 'create_date desc'
       }
@@ -67,15 +64,13 @@ export async function getProductQualityData(
 
     // 3. Récupérer les IDs Externes
     // Même correction ici pour ir.model.data par sécurité
-    const irModelData = await odooClient('ir.model.data', 'search_read', 
-      [
-        [
+    const irModelData = await odooClient.searchRead('ir.model.data', {
+        domain: [
           ['model', '=', 'product.template'],
           ['res_id', 'in', templateIds]
         ],
-        ['name', 'module', 'res_id'] // Champs en 2ème argument
-      ], 
-      {} // Kwargs vide ici car pas de limit/order nécessaire
+        fields: ['name', 'module', 'res_id']
+      }
     ) as any[];
 
     const xmlIdMap = new Map<number, string>();
@@ -113,7 +108,8 @@ export async function getAvailableHSCodes(from: string, to: string, segment: str
     ];
 
     // On récupère juste les HS Codes
-    const results = await odooClient('product.template', 'search_read', [domain], {
+    const results = await odooClient.searchRead('product.template', {
+      domain: domain,
       fields: ['hs_code'],
       limit: 5000 
     }) as any[];

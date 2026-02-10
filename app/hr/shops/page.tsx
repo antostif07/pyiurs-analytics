@@ -76,7 +76,7 @@ export default function ShopsPage() {
                             </div>
 
                             {/* Décoration en arrière-plan */}
-                            <Landmark className="absolute -right-4 -bottom-4 text-gray-50 w-24 h-24 -z-0 transition-transform group-hover:scale-110" />
+                            <Landmark className="absolute -right-4 -bottom-4 text-gray-50 w-24 h-24 z-0 transition-transform group-hover:scale-110" />
                         </Card>
                     ))
                 ) : (
