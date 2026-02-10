@@ -1,703 +1,208 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
+import { 
+  Plus, Search, Copy, Edit3, Trash2, 
+  MoreVertical, FileText,
+  Clock, Loader2, ChevronLeft, Star,
+} from 'lucide-react';
+
+// UI Components
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+
+// Types & Utils
 import { Document } from '../types/documents';
 import { duplicateDocumentProcess } from '@/lib/documentUtils';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
+import { DocumentDialogs } from './components/DocumentDialogs';
+import { DocCard } from './components/DocumentCard';
 
 export default function DocumentsPage() {
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [creating, setCreating] = useState(false);
-  const [editingDocument, setEditingDocument] = useState<Document | null>(null);
-  const [editName, setEditName] = useState('');
-  const [darkMode, setDarkMode] = useState(false);
-  const [search, setSearch] = useState('');
-  const [loadingDocuments, setLoadingDocuments] = useState(true);
-
-  // NOUVEAUX ÉTATS POUR LA DUPLICATION
-  const [duplicatingDoc, setDuplicatingDoc] = useState<Document | null>(null);
-  const [duplicateName, setDuplicateName] = useState('');
-  const [duplicateWithData, setDuplicateWithData] = useState(true);
-  const [isProcessingDuplicate, setIsProcessingDuplicate] = useState(false);
-
-  const startDuplicate = (doc: Document) => {
-    setDuplicatingDoc(doc);
-    setDuplicateName(`${doc.name} (Copie)`);
-    setDuplicateWithData(true); // Par défaut avec données
-  };
-
-  const handleDuplicate = async () => {
-    if (!duplicatingDoc || !user) return;
-
-    setIsProcessingDuplicate(true);
-    try {
-      const newDoc = await duplicateDocumentProcess({
-        originalDocId: duplicatingDoc.id,
-        newTitle: duplicateName,
-        userId: user.id,
-        includeData: duplicateWithData,
-        supabase: supabase
-      });
-
-      // Rafraîchir la liste localement
-      setDocuments([newDoc as Document, ...documents]);
-      
-      // Fermer la modale
-      setDuplicatingDoc(null);
-      
-      // Optionnel : rediriger vers le nouveau doc
-      // router.push(`/gestion-drive/${newDoc.id}`);
-    } catch (error) {
-      console.error('Error duplicating document:', error);
-      alert('Une erreur est survenue lors de la duplication.');
-    } finally {
-      setIsProcessingDuplicate(false);
-    }
-  };
-
   const { user, profile, loading, supabase } = useAuth();
   const router = useRouter();
 
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push('/login');
-    }
-  }, [user, loading, router]);
+  // States
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [search, setSearch] = useState('');
+  const [loadingDocs, setLoadingDocs] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  useEffect(() => {
-    if (user) {
-      fetchDocuments();
-    }
-  }, [user]);
+  // Modals States
+  const [modalMode, setModalMode] = useState<'edit' | 'duplicate' | null>(null);
+  const [activeDoc, setActiveDoc] = useState<Document | null>(null);
+  const [formData, setFormData] = useState({ name: '', withData: true });
 
-  const fetchDocuments = async (): Promise<void> => {
+  // 1. Fetching
+  const fetchDocuments = async () => {
     if (!user) return;
-    
-    setLoadingDocuments(true);
-    try {
-      // Récupérer tous les documents créés par l'utilisateur
-      const { data: myDocuments, error: myDocsError } = await supabase
-        .from('documents')
-        .select('*')
-        .eq('created_by', user.id);
-
-      if (myDocsError) throw myDocsError;
-
-      // CORRECTION : Récupérer les documents accessibles avec une requête correcte
-      const { data: accessibleDocuments, error: accessibleDocsError } = await supabase
-        .from("documents")
-        .select("*")
-        .neq("created_by", user.id)
-        .or(`
-          default_permissions->'read' ? 'all',
-          default_permissions->'read' ? 'authenticated'
-        `);
-
-      if (accessibleDocsError) {
-        console.error('Error fetching accessible documents:', accessibleDocsError);
-        // Si la requête complexe échoue, on utilise une approche alternative
-        await fetchAccessibleDocumentsAlternative(myDocuments || []);
-        return;
-      }
-
-      // Fusionner et dédupliquer les documents
-      const allDocuments = [
-        ...(myDocuments || []),
-        ...(accessibleDocuments || [])
-      ];
-
-      // Dédupliquer par ID
-      const uniqueDocuments = allDocuments.reduce((acc: Document[], current: Document) => {
-        const exists = acc.find(doc => doc.id === current.id);
-        if (!exists) {
-          acc.push(current);
-        }
-        return acc;
-      }, []);
-
-      // Trier par date de création décroissante
-      uniqueDocuments.sort((a: Document, b: Document) => 
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-
-      setDocuments(uniqueDocuments as Document[]);
-
-    } catch (error) {
-      console.error('Error fetching documents:', error);
-      // En cas d'erreur, essayer l'approche alternative
-      await fetchAccessibleDocumentsAlternative([]);
-    } finally {
-      setLoadingDocuments(false);
-    }
-  };
-
-  // Approche alternative si la requête complexe échoue
-  const fetchAccessibleDocumentsAlternative = async (myDocuments: Document[]): Promise<void> => {
-    try {
-      // Récupérer tous les documents et filtrer côté client
-      const { data: allDocuments, error } = await supabase
-        .from('documents')
-        .select('*')
-        .neq('created_by', user!.id);
-
-      if (error) throw error;
-
-      // Filtrer côté client les documents accessibles
-      const accessibleDocuments = (allDocuments || []).filter((doc: Document) => {
-        const permissions = doc.default_permissions as { read?: string[] };
-        return permissions?.read?.includes('all') || 
-               permissions?.read?.includes('authenticated') ||
-               permissions?.read?.includes(user!.id);
-      });
-
-      // Fusionner avec les documents de l'utilisateur
-      const mergedDocuments = [
-        ...myDocuments,
-        ...accessibleDocuments
-      ];
-
-      // Dédupliquer et trier
-      const uniqueDocuments = mergedDocuments.reduce((acc: Document[], current: Document) => {
-        const exists = acc.find(doc => doc.id === current.id);
-        if (!exists) {
-          acc.push(current);
-        }
-        return acc;
-      }, []);
-
-      uniqueDocuments.sort((a: Document, b: Document) => 
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-
-      setDocuments(uniqueDocuments);
-
-    } catch (error) {
-      console.error('Error in alternative fetch:', error);
-      // Si tout échoue, afficher seulement les documents de l'utilisateur
-      setDocuments(myDocuments);
-    }
-  };
-
-  const createNewDocument = async (): Promise<void> => {
-    if (creating || !user) return;
-    
-    setCreating(true);
+    setLoadingDocs(true);
     try {
       const { data, error } = await supabase
         .from('documents')
-        .insert([
-          {
-            name: 'Nouveau Document',
-            description: 'Document dynamique personnalisable',
-            created_by: user.id,
-            is_active: true,
-            default_permissions: { 
-              read: ['all'], 
-              write: ['all'],
-              delete: ['all']
-            },
-            theme_config: {}
-          }
-        ])
-        .select()
-        .single();
+        .select('*')
+        .or(`created_by.eq.${user.id},default_permissions->read.cs.["all"],default_permissions->read.cs.["authenticated"],default_permissions->read.cs.["${user.id}"]`)
+        .order('updated_at', { ascending: false });
 
       if (error) throw error;
-      
-      // Rediriger vers l'éditeur
-      router.push(`/gestion-drive/${(data as Document).id}`);
-    } catch (error) {
-      console.error('Error creating document:', error);
-      alert('Erreur lors de la création du document.');
+      setDocuments(data || []);
+    } catch (e) {
+      console.error(e);
     } finally {
-      setCreating(false);
+      setLoadingDocs(false);
     }
   };
 
-  const startEditDocument = (doc: Document): void => {
-    setEditingDocument(doc);
-    setEditName(doc.name);
-  };
+  useEffect(() => {
+    if (!loading && !user) router.push('/login');
+    if (user) fetchDocuments();
+  }, [user, loading]);
 
-  const updateDocumentName = async (): Promise<void> => {
-    if (!editingDocument || !user) return;
-
-    try {
-      // Vérifier que l'utilisateur a le droit de modifier ce document
-      const canEdit = editingDocument.created_by === user.id || 
-        hasPermission(editingDocument.default_permissions, 'write', user.id);
-
-      if (!canEdit) {
-        alert('Vous n\'avez pas les permissions pour modifier ce document.');
-        return;
-      }
-
-      const { error } = await supabase
-        .from('documents')
-        .update({ 
-          name: editName,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', editingDocument.id);
-
-      if (error) throw error;
-
-      // Mettre à jour localement
-      setDocuments(documents.map(doc => 
-        doc.id === editingDocument.id ? { ...doc, name: editName } : doc
-      ));
-      
-      setEditingDocument(null);
-      setEditName('');
-    } catch (error) {
-      console.error('Error updating document:', error);
-      alert('Erreur lors de la modification du document.');
-    }
-  };
-
-  const deleteDocument = async (docId: string): Promise<void> => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer ce document ?') || !user) return;
-
-    try {
-      // Vérifier que l'utilisateur est le créateur du document
-      const documentToDelete = documents.find(doc => doc.id === docId);
-      if (!documentToDelete) return;
-
-      if (documentToDelete.created_by !== user.id) {
-        alert('Vous ne pouvez supprimer que vos propres documents.');
-        return;
-      }
-
-      const { error } = await supabase
-        .from('documents')
-        .delete()
-        .eq('id', docId);
-
-      if (error) throw error;
-
-      // Mettre à jour localement
-      setDocuments(documents.filter(doc => doc.id !== docId));
-    } catch (error) {
-      console.error('Error deleting document:', error);
-      alert('Erreur lors de la suppression du document.');
-    }
-  };
-
-  // Helper function pour vérifier les permissions
-  const hasPermission = (
-    permissions: any, 
-    action: 'read' | 'write' | 'delete', 
-    userId?: string
-  ): boolean => {
-    if (!permissions || !permissions[action]) return false;
-    
-    const actionPermissions = permissions[action];
-    return actionPermissions.includes('all') || 
-           actionPermissions.includes('authenticated') ||
-           (userId && actionPermissions.includes(userId));
-  };
-
-  // Vérifier si l'utilisateur peut modifier un document
-  const canEditDocument = (doc: Document): boolean => {
-    if (!user) return false;
-    return doc.created_by === user.id || 
-      hasPermission(doc.default_permissions, 'write', user.id);
-  };
-
-  // Vérifier si l'utilisateur peut supprimer un document
-  const canDeleteDocument = (doc: Document): boolean => {
-    if (!user) return false;
-    return doc.created_by === user.id ||
-      hasPermission(doc.default_permissions, 'delete', user.id);
-  };
-
-  // Filtrer les documents par recherche
-  const filteredDocuments = documents.filter(doc =>
-    doc.name.toLowerCase().includes(search.toLowerCase()) ||
-    (doc.description && doc.description.toLowerCase().includes(search.toLowerCase()))
-  );
-
-  if (loading && !user) {
-    return (
-      <div className={`${darkMode ? 'dark' : ''} min-h-screen bg-linear-to-br from-gray-50 to-gray-200 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center`}>
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Chargement des documents...</p>
-        </div>
-      </div>
+  // 2. Logic & Computed
+  const filteredDocuments = useMemo(() => {
+    return documents.filter(doc =>
+      doc.name.toLowerCase().includes(search.toLowerCase())
     );
-  }
+  }, [documents, search]);
 
-  if (!user) {
-    return null;
-  }
+  const pinnedDocs = useMemo(() => filteredDocuments.filter(d => d.is_pinned), [filteredDocuments]);
+  const otherDocs = useMemo(() => filteredDocuments.filter(d => !d.is_pinned), [filteredDocuments]);
+
+  // --- ACTIONS ---
+
+  const handleTogglePin = async (doc: Document) => {
+    const nextValue = !doc.is_pinned;
+    // Optimistic Update
+    setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, is_pinned: nextValue } : d));
+    
+    await supabase.from('documents').update({ is_pinned: nextValue }).eq('id', doc.id);
+  };
+
+  const handleRename = async () => {
+    if (!activeDoc || !formData.name) return;
+    setIsProcessing(true);
+    const { error } = await supabase
+      .from('documents')
+      .update({ name: formData.name, updated_at: new Date().toISOString() })
+      .eq('id', activeDoc.id);
+
+    if (!error) {
+      setDocuments(prev => prev.map(d => d.id === activeDoc.id ? { ...d, name: formData.name } : d));
+      setModalMode(null);
+    }
+    setIsProcessing(false);
+  };
+
+  const handleDuplicate = async () => {
+    if (!activeDoc || !user) return;
+    setIsProcessing(true);
+    try {
+      const newDoc = await duplicateDocumentProcess({
+        originalDocId: activeDoc.id,
+        newTitle: formData.name,
+        userId: user.id,
+        includeData: formData.withData,
+        supabase
+      });
+      setDocuments([newDoc as Document, ...documents]);
+      setModalMode(null);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Supprimer définitivement ce document ?")) return;
+    const { error } = await supabase.from('documents').delete().eq('id', id);
+    if (!error) setDocuments(prev => prev.filter(d => d.id !== id));
+  };
 
   return (
-    <div className={`${darkMode ? 'dark' : ''} min-h-screen bg-linear-to-br from-gray-50 to-gray-200 dark:from-gray-900 dark:to-gray-800 transition-colors`}>
-      
-      {/* Header */}
-      <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-4">
-              <Link 
-                href="/"
-                className="flex items-center space-x-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
-              >
-                <span>←</span>
-                <span>Retour</span>
-              </Link>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                Mes Documents
-              </h1>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={() => setDarkMode(!darkMode)}
-                className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
-              >
-                {darkMode ? '☀️' : '🌙'}
-              </button>
-              
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                  {profile?.full_name?.charAt(0) || user.email?.charAt(0).toUpperCase()}
-                </div>
-                <div className="text-sm">
-                  <div className="font-medium text-gray-900 dark:text-white">
-                    {profile?.full_name || 'Utilisateur'}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+    <div className="min-h-screen bg-[#FBFBFA] transition-colors">
+      <header className="sticky top-0 z-30 w-full border-b border-black/5 bg-white/80 backdrop-blur-md h-14 flex items-center px-6 justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="sm" onClick={() => router.push('/')}><ChevronLeft size={16} /></Button>
+          <span className="font-bold text-sm tracking-tight italic">Espace de Travail / Drive</span>
         </div>
+        <Badge className="bg-rose-50 text-rose-600 font-bold uppercase text-[9px]">{profile?.role}</Badge>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header Section */}
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-              Gestion des Documents
-            </h2>
-            <p className="text-gray-600 dark:text-gray-300">
-              Créez et gérez vos documents dynamiques
-            </p>
+      <main className="max-w-6xl mx-auto px-6 py-12">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-16">
+          <div className="space-y-2">
+            <h1 className="text-6xl font-black text-gray-900 tracking-tighter italic">Drive.</h1>
+            <p className="text-gray-500 font-medium">Analyses et suivis stratégiques Pyiurs.</p>
           </div>
-          
-          <button
-            onClick={createNewDocument}
-            disabled={creating}
-            className={`bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg transition-colors flex items-center space-x-2 ${
-              creating ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
-          >
-            {creating ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                <span>Création...</span>
-              </>
-            ) : (
-              <>
-                <span>+</span>
-                <span>Nouveau Document</span>
-              </>
-            )}
-          </button>
+          <Button className="bg-gray-900 hover:bg-black text-white rounded-2xl h-14 px-8 font-black shadow-xl shadow-gray-200 uppercase tracking-tighter italic transition-all active:scale-95">
+            <Plus className="mr-2" size={24} /> Nouveau Document
+          </Button>
         </div>
 
-        {/* Search Bar */}
-        <div className="mb-8">
-          <div className="relative max-w-md">
-            <input
-              type="text"
-              placeholder="Rechercher un document..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <span className="text-gray-400">🔍</span>
-            </div>
-          </div>
+        <div className="relative max-w-md mb-12 group">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-rose-500 transition-colors" size={18} />
+          <Input placeholder="Chercher..." className="h-12 pl-12 rounded-2xl border-transparent bg-white shadow-sm focus-visible:ring-rose-500/20 font-bold" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
 
-        {/* Loading State */}
-        {loadingDocuments ? (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600 dark:text-gray-400">Chargement de vos documents...</p>
+        {loadingDocs ? (
+          <div className="grid grid-cols-4 gap-6 animate-pulse">
+            {[1,2,3,4].map(i => <div key={i} className="h-56 bg-gray-100 rounded-xl" />)}
           </div>
         ) : (
-          /* Documents Grid */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredDocuments.map((doc) => (
-              <div
-                key={doc.id}
-                className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-lg transition-all duration-200 group relative"
-              >
-                {/* Indicateur de propriété */}
-                {doc.created_by === user.id && (
-                  <div className="absolute top-2 left-2">
-                    <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
-                      Propriétaire
-                    </span>
-                  </div>
-                )}
-
-                {/* Indicateur de document partagé */}
-                {doc.created_by !== user.id && (
-                  <div className="absolute top-2 left-2">
-                    <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
-                      Partagé
-                    </span>
-                  </div>
-                )}
-
-                {/* Menu d'actions */}
-                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex space-x-1">
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault(); // Empêcher la navigation
-                      startDuplicate(doc);
-                    }}
-                    className="p-1.5 text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors bg-white dark:bg-gray-700 rounded-lg shadow-sm"
-                    title="Dupliquer"
-                  >
-                    📋
-                  </button>
-                  {canEditDocument(doc) && (
-                    <button
-                      onClick={() => startEditDocument(doc)}
-                      className="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors bg-white dark:bg-gray-700 rounded-lg shadow-sm"
-                      title="Renommer"
-                    >
-                      ✏️
-                    </button>
-                  )}
-                  {canDeleteDocument(doc) && (
-                    <button
-                      onClick={() => deleteDocument(doc.id)}
-                      className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors bg-white dark:bg-gray-700 rounded-lg shadow-sm"
-                      title="Supprimer"
-                    >
-                      🗑️
-                    </button>
-                  )}
-                </div>
-
-                <Link href={`/gestion-drive/${doc.id}`} className="block">
-                  {/* Icon */}
-                  <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center text-white text-xl mb-4">
-                    📄
-                  </div>
-
-                  {/* Document Info */}
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2 pr-12">
-                    {doc.name}
-                  </h3>
-                  
-                  <p className="text-gray-600 dark:text-gray-300 text-sm mb-4 line-clamp-2">
-                    {doc.description || 'Document dynamique personnalisable'}
-                  </p>
-
-                  {/* Metadata */}
-                  <div className="flex justify-between items-center text-xs text-gray-500 dark:text-gray-400">
-                    <span>
-                      {new Date(doc.created_at).toLocaleDateString('fr-FR')}
-                    </span>
-                    <span className={`px-2 py-1 rounded-full ${
-                      doc.is_active 
-                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
-                        : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                    }`}>
-                      {doc.is_active ? 'Actif' : 'Inactif'}
-                    </span>
-                  </div>
-                </Link>
-              </div>
-            ))}
-
-            {/* Empty State */}
-            {filteredDocuments.length === 0 && (
-              <div className="col-span-full text-center py-12">
-                <div className="text-gray-400 dark:text-gray-500 mb-4">
-                  <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                  {search ? 'Aucun document trouvé' : 'Aucun document'}
+          <div className="space-y-16">
+            {pinnedDocs.length > 0 && (
+              <section className="space-y-6">
+                <h3 className="text-[10px] font-black uppercase text-rose-500 tracking-[0.3em] flex items-center gap-2 ml-2">
+                  <Star size={14} className="fill-rose-500" /> Favoris
                 </h3>
-                <p className="text-gray-500 dark:text-gray-400 mb-4 max-w-md mx-auto">
-                  {search 
-                    ? 'Aucun document ne correspond à votre recherche. Essayez d\'autres termes.'
-                    : 'Commencez par créer votre premier document dynamique.'
-                  }
-                </p>
-                {search ? (
-                  <button
-                    onClick={() => setSearch('')}
-                    className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
-                  >
-                    Effacer la recherche
-                  </button>
-                ) : (
-                  <button
-                    onClick={createNewDocument}
-                    disabled={creating}
-                    className={`bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors ${
-                      creating ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
-                  >
-                    {creating ? 'Création...' : 'Créer un document'}
-                  </button>
-                )}
-              </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {pinnedDocs.map(doc => (
+                    <DocCard key={doc.id} doc={doc} onPin={() => handleTogglePin(doc)} onEdit={() => { setActiveDoc(doc); setFormData({ ...formData, name: doc.name }); setModalMode('edit'); }} onCopy={() => { setActiveDoc(doc); setFormData({ name: `${doc.name} (Copie)`, withData: true }); setModalMode('duplicate'); }} onDelete={() => handleDelete(doc.id)} />
+                  ))}
+                </div>
+              </section>
             )}
+
+            <section className="space-y-6">
+              <h3 className="text-[10px] font-black uppercase text-gray-400 tracking-[0.3em] flex items-center gap-2 ml-2 italic">Documents récents</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {otherDocs.map(doc => (
+                  <DocCard key={doc.id} doc={doc} onPin={() => handleTogglePin(doc)} onEdit={() => { setActiveDoc(doc); setFormData({ ...formData, name: doc.name }); setModalMode('edit'); }} onCopy={() => { setActiveDoc(doc); setFormData({ name: `${doc.name} (Copie)`, withData: true }); setModalMode('duplicate'); }} onDelete={() => handleDelete(doc.id)} />
+                ))}
+              </div>
+            </section>
           </div>
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex justify-between items-center">
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              © 2024 Gestion Drive. {filteredDocuments.length} document(s)
-            </div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              Connecté en tant que {user.email}
-            </div>
-          </div>
-        </div>
-      </footer>
-
-      {/* Modal de renommage */}
-      {editingDocument && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-11/12 max-w-md">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Renommer le document
-            </h3>
-            
-            <input
-              type="text"
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-4"
-              placeholder="Nom du document"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') updateDocumentName();
-                if (e.key === 'Escape') setEditingDocument(null);
-              }}
-            />
-            
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => setEditingDocument(null)}
-                className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={updateDocumentName}
-                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
-              >
-                Sauvegarder
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {duplicatingDoc && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-11/12 max-w-md shadow-2xl">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center">
-              <span className="bg-green-100 text-green-600 p-2 rounded-lg mr-3">📋</span>
-              Dupliquer le document
-            </h3>
-            
-            <div className="space-y-4">
-              {/* Nom */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Nouveau nom
-                </label>
-                <input
-                  type="text"
-                  value={duplicateName}
-                  onChange={(e) => setDuplicateName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                  autoFocus
-                />
-              </div>
-
-              {/* Options */}
-              <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg space-y-3">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-2">
-                  Que voulez-vous copier ?
-                </label>
-                
-                <label className="flex items-center space-x-3 cursor-pointer">
-                  <input 
-                    type="radio" 
-                    checked={duplicateWithData === false} 
-                    onChange={() => setDuplicateWithData(false)}
-                    className="w-4 h-4 text-green-600 focus:ring-green-500 border-gray-300"
-                  />
-                  <span className="text-gray-900 dark:text-gray-200">
-                    Structure uniquement
-                    <span className="block text-xs text-gray-500 mt-0.5">Copie les colonnes, mais laisse le document vide.</span>
-                  </span>
-                </label>
-
-                <label className="flex items-center space-x-3 cursor-pointer">
-                  <input 
-                    type="radio" 
-                    checked={duplicateWithData === true} 
-                    onChange={() => setDuplicateWithData(true)}
-                    className="w-4 h-4 text-green-600 focus:ring-green-500 border-gray-300"
-                  />
-                  <span className="text-gray-900 dark:text-gray-200">
-                    Structure et Données
-                    <span className="block text-xs text-gray-500 mt-0.5">Copie tout le contenu (lignes, fichiers, etc.).</span>
-                  </span>
-                </label>
-              </div>
-            </div>
-            
-            <div className="flex justify-end space-x-3 mt-6">
-              <button
-                onClick={() => setDuplicatingDoc(null)}
-                disabled={isProcessingDuplicate}
-                className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={handleDuplicate}
-                disabled={isProcessingDuplicate}
-                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center space-x-2"
-              >
-                {isProcessingDuplicate ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    <span>Copie en cours...</span>
-                  </>
-                ) : (
-                  <span>Confirmer la copie</span>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <DocumentDialogs 
+        mode={modalMode} 
+        onClose={() => setModalMode(null)} 
+        onConfirm={modalMode === 'edit' ? handleRename : handleDuplicate}
+        formData={formData}
+        setFormData={setFormData}
+        isProcessing={isProcessing}
+      />
     </div>
   );
 }

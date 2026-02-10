@@ -13,6 +13,7 @@ export interface Document {
   theme_config: Record<string, string>;
   isEditing?: boolean;
   editName?: string;
+  is_pinned?: boolean;
 }
 
 export interface DocumentPermissions {
