@@ -36,13 +36,16 @@ interface PageProps {
 }
 
 async function getPOSOrderLinesWithAgent(month?: string, year?: string, agentId?: string) {
-  const m = month || (new Date().getMonth() + 1).toString().padStart(2, '0');
+  // const m = month || (new Date().getMonth() + 1).toString().padStart(2, '0');
+  const m = !month ? (new Date().getMonth() + 1).toString().padStart(2, '0') : (
+    month.length > 1 ? month : `0${month}`
+  )
+  
   const y = year || new Date().getFullYear().toString();
   const date = `${y}-${m}-01`;
   const lastDay = new Date(parseInt(y), parseInt(m), 0).getDate();
 
-  // const fields = "id,qty,name,product_id,price_unit,price_subtotal,full_product_name,order_id,create_date"
-  const fields = "id"
+  const fields = "id,qty,name,product_id,price_unit,price_subtotal,full_product_name,order_id,create_date"
 
   // Base domain
   let domain = `[["create_date", ">=", "${date} 00:01:00"], ["create_date", "<=", "${y}-${m}-${lastDay} 23:59:59"]]`;
@@ -116,19 +119,16 @@ export default async function VendeuseSalesPage({ searchParams }: PageProps) {
     getPriceList()
   ])
 
-  console.log(orderLines, pricelist);
-  
-
   return (
     <Suspense fallback={<TableSkeleton />}>
-      {/* <VendeuseSalesDashboard
+      <VendeuseSalesDashboard
         month={month}
         year={year}
         agentId={agentId}
         isAdmin={isAdmin}
         agents={pricelist.records}
         orderLines={orderLines.records}
-      /> */}
+      />
     </Suspense>
   );
 }

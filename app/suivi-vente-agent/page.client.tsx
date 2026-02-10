@@ -167,7 +167,7 @@ export function VendeuseSalesDashboard({
         const orderId = row.original.order_id as OrderIdAccessor;
         return (
           <Badge variant="secondary" className="font-mono">
-            {orderId[1]}
+            {/* {orderId[1]} */}
           </Badge>
         );
       },
@@ -178,11 +178,12 @@ export function VendeuseSalesDashboard({
       header: 'Produits',
       cell: ({ row }: { row: OrderLineRow }) => {
         const productId = row.original.product_id as ProductIdAccessor;
+
         return (
           <div className="flex flex-wrap gap-1 max-w-48">
-            <Badge variant="outline" className="text-xs">
+            {/* <Badge variant="outline" className="text-xs">
               {productId[1]}
-            </Badge>
+            </Badge> */}
           </div>
         );
       },
@@ -334,9 +335,9 @@ export function VendeuseSalesDashboard({
               <div className="text-2xl font-bold text-green-600">
                 {formatAmount(totalVentes)}
               </div>
-              <p className="text-xs text-gray-500 mt-1">
+              {/* <p className="text-xs text-gray-500 mt-1">
                 {new Set(orderLines.map(r => r.order_id[0])).size} ventes
-              </p>
+              </p> */}
             </CardContent>
           </Card>
 
