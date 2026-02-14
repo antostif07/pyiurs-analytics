@@ -1,143 +1,155 @@
-import { getBeautyDashboardStats } from "./data-fetcher";
+import { getBeautyDashboardStats, getBeautySmartAlerts } from "./data-fetcher";
 import { 
-  ShoppingBag, 
-  AlertTriangle, 
-  TrendingUp, 
-  PackageSearch,
-  ArrowUpRight,
-  MoreHorizontal
+  AlertTriangle, TrendingUp, PackageSearch, 
+  Clock, ShoppingCart, CheckCircle2, 
+  ArrowRight, BrainCircuit, Timer,
+  ShoppingBag
 } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
+import ProductImage from "../marketing/components/ProductImage";
+import AlertRow from "./components/AlertRow";
 
 export default async function BeautyDashboard() {
   const stats = await getBeautyDashboardStats();
+  const alerts = await getBeautySmartAlerts();
 
   return (
-    <div className="space-y-8">
-      {/* HEADER SECTION */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Vue Globale Beauty</h1>
-        <p className="text-gray-500 text-sm">Données en temps réel extraites d'Odoo</p>
+    <div className="space-y-8 pb-10">
+      {/* HEADER */}
+      <div className="flex justify-between items-end">
+        <div>
+          <h1 className="text-3xl font-black text-gray-900 tracking-tighter italic uppercase">
+            Nerve Center <span className="text-rose-600">Beauty</span>
+          </h1>
+          <p className="text-sm text-gray-500 font-medium">Analyse prédictive et gestion des flux</p>
+        </div>
+        <Badge className="bg-emerald-100 text-emerald-700 border-none px-3 py-1 animate-pulse">
+            Live Sync Odoo & AI
+        </Badge>
       </div>
 
-      {/* KPI CARDS */}
+      {/* KPI CARDS : FOCUS OPÉRATIONNEL */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard 
-          title="Produits Actifs" 
+          title="Stock Total" 
           value={stats.totalQuantity} 
-          icon={<ShoppingBag className="text-blue-600" size={20} />}
-          description="Total segment Beauty"
+          icon={<ShoppingBag size={20} className="text-blue-600" />}
+          description="Unités physiques en rayon"
+          color="bg-blue-50"
         />
         <StatCard 
-          title="Chiffre d'Affaires" 
+          title="Ventes (Mois)" 
           value={`${stats.currentMonthRevenue.toLocaleString()} $`} 
-          icon={<TrendingUp className="text-green-600" size={20} />}
-          trend="+12%" 
-          description="Mois en cours"
+          icon={<TrendingUp size={20} className="text-emerald-600" />}
+          description="Chiffre d'affaires Beauty"
+          color="bg-emerald-50"
         />
         <StatCard 
-          title="Alertes Stock" 
-          value={stats.lowStockCount} 
-          icon={<AlertTriangle className="text-amber-600" size={20} />}
-          description="Moins de 10 unités"
-          status={stats.lowStockCount > 0 ? "warning" : "success"}
+          title="Risques Rupture" 
+          value={alerts.filter(a => a.status === 'low_stock').length} 
+          icon={<BrainCircuit size={20} className="text-rose-600" />}
+          description="Identifiés par l'IA"
+          status="warning"
+          color="bg-rose-50"
         />
         <StatCard 
-          title="Valeur Stock" 
-          value="Calcul..." 
-          icon={<PackageSearch className="text-purple-600" size={20} />}
-          description="Estimation Odoo"
+          title="En Commande" 
+          value={alerts.filter(a => a.status === 'reordered').length} 
+          icon={<Timer size={20} className="text-amber-600" />}
+          description="Réappro en cours"
+          color="bg-amber-50"
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* LISTE PRODUITS RÉCENTS */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-gray-50 flex justify-between items-center">
-            <h3 className="font-bold text-gray-900">Dernières Mises à Jour</h3>
-            <button className="text-sm text-blue-600 font-medium hover:underline">Voir tout</button>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* SECTION GAUCHE : TABLEAU DE BORD IA */}
+        <div className="lg:col-span-8 space-y-4">
+          <div className="flex items-center justify-between px-2">
+            <h3 className="font-black text-gray-900 uppercase tracking-widest text-sm flex items-center gap-2">
+                <AlertTriangle className="text-rose-600" size={18} /> Alertes prioritaires & Prédictions
+            </h3>
           </div>
-          <div className="overflow-x-auto">
+
+          <Card className="border-none shadow-sm rounded-xl bg-white overflow-hidden">
             <table className="w-full text-left text-sm">
-              <thead className="bg-gray-50 text-gray-400 uppercase text-[10px] font-bold">
-                <tr>
-                  <th className="px-6 py-4">Produit</th>
-                  <th className="px-6 py-4">Ref</th>
-                  <th className="px-6 py-4">Prix</th>
-                  <th className="px-6 py-4">Stock</th>
-                  <th className="px-6 py-4"></th>
+              <thead className="bg-gray-50/50 border-b border-gray-100">
+                <tr className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                  <th></th>
+                  <th className="px-6 py-4">Produit (Modèle HS)</th>
+                  <th className="px-6 py-4 text-center">Stock</th>
+                  <th className="px-6 py-4 text-center">Rupture Prévue</th>
+                  <th className="px-6 py-4 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {stats.recentProducts.map((product: any) => (
-                  <tr key={product.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-6 py-4 font-medium text-gray-900">{product.name}</td>
-                    <td className="px-6 py-4 text-gray-500">{product.default_code || '-'}</td>
-                    <td className="px-6 py-4 font-semibold text-gray-900">{product.lst_price} $</td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2 py-1 rounded-full text-[11px] font-bold ${
-                        product.qty_available > 10 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                      }`}>
-                        {product.qty_available} en stock
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right text-gray-400">
-                      <MoreHorizontal size={18} className="cursor-pointer" />
-                    </td>
-                  </tr>
-                ))}
+                {alerts.length > 0 ? alerts.map((item: any) => (
+                  <AlertRow key={item.hs_code} item={item} />
+                )) : (
+                    <tr>
+                        <td colSpan={4} className="py-20 text-center">
+                            <CheckCircle2 className="mx-auto text-emerald-200 mb-2" size={40} />
+                            <p className="text-sm font-bold text-gray-400">Aucune alerte critique détectée</p>
+                        </td>
+                    </tr>
+                )}
               </tbody>
             </table>
-          </div>
+          </Card>
         </div>
 
-        {/* SECTION DROITE : QUICK ACTIONS / INSIGHTS */}
-        <div className="space-y-6">
-          <div className="bg-gray-900 rounded-2xl p-6 text-white shadow-xl shadow-gray-200">
-            <h3 className="font-bold mb-4">Actions Rapides</h3>
-            <div className="grid grid-cols-1 gap-3 text-sm">
-              <button className="flex items-center justify-between p-3 bg-white/10 rounded-xl hover:bg-white/20 transition-colors">
-                <span>Créer un produit Beauty</span>
-                <ArrowUpRight size={16} />
-              </button>
-              <button className="flex items-center justify-between p-3 bg-white/10 rounded-xl hover:bg-white/20 transition-colors">
-                <span>Imprimer Inventaire</span>
-                <ArrowUpRight size={16} />
-              </button>
-            </div>
-          </div>
-          
-          <div className="bg-pink-50 rounded-2xl p-6 border border-pink-100">
-            <h3 className="font-bold text-pink-900 mb-2 text-sm">Conseil Business</h3>
-            <p className="text-pink-800 text-xs leading-relaxed">
-              Le stock de produits "Beauty" a diminué de 15% par rapport à la semaine dernière. 
-              Prévoyez un réapprovisionnement pour les références en alerte.
-            </p>
-          </div>
+        {/* SECTION DROITE : RECOMMANDATIONS IA */}
+        <div className="lg:col-span-4 space-y-6">
+            <h3 className="font-black text-gray-900 uppercase tracking-widest text-sm px-2">Exemple: Focus Stratégique</h3>
+            
+            <Card className="p-6 border-none shadow-xl rounded-xl bg-gray-900 text-white relative overflow-hidden">
+                <div className="relative z-10">
+                    <div className="bg-rose-500 w-10 h-10 rounded-2xl flex items-center justify-center mb-4">
+                        <BrainCircuit size={20} />
+                    </div>
+                    <h4 className="text-lg font-bold mb-2 italic">Conseil Supply Chain</h4>
+                    <p className="text-xs text-gray-400 leading-relaxed italic">
+                        "L'IA a détecté une accélération de 15% sur les produits solaires. Pensez à avancer les commandes de Mars pour éviter l'engorgement fournisseur."
+                    </p>
+                    <button className="mt-6 text-[10px] font-black uppercase tracking-widest text-rose-400 flex items-center gap-2 hover:text-rose-300">
+                        Consulter tous les rapports <ArrowRight size={12} />
+                    </button>
+                </div>
+                <div className="absolute -right-4 -bottom-4 opacity-10 rotate-12">
+                    <TrendingUp size={160} />
+                </div>
+            </Card>
         </div>
       </div>
     </div>
   );
 }
 
-// COMPOSANT INTERNE : CARTE STAT
-function StatCard({ title, value, icon, description, trend, status }: any) {
+function StatCard({ title, value, icon, description, status, color }: any) {
   return (
-    <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-      <div className="flex justify-between items-start mb-4">
-        <div className="p-2 bg-gray-50 rounded-lg">{icon}</div>
-        {trend && (
-          <span className="text-[10px] font-bold px-2 py-1 bg-green-100 text-green-700 rounded-full">
-            {trend}
-          </span>
-        )}
+    <Card className="p-6 border-none shadow-sm rounded-4xl bg-white group hover:shadow-md transition-all">
+      <div className="flex justify-between items-start mb-6">
+        <div className={`p-3 rounded-2xl ${color}`}>
+          {icon}
+        </div>
       </div>
       <div>
-        <p className="text-sm text-gray-500 font-medium">{title}</p>
-        <h4 className={`text-2xl font-bold mt-1 ${status === 'warning' ? 'text-red-600' : 'text-gray-900'}`}>
+        <h4 className={`text-3xl font-black tracking-tighter ${status === 'warning' ? 'text-rose-600' : 'text-gray-900'}`}>
           {value}
         </h4>
-        <p className="text-[11px] text-gray-400 mt-1 uppercase tracking-wider">{description}</p>
+        <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mt-2">{title}</p>
+        <p className="text-[9px] text-gray-300 font-bold uppercase mt-1 italic leading-none">{description}</p>
       </div>
-    </div>
+    </Card>
   );
+}
+
+function QuickActionButton({ label, icon }: any) {
+    return (
+        <button className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-2xl transition-colors group">
+            <span className="text-xs font-bold text-gray-600 group-hover:text-gray-900">{label}</span>
+            <div className="text-gray-300 group-hover:text-rose-500">{icon}</div>
+        </button>
+    )
 }

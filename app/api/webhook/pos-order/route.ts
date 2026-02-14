@@ -5,6 +5,7 @@ import { format, subDays } from 'date-fns';
 import { NextRequest, NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
 import { parseOdooFrenchDate } from "../utils";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
@@ -71,7 +72,11 @@ async function getPOSConfig(id: number) {
         `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.config?fields=id,name&domain=[["id", "=", ${id}]]`,
         { next: { revalidate: 300 } }
     );
-    if (!res.ok) throw new Error("Erreur API Odoo - Configuration POS");
+    if (!res.ok) {
+        console.log(res);
+        
+        throw new Error("Erreur API Odoo - Configuration POS");
+    }
     return res.json();
 }
 
@@ -92,22 +97,6 @@ async function getProductInfo(id: number) {
     if (!res.ok) throw new Error("Erreur API Odoo - Product Product");
     return res.json();
 }
-
-function aggregateRestocks(moves: any[]) {
-  const grouped = moves.reduce((acc: Record<string, number>, move) => {
-    // On groupe par jour (YYYY-MM-DD)
-    const dateKey = move.date.split(' ')[0]; 
-    acc[dateKey] = (acc[dateKey] || 0) + move.product_uom_qty;
-    return acc;
-  }, {});
-
-  // On transforme l'objet en tableau pour l'IA
-  return Object.entries(grouped).map(([date, qty]) => ({
-    date,
-    qty
-  }));
-}
-
 
 async function getPartner(id: number) {
     const res = await fetch(
@@ -166,8 +155,7 @@ async function sendMessage(payload: PayloadWhatsappMessage) {
     }
 }
 
-// AI Stock Report
-
+const supabaseAdmin = createAdminClient();
 
 export async function POST(req: NextRequest) {
     try {
@@ -199,11 +187,6 @@ export async function POST(req: NextRequest) {
             const posConfig = posConfigData?.records?.[0];
 
             const boutique = getBoutiqueLabel(posConfig?.name);
-
-            // if(!boutique){
-            //     console.error(`❌ Boutique non gérée pour la commande ${orderId} (config POS: ${posConfig?.name})`);
-            //     return NextResponse.json({ error: "Boutique non gérée" }, { status: 400 });
-            // }
 
             const clientPhone = partner?.phone || "";
             const formattedPhone = formatPhoneNumber(clientPhone);
@@ -249,6 +232,7 @@ export async function POST(req: NextRequest) {
 
         // Send Report
         const productLines = await getPOSOrderLines(orderId);
+        // const startDate = format(subDays(new Date(), 60), 'yyyy-MM-dd HH:mm:ss');
 
         await Promise.all(
             productLines.records.map(async (pl: {id: number, product_id: [number, string]}) => {
@@ -258,6 +242,7 @@ export async function POST(req: NextRequest) {
                 if(product.records && product.records[0].x_studio_segment.toLowerCase() === "beauty" ) {
                     const hs_code = product.records[0].hs_code;
 
+                    // 1. Récupération du stock réel via stock.quant
                     const quants = await odooClient.execute("stock.quant", "read_group", [
                         [
                             ["product_id.hs_code", "=", hs_code],
@@ -269,6 +254,7 @@ export async function POST(req: NextRequest) {
 
                     const currentStock = quants[0]?.quantity || 0; 
 
+                    // 2. Si le stock est bas, on lance l'IA et on synchronise le Tracker
                     if(currentStock < 12) {
                         const sl = await odooClient.execute("pos.order.line", "read_group",[
                             [
@@ -305,6 +291,20 @@ export async function POST(req: NextRequest) {
                             currentStock,
                             history: history
                         });
+
+                        const { error: trackerError } = await supabaseAdmin
+                            .from('beauty_inventory_tracker')
+                            .upsert({
+                                hs_code: hs_code,
+                                product_name_base: productName,
+                                last_total_stock: currentStock,
+                                ai_prediction_data: aiInsight,
+                                status: currentStock <= 0 ? 'out_of_stock' : 'low_stock',
+                                last_analysis_at: new Date().toISOString(),
+                                updated_at: new Date().toISOString()
+                            }, { onConflict: 'hs_code' });
+
+                        if (trackerError) console.error("❌ Erreur Sync Tracker:", trackerError);
                         
                         const transporter = nodemailer.createTransport({
                             host: process.env.SMTP_HOST,
@@ -327,9 +327,6 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({
             success: true,
-            // message_id: result.messages?.[0]?.id || null,
-            // to: payload_client.to,
-            // template: payload_client.template?.name,
         });
     } catch (error: unknown) {
         console.error('💥 Webhook Error:', error);

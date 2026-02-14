@@ -1,5 +1,6 @@
 'use server'
 import { odooClient } from "@/lib/odoo/xmlrpc";
+import { createClient } from "@/lib/supabase/server";
 
 // types/odoo.ts ou directement dans data-fetcher.ts
 
@@ -69,7 +70,7 @@ export async function getBeautyDashboardStats() {
     totalQuantity,
     lowStockCount,
     recentProducts,
-    currentMonthRevenue: salesData[salesData.length - 1]?.price_subtotal || 0,
+    currentMonthRevenue: salesData[salesData.length - 1]?.price_subtotal_incl || 0,
   };
 }
 
@@ -152,4 +153,19 @@ export async function getProductsByHSCode(hsCode: string): Promise<any[]> {
     console.error("Erreur Odoo Variantes:", error);
     return [];
   }
+}
+
+export async function getBeautySmartAlerts() {
+  const supabase = createClient();
+  
+  // On récupère les produits qui ne sont pas en statut 'normal' 
+  // ou ceux qui ont une date de rupture proche
+  const { data: alerts, error } = await supabase
+    .from('beauty_inventory_tracker')
+    .select('*')
+    .neq('status', 'normal')
+    .order('last_total_stock', { ascending: true });
+
+  if (error) return [];
+  return alerts;
 }

@@ -23,6 +23,7 @@ export function extractBoutiqueCode(locationName: string): string {
   if (name.includes('pbktm/')) return 'ktm';
   if (name.includes('mto/stock')) return 'mto';
   if (name.includes('pblmb/')) return 'lmb';
+  if (name.includes('lmb')) return 'lmb';
   if (name.includes('pbonl/')|| name.includes('pb.24/boutique onl')) return 'onl';
   if (name.includes('dcbty') || name.includes('p.bty/stock') || name.includes('dcfem')) return 'dc';
   

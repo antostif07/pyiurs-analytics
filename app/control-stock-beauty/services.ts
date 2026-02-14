@@ -27,10 +27,8 @@ async function getStockQuantsForProducts(productIds: number[]): Promise<{ record
     for (const batch of batches) {
       const domain = JSON.stringify([
         ['product_id', 'in', batch],
-        ['location_id', 'in', [8,58,62,89,99,100,105,107,121,160,169,170,180,225,226,231,232,244,245,259,261]],
+        ['location_id', 'in', [8,58,62,89,99,100,105,107,121,160,169,170,180,225,226,231,232,244,245,259,261,293]],
       ]);
-      
-      console.log(process.env.BASE_URL);
       
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/stock.quant?fields=id,product_id,product_tmpl_id,location_id,quantity&domain=${domain}`,
@@ -56,8 +54,8 @@ async function getProducts() {
   const domain = [
     ["categ_id", "ilike", "beauty"],
     ["categ_id", "not ilike", "make-up"],
-    ["active", "=", true],            // IMPORTANT : true sans guillemets
-    ["available_in_pos", "=", true]   // IMPORTANT : true sans guillemets
+    ["active", "=", true],
+    ["available_in_pos", "=", true]
   ];
 
   // 2. On utilise URLSearchParams pour construire une URL valide (encode les [ ] " etc.)
@@ -94,7 +92,6 @@ async function getPurchaseOrderLines() {
     ['partner_id', "not ilike",["pb - ktm"]],
     ["partner_id", "not in", [24099, 23705, 1, 23706, 23707, 23708, 27862]]
   ]);
-  console.log(process.env.BASE_URL);
   
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/purchase.order.line?fields=id,product_id,product_qty,qty_received,price_unit,order_id&domain=${domain}`,
@@ -137,7 +134,6 @@ async function getPOSOrderLines(productIds: number[]): Promise<{ records: POSOrd
 
 // Fonction interne qui fait le gros travail
 async function fetchAndProcessStockData() {
-  
   const products = await getProducts();
   const data = products.records.map(mapOdooProduct);
   const allProductIds = data.map((product: Product) => product.productVariantId);
@@ -165,12 +161,13 @@ async function fetchAndProcessStockData() {
   stockQuants.records.forEach((quant: StockQuant) => {
     const productId = quant.product_id[0];
     const locationName = quant.location_id[1];
+    
     const quantity = quant.quantity;
     const boutiqueCode = extractBoutiqueCode(locationName);
     
     const currentStock = stockByProductAndBoutique.get(productId);
     if(currentStock) {
-        if (['P24', 'ktm', 'mto', 'onl', 'dc'].includes(boutiqueCode)) {
+        if (['P24', 'ktm', 'mto', 'onl', 'dc', 'lmb'].includes(boutiqueCode)) {
             currentStock[boutiqueCode] += quantity;
         } else {
             currentStock.other += quantity;
@@ -293,13 +290,6 @@ async function fetchAndProcessStockData() {
 
 // On utilise unstable_cache au lieu de 'let cachedData'
 // Cela permet de mettre en cache le RÉSULTAT du calcul lourd, pas seulement les fetchs.
-export const getControlStockData = unstable_cache(
-  async () => {
+export const getControlStockData = async () => {
     return await fetchAndProcessStockData();
-  },
-  ['control-stock-beauty-data'], // Key du cache
-  {
-    revalidate: 300, // Durée de vie du cache (5 minutes)
-    tags: ['stock-beauty'] // Tag pour invalider manuellement si besoin
   }
-);

@@ -36,6 +36,7 @@ export async function getAIStockAnalysis(data: any) {
         RÉPONDRE UNIQUEMENT EN JSON :
         {
         "stockout_date": "YYYY-MM-DD",
+        "burn_rate": "Ex: 2 pièces tous les 3 jours",
         "trend_analysis": "Explication de la fluctuation observée",
         "purchase_options": [
             {"label": "Dépannage", "qty": 0, "duration_days": 15},

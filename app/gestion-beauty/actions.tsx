@@ -1,6 +1,9 @@
+"use server"
 import { odooClient } from "@/lib/odoo/xmlrpc";
 import { POSOrder, POSOrderLine } from "../types/pos";
 import { OdooProductTemplate, ProductProduct } from "../types/product_template";
+import { createClient } from "@/lib/supabase/server";
+import { revalidatePath } from "next/cache";
 
 export interface IDataAnalyseByProductData {
     hs_code: string;
@@ -51,32 +54,33 @@ export async function getDataAnalyseByProductData(month: string, year: string): 
     // -----------------------------
     // LOAD POS ORDERS FOR 3 MONTHS
     // -----------------------------
-    const posOrdersCurrent = await odooClient("pos.order", "search_read", [
-        [
+    const posOrdersCurrent = await odooClient.searchRead("pos.order", {
+        domain: [
             ["date_order", ">=", monthCurrent.start],
             ["date_order", "<", monthCurrent.end],
             ["state", "in", ["paid", "done"]],
         ],
-        ["id"]
-    ]);
+        fields: ["id"]
+    }
+    );
 
-    const posOrdersPrev1 = await odooClient("pos.order", "search_read", [
-        [
+    const posOrdersPrev1 = await odooClient.searchRead("pos.order", {
+        domain: [
             ["date_order", ">=", monthPrev1.start],
             ["date_order", "<", monthPrev1.end],
             ["state", "in", ["paid", "done"]],
         ],
-        ["id"]
-    ]);
+        fields: ["id"],
+    });
 
-    const posOrdersPrev2 = await odooClient("pos.order", "search_read", [
-        [
+    const posOrdersPrev2 = await odooClient.searchRead("pos.order", {
+        domain: [
             ["date_order", ">=", monthPrev2.start],
             ["date_order", "<", monthPrev2.end],
             ["state", "in", ["paid", "done"]],
         ],
-        ["id"]
-    ]);
+        fields: ["id"],
+    });
 
     const idsCurrent = (posOrdersCurrent as unknown as POSOrder[]).map(o => o.id);
     const idsPrev1 = (posOrdersPrev1 as unknown as POSOrder[]).map(o => o.id);
@@ -88,29 +92,31 @@ export async function getDataAnalyseByProductData(month: string, year: string): 
     // -----------------------------
     // POS ORDER LINES
     // -----------------------------
-    const posLines = await odooClient("pos.order.line", "search_read", [
-        [["order_id", "in", allOrderIds]],
-        ["order_id", "product_id", "price_subtotal", "qty"]
-    ]);
+    const posLines = await odooClient.searchRead("pos.order.line", {
+        domain: [["order_id", "in", allOrderIds]],
+        fields: ["order_id", "product_id", "price_subtotal", "qty"]
+    });
 
     // -----------------------------
     // PRODUCTS & TEMPLATE LOADING
     // -----------------------------
     const productIds = [...new Set((posLines as unknown as POSOrderLine[]).map(l => l.product_id?.[0]))];
 
-    const products = await odooClient("product.product", "search_read", [
-        [["id", "in", productIds]],
-        ["id", "product_tmpl_id"]
-    ]);
+    const products = await odooClient.searchRead("product.product", {
+        domain: [
+            [["id", "in", productIds]],
+            ["id", "product_tmpl_id"]
+        ],
+    });
 
     const templateIds = [
         ...new Set((products as unknown as ProductProduct[]).map(p => p.product_tmpl_id?.[0]))
     ];
 
-    const templates = await odooClient("product.template", "search_read", [
-        [["id", "in", templateIds], ['x_studio_segment', 'ilike', 'beauty']],
-        ["id", "name", "hs_code", "list_price", "barcode", "qty_available"]
-    ]);
+    const templates = await odooClient.searchRead("product.template", {
+        domain: [["id", "in", templateIds], ['x_studio_segment', 'ilike', 'beauty']],
+        fields: ["id", "name", "hs_code", "list_price", "barcode", "qty_available"]
+    });
 
     const productIndex = Object.fromEntries((products as unknown as ProductProduct[]).map(p => [p.id, p]));
     const templateIndex = Object.fromEntries((templates as unknown as OdooProductTemplate[]).map(t => [t.id, t]));
@@ -196,4 +202,22 @@ function getMonthBoundaries(month: number, year: number) {
     const end = new Date(year, month, 1);
 
     return { start: start.toISOString(), end: end.toISOString() };
+}
+
+export async function updateTrackerStatus(hs_code: string, status: string, notes: string) {
+    const supabase = await createClient();
+    
+    const { error } = await supabase
+        .from('beauty_inventory_tracker')
+        .update({ 
+            status: status,
+            manager_notes: notes,
+            updated_at: new Date().toISOString()
+        })
+        .eq('hs_code', hs_code);
+
+    if (error) throw error;
+    
+    // On rafraîchit la page pour que la liste des alertes se mette à jour
+    revalidatePath('/analyse-beauty');
 }

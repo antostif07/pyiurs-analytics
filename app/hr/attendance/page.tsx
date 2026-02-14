@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import AttendanceDashboard from './AttendanceDashboard'
 
 export default async function AttendancePage() {
-  const supabase = await createClient()
+  const supabase = createClient();
 
   // On récupère les boutiques pour pouvoir filtrer par site
   const { data: shops } = await supabase.from('shops').select('id, name').order('name')

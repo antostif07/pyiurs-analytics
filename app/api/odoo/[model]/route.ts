@@ -30,10 +30,6 @@ export async function GET(req: Request, context: { params: Promise<{ model: stri
     fields
   })
 
-  console.log(res);
-  
-  
-
   const result = await fetchFromOdoo(model, fields, domain);
 
   if (!result.success) {
