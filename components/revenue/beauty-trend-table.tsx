@@ -37,35 +37,47 @@ export function BeautyTrendTable({ data, months }: { data: any[], months: any[] 
     }),
     // COLONNES DYNAMIQUES POUR LES 6 MOIS
     ...months.map((m, idx) => 
-      columnHelper.accessor(`monthlySales.${m.key}`, {
+      columnHelper.accessor((row) => row.monthlySales?.[m.key] ?? 0, { // Fonction accessor pour garantir un nombre
+        id: m.key, // ID unique pour le tri
         header: ({ column }) => (
-            <button onClick={() => column.toggleSorting()} className="flex items-center gap-1 uppercase hover:text-emerald-400 transition-colors">
+            <button 
+                onClick={() => column.toggleSorting()} 
+                className="flex items-center justify-end gap-1 uppercase hover:text-emerald-400 transition-colors w-full"
+            >
                 {m.label} <ArrowUpDown size={10} />
             </button>
         ),
         cell: i => {
-          const val = i.getValue() || 0;
+          const val = i.getValue();
           const isLastMonth = idx === months.length - 1;
           return (
             <div className={`text-right font-bold ${isLastMonth ? 'text-emerald-600 font-black' : 'text-slate-500'}`}>
               {val > 0 ? `$ ${Math.round(val).toLocaleString()}` : '—'}
             </div>
           );
-        }
+        },
+        sortingFn: "alphanumeric", // Force le tri numérique/alphanumérique
       })
     ),
     // TOTAL CUMULÉ 6 MOIS
-    columnHelper.display({
+    columnHelper.accessor((row) => 
+        Object.values(row.monthlySales || {}).reduce((a: any, b: any) => a + (Number(b) || 0), 0), 
+    {
       id: 'total',
       header: ({ column }) => (
-            <button onClick={() => column.toggleSorting()} className="flex items-center gap-1 uppercase hover:text-emerald-400 transition-colors">
-                TOTAL 6M <ArrowUpDown size={10} />
-            </button>
-        ),
-      cell: ({ row }) => {
-        const total = Object.values(row.original.monthlySales || {}).reduce((a: any, b: any) => a + b, 0);
-        return <div className="text-right font-black text-slate-900">$ {Math.round(total as number).toLocaleString()}</div>
-      }
+        <button 
+            onClick={() => column.toggleSorting()} 
+            className="flex items-center justify-end gap-1 uppercase hover:text-emerald-400 transition-colors w-full"
+        >
+            TOTAL 6M <ArrowUpDown size={10} />
+        </button>
+      ),
+      cell: i => (
+        <div className="text-right font-black text-slate-900 bg-slate-50 py-1 rounded-lg px-2">
+            $ {Math.round(i.getValue() as number).toLocaleString()}
+        </div>
+      ),
+      sortingFn: "alphanumeric",
     })
   ], [months]);
 
