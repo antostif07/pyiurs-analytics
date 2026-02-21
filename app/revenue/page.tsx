@@ -20,11 +20,11 @@ export default async function RevenueOverviewPage({
 
   // 2. CALCUL DES TOTAUX GLOBAUX POUR LES CARTES KPI
   const totals = {
-    today: data.reduce((acc, curr) => acc + curr.today, 0),
-    yesterday: data.reduce((acc, curr) => acc + curr.yesterday, 0),
-    weekly: data.reduce((acc, curr) => acc + curr.weekly, 0),
-    mtd: data.reduce((acc, curr) => acc + curr.mtd, 0),
-    budget: data.reduce((acc, curr) => acc + curr.budgetMensuel, 0),
+    today: data.shopPerformance.reduce((acc, curr) => acc + curr.today, 0),
+    yesterday: data.shopPerformance.reduce((acc, curr) => acc + curr.yesterday, 0),
+    weekly: data.shopPerformance.reduce((acc, curr) => acc + curr.weekly, 0),
+    mtd: data.shopPerformance.reduce((acc, curr) => acc + curr.mtd, 0),
+    budget: data.shopPerformance.reduce((acc, curr) => acc + curr.budgetMensuel, 0),
   };
 
   // 3. PRÉPARATION DES CARTES KPI
@@ -56,7 +56,7 @@ export default async function RevenueOverviewPage({
 
   // 4. CALCUL DU DELTA WOW (Week over Week) POUR LE TABLEAU AVANCÉ
   // On compare la semaine actuelle à la précédente si les données existent
-  const processedDataForTables = data.map(shop => {
+  const processedDataForTables = data.shopPerformance.map(shop => {
     const weekKeys = Object.keys(shop.weeks).sort();
     const lastWeek = weekKeys[weekKeys.length - 1];
     const prevWeek = weekKeys[weekKeys.length - 2];
@@ -120,6 +120,33 @@ export default async function RevenueOverviewPage({
             </div>
           </div>
           <AdvancedPerformanceTable data={processedDataForTables} />
+        </section>
+
+        <section className="xl:col-span-4 space-y-4">
+          <div className="flex items-center justify-between px-2">
+            <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                Flux Hebdomadaire
+            </h2>
+            <Badge variant="outline" className="text-[9px] border-emerald-100 text-emerald-600 uppercase font-black">
+                $ USD
+            </Badge>
+          </div>
+          <WeeklyRevenueTable data={data.segmentPerformance} />
+        </section>
+
+        {/* PERFORMANCE AVANCÉE (Prend 8 colonnes sur 12) */}
+        <section className="xl:col-span-8 space-y-4">
+          <div className="flex items-center justify-between px-2">
+            <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                Performance vs Objectifs & Forecast
+            </h2>
+            <div className="flex gap-2">
+                <Badge className="bg-emerald-500 text-white border-none text-[9px] uppercase font-black tracking-widest">
+                    MTD Analysis
+                </Badge>
+            </div>
+          </div>
+          <AdvancedPerformanceTable data={data.segmentPerformance} />
         </section>
       </div>
     </div>
