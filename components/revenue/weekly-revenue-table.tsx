@@ -1,27 +1,69 @@
 'use client'
 
-import React, { useMemo } from 'react';
-import { useReactTable, getCoreRowModel, flexRender, createColumnHelper } from '@tanstack/react-table';
-import { Plus } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { 
+  useReactTable, getCoreRowModel, getExpandedRowModel, 
+  flexRender, createColumnHelper, ExpandedState 
+} from '@tanstack/react-table';
+import { ChevronRight, ChevronDown, Plus } from 'lucide-react';
 
 const columnHelper = createColumnHelper<any>();
 
 export function WeeklyRevenueTable({ data }: { data: any[] }) {
-  // 1. Extraire dynamiquement toutes les clés de semaines présentes dans les données
-  // On trie par ordre numérique (W9 avant W10)
+  const [expanded, setExpanded] = useState<ExpandedState>({});
+
+  // 1. Déterminer toutes les semaines uniques (colonnes)
   const allWeeks = useMemo(() => {
     const weeks = new Set<string>();
     data.forEach(item => {
-      if (item.weeks) {
-        Object.keys(item.weeks).forEach(w => weeks.add(w));
-      }
+      if (item.weeks) Object.keys(item.weeks).forEach(w => weeks.add(w));
     });
-    return Array.from(weeks).sort((a, b) => 
-      a.localeCompare(b, undefined, { numeric: true })
-    );
+    return Array.from(weeks).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   }, [data]);
 
-  // 2. Calculer les totaux par colonne pour la ligne de pied de page
+  const columns = useMemo(() => [
+    columnHelper.accessor('boutique', {
+      header: 'Boutique / Segment',
+      cell: ({ row, getValue }) => (
+        <div style={{ paddingLeft: `${row.depth * 1}rem` }} className="flex items-center gap-2">
+          {row.getCanExpand() && (
+            <button onClick={row.getToggleExpandedHandler()} className="cursor-pointer">
+              {row.getIsExpanded() ? <ChevronDown size={12} className="text-emerald-600"/> : <ChevronRight size={12} className="text-slate-400"/>}
+            </button>
+          )}
+          {!row.getCanExpand() && row.depth > 0 && <Plus size={8} className="text-slate-300 ml-1" />}
+          <span className={row.depth === 0 ? "font-black text-slate-900 uppercase italic tracking-tighter" : "text-slate-500 font-medium text-[10px]"}>
+            {getValue()}
+          </span>
+        </div>
+      ),
+    }),
+    ...allWeeks.map(week => 
+      columnHelper.accessor(`weeks.${week}`, {
+        header: week,
+        cell: i => {
+          const val = i.getValue();
+          return (
+            <span className={i.row.depth === 0 ? "font-bold text-slate-800" : "text-slate-400 text-[10px]"}>
+               {val ? `$ ${Math.round(val).toLocaleString()}` : '—'}
+            </span>
+          )
+        }
+      })
+    )
+  ], [allWeeks]);
+
+  const table = useReactTable({
+    data,
+    columns,
+    state: { expanded },
+    onExpandedChange: setExpanded,
+    getSubRows: row => row.subRows,
+    getCoreRowModel: getCoreRowModel(),
+    getExpandedRowModel: getExpandedRowModel(),
+  });
+
+  // Calcul du footer total (uniquement profondeur 0)
   const totals = useMemo(() => {
     return allWeeks.reduce((acc, week) => {
       acc[week] = data.reduce((sum, row) => sum + (row.weeks?.[week] || 0), 0);
@@ -29,71 +71,36 @@ export function WeeklyRevenueTable({ data }: { data: any[] }) {
     }, {} as Record<string, number>);
   }, [data, allWeeks]);
 
-  // 3. Définir les colonnes dynamiquement
-  const columns = useMemo(() => [
-    columnHelper.accessor('boutique', {
-      header: 'Boutique',
-      cell: info => (
-        <div className="flex items-center gap-2 font-bold text-slate-700">
-          <Plus size={10} className="text-slate-400 group-hover:text-rose-500 transition-colors" />
-          {info.getValue()}
-        </div>
-      ),
-    }),
-    // On mappe chaque semaine trouvée en une colonne
-    ...allWeeks.map(week => 
-      columnHelper.accessor(`weeks.${week}`, {
-        header: week,
-        cell: info => {
-          const val = info.getValue();
-          return val ? `$ ${Math.round(val).toLocaleString()}` : '—';
-        }
-      })
-    )
-  ], [allWeeks]);
-
-  const table = useReactTable({ 
-    data, 
-    columns, 
-    getCoreRowModel: getCoreRowModel() 
-  });
-
   return (
     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
       <table className="w-full text-left text-[11px] border-collapse">
-        <thead className="bg-slate-50 border-b border-slate-200">
+        <thead className="bg-slate-50 border-b border-gray-200">
           {table.getHeaderGroups().map(hg => (
             <tr key={hg.id}>
               {hg.headers.map(header => (
-                <th key={header.id} className="px-3 py-2 font-black text-slate-500 uppercase tracking-tighter border-r border-slate-100 last:border-r-0">
+                <th key={header.id} className="px-3 py-2 font-black text-slate-500 uppercase border-r border-slate-100 last:border-none">
                   {flexRender(header.column.columnDef.header, header.getContext())}
                 </th>
               ))}
             </tr>
           ))}
         </thead>
-        <tbody className="divide-y divide-slate-100 italic">
+        <tbody className="divide-y divide-slate-100">
           {table.getRowModel().rows.map(row => (
-            <tr key={row.id} className="hover:bg-slate-50/80 transition-colors group">
+            <tr key={row.id} className={`${row.depth > 0 ? 'bg-slate-50/30 italic' : 'hover:bg-slate-50 font-bold'}`}>
               {row.getVisibleCells().map(cell => (
-                <td key={cell.id} className="px-3 py-2 border-r border-slate-50 last:border-r-0 font-medium text-slate-600">
+                <td key={cell.id} className="px-3 py-2 border-r border-slate-50 last:border-none whitespace-nowrap">
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </td>
               ))}
             </tr>
           ))}
         </tbody>
-        {/* LIGNE DE TOTAL DYNAMIQUE */}
         <tfoot className="bg-slate-50 font-black text-slate-900 border-t-2 border-slate-200">
           <tr>
-            <td className="px-3 py-2 uppercase tracking-tighter">Total Global</td>
-            {allWeeks.map((week, idx) => (
-              <td 
-                key={week} 
-                className={`px-3 py-2 border-r border-slate-100 last:border-r-0 ${
-                  idx === allWeeks.length - 1 ? 'text-emerald-600 font-black' : ''
-                }`}
-              >
+            <td className="px-3 py-2 uppercase tracking-tighter border-r border-slate-200">Total Flux</td>
+            {allWeeks.map(week => (
+              <td key={week} className="px-3 py-2 border-r border-slate-100 last:border-none">
                 $ {Math.round(totals[week]).toLocaleString()}
               </td>
             ))}
