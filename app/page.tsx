@@ -8,6 +8,14 @@ import Footer from "@/components/footer";
 
 // Configuration des modules
 const modules = [
+  {
+    name: "Revenu",
+    description: "Analysez les performances de vos ventes, suivez les objectifs et optimisez votre stratégie financière.",
+    href: "/revenue",
+    icon: "📈",
+    color: "bg-purple-500",
+    permissions: ["admin", "manager"]
+  },
   { 
     name: "Base Test Odoo",
     description: "Base Test Odoo",
@@ -135,14 +143,6 @@ const modules = [
     icon: "💰",
     color: "bg-green-500",
     permissions: ["admin", "financier"]
-  },
-  {
-    name: "Rapports",
-    description: "Consultez les rapports et statistiques",
-    href: "/reports",
-    icon: "📈",
-    color: "bg-purple-500",
-    permissions: ["admin", "manager"]
   },
   { 
     name: "Gestion Beauty",

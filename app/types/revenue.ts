@@ -1,75 +1,22 @@
-export // Interface pour les données de revenus
-interface RevenueData {
-  dailySales: {
-    amount: number;
-    budget: number;
-    percentage: number;
-  };
-  previousDaySales: {
-    amount: number;
-    budget: number;
-    percentage: number;
-  };
-  weeklySales: {
-    amount: number;
-    budget: number;
-    percentage: number;
-  };
-  monthlySales: {
-    amount: number;
-    budget: number;
-    percentage: number;
-  };
-  boutiqueRevenue: {
-    headers: string[];
-    rows: {
-      boutique: string;
-      values: number[];
-    }[];
-    total: number[];
-  };
-  boutiquePerformance: {
-    headers: string[];
-    rows: {
-      boutique: string;
-      wow: number;
-      mtd: number;
-      mtd1: number;
-      aMon: number;
-      pvMtd: number;
-      forecast: number;
-      buM: number;
-      percentageBU: number;
-      ytd1: number;
-      aYoy: number;
-      buAnnuel: number;
-      percentageBUA: number;
-    }[];
-  };
-  segmentRevenue: {
-    headers: string[];
-    rows: {
-      segment: string;
-      values: number[];
-    }[];
-    total: number[];
-  };
-  segmentPerformance: {
-    headers: string[];
-    rows: {
-      segment: string;
-      wow: number;
-      mtd: number;
-      mtd1: number;
-      aMon: number;
-      pvMtd: number;
-      forecast: number;
-      buM: number;
-      percentageBU: number;
-      ytd1: number;
-      aYoy: number;
-      buAnnuel: number;
-      percentageBUA: number;
-    }[];
-  };
+// app/finance/revenue/types.ts
+export interface WeeklyRevenue {
+  boutique: string;
+  weeks: { [key: string]: number }; // ex: { "W18": 1188, "W19": 3070 }
+}
+
+export interface AdvancedRevenue {
+  boutique: string;
+  deltaWoW: number;    // Δ WoW
+  mtd: number;         // Month To Date
+  mtdPrev: number;     // MTD-1
+  deltaMoM: number;    // Δ MoM
+  pyMtd: number;       // Previous Year MTD
+  forecast: number;    // Prévision
+  budgetMensuel: number; // BUM
+  pctBudget: number;    // % BU
+  ytd: number;         // Year To Date
+  ytdPrev: number;     // YTD-1
+  deltaYoY: number;    // Δ YoY
+  budgetAnnuel: number; // BU Annuel
+  pctBudgetA: number;   // % BU A
 }
