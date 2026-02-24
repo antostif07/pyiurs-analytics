@@ -17,6 +17,34 @@ function getMonthKey(odooMonthStr: string): string {
   return `${year}-${months[monthPart] || '01'}`;
 }
 
+function chunkArray<T>(array: T[], size: number): T[][] {
+    const result: T[][] = [];
+    for (let i = 0; i < array.length; i += size) {
+        result.push(array.slice(i, i + size));
+    }
+    return result;
+}
+
+function ensureTrackerEntry(tracker: Map<string, any>, hsCode: string, name = "Produit inconnu") {
+    if (!tracker.has(hsCode)) {
+        tracker.set(hsCode, {
+            hs_code: hsCode,
+            name,
+            monthlySales: {},
+            monthlyStockOpening: {},
+            currentStock: 0
+        });
+    } else {
+        const entry = tracker.get(hsCode);
+
+        if (!entry.monthlySales) entry.monthlySales = {};
+        if (!entry.monthlyStockOpening) entry.monthlyStockOpening = {};
+        if (!entry.currentStock) entry.currentStock = 0;
+    }
+
+    return tracker.get(hsCode);
+}
+
 export async function getRevenueDashboardData(month: string, year: string) {
     const supabase = await createClient();
     const now = new Date();
@@ -247,21 +275,57 @@ export async function getBeautySixMonthSales(month: string, year: string, filter
     const startDate = format(startOfMonth(monthRange[0]), 'yyyy-MM-dd 00:00:00');
     const endDate = format(endOfMonth(selectedDate), 'yyyy-MM-dd 23:59:59');
 
-    // Clés pour le mapping (ex: "2026-02")
-    const monthKeys = monthRange.map(d => format(d, 'yyyy-MM'));
-
     let salesDomain = [
         ["product_id.x_studio_segment", "=", "Beauty"],
         ["order_id.state", "in", ["paid", "done", "invoiced"]],
         ["create_date", ">=", startDate],
         ["create_date", "<=", endDate]
     ]
+    let productsDomain = [["x_studio_segment", "=", "Beauty"]];
+    let stockDomain = [["product_id.x_studio_segment", "=", "Beauty"], ["location_id.usage", "=", "internal"]];
 
     if (filters.q) {
         salesDomain.push(["product_id.name", "ilike", filters.q]);
+        productsDomain.push(["name", "ilike", filters.q]);
     }
 
     try {
+        let allProducts: any[] = [];
+        let offset = 0;
+        let productIds: number[] = [];
+        while (true) {
+            const chunk = await odooClient.searchRead("product.product", {
+                domain: productsDomain,
+                fields: ["hs_code", "name", "x_studio_many2one_field_Arl5D"],
+                limit: 20000, offset
+            }) as any[];
+            allProducts = [...allProducts, ...chunk];
+            const ids = chunk.map(p => p.id);
+            productIds.push(...ids);
+            if (chunk.length < 20000) break;
+            offset += 20000;
+        }
+
+        const productMap = new Map();
+        const idToHs = new Map<number, string>();
+
+        allProducts.forEach(p => {
+            const hs = p.hs_code || "SANS-HS";
+            idToHs.set(p.id, hs);
+            if (!productMap.has(hs)) {
+                const color = (Array.isArray(p.x_studio_many2one_field_Arl5D) ? p.x_studio_many2one_field_Arl5D[1] : (p.x_studio_many2one_field_Arl5D || "")).replace(/\s+/g, '_');
+                productMap.set(hs, {
+                    hs_code: hs, name: p.name.split('[')[0].trim(), color,
+                    currentStock: 0, monthlyData: {}
+                });
+
+                // Initialiser les 6 mois à zéro
+                monthRange.forEach(m => {
+                    productMap.get(hs).monthlyData[format(m, 'yyyy-MM')] = { sales: 0, openingStock: 0 };
+                })
+            }
+        });
+        
         // 2. Récupérer les ventes groupées par Produit ET par Mois
         const salesRaw = await odooClient.execute("pos.order.line", "read_group", [
             salesDomain,
@@ -269,18 +333,42 @@ export async function getBeautySixMonthSales(month: string, year: string, filter
             ["product_id", "create_date:month"], // Double groupement
         ], { lazy: false }) as any[];
 
-        // 3. Récupérer les HS Codes des produits vendus
-        const productIds = [...new Set(salesRaw.map(s => s.product_id[0]))];
-        const productsInfo = await odooClient.searchRead("product.product", {
-            domain: [["id", "in", productIds]],
-            fields: ["name", "hs_code"]
-        }) as any[];
+        let allStockResults: any[] = [];
+        const productChunks = chunkArray(productIds, 1000);
+
+        for (const idsChunk of productChunks) {
+            const stockRaw = await odooClient.execute("stock.quant", "read_group", [
+                [
+                    ...stockDomain,
+                    ["product_id", "in", idsChunk]
+                ],
+                ["quantity"],
+                ["product_id"]
+            ]) as any[];
+
+            allStockResults.push(...stockRaw);
+        }
+
+        let allStockMoves: any[] = [];
+        for (const idsChunk of productChunks) {
+            const stockMoves = await odooClient.execute("stock.move", "read_group", [
+                [
+                    ["product_id", "in", idsChunk],
+                    ["state", "=", "done"],
+                    ["picking_code", "in", ["outgoing", "incoming"]],
+                ],
+                ["product_uom_qty"],
+                ["product_id", "date:month", "picking_code",]
+            ], { lazy: false }) as any[];
+
+            allStockMoves.push(...stockMoves);
+        }
 
         // 4. Consolidation par HS_CODE
         const tracker = new Map<string, any>();
 
         salesRaw.forEach(sale => {
-            const pInfo = productsInfo.find(p => p.id === sale.product_id[0]);
+            const pInfo = allProducts.find(p => p.id === sale.product_id[0]);
             if (!pInfo) return;
 
             const hsCode = pInfo.hs_code || "SANS-HS";
@@ -291,15 +379,7 @@ export async function getBeautySixMonthSales(month: string, year: string, filter
             // Pour plus de sécurité, on peut aussi parser ou utiliser un autre champ
             const odooMonth = sale['create_date:month']; // ex: "février 2026"
 
-            if (!tracker.has(hsCode)) {
-                tracker.set(hsCode, {
-                    hs_code: hsCode,
-                    name: cleanName,
-                    monthlySales: {} // contiendra { "2026-02": 1500, "2026-01": 1200 ... }
-                });
-            }
-
-            const entry = tracker.get(hsCode);
+            const entry = ensureTrackerEntry(tracker, hsCode, cleanName);
             // On cherche quel mois correspond dans notre range
             const monthMatch = monthRange.find(m => 
                 odooMonth.toLowerCase().includes(format(m, 'MMMM', { locale: fr }).toLowerCase())
@@ -311,6 +391,46 @@ export async function getBeautySixMonthSales(month: string, year: string, filter
             }
         });
 
+        allStockResults.forEach(stock => {
+            const hsCode = idToHs.get(stock.product_id[0]) || "SANS-HS";
+            const entry = ensureTrackerEntry(tracker, hsCode);
+            entry.currentStock = Math.round(stock.quantity);
+        });
+
+        // console.log(allStockMoves);
+        
+
+        allStockMoves.forEach(move => {
+            const productId = move.product_id?.[0];
+            if (!productId) return;
+
+            const hsCode = idToHs.get(productId) || "SANS-HS";
+
+            const entry = ensureTrackerEntry(tracker, hsCode);
+
+            const odooMonth = move['date:month'];
+            
+            if (!odooMonth) return;
+
+            const key = format(odooMonth, 'yyyy-MM');
+
+            if (!entry.monthlyStockOpening) {
+                entry.monthlyStockOpening = {};
+            }
+
+            if (!entry.monthlyStockOpening[key]) {
+                entry.monthlyStockOpening[key] = 0;
+            }
+
+            if (move.picking_code === 'outgoing') {
+                entry.monthlyStockOpening[key] += move.product_uom_qty;
+            } else if (move.picking_code === 'incoming') {
+                entry.monthlyStockOpening[key] -= move.product_uom_qty;
+            }
+        });
+
+        // console.log(tracker);
+        
         return {
             clients: Array.from(tracker.values()),
             columns: monthRange.map(d => ({
@@ -427,35 +547,35 @@ export async function getFemmeSixMonthSales(month: string, year: string) {
 //         // 1. CHARGER LE MAPPING (70k produits) - Uniquement ce qui est nécessaire
 //         let allProducts: any[] = [];
 //         let offset = 0;
-//         while (true) {
-//             const chunk = await odooClient.searchRead("product.product", {
-//                 domain: [["x_studio_segment", "=", "Femme"]],
-//                 fields: ["hs_code", "name", "x_studio_many2one_field_Arl5D"],
-//                 limit: 20000, offset
-//             }) as any[];
-//             allProducts = [...allProducts, ...chunk];
-//             if (chunk.length < 20000) break;
-//             offset += 20000;
-//         }
+        // while (true) {
+        //     const chunk = await odooClient.searchRead("product.product", {
+        //         domain: [["x_studio_segment", "=", "Femme"]],
+        //         fields: ["hs_code", "name", "x_studio_many2one_field_Arl5D"],
+        //         limit: 20000, offset
+        //     }) as any[];
+        //     allProducts = [...allProducts, ...chunk];
+        //     if (chunk.length < 20000) break;
+        //     offset += 20000;
+        // }
 
 //         const productMap = new Map();
 //         const idToHs = new Map<number, string>();
         
-//         allProducts.forEach(p => {
-//             const hs = p.hs_code || "SANS-HS";
-//             idToHs.set(p.id, hs);
-//             if (!productMap.has(hs)) {
-//                 const color = (Array.isArray(p.x_studio_many2one_field_Arl5D) ? p.x_studio_many2one_field_Arl5D[1] : (p.x_studio_many2one_field_Arl5D || "")).replace(/\s+/g, '_').toLowerCase();
-//                 productMap.set(hs, {
-//                     hs_code: hs, name: p.name.split('[')[0].trim(), color,
-//                     currentStock: 0, monthlyData: {}
-//                 });
-//                 // Initialiser les 6 mois à zéro
-//                 monthRange.forEach(m => {
-//                     productMap.get(hs).monthlyData[format(m, 'yyyy-MM')] = { sales: 0, openingStock: 0 };
-//                 });
-//             }
-//         });
+        // allProducts.forEach(p => {
+        //     const hs = p.hs_code || "SANS-HS";
+        //     idToHs.set(p.id, hs);
+        //     if (!productMap.has(hs)) {
+        //         const color = (Array.isArray(p.x_studio_many2one_field_Arl5D) ? p.x_studio_many2one_field_Arl5D[1] : (p.x_studio_many2one_field_Arl5D || "")).replace(/\s+/g, '_').toLowerCase();
+        //         productMap.set(hs, {
+        //             hs_code: hs, name: p.name.split('[')[0].trim(), color,
+        //             currentStock: 0, monthlyData: {}
+        //         });
+        //         // Initialiser les 6 mois à zéro
+        //         monthRange.forEach(m => {
+        //             productMap.get(hs).monthlyData[format(m, 'yyyy-MM')] = { sales: 0, openingStock: 0 };
+        //         });
+        //     }
+        // });
 
 //         // 2. RÉCUPÉRATION DATA EN PARALLÈLE
 //         const [salesRaw, stockRaw, movesRaw] = await Promise.all([
@@ -467,10 +587,10 @@ export async function getFemmeSixMonthSales(month: string, year: string) {
 //                 [["product_id.x_studio_segment", "=", "Femme"], ["location_id.usage", "=", "internal"]],
 //                 ["quantity"], ["product_id"]
 //             ]),
-//             odooClient.execute("stock.move", "read_group", [
-//                 [["product_id.x_studio_segment", "=", "Femme"], ["state", "=", "done"], ["date", ">=", startDate], ["date", "<=", endDate]],
-//                 ["product_uom_qty"], ["product_id", "date:month", "location_dest_id", "location_id"]
-//             ], { lazy: false })
+            // odooClient.execute("stock.move", "read_group", [
+            //     [["product_id.x_studio_segment", "=", "Femme"], ["state", "=", "done"], ["date", ">=", startDate], ["date", "<=", endDate]],
+            //     ["product_uom_qty"], ["product_id", "date:month", "location_dest_id", "location_id"]
+            // ], { lazy: false })
 //         ]) as any[][];
 
 //         // 3. REMPLISSAGE DES VENTES

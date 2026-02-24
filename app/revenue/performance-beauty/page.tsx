@@ -1,9 +1,9 @@
 import { RevenueDateFilter } from "@/components/revenue/revenue-date-filter";
 import { format } from "date-fns";
-import { RevenueSmartFilter } from "@/components/revenue/revenue-smart-filter";
 import { Suspense } from "react";
 import Loader from "@/components/loader";
 import BeautySalesContent from "./beauty-sales-content";
+import RevenueSmart from "@/components/revenue/revenue-smart";
 
 export default async function BeautySalesTrendPage({ searchParams }: any) {
     const params = await searchParams;
@@ -17,7 +17,6 @@ export default async function BeautySalesTrendPage({ searchParams }: any) {
         partner: params.partner
     };
 
-
     return (
         <div className="space-y-6 pb-10">
             <div className="flex flex-col md:flex-row justify-between items-end gap-4">
@@ -25,7 +24,7 @@ export default async function BeautySalesTrendPage({ searchParams }: any) {
                     <h1 className="text-2xl font-black text-slate-900 italic uppercase tracking-tighter">
                         Trend <span className="text-rose-600">Beauty</span> 6 Mois
                     </h1>
-                    <RevenueSmartFilter />
+                    <RevenueSmart segment="Beauty" />
                 </div>
                 <RevenueDateFilter />
             </div>
