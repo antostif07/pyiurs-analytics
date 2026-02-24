@@ -16,6 +16,14 @@ const modules = [
     color: "bg-purple-500",
     permissions: ["admin", "manager"]
   },
+  {
+    name: "Stock",
+    description: "Suivi du Stock en temps réel, alertes de réapprovisionnement et gestion des inventaires pour éviter les ruptures.",
+    icon: "📦",
+    color: "bg-yellow-500",
+    href: "/stock",
+    permissions: ["admin", "manager", "user"]
+  },
   { 
     name: "Base Test Odoo",
     description: "Base Test Odoo",

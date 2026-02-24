@@ -3,12 +3,25 @@
 
 import { odooClient } from "@/lib/odoo/xmlrpc";
 import { createClient } from "@/lib/supabase/server";
-import { startOfMonth, endOfMonth, subMonths, format, getWeek } from "date-fns";
+import { startOfMonth, endOfMonth, subMonths, format, getWeek, subDays, startOfWeek } from "date-fns";
 import { fr } from "date-fns/locale";
+
+function getMonthKey(odooMonthStr: string): string {
+  const months: Record<string, string> = {
+    'janv': '01', 'févr': '02', 'mars': '03', 'avr': '04', 'mai': '05', 'juin': '06',
+    'juil': '07', 'août': '08', 'sept': '09', 'oct': '10', 'nov': '11', 'déc': '12'
+  };
+  const parts = odooMonthStr.toLowerCase().split(' '); // ["févr.", "2026"]
+  const monthPart = parts[0].replace('.', '');
+  const year = parts[1];
+  return `${year}-${months[monthPart] || '01'}`;
+}
 
 export async function getRevenueDashboardData(month: string, year: string) {
     const supabase = await createClient();
     const now = new Date();
+    
+    // --- DÉFINITION DES PÉRIODES ---
     const selectedDate = new Date(parseInt(year), parseInt(month) - 1, 1);
     
     const mtdStart = format(startOfMonth(selectedDate), 'yyyy-MM-dd 00:00:00');
@@ -16,9 +29,15 @@ export async function getRevenueDashboardData(month: string, year: string) {
     const prevMtdStart = format(startOfMonth(subMonths(selectedDate, 1)), 'yyyy-MM-dd 00:00:00');
     const prevMtdEnd = format(endOfMonth(subMonths(selectedDate, 1)), 'yyyy-MM-dd 23:59:59');
 
+    // Dates pour KPIs temps réel (Indépendantes du mois sélectionné pour les cartes du haut)
+    const todayStr = format(now, 'yyyy-MM-dd');
+    const yesterdayStr = format(subDays(now, 1), 'yyyy-MM-dd');
+    const currentWeekStart = format(startOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd 00:00:00');
+
+    // Logique temporelle pour Forecast
     const isCurrentMonth = month === format(now, 'MM') && year === format(now, 'yyyy');
-    const daysPassed = isCurrentMonth ? now.getDate() : endOfMonth(selectedDate).getDate();
     const totalDaysInMonth = endOfMonth(selectedDate).getDate();
+    const daysPassed = isCurrentMonth ? now.getDate() : totalDaysInMonth;
 
     try {
         const [{ data: dbShops }, { data: targets }] = await Promise.all([
@@ -29,22 +48,33 @@ export async function getRevenueDashboardData(month: string, year: string) {
         if (!dbShops) return { shopPerformance: [], segmentPerformance: [] };
         const allPosIds = dbShops.flatMap(s => s.odoo_pos_ids || []);
 
-        // 1. FETCH DATA ODOO
-        const [currentOrders, previousOrders, currentLines, previousLines] = await Promise.all([
+        // 1. FETCH DATA ODOO (Ajout d'une requête pour le temps réel global)
+        const [currentOrders, previousOrders, recentOrders] = await Promise.all([
+            // Commandes du mois sélectionné
             odooClient.searchRead("pos.order", {
                 domain: [["config_id", "in", allPosIds], ["date_order", ">=", mtdStart], ["date_order", "<=", mtdEnd], ["state", "in", ["paid", "done", "invoiced"]]],
                 fields: ["config_id", "amount_total", "date_order"]
             }),
+            // Commandes M-1
             odooClient.searchRead("pos.order", {
                 domain: [["config_id", "in", allPosIds], ["date_order", ">=", prevMtdStart], ["date_order", "<=", prevMtdEnd], ["state", "in", ["paid", "done", "invoiced"]]],
                 fields: ["config_id", "amount_total"]
             }),
+            // Commandes pour Today, Yesterday et Week (fenêtre glissante)
+            odooClient.searchRead("pos.order", {
+                domain: [["config_id", "in", allPosIds], ["date_order", ">=", currentWeekStart < yesterdayStr ? currentWeekStart : yesterdayStr], ["state", "in", ["paid", "done", "invoiced"]]],
+                fields: ["config_id", "amount_total", "date_order"]
+            })
+        ]) as any[][];
+
+        // 2. RÉCUPÉRER LES LIGNES POUR LES SEGMENTS
+        const [currentLines, previousLines] = await Promise.all([
             odooClient.searchRead("pos.order.line", {
-                domain: [["order_id.config_id", "in", allPosIds], ["order_id.date_order", ">=", mtdStart], ["order_id.date_order", "<=", mtdEnd]],
+                domain: [["order_id", "in", currentOrders.map(o => o.id)]],
                 fields: ["order_id", "price_subtotal_incl", "product_id"]
             }),
             odooClient.searchRead("pos.order.line", {
-                domain: [["order_id.config_id", "in", allPosIds], ["order_id.date_order", ">=", prevMtdStart], ["order_id.date_order", "<=", prevMtdEnd]],
+                domain: [["order_id", "in", previousOrders.map(o => o.id)]],
                 fields: ["order_id", "price_subtotal_incl", "product_id"]
             })
         ]) as any[][];
@@ -55,35 +85,48 @@ export async function getRevenueDashboardData(month: string, year: string) {
             fields: ["x_studio_segment", "pos_categ_ids"]
         }) as any[];
 
-        // --- A. LOGIQUE PAR BOUTIQUE (EXISTANTE) ---
+        // --- A. LOGIQUE PAR BOUTIQUE ---
         const shopPerformance = dbShops.map(shop => {
             const posIds = shop.odoo_pos_ids || [];
+            
+            // Filtrage des ordres
             const sOrders = currentOrders.filter(o => posIds.includes(o.config_id[0]));
             const sOrdersPrev = previousOrders.filter(o => posIds.includes(o.config_id[0]));
+            const sOrdersRecent = recentOrders.filter(o => posIds.includes(o.config_id[0]));
+
             const mtd = sOrders.reduce((a, b) => a + b.amount_total, 0);
             const mtdPrev = sOrdersPrev.reduce((a, b) => a + b.amount_total, 0);
+
+            // Calcul Today / Yesterday / Weekly (Basé sur la fenêtre réelle)
+            const today = sOrdersRecent.filter(o => o.date_order.includes(todayStr)).reduce((a, b) => a + b.amount_total, 0);
+            const yesterday = sOrdersRecent.filter(o => o.date_order.includes(yesterdayStr)).reduce((a, b) => a + b.amount_total, 0);
+            const weekly = sOrdersRecent.filter(o => o.date_order >= currentWeekStart).reduce((a, b) => a + b.amount_total, 0);
+
             const weeks: any = {};
             sOrders.forEach(o => {
                 const wNum = `W${getWeek(new Date(o.date_order), { weekStartsOn: 1 })}`;
                 weeks[wNum] = (weeks[wNum] || 0) + o.amount_total;
             });
-            const shopTarget = targets?.find(t => t.category_tag === shop.name)?.target_amount || 10000;
+
+            const shopTarget = targets?.find(t => t.category_tag === shop.name)?.target_amount || 0;
 
             return {
                 boutique: shop.name,
-                mtd, mtdPrev,
+                today: Math.round(today),
+                yesterday: Math.round(yesterday),
+                weekly: Math.round(weekly),
+                mtd: Math.round(mtd),
+                mtdPrev: Math.round(mtdPrev),
                 deltaMoM: mtdPrev > 0 ? Math.round(((mtd - mtdPrev) / mtdPrev) * 100) : 0,
                 forecast: Math.round((mtd / daysPassed) * totalDaysInMonth),
                 budgetMensuel: shopTarget,
-                pctBudget: Math.round((mtd / shopTarget) * 100),
-                weeks,
-                today: 0, yesterday: 0, weekly: 0 // Simplifié pour l'exemple
+                pctBudget: shopTarget > 0 ? Math.round((mtd / shopTarget) * 100) : 0,
+                weeks
             };
         });
 
-        // --- B. LOGIQUE PAR SEGMENT -> CATEGORIE (NOUVELLE) ---
+        // --- B. LOGIQUE PAR SEGMENT -> CATEGORIE ---
         const segmentHierarchy: any = {};
-
         const aggregate = (lines: any[], orders: any[], field: 'mtd' | 'mtdPrev') => {
             lines.forEach(l => {
                 const order = orders.find(o => o.id === l.order_id[0]);
@@ -111,7 +154,7 @@ export async function getRevenueDashboardData(month: string, year: string) {
         aggregate(previousLines, previousOrders, 'mtdPrev');
 
         const segmentPerformance = Object.entries(segmentHierarchy).map(([segName, segData]: [string, any]) => ({
-            boutique: segName, // On garde la clé 'boutique' pour réutiliser les composants
+            boutique: segName,
             mtd: Math.round(segData.mtd),
             mtdPrev: Math.round(segData.mtdPrev),
             deltaMoM: segData.mtdPrev > 0 ? Math.round(((segData.mtd - segData.mtdPrev) / segData.mtdPrev) * 100) : 0,
@@ -130,7 +173,7 @@ export async function getRevenueDashboardData(month: string, year: string) {
         return { shopPerformance, segmentPerformance };
 
     } catch (e) {
-        console.error(e);
+        console.error("Erreur Dashboard Revenue:", e);
         return { shopPerformance: [], segmentPerformance: [] };
     }
 }
@@ -196,7 +239,7 @@ export async function getBeautySalesByProduct(month: string, year: string) {
     }
 }
 
-export async function getBeautySixMonthSales(month: string, year: string) {
+export async function getBeautySixMonthSales(month: string, year: string, filters: { q?: string, color?: string, category?: string, partner?: string }) {
     const selectedDate = new Date(parseInt(year), parseInt(month) - 1, 1);
     
     // 1. Générer les 6 derniers mois pour les filtres et les colonnes
@@ -207,15 +250,21 @@ export async function getBeautySixMonthSales(month: string, year: string) {
     // Clés pour le mapping (ex: "2026-02")
     const monthKeys = monthRange.map(d => format(d, 'yyyy-MM'));
 
+    let salesDomain = [
+        ["product_id.x_studio_segment", "=", "Beauty"],
+        ["order_id.state", "in", ["paid", "done", "invoiced"]],
+        ["create_date", ">=", startDate],
+        ["create_date", "<=", endDate]
+    ]
+
+    if (filters.q) {
+        salesDomain.push(["product_id.name", "ilike", filters.q]);
+    }
+
     try {
         // 2. Récupérer les ventes groupées par Produit ET par Mois
         const salesRaw = await odooClient.execute("pos.order.line", "read_group", [
-            [
-                ["product_id.x_studio_segment", "=", "Beauty"],
-                ["order_id.state", "in", ["paid", "done", "invoiced"]],
-                ["create_date", ">=", startDate],
-                ["create_date", "<=", endDate]
-            ],
+            salesDomain,
             ["price_subtotal_incl", "product_id"],
             ["product_id", "create_date:month"], // Double groupement
         ], { lazy: false }) as any[];
@@ -367,3 +416,124 @@ export async function getFemmeSixMonthSales(month: string, year: string) {
         return { products: [], columns: [] };
     }
 }
+
+// export async function getFemmeSixMonthSales(month: string, year: string) {
+//     const selectedDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+//     const monthRange = Array.from({ length: 6 }, (_, i) => subMonths(selectedDate, i)).reverse();
+//     const startDate = format(startOfMonth(monthRange[0]), 'yyyy-MM-dd 00:00:00');
+//     const endDate = format(endOfMonth(selectedDate), 'yyyy-MM-dd 23:59:59');
+
+//     try {
+//         // 1. CHARGER LE MAPPING (70k produits) - Uniquement ce qui est nécessaire
+//         let allProducts: any[] = [];
+//         let offset = 0;
+//         while (true) {
+//             const chunk = await odooClient.searchRead("product.product", {
+//                 domain: [["x_studio_segment", "=", "Femme"]],
+//                 fields: ["hs_code", "name", "x_studio_many2one_field_Arl5D"],
+//                 limit: 20000, offset
+//             }) as any[];
+//             allProducts = [...allProducts, ...chunk];
+//             if (chunk.length < 20000) break;
+//             offset += 20000;
+//         }
+
+//         const productMap = new Map();
+//         const idToHs = new Map<number, string>();
+        
+//         allProducts.forEach(p => {
+//             const hs = p.hs_code || "SANS-HS";
+//             idToHs.set(p.id, hs);
+//             if (!productMap.has(hs)) {
+//                 const color = (Array.isArray(p.x_studio_many2one_field_Arl5D) ? p.x_studio_many2one_field_Arl5D[1] : (p.x_studio_many2one_field_Arl5D || "")).replace(/\s+/g, '_').toLowerCase();
+//                 productMap.set(hs, {
+//                     hs_code: hs, name: p.name.split('[')[0].trim(), color,
+//                     currentStock: 0, monthlyData: {}
+//                 });
+//                 // Initialiser les 6 mois à zéro
+//                 monthRange.forEach(m => {
+//                     productMap.get(hs).monthlyData[format(m, 'yyyy-MM')] = { sales: 0, openingStock: 0 };
+//                 });
+//             }
+//         });
+
+//         // 2. RÉCUPÉRATION DATA EN PARALLÈLE
+//         const [salesRaw, stockRaw, movesRaw] = await Promise.all([
+//             odooClient.execute("pos.order.line", "read_group", [
+//                 [["product_id.x_studio_segment", "=", "Femme"], ["order_id.state", "in", ["paid", "done"]], ["create_date", ">=", startDate], ["create_date", "<=", endDate]],
+//                 ["price_subtotal_incl"], ["product_id", "create_date:month"]
+//             ], { lazy: false }),
+//             odooClient.execute("stock.quant", "read_group", [
+//                 [["product_id.x_studio_segment", "=", "Femme"], ["location_id.usage", "=", "internal"]],
+//                 ["quantity"], ["product_id"]
+//             ]),
+//             odooClient.execute("stock.move", "read_group", [
+//                 [["product_id.x_studio_segment", "=", "Femme"], ["state", "=", "done"], ["date", ">=", startDate], ["date", "<=", endDate]],
+//                 ["product_uom_qty"], ["product_id", "date:month", "location_dest_id", "location_id"]
+//             ], { lazy: false })
+//         ]) as any[][];
+
+//         // 3. REMPLISSAGE DES VENTES
+//         salesRaw.forEach(s => {
+//             const hs = idToHs.get(s.product_id[0]);
+//             if (hs && s['create_date:month']) {
+//                 const key = getMonthKey(s['create_date:month']);
+//                 if (productMap.get(hs).monthlyData[key]) {
+//                     productMap.get(hs).monthlyData[key].sales += s.price_subtotal_incl;
+//                 }
+//             }
+//         });
+
+//         // 4. RÉCUPÉRATION STOCK ACTUEL (POINT DE DÉPART)
+//         const currentRealStock = new Map<string, number>();
+//         stockRaw.forEach(s => {
+//             const hs = idToHs.get(s.product_id[0]);
+//             if (hs) {
+//                 currentRealStock.set(hs, (currentRealStock.get(hs) || 0) + s.quantity);
+//                 productMap.get(hs).currentStock += Math.round(s.quantity);
+//             }
+//         });
+
+//         // 5. CALCUL DU STOCK RÉTROACTIF
+//         const hsVariations = new Map<string, Record<string, number>>();
+//         movesRaw.forEach(m => {
+//             const hs = idToHs.get(m.product_id[0]);
+//             if (!hs || !m['date:month']) return;
+//             const key = getMonthKey(m['date:month']);
+            
+//             const isIncoming = m.location_dest_id[1].toLowerCase().includes('internal');
+//             const isOutgoing = m.location_id[1].toLowerCase().includes('internal');
+//             const diff = (isIncoming ? m.product_uom_qty : 0) - (isOutgoing ? m.product_uom_qty : 0);
+
+//             if (!hsVariations.has(hs)) hsVariations.set(hs, {});
+//             hsVariations.get(hs)![key] = (hsVariations.get(hs)![key] || 0) + diff;
+//         });
+
+//         // On remonte le temps mois par mois
+//         productMap.forEach((entry, hs) => {
+//             let stockAtEndOfMonth = currentRealStock.get(hs) || 0;
+            
+//             // On parcourt les mois du plus récent au plus ancien
+//             [...monthRange].reverse().forEach(m => {
+//                 const key = format(m, 'yyyy-MM');
+//                 const variationDuMois = hsVariations.get(hs)?.[key] || 0;
+                
+//                 // Formule : Stock Début = Stock Fin - Variation
+//                 const opening = stockAtEndOfMonth - variationDuMois;
+//                 entry.monthlyData[key].openingStock = Math.max(0, Math.round(opening));
+                
+//                 // Pour le mois précédent, le stock de fin sera l'opening de ce mois
+//                 stockAtEndOfMonth = opening;
+//             });
+//         });
+
+//         return {
+//             products: Array.from(productMap.values()).sort((a, b) => b.currentStock - a.currentStock),
+//             columns: monthRange.map(d => ({ key: format(d, 'yyyy-MM'), label: format(d, 'MMM yy', { locale: fr }).toUpperCase() }))
+//         };
+
+//     } catch (error) {
+//         console.error("Crash Error:", error);
+//         return { products: [], columns: [] };
+//     }
+// }

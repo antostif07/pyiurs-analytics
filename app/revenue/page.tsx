@@ -27,6 +27,9 @@ export default async function RevenueOverviewPage({
     budget: data.shopPerformance.reduce((acc, curr) => acc + curr.budgetMensuel, 0),
   };
 
+  console.log(totals);
+  
+
   // 3. PRÉPARATION DES CARTES KPI
   // Note : Le budget journalier est estimé en divisant le budget mensuel par 26 (jours ouvrés)
   const dailyBudget = Math.round(totals.budget / 26);

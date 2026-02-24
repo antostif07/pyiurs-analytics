@@ -123,7 +123,7 @@ export function FemmeTrendTable({ data, months }: { data: any[], months: any[] }
             {table.getHeaderGroups().map(hg => (
               <tr key={hg.id}>
                 {hg.headers.map(header => (
-                  <th key={header.id} className="px-4 py-4 font-black text-slate-500 uppercase tracking-widest border-r border-slate-100 last:border-none">
+                  <th key={header.id} className="px-4 py-2 font-black text-slate-500 uppercase tracking-widest border-r border-slate-100 last:border-none">
                     {flexRender(header.column.columnDef.header, header.getContext())}
                   </th>
                 ))}
@@ -134,7 +134,7 @@ export function FemmeTrendTable({ data, months }: { data: any[], months: any[] }
             {table.getRowModel().rows.map(row => (
               <tr key={row.id} className="hover:bg-indigo-50/5 transition-colors group">
                 {row.getVisibleCells().map(cell => (
-                  <td key={cell.id} className="px-4 py-2 border-r border-slate-50 last:border-none">
+                  <td key={cell.id} className="px-1 py-1 border-r border-slate-50 last:border-none">
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
                 ))}
