@@ -275,3 +275,95 @@ export async function getBeautySixMonthSales(month: string, year: string) {
         return { clients: [], columns: [] };
     }
 }
+
+export async function getFemmeSixMonthSales(month: string, year: string) {
+    const selectedDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+    const monthRange = Array.from({ length: 6 }, (_, i) => subMonths(selectedDate, i)).reverse();
+    const startDate = format(startOfMonth(monthRange[0]), 'yyyy-MM-dd 00:00:00');
+    const endDate = format(endOfMonth(selectedDate), 'yyyy-MM-dd 23:59:59');
+
+    try {
+        // 1. Récupérer les ventes PoS
+        const salesRaw = await odooClient.execute("pos.order.line", "read_group", [
+            [
+                ["product_id.x_studio_segment", "=", "Femme"],
+                ["order_id.state", "in", ["paid", "done", "invoiced"]],
+                ["create_date", ">=", startDate],
+                ["create_date", "<=", endDate]
+            ],
+            ["price_subtotal_incl", "product_id"],
+            ["product_id", "create_date:month"],
+        ], { lazy: false }) as any[];
+
+        // 2. Récupérer les détails techniques des produits
+        const productIds = [...new Set(salesRaw.map(s => s.product_id[0]))];
+        const productsInfo = await odooClient.searchRead("product.product", {
+            domain: [["id", "in", productIds]],
+            fields: ["name", "hs_code", "x_studio_many2one_field_Arl5D"] 
+        }) as any[];
+
+        // 3. NOUVEAU : Récupérer le stock actuel (stock.quant)
+        // On récupère le stock de tous les produits trouvés dans les ventes
+        const stockRaw = await odooClient.execute("stock.quant", "read_group", [
+            [
+                ["product_id", "in", productIds],
+                ["location_id.usage", "=", "internal"]
+            ],
+            ["quantity", "product_id"],
+            ["product_id"]
+        ]) as any[];
+
+        const tracker = new Map<string, any>();
+
+        salesRaw.forEach(sale => {
+            const pInfo = productsInfo.find(p => p.id === sale.product_id[0]);
+            if (!pInfo) return;
+
+            const hsCode = pInfo.hs_code || "SANS-HS";
+            const cleanName = pInfo.name.split('[')[0].trim();
+            const rawColor = pInfo.x_studio_many2one_field_Arl5D;
+            const colorName = Array.isArray(rawColor) ? rawColor[1] : (rawColor || "");
+
+            const odooMonth = sale['create_date:month'];
+
+            if (!tracker.has(hsCode)) {
+                // On récupère le stock pour tous les produits ayant ce HS Code
+                // On filtre productsInfo pour avoir tous les IDs Odoo liés à ce HS Code
+                const idsForThisHS = productsInfo.filter(p => p.hs_code === hsCode).map(p => p.id);
+                const currentStock = stockRaw
+                    .filter(s => idsForThisHS.includes(s.product_id[0]))
+                    .reduce((acc, curr) => acc + curr.quantity, 0);
+
+                tracker.set(hsCode, {
+                    hs_code: hsCode,
+                    name: cleanName,
+                    color: colorName.replace(/\s+/g, '_'),
+                    currentStock: Math.round(currentStock),
+                    monthlySales: {}
+                });
+            }
+
+            const entry = tracker.get(hsCode);
+            const monthMatch = monthRange.find(m => 
+                odooMonth.toLowerCase().includes(format(m, 'MMMM', { locale: fr }).toLowerCase())
+            );
+
+            if (monthMatch) {
+                const key = format(monthMatch, 'yyyy-MM');
+                entry.monthlySales[key] = (entry.monthlySales[key] || 0) + sale.price_subtotal_incl;
+            }
+        });
+
+        return {
+            products: Array.from(tracker.values()),
+            columns: monthRange.map(d => ({
+                key: format(d, 'yyyy-MM'),
+                label: format(d, 'MMM yy', { locale: fr }).toUpperCase()
+            }))
+        };
+
+    } catch (error) {
+        console.error(error);
+        return { products: [], columns: [] };
+    }
+}

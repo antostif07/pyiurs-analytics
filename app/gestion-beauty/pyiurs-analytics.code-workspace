@@ -8,6 +8,9 @@
 		},
 		{
 			"path": "../../../erp-weshindi"
+		},
+		{
+			"path": "../../../weshindi-connect"
 		}
 	],
 	"settings": {}

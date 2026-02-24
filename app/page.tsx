@@ -105,14 +105,6 @@ const modules = [
     permissions: ["admin", "manager-full"]
   },
   {
-    name: "Revenu Global",
-    description: "Revenu Global",
-    icon: "📈",
-    color: "bg-indigo-700",
-    href: "/revenue",
-    permissions: ["admin", "financier" ]
-  },
-  {
     name: "Suivi Vente agent",
     description: "Suivi des ventes par agent",
     icon: "📈",

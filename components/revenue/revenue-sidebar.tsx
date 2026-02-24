@@ -11,7 +11,8 @@ import {
   ArrowLeftCircle,
   TrendingUp,
   CreditCard,
-  X
+  X,
+  TrendingUpDown
 } from 'lucide-react';
 import clsx from 'clsx';
 import { motion } from 'framer-motion';
@@ -24,7 +25,7 @@ const menuGroups = [
     items: [
       { name: 'Vue d\'ensemble', href: mainPath, icon: BarChart3 },
       { name: 'Performance Beauty', href: `${mainPath}/performance-beauty`, icon: TrendingUp },
-    //   { name: 'Performance Ventes', href: `${mainPath}/sales`, icon: TrendingUp },
+      { name: 'Performance Femme', href: `${mainPath}/performance-femme`, icon: TrendingUpDown },
     ]
   },
   {
