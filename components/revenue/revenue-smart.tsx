@@ -13,15 +13,15 @@ async function fetchData({ segment }: { segment?: string }) {
             domain: categoryDomain,
             fields: ['id', 'name'],
         }),
-        odooClient.searchRead('product.attribute.value', {
-            domain: [['attribute_id.name', '=', 'x_couleur']],
-            fields: ['id', 'name']
+        odooClient.searchRead('x_couleur', {
+            domain: [],
+            fields: ['id', 'x_name']
         })
     ]);
     return { categories, colors };
 }
 
-function dataToOptions(data: any[], labelField = 'name'): { value: string, label: string }[] {
+export function dataToOptions(data: any[], labelField = 'name'): { value: string, label: string }[] {
     return data.map(item => {
         const rawLabel = item[labelField] || "";
         
@@ -42,7 +42,7 @@ async function fetchDataFormatted(segment?: string) {
     const { categories, colors } = await fetchData({segment});
     return {
         categories: dataToOptions(categories as any[]),
-        colors: dataToOptions(colors as any[])
+        colors: dataToOptions(colors as any[], 'x_name'),
     };
 }
 

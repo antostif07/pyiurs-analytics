@@ -4,7 +4,7 @@ import Image from "next/image";
 
 export default function Loader({placeholder}: {placeholder?: string}) {
   return (
-    <div className="w-full h-125 flex flex-col items-center justify-center bg-white rounded-[40px] border border-slate-100 shadow-sm">
+    <div className="w-full h-180 flex flex-col items-center justify-center">
       <div className="relative flex items-center justify-center">
         {/* Spinner Extérieur Indigo */}
         <div className="absolute w-24 h-24 border-4 border-pink-50 rounded-full" />
