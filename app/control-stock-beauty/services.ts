@@ -10,6 +10,7 @@ import { mapOdooProduct, Product } from "../types/product_template";
 import { ControlStockBeautyModel, IndividualProductModel } from "../types/ControlStockBeautyModel";
 import { PurchaseOrderLine } from "../types/purchase";
 import { calculateSalesLast30Days, calculateLastSaleDate, calculateReplenishmentMetrics } from "../utils/stockCalculations";
+import { odooClient } from "@/lib/odoo/xmlrpc";
 
 // --- Fonctions d'appel API (Privées au module) ---
 
@@ -113,15 +114,11 @@ async function getPOSOrderLines(productIds: number[]): Promise<{ records: POSOrd
 
     const allResults = [];
     for (const batch of batches) {
-      const domain = JSON.stringify([['product_id', 'in', batch]]);
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.order.line?fields=id,qty,product_id,create_date&domain=${domain}`,
-        { next: { revalidate: 300 } }
-      );
+      const domain = [['product_id', 'in', batch]];
+      const result = await odooClient.searchRead('pos.order.line', { domain: domain, fields: ['id', 'qty', 'product_id', 'create_date'] }) as POSOrderLine[];
 
-      if (!res.ok) throw new Error(`Erreur POS fetch: ${res.statusText}`);
-      const batchResults = await res.json();
-      allResults.push(...batchResults.records);
+      // if (!result.success) throw new Error(`Erreur POS fetch: ${result.error}`);
+      allResults.push(...result);
     }
     return { success: true, records: allResults };
   } catch (error) {
