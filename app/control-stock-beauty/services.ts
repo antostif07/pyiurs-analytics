@@ -24,7 +24,6 @@ async function getProducts() {
       ["available_in_pos", "=", true]
     ],
     fields: "id,name,list_price,categ_id,hs_code,product_variant_id,x_studio_many2one_field_21bvh,x_studio_many2one_field_QyelN,x_studio_many2one_field_Arl5D,description_pickingin".split(","),
-    limit: 5,
     order: "id desc",
   });
 
