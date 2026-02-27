@@ -1,8 +1,7 @@
 import { endOfDay, format, startOfDay } from "date-fns";
-import { POSConfig, POSOrder, POSOrderLine, POSPayment } from "../types/pos";
+import { POSConfig, POSOrder, POSPayment } from "../types/pos";
 import { AccountAccount, Expense, ExpenseSheet } from "../types/cloture";
 import { Profile } from "@/contexts/AuthContext";
-import { ProductProduct } from "../types/product_template";
 import { odooClient } from "@/lib/odoo/xmlrpc";
 
 // Type de retour enrichi pour les cartes
@@ -64,43 +63,36 @@ export async function getDailySalesLines(date: Date, shop?: string): Promise<Dai
   const fullDomain = [...commonDomain, ...shopDomain];
 
   try {
-    // 2. EXÉCUTION PARALLÈLE (4 Requêtes simultanées)
-    const [ordersBasic, paymentGroups, lineGroups] = await Promise.all([
-      
-      // A. Récupérer les Commandes (Structure de base)
-      odooClient.searchRead('pos.order', {
+    // A. Récupérer les Commandes (Structure de base)
+    const ordersBasic = await odooClient.searchRead('pos.order', {
         domain: fullDomain,
         fields: ['id', 'name', 'pos_reference', 'amount_total', 'partner_id', 'date_order', 'state', 'payment_ids', 'config_id', 'create_date'], 
         order: 'date_order desc'
-      }),
+      });
 
-      // B. Agrégation des Paiements (Pour les Totaux et Compteurs)
-      odooClient.execute('pos.payment', 'read_group', [], {
-        domain: [
-            ['payment_date', '>=', startDate],
-            ['payment_date', '<=', endDate],
-            // Filtre sur la session liée
-            ...(shop && shop !== 'all' ? [['session_id.config_id', '=', parseInt(shop)]] : [['session_id.config_id', '!=', 19]])
-        ],
-        fields: ['amount', 'payment_method_id'],
-        groupby: ['payment_method_id'],
-        lazy: false
-      }),
+    const paymentGroups = await odooClient.execute('pos.payment', 'read_group', [], {
+      domain: [
+          ['payment_date', '>=', startDate],
+          ['payment_date', '<=', endDate],
+          // Filtre sur la session liée
+          ...(shop && shop !== 'all' ? [['session_id.config_id', '=', parseInt(shop)]] : [['session_id.config_id', '!=', 19]])
+      ],
+      fields: ['amount', 'payment_method_id'],
+      groupby: ['payment_method_id'],
+      lazy: false
+    });
 
-      // C. Agrégation des Lignes (Pour les Stats Femme/Enfant)
-      // On groupe par PRODUIT pour éviter le bug categ_id
-      odooClient.execute('pos.order.line', 'read_group', [], {
-        domain: [
-            ['order_id.date_order', '>=', startDate],
-            ['order_id.date_order', '<=', endDate],
-            ['order_id.state', 'in', ['paid', 'done', 'invoiced']],
-            ...(shop && shop !== 'all' ? [['order_id.config_id', '=', parseInt(shop)]] : [['order_id.config_id', '!=', 19]])
-        ],
-        fields: ['price_subtotal_incl', 'product_id'],
-        groupby: ['product_id'],
-        lazy: false
-      })
-    ]);
+    const lineGroups = await odooClient.execute('pos.order.line', 'read_group', [], {
+      domain: [
+          ['order_id.date_order', '>=', startDate],
+          ['order_id.date_order', '<=', endDate],
+          ['order_id.state', 'in', ['paid', 'done', 'invoiced']],
+          ...(shop && shop !== 'all' ? [['order_id.config_id', '=', parseInt(shop)]] : [['order_id.config_id', '!=', 19]])
+      ],
+      fields: ['price_subtotal_incl', 'product_id'],
+      groupby: ['product_id'],
+      lazy: false
+    });
 
     // 3. TRAITEMENT : Hydratation des Paiements pour DetailsAndAccounting
     // Ton composant trie les ventes par méthode de paiement, il lui faut les détails.

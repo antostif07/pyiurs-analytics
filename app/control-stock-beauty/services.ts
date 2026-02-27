@@ -6,13 +6,30 @@ import {
 } from "@/lib/utils";
 import { StockQuant } from "../types/stock";
 import { POSOrderLine } from "../types/pos";
-import { mapOdooProduct, Product } from "../types/product_template";
+import { mapOdooProduct, OdooProductTemplate, Product } from "../types/product_template";
 import { ControlStockBeautyModel, IndividualProductModel } from "../types/ControlStockBeautyModel";
 import { PurchaseOrderLine } from "../types/purchase";
 import { calculateSalesLast30Days, calculateLastSaleDate, calculateReplenishmentMetrics } from "../utils/stockCalculations";
 import { odooClient } from "@/lib/odoo/xmlrpc";
+import { odooClient as odooJsonCLient } from "@/lib/odoo/odoo-json2-client";
 
 // --- Fonctions d'appel API (Privées au module) ---
+async function getProducts() {
+  // 2. Appel
+  const result = await odooJsonCLient.searchRead<OdooProductTemplate>("product.template", {
+    domain: [
+      ["categ_id", "ilike", "beauty"],
+      ["categ_id", "not ilike", "make-up"],
+      ["active", "=", true],
+      ["available_in_pos", "=", true]
+    ],
+    fields: "id,name,list_price,categ_id,hs_code,product_variant_id,x_studio_many2one_field_21bvh,x_studio_many2one_field_QyelN,x_studio_many2one_field_Arl5D,description_pickingin".split(","),
+    limit: 5,
+    order: "id desc",
+  });
+
+  return result as OdooProductTemplate[]
+}
 
 async function getStockQuantsForProducts(productIds: number[]): Promise<{ records: StockQuant[], success: boolean }> {
   if (productIds.length === 0) return { records: [], success: true };
@@ -26,22 +43,22 @@ async function getStockQuantsForProducts(productIds: number[]): Promise<{ record
 
     const allResults = [];
     for (const batch of batches) {
-      const domain = JSON.stringify([
+      const domain = [
         ['product_id', 'in', batch],
         ['location_id', 'in', [8,58,62,89,99,100,105,107,121,160,169,170,180,225,226,231,232,244,245,259,261,293]],
-      ]);
+      ];
       
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/stock.quant?fields=id,product_id,product_tmpl_id,location_id,quantity&domain=${domain}`,
-        { next: { revalidate: 300 } }
-      );
+      // const res = await fetch(
+      //   `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/stock.quant?fields=id,product_id,product_tmpl_id,location_id,quantity&domain=${domain}`,
+      //   { next: { revalidate: 300 } }
+      // );
 
-      if (!res.ok) {
-        console.error(`Erreur stock fetch: ${res.statusText}`);
-        continue;
-      }
-      const batchResults = await res.json();
-      allResults.push(...batchResults.records);
+      const res = await odooClient.searchRead('stock.quant', {
+        domain,
+        fields: "id,product_id,product_tmpl_id,location_id,quantity".split(',')
+      }) as any[]
+      
+      allResults.push(...res);
     }
     return { success: true, records: allResults };
   } catch (error) {
@@ -50,60 +67,26 @@ async function getStockQuantsForProducts(productIds: number[]): Promise<{ record
   }
 }
 
-async function getProducts() {
-  // 1. On définit le domaine proprement en JS (avec des vrais booléens, pas des strings "true")
-  const domain = [
-    ["categ_id", "ilike", "beauty"],
-    ["categ_id", "not ilike", "make-up"],
-    ["active", "=", true],
-    ["available_in_pos", "=", true]
-  ];
-
-  // 2. On utilise URLSearchParams pour construire une URL valide (encode les [ ] " etc.)
-  const params = new URLSearchParams({
-    fields: "id,name,list_price,categ_id,hs_code,product_variant_id,x_studio_many2one_field_21bvh,x_studio_many2one_field_QyelN,x_studio_many2one_field_Arl5D,description_pickingin",
-    domain: JSON.stringify(domain)
-  });
-  
-  // 3. Appel
-  const res = await fetch(
-    `${process.env.BASE_URL}/api/odoo/product.template?${params.toString()}`,
-    { 
-      next: { revalidate: 300 } 
-    }
-  );
-
-  const json = await res.json();
-
-  if (!res.ok) {
-    console.error("Erreur API Odoo:", json);
-    throw new Error(json.error || "Erreur API Odoo - Produits");
-  }
-
-  // L'API renvoie { success: true, data: [...] }, on retourne data directement si c'est ce que ton app attend
-  return json; 
-}
-
 async function getPurchaseOrderLines() {
-  const domain = JSON.stringify([
+  const domain = [
     ['partner_id', 'not ilike','pb - bc'],
     ['partner_id', "not ilike",["pb - 24"]],
     ['partner_id', "not ilike",["pb - mto"]],
     ['partner_id', "not ilike",["pb - lmb"]],
     ['partner_id', "not ilike",["pb - ktm"]],
     ["partner_id", "not in", [24099, 23705, 1, 23706, 23707, 23708, 27862]]
-  ]);
-  
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/purchase.order.line?fields=id,product_id,product_qty,qty_received,price_unit,order_id&domain=${domain}`,
-    { next: { revalidate: 300 } }
-  );
-  if (!res.ok) throw new Error("Erreur API Odoo - Commandes d'achat");
-  return res.json();
+  ];
+
+  const res = await odooClient.searchRead('purchase.order.line', {
+    domain,
+    fields: ["id", "product_id", "product_qty", "qty_received", "price_unit", "price_unit", "order_id"] 
+  })
+
+  return res as any[]
 }
 
-async function getPOSOrderLines(productIds: number[]): Promise<{ records: POSOrderLine[]; success: boolean; }> {
-  if (productIds.length === 0) return { records: [], success: true };
+async function getPOSOrderLines(productIds: number[]): Promise<POSOrderLine[]> {
+  if (productIds.length === 0) return [];
 
   try {
     const BATCH_SIZE = 500;
@@ -117,13 +100,15 @@ async function getPOSOrderLines(productIds: number[]): Promise<{ records: POSOrd
       const domain = [['product_id', 'in', batch]];
       const result = await odooClient.searchRead('pos.order.line', { domain: domain, fields: ['id', 'qty', 'product_id', 'create_date'] }) as POSOrderLine[];
 
+      console.log(result);
+      
       // if (!result.success) throw new Error(`Erreur POS fetch: ${result.error}`);
       allResults.push(...result);
     }
-    return { success: true, records: allResults };
+    return allResults as POSOrderLine[]
   } catch (error) {
     console.error('❌ Erreur lors de la récupération des ventes POS:', error);
-    return { records: [], success: false };
+    return []
   }
 }
 
@@ -132,17 +117,15 @@ async function getPOSOrderLines(productIds: number[]): Promise<{ records: POSOrd
 // Fonction interne qui fait le gros travail
 async function fetchAndProcessStockData() {
   const products = await getProducts();
-  const data = products.records.map(mapOdooProduct);
-  const allProductIds = data.map((product: Product) => product.productVariantId);
+  const allProductIds = products.map((product: OdooProductTemplate) => product.id);
+  const productsData = products.map((p) => mapOdooProduct(p))
 
-  const [purchaseOrderLines, posOrderLines, stockQuants] = await Promise.all([
-    getPurchaseOrderLines(),
-    getPOSOrderLines(allProductIds),
-    getStockQuantsForProducts(allProductIds),
-  ]);
+  const purchaseOrderLines = await getPurchaseOrderLines();
+  const posOrderLines = await getPOSOrderLines(allProductIds);
+  const stockQuants = await getStockQuantsForProducts(allProductIds);
 
-  const salesLast30Days = calculateSalesLast30Days(posOrderLines.records, allProductIds);
-  const lastSaleDates = calculateLastSaleDate(posOrderLines.records, allProductIds);
+  const salesLast30Days = calculateSalesLast30Days(posOrderLines, allProductIds);
+  const lastSaleDates = calculateLastSaleDate(posOrderLines, allProductIds);
 
   // Map des stocks
   const stockByProductAndBoutique = new Map<number, any>();
@@ -178,7 +161,7 @@ async function fetchAndProcessStockData() {
   const brandsSet = new Set<string>();
   const colorsSet = new Set<string>();
 
-  data.forEach((product: Product) => {
+  productsData.forEach((product: Product) => {
     const key = product.hs_code || "UNKNOWN";
     if (!groupedMap.has(key)) groupedMap.set(key, []);
     groupedMap.get(key)!.push(product);
@@ -193,11 +176,11 @@ async function fetchAndProcessStockData() {
     const color = extractColorFromProduct(productsGroup[0]);
     const name = `${cleanName} - ${hs_code} - (${productsGroup[0].listPrice}$)`;
 
-    const relatedLines = purchaseOrderLines.records.filter(
+    const relatedLines = purchaseOrderLines.filter(
       (line: PurchaseOrderLine) =>
         line.product_id && productsGroup.some((p) => p.productVariantId === line.product_id[0])
     );
-    const relatedPosLines = posOrderLines.records.filter(
+    const relatedPosLines = posOrderLines.filter(
       (line: POSOrderLine) =>
         line.product_id && productsGroup.some((p) => p.productVariantId === line.product_id[0])
     );

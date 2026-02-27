@@ -5,6 +5,7 @@ import "./globals.css"
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { getServerAuth } from "@/lib/supabase/server";
+import NextTopLoader from 'nextjs-toploader';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -43,6 +44,12 @@ export default async function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <NextTopLoader 
+          color="#fd6c9e" 
+          showSpinner={false} 
+          shadow={false}
+          height={3}
+        />
         <AuthProvider serverUser={user} serverProfile={profile}>
           {children}
         </AuthProvider>

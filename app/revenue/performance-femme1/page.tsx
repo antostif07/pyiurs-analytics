@@ -1,14 +1,14 @@
-import Loader from "@/components/loader";
-import { RevenueDateFilter } from "@/components/revenue/revenue-date-filter";
-import { format } from "date-fns";
 import { Suspense } from "react";
-import WomenSegmentPerformanceContent from "./women-segment-performance-content";
+import { format } from "date-fns";
+import { RevenueDateFilter } from "@/components/revenue/revenue-date-filter";
+import FemmeSalesContent from "./femme-sales-content";
+import Loader from "@/components/loader";
 
-export default async function WomenSegmentPerformance({searchParams}: {searchParams: Promise<{month?: string; year?: string}>}) {
+export default async function FemmeSalesPage({ searchParams }: any) {
     const params = await searchParams;
     const month = params.month || format(new Date(), "MM");
     const year = params.year || format(new Date(), "yyyy");
-    
+
     return (
         <div className="space-y-8 pb-10">
             {/* Header et Filtres s'affichent instantanément */}
@@ -26,7 +26,7 @@ export default async function WomenSegmentPerformance({searchParams}: {searchPar
 
             {/* Le tableau est "suspendu" pendant le chargement des données d'Odoo */}
             <Suspense key={`${month}-${year}`} fallback={<Loader placeholder="Chargement des données de performance..." />}>
-                <WomenSegmentPerformanceContent month={month} year={year} />
+                <FemmeSalesContent month={month} year={year} />
             </Suspense>
         </div>
     );

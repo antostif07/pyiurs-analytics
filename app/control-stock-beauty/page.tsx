@@ -5,6 +5,7 @@ import { TableSkeleton } from "./table-skeleton";
 import Link from "next/link";
 import { ExpandableDataTable } from "./data-table";
 import { getControlStockData } from "./services";
+import { ControlStockBeautyModel } from "../types/ControlStockBeautyModel";
 
 export const dynamic = 'force-dynamic';
 
@@ -23,7 +24,7 @@ export default async function ControlStockBeautyPage({ searchParams }: PageProps
   const selectedStock = params.stock;
   
   // Appel unique à la fonction de service (qui gère le cache elle-même)
-  const { data: allData, brands, colors } = await getControlStockData();
+  const {data: allData, brands, colors} = await getControlStockData();
 
   // --- Logique de Filtrage (reste côté serveur mais dynamique par requête) ---
   let filteredData = allData;

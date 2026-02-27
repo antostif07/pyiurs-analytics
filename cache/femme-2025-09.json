@@ -1,0 +1,1114 @@
+[
+  {
+    "hs_code": "SANS-HS",
+    "name": "att20221 - Veste jaune - 1721b",
+    "color": "",
+    "monthlySales": {
+      "2025-09": -3370.25
+    }
+  },
+  {
+    "hs_code": "607721",
+    "name": "FP22311 - robe fushia - 607721 - S",
+    "color": "",
+    "monthlySales": {
+      "2025-09": 125
+    }
+  },
+  {
+    "hs_code": "8390",
+    "name": "LR42311 - robe noir - 8390 - M/L",
+    "color": "",
+    "monthlySales": {
+      "2025-09": 62.5
+    }
+  },
+  {
+    "hs_code": "bo-106",
+    "name": "CF800848 - escarpin rouge - f60.mlkcf.bo-106 - 40",
+    "color": "Rouge",
+    "monthlySales": {
+      "2025-09": 62.5
+    }
+  },
+  {
+    "hs_code": "hm5577",
+    "name": "CF50318 - sandale sapphire - f60.mlkcf.hm5577",
+    "color": "",
+    "monthlySales": {
+      "2025-09": 25
+    }
+  },
+  {
+    "hs_code": "hm5683",
+    "name": "CF50360 - sandale nude - f60.mlkcf.hm5683",
+    "color": "",
+    "monthlySales": {
+      "2025-09": 31.25
+    }
+  },
+  {
+    "hs_code": "LE-263",
+    "name": "MLK19212446 - escarpin Bleu - le-263 - 38",
+    "color": "Bleu",
+    "monthlySales": {
+      "2025-09": 187.5
+    }
+  },
+  {
+    "hs_code": "LE-267",
+    "name": "MLK19212446 - escarpin Noir - le-267 - 39",
+    "color": "Noir",
+    "monthlySales": {
+      "2025-09": 62.5
+    }
+  },
+  {
+    "hs_code": "5565",
+    "name": "",
+    "color": "",
+    "monthlySales": {
+      "2025-09": 20
+    }
+  },
+  {
+    "hs_code": "K5809",
+    "name": "",
+    "color": "Noir",
+    "monthlySales": {
+      "2025-09": 50
+    }
+  },
+  {
+    "hs_code": "M718",
+    "name": "",
+    "color": "Blanc",
+    "monthlySales": {
+      "2025-09": 30
+    }
+  },
+  {
+    "hs_code": "M720",
+    "name": "",
+    "color": "Blanc",
+    "monthlySales": {
+      "2025-09": 30
+    }
+  },
+  {
+    "hs_code": "fa3586",
+    "name": "XF53388 - foulard rose - f705.ssaf.fa3586",
+    "color": "",
+    "monthlySales": {
+      "2025-09": 15
+    }
+  },
+  {
+    "hs_code": "4618",
+    "name": "BPP21732442 - jupe Marron - 4618 - L",
+    "color": "Marron",
+    "monthlySales": {
+      "2025-09": 50
+    }
+  },
+  {
+    "hs_code": "17326NJ",
+    "name": "EWT21132447 - jupe Rouge - 17326nj - S",
+    "color": "Rouge",
+    "monthlySales": {
+      "2025-09": 29
+    }
+  },
+  {
+    "hs_code": "31093NV",
+    "name": "EWT21132447 - veste Rouge - 31093nv - M",
+    "color": "Rouge",
+    "monthlySales": {
+      "2025-09": 49
+    }
+  },
+  {
+    "hs_code": "C17896-U",
+    "name": "GAR20842442 - haut Bordeau - c17896-u - M/L",
+    "color": "Bordeau",
+    "monthlySales": {
+      "2025-09": 34
+    }
+  },
+  {
+    "hs_code": "C15329-U",
+    "name": "GAR20842442 - jupe Bordeau - c15329-u - TU",
+    "color": "Bordeau",
+    "monthlySales": {
+      "2025-09": 44
+    }
+  },
+  {
+    "hs_code": "PF220",
+    "name": "KLK23692446 - robe Café - pf220 - S",
+    "color": "Café",
+    "monthlySales": {
+      "2025-09": 357
+    }
+  },
+  {
+    "hs_code": "V3334",
+    "name": "AMC032742532 - combinaison Vert - v3334 - M",
+    "color": "Vert",
+    "monthlySales": {
+      "2025-09": 240
+    }
+  },
+  {
+    "hs_code": "AC26556",
+    "name": "AMC032742532 - robe Noir - ac26556 - XL/4XL",
+    "color": "Noir",
+    "monthlySales": {
+      "2025-09": 150
+    }
+  },
+  {
+    "hs_code": "PR26556",
+    "name": "AMC032742532 - robe Noir - pr26556 - TU",
+    "color": "Noir",
+    "monthlySales": {
+      "2025-09": 50
+    }
+  },
+  {
+    "hs_code": "PR26592",
+    "name": "AMC032742532 - robe Rose - pr26592 - TU",
+    "color": "Rose",
+    "monthlySales": {
+      "2025-09": 100
+    }
+  },
+  {
+    "hs_code": "V1880",
+    "name": "ATT2566254 - veste Noir - v1880 - 36",
+    "color": "Noir",
+    "monthlySales": {
+      "2025-09": 100
+    }
+  },
+  {
+    "hs_code": "ENS01",
+    "name": "BCO032592530 - ensemble Blanc - ens01 - TU",
+    "color": "Blanc",
+    "monthlySales": {
+      "2025-09": 70
+    }
+  },
+  {
+    "hs_code": "CIC-91",
+    "name": "BKM033942537 - chaussure.bkm Noir - cic-91 - 39",
+    "color": "Noir",
+    "monthlySales": {
+      "2025-09": 100
+    }
+  },
+  {
+    "hs_code": "4736",
+    "name": "BP031292526 - robe Vert - 4736 - L",
+    "color": "Vert",
+    "monthlySales": {
+      "2025-09": 400
+    }
+  },
+  {
+    "hs_code": "4298",
+    "name": "BP031302532 - robe Noir - 4298 - M",
+    "color": "Noir",
+    "monthlySales": {
+      "2025-09": 50
+    }
+  },
+  {
+    "hs_code": "4677",
+    "name": "BP033602536 - combinaison Avoine - 4677 - L",
+    "color": "Avoine",
+    "monthlySales": {
+      "2025-09": 180
+    }
+  },
+  {
+    "hs_code": "4970",
+    "name": "BP033602536 - robe Choco - 4970 - L",
+    "color": "Choco",
+    "monthlySales": {
+      "2025-09": 280
+    }
+  },
+  {
+    "hs_code": "4913",
+    "name": "BP033602536 - robe Jaune - 4913 - M/L",
+    "color": "Jaune",
+    "monthlySales": {
+      "2025-09": 540
+    }
+  },
+  {
+    "hs_code": "4861",
+    "name": "BP033602536 - robe Rouge - 4861 - L",
+    "color": "Rouge",
+    "monthlySales": {
+      "2025-09": 600
+    }
+  },
+  {
+    "hs_code": "5041",
+    "name": "BP034272538 - robe Choco - 5041 - L",
+    "color": "Choco",
+    "monthlySales": {
+      "2025-09": 350
+    }
+  },
+  {
+    "hs_code": "15048",
+    "name": "BP034302539 - pantalon Ciel - 15048 - S",
+    "color": "Ciel",
+    "monthlySales": {
+      "2025-09": 40
+    }
+  },
+  {
+    "hs_code": "4617",
+    "name": "BSP2562257 - chemise Marron - 4617 - M",
+    "color": "Marron",
+    "monthlySales": {
+      "2025-09": 43.75
+    }
+  },
+  {
+    "hs_code": "4202",
+    "name": "BSP2607256 - jupe Marron - 4202 - M",
+    "color": "Marron",
+    "monthlySales": {
+      "2025-09": 50
+    }
+  },
+  {
+    "hs_code": "4807",
+    "name": "BSP28322513 - maillot Rose - 4807 - S/M",
+    "color": "Rose",
+    "monthlySales": {
+      "2025-09": 112
+    }
+  },
+  {
+    "hs_code": "4710",
+    "name": "BSP29362518 - robe Noir - 4710 - M",
+    "color": "Noir",
+    "monthlySales": {
+      "2025-09": 160
+    }
+  },
+  {
+    "hs_code": "4754",
+    "name": "BSP29362518 - robe Noir - 4754 - S/M",
+    "color": "Noir",
+    "monthlySales": {
+      "2025-09": 280
+    }
+  },
+  {
+    "hs_code": "08077-10",
+    "name": "CHK032512530 - jupe Beige - 08077-10 - M/L",
+    "color": "Beige",
+    "monthlySales": {
+      "2025-09": 80
+    }
+  },
+  {
+    "hs_code": "M8965",
+    "name": "CHM031332532 - robe Rose - m8965 - L",
+    "color": "Rose",
+    "monthlySales": {
+      "2025-09": 360
+    }
+  },
+  {
+    "hs_code": "M8838",
+    "name": "CHM032842532 - robe Blanc - m8838 - L",
+    "color": "Blanc",
+    "monthlySales": {
+      "2025-09": 120
+    }
+  },
+  {
+    "hs_code": "M8908",
+    "name": "CHM032842532 - robe Blanc - m8908 - XL",
+    "color": "Blanc",
+    "monthlySales": {
+      "2025-09": 80
+    }
+  },
+  {
+    "hs_code": "M8922",
+    "name": "CHM032842533 - robe Bleu - m8922 - L",
+    "color": "Bleu",
+    "monthlySales": {
+      "2025-09": 270
+    }
+  },
+  {
+    "hs_code": "M8978",
+    "name": "CHM033152533 - robe Bleu Jean - m8978 - L",
+    "color": "Bleu Jean",
+    "monthlySales": {
+      "2025-09": 280
+    }
+  },
+  {
+    "hs_code": "R1459",
+    "name": "EL24532450 - robe Blanc - r1459 - S",
+    "color": "Blanc",
+    "monthlySales": {
+      "2025-09": 112.5
+    }
+  },
+  {
+    "hs_code": "HM2377",
+    "name": "EL24612450 - robe Rouge - hm2377 - L",
+    "color": "Rouge",
+    "monthlySales": {
+      "2025-09": 450
+    }
+  },
+  {
+    "hs_code": "16070LR",
+    "name": "EWT028032529 - robe Noir - 16070lr - S",
+    "color": "Noir",
+    "monthlySales": {
+      "2025-09": 40
+    }
+  },
+  {
+    "hs_code": "35336LR",
+    "name": "EWT028032529 - robe Noir - 35336lr - S",
+    "color": "Noir",
+    "monthlySales": {
+      "2025-09": 50
+    }
+  },
+  {
+    "hs_code": "20430JC",
+    "name": "EWT028872515 - robe Noir - 20430jc - S",
+    "color": "Noir",
+    "monthlySales": {
+      "2025-09": 160
+    }
+  },
+  {
+    "hs_code": "23337LR",
+    "name": "EWT2571256 - robe Rouge - 23337lr - M",
+    "color": "Rouge",
+    "monthlySales": {
+      "2025-09": 250
+    }
+  },
+  {
+    "hs_code": "16310LR",
+    "name": "EWT27392511 - robe Noir - 16310lr - S",
+    "color": "Noir",
+    "monthlySales": {
+      "2025-09": 30
+    }
+  },
+  {
+    "hs_code": "38057LR",
+    "name": "EWT27392511 - robe Noir - 38057lr - L",
+    "color": "Noir",
+    "monthlySales": {
+      "2025-09": 75
+    }
+  },
+  {
+    "hs_code": "3251",
+    "name": "FMK03236262 - blouse Noir - 3251 - 1",
+    "color": "Noir",
+    "monthlySales": {
+      "2025-09": 50
+    }
+  },
+  {
+    "hs_code": "6961",
+    "name": "FMK03236262 - pantalon Noir - 6961 - 2",
+    "color": "Noir",
+    "monthlySales": {
+      "2025-09": 50
+    }
+  },
+  {
+    "hs_code": "13059",
+    "name": "FMK03236262 - robe Noir - 13059 - 2",
+    "color": "Noir",
+    "monthlySales": {
+      "2025-09": 50
+    }
+  },
+  {
+    "hs_code": "890378",
+    "name": "FPC031232526 - robe Bleu - 890378 - S",
+    "color": "Bleu",
+    "monthlySales": {
+      "2025-09": 50
+    }
+  },
+  {
+    "hs_code": "516106",
+    "name": "FPC031232526 - robe Orange - 516106 - L",
+    "color": "Orange",
+    "monthlySales": {
+      "2025-09": 210
+    }
+  },
+  {
+    "hs_code": "890397",
+    "name": "FPC031252526 - ensemble Multicolor - 890397 - L",
+    "color": "Multicolor",
+    "monthlySales": {
+      "2025-09": 140
+    }
+  },
+  {
+    "hs_code": "502095",
+    "name": "FPC031252526 - robe Vert - 502095 - L",
+    "color": "Vert",
+    "monthlySales": {
+      "2025-09": 160
+    }
+  },
+  {
+    "hs_code": "502625",
+    "name": "FPC032002530 - robe Multicolor - 502625 - S",
+    "color": "Multicolor",
+    "monthlySales": {
+      "2025-09": 90
+    }
+  },
+  {
+    "hs_code": "890395",
+    "name": "FPC032012534 - combinaison Bleu - 890395 - L",
+    "color": "Bleu",
+    "monthlySales": {
+      "2025-09": 560
+    }
+  },
+  {
+    "hs_code": "522608",
+    "name": "FPC032012534 - robe Beige - 522608 - S",
+    "color": "Beige",
+    "monthlySales": {
+      "2025-09": 160
+    }
+  },
+  {
+    "hs_code": "890367",
+    "name": "FPC032012534 - robe Violet - 890367 - L",
+    "color": "Violet",
+    "monthlySales": {
+      "2025-09": 300
+    }
+  },
+  {
+    "hs_code": "890381",
+    "name": "FPC032752532 - robe Bleu - 890381 - L",
+    "color": "Bleu",
+    "monthlySales": {
+      "2025-09": 345
+    }
+  },
+  {
+    "hs_code": "512335",
+    "name": "FPC032752532 - robe Rouge - 512335 - M",
+    "color": "Rouge",
+    "monthlySales": {
+      "2025-09": 270
+    }
+  },
+  {
+    "hs_code": "890332",
+    "name": "FPC033642536 - ensemble Multicolor - 890332 - L",
+    "color": "Multicolor",
+    "monthlySales": {
+      "2025-09": 640
+    }
+  },
+  {
+    "hs_code": "502257",
+    "name": "FPC033642536 - ensemble Noir - 502257 - L",
+    "color": "Noir",
+    "monthlySales": {
+      "2025-09": 240
+    }
+  },
+  {
+    "hs_code": "502552",
+    "name": "FPC033642536 - robe Bleu - 502552 - L",
+    "color": "Bleu",
+    "monthlySales": {
+      "2025-09": 60
+    }
+  },
+  {
+    "hs_code": "896087",
+    "name": "FPC033642536 - robe Bleu - 896087 - L",
+    "color": "Bleu",
+    "monthlySales": {
+      "2025-09": 650
+    }
+  },
+  {
+    "hs_code": "607782",
+    "name": "FPC2602256 - robe Blanc - 607782 - M",
+    "color": "Blanc",
+    "monthlySales": {
+      "2025-09": 200
+    }
+  },
+  {
+    "hs_code": "607305",
+    "name": "FPC30692530 - robe Noir - 607305 - M",
+    "color": "Noir",
+    "monthlySales": {
+      "2025-09": 120
+    }
+  },
+  {
+    "hs_code": "618020",
+    "name": "FPC30702530 - robe Rouge - 618020 - L",
+    "color": "Rouge",
+    "monthlySales": {
+      "2025-09": 65
+    }
+  },
+  {
+    "hs_code": "612196",
+    "name": "FPC31752530 - robe Noir - 612196 - TU",
+    "color": "Noir",
+    "monthlySales": {
+      "2025-09": 40
+    }
+  },
+  {
+    "hs_code": "607212",
+    "name": "FPC31752530 - robe Noir-Blanc - 607212 - TU",
+    "color": "Noir-Blanc",
+    "monthlySales": {
+      "2025-09": 45
+    }
+  },
+  {
+    "hs_code": "ZD27006",
+    "name": "GDD033162533 - robe Blanc - zd27006 - L/XL",
+    "color": "Blanc",
+    "monthlySales": {
+      "2025-09": 360
+    }
+  },
+  {
+    "hs_code": "9256",
+    "name": "GDL032772532 - robe Beige - 9256 - L",
+    "color": "Beige",
+    "monthlySales": {
+      "2025-09": 437.5
+    }
+  },
+  {
+    "hs_code": "GD6842",
+    "name": "GLD032032528 - robe Beige - gd6842 - S",
+    "color": "Beige",
+    "monthlySales": {
+      "2025-09": 60
+    }
+  },
+  {
+    "hs_code": "17728U",
+    "name": "GRC24622510 - robe Marine - 17728u - TU",
+    "color": "Marine",
+    "monthlySales": {
+      "2025-09": 50
+    }
+  },
+  {
+    "hs_code": "H3917",
+    "name": "IVV033662537 - gilet Bleu - h3917 - L",
+    "color": "Bleu",
+    "monthlySales": {
+      "2025-09": 90
+    }
+  },
+  {
+    "hs_code": "7361",
+    "name": "IVV033662537 - haut Beige - 7361 - L",
+    "color": "Beige",
+    "monthlySales": {
+      "2025-09": 30
+    }
+  },
+  {
+    "hs_code": "Y1283",
+    "name": "IVV033662537 - haut Bleu - y1283 - L",
+    "color": "Bleu",
+    "monthlySales": {
+      "2025-09": 320
+    }
+  },
+  {
+    "hs_code": "7362",
+    "name": "IVV033662537 - jupe Beige - 7362 - L",
+    "color": "Beige",
+    "monthlySales": {
+      "2025-09": 35
+    }
+  },
+  {
+    "hs_code": "Y1284",
+    "name": "IVV033662537 - jupe Bleu - y1284 - L",
+    "color": "Bleu",
+    "monthlySales": {
+      "2025-09": 240
+    }
+  },
+  {
+    "hs_code": "H3906",
+    "name": "IVV033662537 - robe Ecru - h3906 - L",
+    "color": "Ecru",
+    "monthlySales": {
+      "2025-09": 550
+    }
+  },
+  {
+    "hs_code": "H3918",
+    "name": "IVV033662537 - short Bleu - h3918 - L",
+    "color": "Bleu",
+    "monthlySales": {
+      "2025-09": 60
+    }
+  },
+  {
+    "hs_code": "43076",
+    "name": "JCLP032722531 - chemise Orange - 43076 - TU",
+    "color": "Orange",
+    "monthlySales": {
+      "2025-09": 90
+    }
+  },
+  {
+    "hs_code": "43077",
+    "name": "JCLP032722531 - pantalon Orange - 43077 - TU",
+    "color": "Orange",
+    "monthlySales": {
+      "2025-09": 100
+    }
+  },
+  {
+    "hs_code": "J8673",
+    "name": "JWL033202533 - jupe Bleu - j8673 - XL",
+    "color": "Bleu",
+    "monthlySales": {
+      "2025-09": 50
+    }
+  },
+  {
+    "hs_code": "V8685",
+    "name": "JWL033202533 - veste Bleu - v8685 - M",
+    "color": "Bleu",
+    "monthlySales": {
+      "2025-09": 120
+    }
+  },
+  {
+    "hs_code": "K5783",
+    "name": "KCK031622526 - robe Noir - k5783 - M",
+    "color": "Noir",
+    "monthlySales": {
+      "2025-09": 200
+    }
+  },
+  {
+    "hs_code": "M1181",
+    "name": "KLK027902526 - robe Blanc - m1181 - S",
+    "color": "Blanc",
+    "monthlySales": {
+      "2025-09": 35
+    }
+  },
+  {
+    "hs_code": "PF339",
+    "name": "KLK029632518 - robe Café - pf339 - L",
+    "color": "Café",
+    "monthlySales": {
+      "2025-09": 160
+    }
+  },
+  {
+    "hs_code": "PF237",
+    "name": "KLK029632518 - robe Jaune - pf237 - S",
+    "color": "Jaune",
+    "monthlySales": {
+      "2025-09": 140
+    }
+  },
+  {
+    "hs_code": "PF183",
+    "name": "KLK031312527 - ensemble Bleu - pf183 - S",
+    "color": "Bleu",
+    "monthlySales": {
+      "2025-09": 560
+    }
+  },
+  {
+    "hs_code": "PF360",
+    "name": "KLK031612540 - chemise Blanc - pf360 - TU",
+    "color": "Blanc",
+    "monthlySales": {
+      "2025-09": 45
+    }
+  },
+  {
+    "hs_code": "F1190",
+    "name": "KLK031612540 - ensemble Camel - f1190 - M",
+    "color": "Camel",
+    "monthlySales": {
+      "2025-09": 480
+    }
+  },
+  {
+    "hs_code": "PF359",
+    "name": "KLK031612540 - jupe Blanc - pf359 - S",
+    "color": "Blanc",
+    "monthlySales": {
+      "2025-09": 55
+    }
+  },
+  {
+    "hs_code": "PF200",
+    "name": "KLK032052533 - robe Café - pf200 - TU",
+    "color": "Café",
+    "monthlySales": {
+      "2025-09": 180
+    }
+  },
+  {
+    "hs_code": "M754",
+    "name": "KLK033632539 - ensemble Noir - m754 - L",
+    "color": "Noir",
+    "monthlySales": {
+      "2025-09": 585
+    }
+  },
+  {
+    "hs_code": "PF163",
+    "name": "KLK2518256 - jupe Fushia - pf163 - M",
+    "color": "Fushia",
+    "monthlySales": {
+      "2025-09": 125
+    }
+  },
+  {
+    "hs_code": "PF218-1",
+    "name": "KLK2518256 - robe Noir - pf218-1 - L",
+    "color": "Noir",
+    "monthlySales": {
+      "2025-09": 62.5
+    }
+  },
+  {
+    "hs_code": "F1090",
+    "name": "KLK2564254 - blouse Fuschia - f1090 - L",
+    "color": "Fuschia",
+    "monthlySales": {
+      "2025-09": 43.75
+    }
+  },
+  {
+    "hs_code": "PF283",
+    "name": "KLK2604257 - ensemble Blanc - pf283 - S",
+    "color": "Blanc",
+    "monthlySales": {
+      "2025-09": 80
+    }
+  },
+  {
+    "hs_code": "PF240",
+    "name": "KLK2659259 - robe Café - pf240 - L",
+    "color": "Café",
+    "monthlySales": {
+      "2025-09": 140
+    }
+  },
+  {
+    "hs_code": "13292",
+    "name": "LLR027332512 - robe Noir - 13292 - S/M",
+    "color": "Noir",
+    "monthlySales": {
+      "2025-09": 35
+    }
+  },
+  {
+    "hs_code": "LP14443",
+    "name": "LLR028042513 - robe Fuschia - lp14443 - XL/2XL",
+    "color": "Fuschia",
+    "monthlySales": {
+      "2025-09": 30
+    }
+  },
+  {
+    "hs_code": "13159",
+    "name": "LLR028862515 - robe Bleu - 13159 - S/M",
+    "color": "Bleu",
+    "monthlySales": {
+      "2025-09": 35
+    }
+  },
+  {
+    "hs_code": "15812",
+    "name": "LLR028932515 - haut Beige - 15812 - M/L",
+    "color": "Beige",
+    "monthlySales": {
+      "2025-09": 165
+    }
+  },
+  {
+    "hs_code": "15808",
+    "name": "LLR028932515 - robe Beige - 15808 - S/M",
+    "color": "Beige",
+    "monthlySales": {
+      "2025-09": 410
+    }
+  },
+  {
+    "hs_code": "15809",
+    "name": "LLR028932515 - short Beige - 15809 - S/M",
+    "color": "Beige",
+    "monthlySales": {
+      "2025-09": 160
+    }
+  },
+  {
+    "hs_code": "13824",
+    "name": "LLR033122533 - robe Fuschia - 13824 - S/M",
+    "color": "Fuschia",
+    "monthlySales": {
+      "2025-09": 50
+    }
+  },
+  {
+    "hs_code": "LP13824",
+    "name": "LLR033122533 - robe Fuschia - lp13824 - XL/2XL",
+    "color": "Fuschia",
+    "monthlySales": {
+      "2025-09": 50
+    }
+  },
+  {
+    "hs_code": "14407",
+    "name": "LLR033122533 - robe Noir - 14407 - S/M",
+    "color": "Noir",
+    "monthlySales": {
+      "2025-09": 240
+    }
+  },
+  {
+    "hs_code": "LP14407",
+    "name": "LLR033122533 - robe Noir - lp14407 - L/XL",
+    "color": "Noir",
+    "monthlySales": {
+      "2025-09": 120
+    }
+  },
+  {
+    "hs_code": "13252",
+    "name": "LLR033122533 - robe Vert - 13252 - M/L",
+    "color": "Vert",
+    "monthlySales": {
+      "2025-09": 400
+    }
+  },
+  {
+    "hs_code": "15565",
+    "name": "LLR033652536 - chemise Blanc - 15565 - M/L",
+    "color": "Blanc",
+    "monthlySales": {
+      "2025-09": 800
+    }
+  },
+  {
+    "hs_code": "15564",
+    "name": "LLR033652536 - pantalon Blanc - 15564 - M/L",
+    "color": "Blanc",
+    "monthlySales": {
+      "2025-09": 800
+    }
+  },
+  {
+    "hs_code": "15932",
+    "name": "LLR033652536 - robe Blanc - 15932 - M/L",
+    "color": "Blanc",
+    "monthlySales": {
+      "2025-09": 50
+    }
+  },
+  {
+    "hs_code": "LP14113",
+    "name": "LLR033652536 - robe Noir - lp14113 - L/XL",
+    "color": "Noir",
+    "monthlySales": {
+      "2025-09": 500
+    }
+  },
+  {
+    "hs_code": "LP14197",
+    "name": "LLR033652536 - robe Vert - lp14197 - L/XL",
+    "color": "Vert",
+    "monthlySales": {
+      "2025-09": 350
+    }
+  },
+  {
+    "hs_code": "13482",
+    "name": "LLR034122540 - robe Noir - 13482 - M/L",
+    "color": "Noir",
+    "monthlySales": {
+      "2025-09": 160
+    }
+  },
+  {
+    "hs_code": "606397",
+    "name": "LMCB24732451 - robe Violet - 606397 - S",
+    "color": "Violet",
+    "monthlySales": {
+      "2025-09": 100
+    }
+  },
+  {
+    "hs_code": "R5830",
+    "name": "MHY032762532 - robe Rose - r5830 - M/L",
+    "color": "Rose",
+    "monthlySales": {
+      "2025-09": 180
+    }
+  },
+  {
+    "hs_code": "BO-106",
+    "name": "MLK19212446 - escarpin Noir - bo-106 - 38",
+    "color": "Noir",
+    "monthlySales": {
+      "2025-09": 62.5
+    }
+  },
+  {
+    "hs_code": "PP-926",
+    "name": "MLK19212446 - escarpin Noir - pp-926 - 38",
+    "color": "Noir",
+    "monthlySales": {
+      "2025-09": 75
+    }
+  },
+  {
+    "hs_code": "LF-10459",
+    "name": "MMS031732527 - ceinture Camel - lf-10459 - TU",
+    "color": "Camel",
+    "monthlySales": {
+      "2025-09": 75
+    }
+  },
+  {
+    "hs_code": "LF-10255",
+    "name": "MMS031732527 - ceinture Noir - lf-10255 - TU",
+    "color": "Noir",
+    "monthlySales": {
+      "2025-09": 75
+    }
+  },
+  {
+    "hs_code": "LF-10531",
+    "name": "MMS031732527 - ceinture Noir - lf-10531 - TU",
+    "color": "Noir",
+    "monthlySales": {
+      "2025-09": 25
+    }
+  },
+  {
+    "hs_code": "LF-10478",
+    "name": "MMS031732527 - ceinture Noir-Blanc - lf-10478 - TU",
+    "color": "Noir-Blanc",
+    "monthlySales": {
+      "2025-09": 50
+    }
+  },
+  {
+    "hs_code": "LF-10261",
+    "name": "MMS031732527 - ceinture Noir-Or - lf-10261 - TU",
+    "color": "Noir-Or",
+    "monthlySales": {
+      "2025-09": 25
+    }
+  },
+  {
+    "hs_code": "F8050",
+    "name": "PKB2514252 - robe Vert - f8050 - S",
+    "color": "Vert",
+    "monthlySales": {
+      "2025-09": 0
+    }
+  },
+  {
+    "hs_code": "AFBKM",
+    "name": "RSADF030872523 - chaussette.bkm Promo - afbkm - TU",
+    "color": "Promo",
+    "monthlySales": {
+      "2025-09": 2
+    }
+  },
+  {
+    "hs_code": "CFBKM",
+    "name": "RSADF030872523 - chaussure.bkm Promo - cfbkm - TU",
+    "color": "Promo",
+    "monthlySales": {
+      "2025-09": 100
+    }
+  },
+  {
+    "hs_code": "SFBKM",
+    "name": "RSADF030872523 - sac a main.bkm Promo - sfbkm - TU",
+    "color": "Promo",
+    "monthlySales": {
+      "2025-09": 80
+    }
+  },
+  {
+    "hs_code": "96165",
+    "name": "SKSA032072546 - robe Beige - 96165 - L",
+    "color": "Beige",
+    "monthlySales": {
+      "2025-09": 150
+    }
+  },
+  {
+    "hs_code": "23657",
+    "name": "SKSA032072546 - robe Blanc - 23657 - M",
+    "color": "Blanc",
+    "monthlySales": {
+      "2025-09": 210
+    }
+  },
+  {
+    "hs_code": "MC7041D",
+    "name": "VTS031892527 - pantalon Bleu - mc7041d - XL",
+    "color": "Bleu",
+    "monthlySales": {
+      "2025-09": 50
+    }
+  },
+  {
+    "hs_code": "MC7046A",
+    "name": "VTS031892527 - pantalon Bleu - mc7046a - 3XL",
+    "color": "Bleu",
+    "monthlySales": {
+      "2025-09": 100
+    }
+  }
+]
