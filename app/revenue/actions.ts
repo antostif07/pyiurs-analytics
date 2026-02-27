@@ -2,9 +2,11 @@
 'use server'
 
 import { odooClient } from "@/lib/odoo/xmlrpc";
+import {odooClient as odooJsonClient} from "@/lib/odoo/odoo-json2-client"
 import { createClient } from "@/lib/supabase/server";
 import { startOfMonth, endOfMonth, subMonths, format, getWeek, subDays, startOfWeek } from "date-fns";
 import { fr } from "date-fns/locale";
+import { POSConfig, POSOrder, POSOrderLine } from "../types/pos";
 
 function getMonthKey(odooMonthStr: string): string {
   const months: Record<string, string> = {
@@ -46,7 +48,7 @@ function ensureTrackerEntry(tracker: Map<string, any>, hsCode: string, name = "P
 }
 
 export async function getRevenueDashboardData(month: string, year: string) {
-    const supabase = await createClient();
+    const supabase = createClient();
     const now = new Date();
     
     // --- DÉFINITION DES PÉRIODES ---
@@ -74,66 +76,97 @@ export async function getRevenueDashboardData(month: string, year: string) {
         ]);
 
         if (!dbShops) return { shopPerformance: [], segmentPerformance: [] };
-        const allPosIds = dbShops.flatMap(s => s.odoo_pos_ids || []);
 
         // 1. FETCH DATA ODOO (Ajout d'une requête pour le temps réel global)
-        const [currentOrders, previousOrders, recentOrders] = await Promise.all([
-            // Commandes du mois sélectionné
-            odooClient.searchRead("pos.order", {
-                domain: [["config_id", "in", allPosIds], ["date_order", ">=", mtdStart], ["date_order", "<=", mtdEnd], ["state", "in", ["paid", "done", "invoiced"]]],
-                fields: ["config_id", "amount_total", "date_order"]
-            }),
-            // Commandes M-1
-            odooClient.searchRead("pos.order", {
-                domain: [["config_id", "in", allPosIds], ["date_order", ">=", prevMtdStart], ["date_order", "<=", prevMtdEnd], ["state", "in", ["paid", "done", "invoiced"]]],
-                fields: ["config_id", "amount_total"]
-            }),
-            // Commandes pour Today, Yesterday et Week (fenêtre glissante)
-            odooClient.searchRead("pos.order", {
-                domain: [["config_id", "in", allPosIds], ["date_order", ">=", currentWeekStart < yesterdayStr ? currentWeekStart : yesterdayStr], ["state", "in", ["paid", "done", "invoiced"]]],
-                fields: ["config_id", "amount_total", "date_order"]
-            })
-        ]) as any[][];
+        // Commandes du mois sélectionné
+        const currentOrders = await odooJsonClient.searchRead<POSOrder>("pos.order", {
+            domain: [["date_order", ">=", mtdStart], ["date_order", "<=", mtdEnd], ["state", "in", ["paid", "done"]]],
+            fields: ["config_id", "amount_total", "date_order"]
+        })
+
+        // Commandes M-1
+        const previousOrders = await odooJsonClient.searchRead<POSOrder>("pos.order", {
+            domain: [["date_order", ">=", prevMtdStart], ["date_order", "<=", prevMtdEnd], ["state", "in", ["paid", "done"]]],
+            fields: ["config_id", "amount_total"]
+        })
+
+        // Commandes pour Today, Yesterday et Week (fenêtre glissante)
+        const recentOrders = await odooJsonClient.searchRead<POSOrder>("pos.order", {
+            domain: [["date_order", ">=", currentWeekStart < yesterdayStr ? currentWeekStart : yesterdayStr], ["state", "in", ["paid", "done"]]],
+            fields: ["config_id", "amount_total", "date_order"]
+        })
 
         // 2. RÉCUPÉRER LES LIGNES POUR LES SEGMENTS
-        const [currentLines, previousLines] = await Promise.all([
-            odooClient.searchRead("pos.order.line", {
-                domain: [["order_id", "in", currentOrders.map(o => o.id)]],
-                fields: ["order_id", "price_subtotal_incl", "product_id"]
-            }),
-            odooClient.searchRead("pos.order.line", {
-                domain: [["order_id", "in", previousOrders.map(o => o.id)]],
-                fields: ["order_id", "price_subtotal_incl", "product_id"]
-            })
-        ]) as any[][];
+        const currentLines = await odooJsonClient.searchRead<POSOrderLine>("pos.order.line", {
+            domain: [["order_id", "in", currentOrders.map(o => o.id)]],
+            fields: ["order_id", "price_subtotal_incl", "product_id"]
+        })
+        const previousLines = await odooJsonClient.searchRead<POSOrderLine>("pos.order.line", {
+            domain: [["order_id", "in", previousOrders.map(o => o.id)]],
+            fields: ["order_id", "price_subtotal_incl", "product_id"]
+        });
 
+        // Map orderId -> order
+        const currentOrderMap = new Map(currentOrders.map(o => [o.id, o]));
+        const previousOrderMap = new Map(previousOrders.map(o => [o.id, o]));
+        const recentOrderMap = new Map(recentOrders.map(o => [o.id, o]));
+        
         const allProdIds = [...new Set([...currentLines, ...previousLines].map(l => l.product_id[0]))];
         const productsInfo = await odooClient.searchRead("product.product", {
             domain: [["id", "in", allProdIds]],
             fields: ["x_studio_segment", "pos_categ_ids"]
         }) as any[];
-
+        
+        
         // --- A. LOGIQUE PAR BOUTIQUE ---
         const shopPerformance = dbShops.map(shop => {
             const posIds = shop.odoo_pos_ids || [];
-            
-            // Filtrage des ordres
-            const sOrders = currentOrders.filter(o => posIds.includes(o.config_id[0]));
-            const sOrdersPrev = previousOrders.filter(o => posIds.includes(o.config_id[0]));
-            const sOrdersRecent = recentOrders.filter(o => posIds.includes(o.config_id[0]));
 
-            const mtd = sOrders.reduce((a, b) => a + b.amount_total, 0);
-            const mtdPrev = sOrdersPrev.reduce((a, b) => a + b.amount_total, 0);
+            let mtd = 0;
+            let mtdPrev = 0;
+            let today = 0;
+            let yesterday = 0;
+            let weekly = 0;
+            const weeks: Record<string, number> = {};
 
-            // Calcul Today / Yesterday / Weekly (Basé sur la fenêtre réelle)
-            const today = sOrdersRecent.filter(o => o.date_order.includes(todayStr)).reduce((a, b) => a + b.amount_total, 0);
-            const yesterday = sOrdersRecent.filter(o => o.date_order.includes(yesterdayStr)).reduce((a, b) => a + b.amount_total, 0);
-            const weekly = sOrdersRecent.filter(o => o.date_order >= currentWeekStart).reduce((a, b) => a + b.amount_total, 0);
+            // --- MTD + Weeks ---
+            currentLines.forEach(line => {
+                const order = currentOrderMap.get(line.order_id[0]);
+                if (!order) return;
+                if (!posIds.includes(order.config_id?.[0])) return;
 
-            const weeks: any = {};
-            sOrders.forEach(o => {
-                const wNum = `W${getWeek(new Date(o.date_order), { weekStartsOn: 1 })}`;
-                weeks[wNum] = (weeks[wNum] || 0) + o.amount_total;
+                mtd += line.price_subtotal_incl;
+
+                const wNum = `W${getWeek(new Date(order.date_order), { weekStartsOn: 1 })}`;
+                weeks[wNum] = (weeks[wNum] || 0) + line.price_subtotal_incl;
+            });
+
+            // --- MTD PREV ---
+            previousLines.forEach(line => {
+                const order = previousOrderMap.get(line.order_id[0]);
+                if (!order) return;
+                if (!posIds.includes(order.config_id?.[0])) return;
+
+                mtdPrev += line.price_subtotal_incl;
+            });
+
+            // --- TODAY / YESTERDAY / WEEKLY ---
+            currentLines.forEach(line => {
+                const order = recentOrderMap.get(line.order_id[0]);
+                if (!order) return;
+                if (!posIds.includes(order.config_id?.[0])) return;
+
+                if (order.date_order.includes(todayStr)) {
+                    today += line.price_subtotal_incl;
+                }
+
+                if (order.date_order.includes(yesterdayStr)) {
+                    yesterday += line.price_subtotal_incl;
+                }
+
+                if (order.date_order >= currentWeekStart) {
+                    weekly += line.price_subtotal_incl;
+                }
             });
 
             const shopTarget = targets?.find(t => t.category_tag === shop.name)?.target_amount || 0;
@@ -149,7 +182,7 @@ export async function getRevenueDashboardData(month: string, year: string) {
                 forecast: Math.round((mtd / daysPassed) * totalDaysInMonth),
                 budgetMensuel: shopTarget,
                 pctBudget: shopTarget > 0 ? Math.round((mtd / shopTarget) * 100) : 0,
-                weeks
+                weeks,
             };
         });
 
@@ -397,9 +430,6 @@ export async function getBeautySixMonthSales(month: string, year: string, filter
             entry.currentStock = Math.round(stock.quantity);
         });
 
-        // console.log(allStockMoves);
-        
-
         allStockMoves.forEach(move => {
             const productId = move.product_id?.[0];
             if (!productId) return;
@@ -428,8 +458,6 @@ export async function getBeautySixMonthSales(month: string, year: string, filter
                 entry.monthlyStockOpening[key] -= move.product_uom_qty;
             }
         });
-
-        // console.log(tracker);
         
         return {
             clients: Array.from(tracker.values()),
