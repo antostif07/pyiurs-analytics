@@ -14,51 +14,74 @@ import { odooClient } from "@/lib/odoo/xmlrpc";
 import { odooClient as odooJsonCLient } from "@/lib/odoo/odoo-json2-client";
 
 // --- Fonctions d'appel API (Privées au module) ---
-async function getProducts() {
-  // 2. Appel
-  const result = await odooJsonCLient.searchRead<OdooProductTemplate>("product.template", {
-    domain: [
-      ["categ_id", "ilike", "beauty"],
-      ["categ_id", "not ilike", "make-up"],
-      ["active", "=", true],
-      ["available_in_pos", "=", true]
-    ],
-    fields: "id,name,list_price,categ_id,hs_code,product_variant_id,x_studio_many2one_field_21bvh,x_studio_many2one_field_QyelN,x_studio_many2one_field_Arl5D,description_pickingin".split(","),
-    order: "id desc",
-  });
+async function getProducts(): Promise<OdooProductTemplate[]> {
+  const pageSize = 1000; // nombre max par page pour éviter timeout
+  let offset = 0;
+  let allProducts: OdooProductTemplate[] = [];
 
-  return result as OdooProductTemplate[]
+  while (true) {
+    const batch = await odooJsonCLient.searchRead<OdooProductTemplate>(
+      "product.template",
+      {
+        domain: [
+          ["x_studio_segment", "ilike", "beauty"],
+          ["categ_id", "not ilike", "make-up"],
+          ["active", "=", true],
+          ["available_in_pos", "=", true],
+        ],
+        fields: [
+          "id",
+          "name",
+          "list_price",
+          "categ_id",
+          "hs_code",
+          "product_variant_id",
+          "x_studio_many2one_field_21bvh",
+          "x_studio_many2one_field_QyelN",
+          "x_studio_many2one_field_Arl5D",
+          "description_pickingin",
+        ],
+        limit: pageSize,
+        offset,
+        order: "id desc",
+      }
+    );
+
+    allProducts = allProducts.concat(batch);
+
+    // console.log(`Fetched ${batch.length} products, total: ${allProducts.length}`);
+
+    if (batch.length < pageSize) break; // dernière page
+    offset += pageSize;
+  }
+
+  return allProducts;
 }
 
 async function getStockQuantsForProducts(productIds: number[]): Promise<{ records: StockQuant[], success: boolean }> {
   if (productIds.length === 0) return { records: [], success: true };
 
   try {
-    const BATCH_SIZE = 500;
+    const BATCH_SIZE = 1000;
     const batches = [];
     for (let i = 0; i < productIds.length; i += BATCH_SIZE) {
       batches.push(productIds.slice(i, i + BATCH_SIZE));
     }
 
     const allResults = [];
-    for (const batch of batches) {
-      const domain = [
-        ['product_id', 'in', batch],
-        ['location_id', 'in', [8,58,62,89,99,100,105,107,121,160,169,170,180,225,226,231,232,244,245,259,261,293]],
-      ];
-      
-      // const res = await fetch(
-      //   `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/stock.quant?fields=id,product_id,product_tmpl_id,location_id,quantity&domain=${domain}`,
-      //   { next: { revalidate: 300 } }
-      // );
 
-      const res = await odooClient.searchRead('stock.quant', {
-        domain,
-        fields: "id,product_id,product_tmpl_id,location_id,quantity".split(',')
-      }) as any[]
+    for (const batch of batches) {
+      const res = await odooJsonCLient.searchRead<StockQuant>('stock.quant', {
+        domain: [
+          ['product_id', 'in', batch],
+          ['location_id', 'in', [8,58,62,89,99,100,105,107,121,160,169,170,180,225,226,231,232,244,245,259,261,293]],
+        ],
+        fields: "id,product_id,location_id,quantity".split(',')
+      })
       
       allResults.push(...res);
     }
+    
     return { success: true, records: allResults };
   } catch (error) {
     console.error('❌ Erreur lors de la récupération des stocks quant:', error);
@@ -67,19 +90,19 @@ async function getStockQuantsForProducts(productIds: number[]): Promise<{ record
 }
 
 async function getPurchaseOrderLines() {
-  const domain = [
-    ['partner_id', 'not ilike','pb - bc'],
-    ['partner_id', "not ilike",["pb - 24"]],
-    ['partner_id', "not ilike",["pb - mto"]],
-    ['partner_id', "not ilike",["pb - lmb"]],
-    ['partner_id', "not ilike",["pb - ktm"]],
-    ["partner_id", "not in", [24099, 23705, 1, 23706, 23707, 23708, 27862]]
-  ];
-
-  const res = await odooClient.searchRead('purchase.order.line', {
-    domain,
+  const res = await odooJsonCLient.searchRead('purchase.order.line', {
+    domain: [
+      ['partner_id', 'not ilike','pb - bc'],
+      ['partner_id', "not ilike",["pb - 24"]],
+      ['partner_id', "not ilike",["pb - mto"]],
+      ['partner_id', "not ilike",["pb - lmb"]],
+      ['partner_id', "not ilike",["pb - ktm"]],
+      ["partner_id", "not in", [24099, 23705, 1, 23706, 23707, 23708, 27862]]
+    ],
     fields: ["id", "product_id", "product_qty", "qty_received", "price_unit", "price_unit", "order_id"] 
   })
+
+  console.log("Total PurchaseOrderLines", (res as any).length);
 
   return res as any[]
 }
@@ -96,12 +119,17 @@ async function getPOSOrderLines(productIds: number[]): Promise<POSOrderLine[]> {
 
     const allResults = [];
     for (const batch of batches) {
-      const domain = [['product_id', 'in', batch]];
-      const result = await odooClient.searchRead('pos.order.line', { domain: domain, fields: ['id', 'qty', 'product_id', 'create_date'] }) as POSOrderLine[];
+      const result = await odooJsonCLient.searchRead('pos.order.line', 
+        {
+          domain:  [['product_id', 'in', batch]], 
+          fields: ['id', 'qty', 'product_id', 'create_date'] 
+        }
+      ) as POSOrderLine[];
       
       // if (!result.success) throw new Error(`Erreur POS fetch: ${result.error}`);
       allResults.push(...result);
     }
+    console.log("Total POSOrderlines", (allResults as any).length);
     return allResults as POSOrderLine[]
   } catch (error) {
     console.error('❌ Erreur lors de la récupération des ventes POS:', error);
@@ -114,7 +142,7 @@ async function getPOSOrderLines(productIds: number[]): Promise<POSOrderLine[]> {
 // Fonction interne qui fait le gros travail
 async function fetchAndProcessStockData() {
   const products = await getProducts();
-  const allProductIds = products.map((product: OdooProductTemplate) => product.id);
+  const allProductIds = products.map((product: OdooProductTemplate) => product.product_variant_id![0]);
   const productsData = products.map((p) => mapOdooProduct(p))
 
   const purchaseOrderLines = await getPurchaseOrderLines();
@@ -141,6 +169,8 @@ async function fetchAndProcessStockData() {
     
     const quantity = quant.quantity;
     const boutiqueCode = extractBoutiqueCode(locationName);
+
+    // if(locationName === "LMB N/Stock") console.log(locationName, boutiqueCode, quantity );
     
     const currentStock = stockByProductAndBoutique.get(productId);
     if(currentStock) {
@@ -187,7 +217,7 @@ async function fetchAndProcessStockData() {
     const not_received = product_qty - qty_received;
     const qty_sold = relatedPosLines.reduce((sum: number, line: POSOrderLine) => sum + (line.qty || 0), 0);
 
-    let groupStock = { P24: 0, ktm: 0, mto: 0, onl: 0, dc: 0, other: 0, total: 0 };
+    let groupStock = { P24: 0, ktm: 0, mto: 0, onl: 0, dc: 0, lmb: 0, other: 0, total: 0 };
 
     const individualProducts: IndividualProductModel[] = productsGroup.map((product) => {
       const productStock = stockByProductAndBoutique.get(product.productVariantId!) || {
@@ -195,7 +225,7 @@ async function fetchAndProcessStockData() {
       };
 
       Object.keys(groupStock).forEach(k => groupStock[k as keyof typeof groupStock] += productStock[k as keyof typeof groupStock]);
-
+      
       return {
         id: product.id,
         name: product.name,
@@ -243,6 +273,7 @@ async function fetchAndProcessStockData() {
       stock_mto: groupStock.mto,
       stock_onl: groupStock.onl,
       stock_dc: groupStock.dc,
+      stock_lmb: groupStock.lmb,
       stock_other: groupStock.other,
       total_stock: groupStock.total,
       sales_last_30_days: sales30Days,

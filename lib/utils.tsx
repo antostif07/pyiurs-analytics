@@ -19,7 +19,7 @@ export function extractBoutiqueCode(locationName: string): string {
   
   const name = locationName.toLowerCase();
 
-  if (name.includes('lmb')) console.log(name)
+  // if (name.includes('lmb')) console.log(name)
   
   if (name.includes('pb.24/boutique 24') || name.includes('aah/stock/emballage') || name.includes('PB.24/Dup')) return 'P24';
   if (name.includes('pbktm/')) return 'ktm';
