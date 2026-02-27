@@ -99,8 +99,6 @@ async function getPOSOrderLines(productIds: number[]): Promise<POSOrderLine[]> {
     for (const batch of batches) {
       const domain = [['product_id', 'in', batch]];
       const result = await odooClient.searchRead('pos.order.line', { domain: domain, fields: ['id', 'qty', 'product_id', 'create_date'] }) as POSOrderLine[];
-
-      console.log(result);
       
       // if (!result.success) throw new Error(`Erreur POS fetch: ${result.error}`);
       allResults.push(...result);
