@@ -138,8 +138,8 @@ async function getProductsByIds(productIds: number[]) {
       })
       
       allResults.push(...res);
-      return { records: allResults };
     }
+    return { records: allResults };
   } catch (e) {
     console.log(e);
   }
@@ -428,38 +428,32 @@ async function getPOSOrderLines(productIds: number[]) {
     return { records: [] };
   }
 
-  const CHUNK_SIZE = 50; // ajuste selon Odoo (30–100 recommandé)
-  const chunks: number[][] = [];
+  try {
+    const CHUNK_SIZE = 1000;
+    const chunks: number[][] = [];
 
-  // 1️⃣ Découper les IDs en chunks
-  for (let i = 0; i < productIds.length; i += CHUNK_SIZE) {
-    chunks.push(productIds.slice(i, i + CHUNK_SIZE));
-  }
-
-  // 2️⃣ Requêtes parallèles
-  const requests = chunks.map(async (chunk) => {
-    const domain = JSON.stringify([
-      ["product_id", "in", chunk],
-    ]);
-
-    const url = `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.order.line?fields=id,qty,product_id&domain=${encodeURIComponent(domain)}`;
-
-    const res = await fetch(url, {
-      next: { revalidate: 300 },
-    });
-
-    if (!res.ok) {
-      throw new Error("Erreur API Odoo - Ventes POS");
+    // 1️⃣ Découper les IDs en chunks
+    for (let i = 0; i < productIds.length; i += CHUNK_SIZE) {
+      chunks.push(productIds.slice(i, i + CHUNK_SIZE));
     }
 
-    return res.json();
-  });
+    const allResults = [];
 
-  // 3️⃣ Fusionner les résultats
-  const results = await Promise.all(requests);
-  const records = results.flatMap((r) => r.records ?? []);
-
-  return { records };
+    for (const chunk of chunks) {
+      const res = await odooJsonCLient.searchRead<POSOrderLine>('pos.order.line', {
+        domain: [
+          ["product_id", "in", chunk]
+        ],
+        fields: "id,qty,product_id".split(',')
+      })
+      
+      allResults.push(...res);
+    }
+    return { records: allResults };
+  } catch (e) {
+    console.log(e);
+  }
+  return { records: []}
 }
 
 async function getData(
