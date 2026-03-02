@@ -185,7 +185,7 @@ export default async function BeautySalesTrendPage({ searchParams }: any) {
                 <RevenueDateFilter />
             </div>
             <Suspense key={`${month}-${year}-${JSON.stringify(filters)}`} fallback={<Loader placeholder="Chargement des données de performance..." />}>
-                <BeautySalesContent month={month} year={year} productIds={productsIds} products={products} />
+                {/* <BeautySalesContent month={month} year={year} productIds={productsIds} products={products} /> */}
             </Suspense>
         </div>
     );

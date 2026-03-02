@@ -231,7 +231,7 @@ async function transformToControlStockModel(
     const productId = quant.product_id[0];
     const locationName = quant.location_id[1];
     const quantity = quant.quantity;
-
+    
     const boutiqueCode = extractBoutiqueCode(locationName);
 
     const currentStock = stockByProductAndBoutique.get(productId) || {
@@ -248,6 +248,9 @@ async function transformToControlStockModel(
       case 'mto':
         currentStock.mto += quantity;
         break;
+      case 'lmb':
+        currentStock.lmb += quantity;
+        break;
       case 'onl':
         currentStock.onl += quantity;
         break;
@@ -260,7 +263,6 @@ async function transformToControlStockModel(
     }
 
     currentStock.total += quantity;
-    // console.log(locationName, boutiqueCode, quant.location_id[0], quant, currentStock);
     
     stockByProductAndBoutique.set(productId, currentStock);
   })
