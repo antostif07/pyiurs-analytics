@@ -1,8 +1,6 @@
 import { FemmeTrendTable } from "@/components/revenue/femme-trend-table";
 import { odooClient } from "@/lib/odoo/xmlrpc";
 import { endOfMonth, format, startOfMonth, subMonths } from "date-fns";
-import fs from 'fs';
-import path from 'path';
 
 interface PosLine {
   price_subtotal_incl: number;
@@ -41,8 +39,8 @@ export async function getWomenPerformanceWithCache(
   const monthKeys = monthRange.map((m) => format(m, 'yyyy-MM'));
 
   const tracker = new Map<string, HsEntry>();
-  const cacheDir = path.join(process.cwd(), 'cache');
-  if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir);
+//   const cacheDir = path.join(process.cwd(), 'cache');
+//   if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir);
   
     // récupérer les hs_code femme
     const hsCodes = await odooClient.execute(
@@ -59,16 +57,16 @@ export async function getWomenPerformanceWithCache(
     for (const monthDate of monthRange) {
         const monthKey = format(monthDate, 'yyyy-MM');
         const isCurrentMonth = monthKey === format(new Date(), 'yyyy-MM');
-        const filePath = path.join(cacheDir, `femme-${monthKey}.json`);
+        // const filePath = path.join(cacheDir, `femme-${monthKey}.json`);
 
         // Charger depuis cache si disponible et pas le mois actuel
-        if (fs.existsSync(filePath) && !isCurrentMonth) {
-        const monthData: HsEntry[] = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-        monthData.forEach((entry) => {
-            tracker.set(entry.hs_code, entry);
-        });
-        continue;
-        }
+        // if (fs.existsSync(filePath) && !isCurrentMonth) {
+        // const monthData: HsEntry[] = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+        // monthData.forEach((entry) => {
+        //     tracker.set(entry.hs_code, entry);
+        // });
+        // continue;
+        // }
 
         const startDate = format(startOfMonth(monthDate), 'yyyy-MM-dd 00:00:00');
         const endDate = format(endOfMonth(monthDate), 'yyyy-MM-dd 23:59:59');
@@ -131,7 +129,7 @@ export async function getWomenPerformanceWithCache(
         color: e.color,
         monthlySales: { [monthKey]: e.monthlySales[monthKey] },
         }));
-        fs.writeFileSync(filePath, JSON.stringify(monthEntries, null, 2));
+        // fs.writeFileSync(filePath, JSON.stringify(monthEntries, null, 2));
     }
 
     // const products = Array.from(tracker.values());
