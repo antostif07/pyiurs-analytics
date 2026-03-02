@@ -1,10 +1,41 @@
 import {GoogleGenAI} from '@google/genai'
 
+export interface StockAnalysisResponse {
+    stockout_date: string;
+    burn_rate: string;
+    trend_analysis: string;
+    purchase_options: PurchaseOption[];
+    email_subject: string;
+    email_body: string;
+}
+
+export interface PurchaseOption {
+    label: string;
+    qty: number;
+    duration_days: number;
+}
+
+export interface StockAnalysisInput {
+    productName: string;
+    currentStock: number;
+    history: StockHistory;
+}
+
+export interface StockEntry {
+    date: string;
+    quantity: number;
+}
+
+export interface StockHistory {
+    sales: StockEntry[];
+    restocks: StockEntry[];
+}
+
 const ai = new GoogleGenAI({
     apiKey: process.env.GOOGLE_GEMINI_API_KEY
 });
 
-export async function getAIStockAnalysis(data: any) {
+export async function getAIStockAnalysis(data: StockAnalysisInput): Promise<StockAnalysisResponse> {
     const prompt = `
         Tu es le Responsable des Opérations Logistiques chez Pyiurs. Ton rôle est d'analyser la dynamique des ventes pour éviter les ruptures de stock.
 
@@ -50,7 +81,11 @@ export async function getAIStockAnalysis(data: any) {
 
     const result = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: prompt
+        contents: prompt,
+        config: {
+            responseMimeType: 'application/json', // Force le modèle à répondre en JSON
+            temperature: 0.2, // Réduit la créativité pour augmenter la précision mathématique
+        }
     })
 
     return JSON.parse(result.text!);

@@ -8,7 +8,7 @@ import {
   flexRender, 
   createColumnHelper 
 } from "@tanstack/react-table";
-import { Calendar, Package, Clock } from "lucide-react";
+import { Package, Clock } from "lucide-react";
 import { HSCycleStats } from "../actions/supply-chain";
 
 export default function LifecycleTable({ data }: { data: HSCycleStats[] }) {
@@ -20,7 +20,7 @@ export default function LifecycleTable({ data }: { data: HSCycleStats[] }) {
       cell: (info) => (
         <div>
            <div className="font-mono font-bold text-slate-700">{info.getValue()}</div>
-           <div className="text-[10px] text-slate-400 mt-1 max-w-[200px] truncate">
+           <div className="text-[10px] text-slate-400 mt-1 max-w-50 truncate">
              {info.row.original.product_names.join(", ")}
              {info.row.original.product_names.length >= 3 && "..."}
            </div>

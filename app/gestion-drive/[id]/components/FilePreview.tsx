@@ -29,7 +29,7 @@ export const FilePreview = ({ file }: FilePreviewProps) => {
     if (isImage) {
         return (
             <div 
-                className="relative h-8 w-8 min-w-[2rem] rounded overflow-hidden border border-gray-200 group cursor-zoom-in"
+                className="relative h-8 w-8 min-w-8 rounded overflow-hidden border border-gray-200 group cursor-zoom-in"
                 onClick={(e) => {
                     e.stopPropagation(); // Empêche d'ouvrir le manager si on veut juste voir l'image
                     window.open(url, '_blank');

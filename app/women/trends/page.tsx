@@ -11,10 +11,11 @@ export default async function TrendsPage({ searchParams }: { searchParams: Promi
   const period = (params.period as '7d'|'30d'|'90d') || '30d';
   const storeId = params.store ? params.store : undefined;
   
-  const [trendData, shops] = await Promise.all([
-    getSalesTrends(period, storeId),
-    getPosConfigs()
-  ]);
+  const shops = await getPosConfigs()
+  // const [trendData, shops] = await Promise.all([
+  //   getSalesTrends(period, storeId),
+  //   getPosConfigs()
+  // ]);
   
   const { heatmap, categories } = await getSalesTrends(period);
 
@@ -24,7 +25,7 @@ export default async function TrendsPage({ searchParams }: { searchParams: Promi
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Tendances de Vente</h1>
-          <p className="text-slate-500 mt-1">Analysez l'affluence en boutique et la performance des catégories.</p>
+          <p className="text-slate-500 mt-1">{`Analysez l'affluence en boutique et la performance des catégories.`}</p>
         </div>
         
         <div className="flex gap-3">
@@ -71,8 +72,8 @@ export default async function TrendsPage({ searchParams }: { searchParams: Promi
           <div className="flex items-center gap-3 mb-6">
             <div className="p-2 bg-purple-50 rounded-lg text-purple-600"><PieChart className="w-5 h-5"/></div>
             <div>
-               <h2 className="text-lg font-bold text-slate-900">Répartition par Catégorie</h2>
-               <p className="text-xs text-slate-400">Chiffre d'affaires par famille POS.</p>
+               <h2 className="text-lg font-bold text-slate-900">{`Répartition par Catégorie`}</h2>
+               <p className="text-xs text-slate-400">{`Chiffre d'affaires par famille POS.`}</p>
             </div>
           </div>
           

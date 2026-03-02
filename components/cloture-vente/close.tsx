@@ -10,7 +10,7 @@ import { useState, useMemo, useEffect } from "react"
 import { format } from "date-fns"
 import { ClotureData, ClotureDataView, clotureService, NegativeSaleJustification } from "@/lib/cloture-service"
 import { Textarea } from "../ui/textarea"
-import { CashClosure } from "@/app/types/cloture"
+import { CashClosure, ExpenseSheet } from "@/app/types/cloture"
 import { useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import { PDFClotureData, pdfService } from "@/lib/pdf/cloture-service"
@@ -87,7 +87,7 @@ export default function ClotureVenteClose({
       calculatedCash,
       difference
     }
-  }, [denominations, initialData.exchangeRate, initialData.expectedCash, initialData.date])
+  }, [denominations, initialData])
 
   // Fonction pour calculer les soldes d'ouverture
   const getOpeningBalances = useMemo(() => {
@@ -178,7 +178,7 @@ export default function ClotureVenteClose({
     }
 
     return { soCash, soBank, soMobileMoney, soOnline, soMarchandises, soBeauty, soBoost, soFinance, soLoyer, soPersonnel, soSecurity };
-  }, [selectedShopId, lastClosure, initialData.exchangeRate, initialData.date, existingClosure]);
+  }, [selectedShopId, lastClosure, existingClosure]);
 
   const expensesByCash: ExpenseByCash = initialData.expenses.reduce((acc, expense) => {
         const isEpargne = expense.journal_id && typeof expense.journal_id === 'object' 
@@ -186,14 +186,14 @@ export default function ClotureVenteClose({
             : false;
         if (isEpargne) {
           const newExpenses = expense.expenses
-            .filter(exp => format(exp.create_date, 'yyyy-MM-dd') === format(initialData.date, 'yyyy-MM-dd'))
-            .map(exp => ({...exp, journal_id: expense.journal_id}));
+            .filter((exp: ExpenseSheet) => format(exp.create_date, 'yyyy-MM-dd') === format(initialData.date, 'yyyy-MM-dd'))
+            .map((exp: ExpenseSheet) => ({...exp, journal_id: expense.journal_id}));
             acc.caisseEpargne.push(...newExpenses);
             acc.totalEpargne += expense.total_amount || 0;
         } else {
           const newExpenses = expense.expenses
-            .filter(exp => format(exp.create_date, 'yyyy-MM-dd') === format(initialData.date, 'yyyy-MM-dd'))
-            .map(exp => ({...exp, journal_id: expense.journal_id}));
+            .filter((exp: ExpenseSheet) => format(exp.create_date, 'yyyy-MM-dd') === format(initialData.date, 'yyyy-MM-dd'))
+            .map((exp: ExpenseSheet) => ({...exp, journal_id: expense.journal_id}));
             acc.caissePrincipale.push(...newExpenses);
             acc.totalPrincipal += expense.total_amount || 0;
         }
@@ -356,7 +356,7 @@ export default function ClotureVenteClose({
       }, 0),
       personalEntreesEpargne: 0,
     };
-  }, [initialData.expenses, initialData.date]);
+  }, [expensesByCash]);
 
   // États pour les données des caisses
   const [caissePrincipaleData, setCaissePrincipaleData] = useState<CaissePrincipaleRow[]>([]);
@@ -392,7 +392,7 @@ export default function ClotureVenteClose({
       personalEntreesEpargne,
     } = savingsCalculations;
 
-    const sortiesCash = initialData.expensesTotal - marchandisesSortiesEpargne - beautySortiesEpargne
+    // const sortiesCash = initialData.expensesTotal - marchandisesSortiesEpargne - beautySortiesEpargne
 
     // Mettre à jour la caisse principale
     setCaissePrincipaleData([
@@ -519,7 +519,7 @@ export default function ClotureVenteClose({
         validated: false
       }
     ]);
-  }, [getOpeningBalances, savingsCalculations, calculations.calculatedCash, initialData]);
+  }, [getOpeningBalances, savingsCalculations, calculations.calculatedCash, initialData, expensesByCash]);
 
   // Fonctions pour gérer la validation (restent les mêmes)
   const toggleManagerValidation = (index: number) => {
@@ -902,7 +902,7 @@ export default function ClotureVenteClose({
               <Button
                 onClick={handleSaveClosure}
                 disabled={existingClosure || isSubmitting ? true : false}
-                className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 h-11 text-base font-semibold shadow-md"
+                className="w-full bg-linear-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 h-11 text-base font-semibold shadow-md"
                 size="lg"
               >
                 <Save className="w-4 h-4 mr-2" />
@@ -997,7 +997,7 @@ export default function ClotureVenteClose({
               <div className="overflow-x-auto rounded-lg border">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-gradient-to-r from-blue-50 to-blue-100 border-b">
+                    <tr className="bg-linear-to-r from-blue-50 to-blue-100 border-b">
                       <th className="text-left p-4 font-semibold text-blue-900">Mode de Paiement</th>
                       <th className="text-right p-4 font-semibold text-blue-900">Solde Ouverture</th>
                       <th className="text-right p-4 font-semibold text-blue-900">Ventes Jour</th>
@@ -1042,7 +1042,7 @@ export default function ClotureVenteClose({
                       </tr>
                     ))}
                     {/* Total (reste inchangé) */}
-                    <tr className="bg-gradient-to-r from-blue-100 to-blue-200 font-bold">
+                    <tr className="bg-linear-to-r from-blue-100 to-blue-200 font-bold">
                       <td className="p-4 text-blue-900">TOTAL GÉNÉRAL</td>
                       <td className="p-4 text-right text-blue-900">
                         {caissePrincipaleData.reduce((sum, row) => sum + row.soldeOuverture, 0).toLocaleString('fr-FR')} $
@@ -1096,7 +1096,7 @@ export default function ClotureVenteClose({
               <div className="overflow-x-auto rounded-lg border">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-gradient-to-r from-green-50 to-green-100 border-b">
+                    <tr className="bg-linear-to-r from-green-50 to-green-100 border-b">
                       <th className="text-left p-4 font-semibold text-green-900">Catégorie</th>
                       <th className="text-right p-4 font-semibold text-green-900">Solde Ouverture</th>
                       <th className="text-right p-4 font-semibold text-green-900">Entrées Épargne (+)</th>
@@ -1127,7 +1127,7 @@ export default function ClotureVenteClose({
                       </tr>
                     ))}
                     
-                    <tr className="bg-gradient-to-r from-green-100 to-green-200 font-bold">
+                    <tr className="bg-linear-to-r from-green-100 to-green-200 font-bold">
                       <td className="p-4 text-green-900">TOTAL GÉNÉRAL</td>
                       <td className="p-4 text-right text-green-900">
                         {caisseSecondaireData.reduce((sum, row) => sum + row.soldeOuverture, 0).toLocaleString('fr-FR')} $

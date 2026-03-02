@@ -132,7 +132,7 @@ export const duplicateDocumentProcess = async ({
 
     if (oldCells && oldCells.length > 0) {
       // Préparer les nouvelles cellules en utilisant les MAPS
-      const cellsToInsert = [];
+      // const cellsToInsert = [];
       // On garde une trace pour les sous-données (multiline/files)
       // Structure : { oldCellId: string, tempId: number } 
       // Note: Supabase ne garantit pas l'ordre d'insertion vs retour select en batch facilement pour le mapping ID.

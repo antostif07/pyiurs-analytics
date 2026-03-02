@@ -3,14 +3,9 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
-  BarChart3, 
-  Wallet, 
-  Store, 
-  Target, 
-  FilePieChart, 
+  BarChart3,
   ArrowLeftCircle,
   TrendingUp,
-  CreditCard,
   X,
   TrendingUpDown
 } from 'lucide-react';

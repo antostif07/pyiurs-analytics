@@ -8,18 +8,18 @@ import { supabase } from "@/lib/supabase";
 import FileAttachmentManager from "./FileAttachmentManager";
 import { FilePreview } from "./FilePreview";
 
-interface EditableCellProps {
-    getValue: () => any;
-    row: Row<any>;
-    column: Column<any>;
-    table: Table<any>;
+interface EditableCellProps<TData extends Record<string, unknown>> {
+    getValue: () => unknown;
+    row: Row<TData>;
+    column: Column<TData, unknown>;
+    table: Table<TData>;
     columns: DocumentColumn[];
     subColumns?: SubColumn[];
-    allMultilineData?: MultilineData[];
-    onDataChange?: () => void;
 }
 
-export const EditableCell = ({ getValue, row, column, table, columns, subColumns }: EditableCellProps) => {
+export function EditableCell<TData extends Record<string, unknown>>({ 
+    getValue, row, column, table, columns 
+}: EditableCellProps<TData>) {
     const initialValue = getValue();
     const [value, setValue] = useState(initialValue);
     const [isEditing, setIsEditing] = useState(false);
@@ -49,19 +49,19 @@ export const EditableCell = ({ getValue, row, column, table, columns, subColumns
         ? (table.options.meta as any).fileAttachments?.filter((f: FileAttachment) => f.cell_data_id === cellDataId) || []
         : [];
         
-    const onBlur = () => {
+        const onBlur = () => {
         setIsEditing(false);
         // On ne sauvegarde que si la valeur a changé
         if (value !== initialValue) {
             // Appel de la fonction updateData passée dans les options de la table
-            table.options.meta?.updateData(row.original.id, column.id, value, columns);
+            table.options.meta?.updateData(row.original.id as string, column.id, value, columns);
         }
     };
 
     const handleOpenFileModal = async () => {
         // Si la cellule n'existe pas, on la crée d'abord
         if (!cellDataId) {
-            table.options.meta?.updateData(row.original.id, column.id, "", columns);
+            table.options.meta?.updateData(row.original.id as string, column.id, "", columns);
             return; 
         }
         setIsFileManagerOpen(true);
@@ -73,7 +73,7 @@ export const EditableCell = ({ getValue, row, column, table, columns, subColumns
         if(!confirm("Supprimer le fichier ?")) return;
         
         setValue(null);
-        table.options.meta?.updateData(row.original.id, column.id, null, columns);
+        table.options.meta?.updateData(row.original.id as string, column.id, null, columns);
         // Optionnel : Supprimer physiquement du Storage si vous voulez nettoyer
     };
 
@@ -114,7 +114,7 @@ export const EditableCell = ({ getValue, row, column, table, columns, subColumns
                 <div 
                     onClick={handleOpenFileModal}
                     style={cellStyle} 
-                    className={`w-full h-full min-h-[40px] flex items-center px-2 py-1 relative group cursor-pointer 
+                    className={`w-full h-full min-h-10 flex items-center px-2 py-1 relative group cursor-pointer 
                         ${!cellStyle.backgroundColor ? "hover:bg-gray-50 dark:hover:bg-gray-800" : "hover:brightness-95"}`}
                 >
                     {attachedFiles.length > 0 ? (
@@ -195,7 +195,7 @@ export const EditableCell = ({ getValue, row, column, table, columns, subColumns
                     onClick={handleMultilineClick}
                     style={cellStyle}
                     // On retire h-full et items-center pour laisser le contenu grandir
-                    className={`w-full min-h-[40px] p-1 cursor-pointer group hover:brightness-95 flex flex-col justify-center
+                    className={`w-full min-h-10 p-1 cursor-pointer group hover:brightness-95 flex flex-col justify-center
                     ${!cellStyle.backgroundColor ? "hover:bg-gray-50 dark:hover:bg-gray-800" : ""}`}
                 >
                     {rowIndexes.length > 0 ? (
@@ -248,7 +248,7 @@ export const EditableCell = ({ getValue, row, column, table, columns, subColumns
         if (type === "select") {
              return (
                 <select
-                    value={value || ""}
+                    value={String(value || "")}
                     onChange={(e) => setValue(e.target.value)}
                     onBlur={onBlur}
                     autoFocus
@@ -266,13 +266,13 @@ export const EditableCell = ({ getValue, row, column, table, columns, subColumns
              // Pour un booléen, pas besoin d'input text, une checkbox est mieux,
              // mais ici on garde la logique de bascule simple ou un select Vrai/Faux
             return (
-                 <select
+                    <select
                     value={value === true ? "true" : "false"}
                     onChange={(e) => {
                         const val = e.target.value === "true";
                         setValue(val);
                         // Hack: Pour le booléen on sauvegarde direct au changement car onBlur est parfois capricieux sur select
-                        table.options.meta?.updateData(row.original.id, column.id, val, columns);
+                        table.options.meta?.updateData(row.original.id as string, column.id, val, columns);
                         setIsEditing(false);
                     }}
                     onBlur={() => setIsEditing(false)}
@@ -287,7 +287,7 @@ export const EditableCell = ({ getValue, row, column, table, columns, subColumns
         
         if (type === "date") {
              // Formatage pour l'input date (YYYY-MM-DD)
-             const dateVal = value ? new Date(value).toISOString().split('T')[0] : "";
+             const dateVal = value ? new Date(value as string | number | Date).toISOString().split('T')[0] : "";
              return (
                  <input
                      type="date"
@@ -315,20 +315,20 @@ export const EditableCell = ({ getValue, row, column, table, columns, subColumns
     // --- MODE LECTURE (Affichage) ---
     
     // Gérer l'affichage selon le type (comme avant)
-    const renderContent = () => {
+    const renderContent = (): React.ReactNode => {
         if (value === null || value === undefined) return <span className="opacity-50 italic"></span>;
 
         switch (type) {
             case "boolean":
                 return <span className="font-bold">{value ? "Vrai" : "Faux"}</span>; // Plus besoin de gérer la couleur ici, c'est le conteneur qui gère
             case "select":
-                return <span>{value}</span>; // Idem, on enlève le style inline spécifique
+                return <span>{String(value)}</span>; // Idem, on enlève le style inline spécifique
             case "date":
-                 try { return new Date(value).toLocaleDateString("fr-FR"); } catch { return value; }
+                 try { return <span>{new Date(String(value)).toLocaleDateString("fr-FR")}</span>; } catch { return <span>{String(value)}</span>; }
             case "file":
                  return <span className="underline cursor-pointer">Fichier</span>;
             default:
-                return <div style={{ whiteSpace: 'pre-wrap' }}>{value}</div>;
+                return <div style={{ whiteSpace: 'pre-wrap' }}>{String(value)}</div>;
         }
     };
 
@@ -337,7 +337,7 @@ export const EditableCell = ({ getValue, row, column, table, columns, subColumns
             onClick={() => setIsEditing(type !== "file")}
             style={cellStyle}
             className={`
-                w-full h-full min-h-[40px] flex items-center p-2 cursor-pointer 
+                w-full h-full min-h-10 flex items-center p-2 cursor-pointer 
                 transition-colors
                 ${!cellStyle.backgroundColor ? "hover:bg-gray-50 dark:hover:bg-gray-800" : "hover:brightness-95"}
             `}

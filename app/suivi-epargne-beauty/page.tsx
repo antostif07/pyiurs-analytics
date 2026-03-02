@@ -1,12 +1,11 @@
 // app/manager-kpis/page.tsx
 import { POSConfig, POSOrder, POSOrderLine } from "../types/pos";
-import { mapOdooProduct, OdooProductTemplate, Product } from "../types/product_template";
+import { OdooProductTemplate, } from "../types/product_template";
 import { isBeauty } from "@/lib/is_beauty";
 import DailySalesClient from "./daily-sales.client";
 import { getMonthDates } from "@/lib/date-utils";
 import { EnrichedPOSLine } from "../types/daily-sales";
 import { getServerAuth, getServerUser } from "@/lib/supabase/server";
-import { Profile } from "@/contexts/AuthContext";
 
 // Types
 export interface DailySaleData {
@@ -284,7 +283,7 @@ export default async function DailySalesTablePage({ searchParams }: PageProps) {
     
     // Vous pourriez retourner une page d'erreur ici
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center">
+      <div className="min-h-screen bg-linear-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center">
         <div className="text-center">
           <div className="text-6xl mb-4">❌</div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">

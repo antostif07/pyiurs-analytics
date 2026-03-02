@@ -36,7 +36,7 @@ export async function getWomenDashboardStats() {
 
   // 2. Le Filtre (Domain)
   // On traverse la relation : Ligne de vente -> Produit -> Segment Studio
-  const domain = [
+  const domain: [string, string, unknown][] = [
     ['order_id.date_order', '>=', today],               
     ['order_id.state', 'in', ['paid', 'done', 'invoiced']], // Ventes validées
     

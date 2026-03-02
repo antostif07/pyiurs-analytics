@@ -15,8 +15,8 @@ import {
   Column
 } from "@tanstack/react-table";
 import { 
-  ArrowUpDown, ArrowUp, ArrowDown, Filter, X, EyeOff, 
-  Check, Search, SlidersHorizontal, 
+  ArrowUp, ArrowDown, Filter, X, EyeOff, 
+  Search, SlidersHorizontal, 
   Star,
   AlertTriangle,
   Clock,
@@ -277,7 +277,7 @@ export default function PerformanceTable({ data }: { data: AnalysisRow[] }) {
       )}
 
       {/* 2. Le Tableau */}
-      <div className="overflow-x-auto min-h-[400px]">
+      <div className="overflow-x-auto min-h-100">
         <table className="w-full text-left border-collapse">
           <thead className="bg-white border-b border-slate-100 sticky top-0 z-10">
             {table.getHeaderGroups().map(headerGroup => (

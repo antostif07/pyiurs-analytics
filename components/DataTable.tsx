@@ -23,12 +23,10 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   ChevronUpIcon,
-  ExternalLinkIcon,
   SearchIcon,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -50,7 +48,6 @@ import { usePagination } from "@/hooks/use-pagination"
 import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem } from "./ui/pagination"
 import { Button } from "./ui/button"
 import Multiselect from "./MultiSelect"
-import { Option } from "./ui/multiselect"
 
 declare module "@tanstack/react-table" {
   //allows us to define custom properties for our columns

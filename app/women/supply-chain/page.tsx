@@ -13,7 +13,7 @@ export default async function LifecyclePage() {
       
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
-            <Container className="w-8 h-8 text-indigo-600"/> Historique d'Approvisionnement
+            <Container className="w-8 h-8 text-indigo-600"/> {`Historique d'Approvisionnement`}
         </h1>
         <p className="text-slate-500 mt-1">
             Analyse des entrées en stock (PB-BC) groupées par Code Douanier (HS Code).

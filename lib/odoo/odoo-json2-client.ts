@@ -11,12 +11,6 @@ interface SearchReadParams {
   context?: Record<string, unknown>;
 }
 
-interface OdooError {
-  name: string;
-  message: string;
-  arguments: unknown[];
-}
-
 interface OdooResponse<T> {
   result?: T;
   error?: {

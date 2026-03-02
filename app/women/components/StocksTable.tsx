@@ -9,8 +9,7 @@ import {
   createColumnHelper 
 } from "@tanstack/react-table";
 import { 
-  ChevronLeft, ChevronRight, Search, 
-  AlertCircle, CheckCircle, XCircle, Clock, Package
+  ChevronLeft, ChevronRight, Search, Package
 } from "lucide-react";
 import { StockProduct, StockResponse } from "../types";
 

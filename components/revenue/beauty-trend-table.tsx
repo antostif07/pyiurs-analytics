@@ -2,125 +2,210 @@
 
 import React, { useMemo, useState } from 'react';
 import { 
-  useReactTable, getCoreRowModel, getSortedRowModel, 
-  flexRender, createColumnHelper, SortingState, getPaginationRowModel 
+  useReactTable, 
+  getCoreRowModel, 
+  getSortedRowModel, 
+  getPaginationRowModel,
+  flexRender, 
+  createColumnHelper, 
+  SortingState, 
+  Row,
 } from '@tanstack/react-table';
-import { ArrowUpDown, ChevronLeft, ChevronRight, TrendingUp } from 'lucide-react';
-import ProductImage from "@/app/marketing/components/ProductImage";
+import { ArrowUpDown, ChevronLeft, ChevronRight, TrendingUp, Package } from 'lucide-react';
+import ProductImage from "@/app/marketing/components/ProductImage"; // Assurez-vous que ce chemin est correct
 import { Button } from '@/components/ui/button';
 
-const columnHelper = createColumnHelper<any>();
+// --- 1. DÉFINITION DES TYPES ---
 
-export function BeautyTrendTable({ data, months }: { data: any[], months: any[] }) {
+export interface MonthlyData {
+  [key: string]: number; // ex: "2023-10": 1500
+}
+
+export interface ProductTrendData {
+  hs_code: string;
+  name: string;
+  monthlySales: MonthlyData;
+  monthlyStockOpening: MonthlyData;
+  currentStock: number;
+}
+
+export interface MonthDefinition {
+  key: string;   // "2023-10"
+  label: string; // "OCT"
+}
+
+// Structure retournée par l'accesseur des colonnes dynamiques
+interface MonthlyMetric {
+  sales: number;
+  stock: number;
+}
+
+// Typage strict du helper
+const columnHelper = createColumnHelper<ProductTrendData>();
+
+// --- 2. UTILITAIRES ---
+
+const formatCurrency = (val: number) => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(val);
+};
+
+// --- 3. COMPOSANT ---
+
+interface BeautyTrendTableProps {
+  data: ProductTrendData[];
+  months: MonthDefinition[];
+}
+
+export function BeautyTrendTable({ data, months }: BeautyTrendTableProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
 
   const columns = useMemo(() => [
+    // --- COLONNE IMAGE ---
     columnHelper.accessor('hs_code', {
+      id: 'image', // ID stable requis
       header: '',
-      cell: i => (
-        <div className="w-12 h-12 rounded-xl overflow-hidden border border-slate-100 bg-slate-50">
+      enableSorting: false,
+      cell: info => (
+        <div className="w-12 h-12 rounded-xl overflow-hidden border border-slate-100 bg-slate-50 relative group">
           <ProductImage 
-            src={`https://images.pyiurs.com/images/${i.getValue()}_.jpg`} 
-            alt={i.row.original.name} 
+            src={`https://images.pyiurs.com/images/${info.getValue()}_.jpg`} 
+            alt={info.row.original.name} 
           />
         </div>
       ),
     }),
+
+    // --- COLONNE NOM ---
     columnHelper.accessor('name', {
       header: 'PRODUIT',
-      cell: i => (
+      cell: info => (
         <div className="min-w-37.5">
-          <p className="font-bold text-slate-900 text-[11px] uppercase leading-tight">{i.getValue()}</p>
-          <p className="text-[9px] text-slate-400 font-mono italic">{i.row.original.hs_code}</p>
+          <p className="font-bold text-slate-900 text-[11px] uppercase leading-tight line-clamp-2">
+            {info.getValue()}
+          </p>
+          <div className="flex items-center gap-1 text-[9px] text-slate-400 font-mono italic mt-0.5">
+            <span className="bg-slate-100 px-1 rounded">{info.row.original.hs_code}</span>
+          </div>
         </div>
       )
     }),
-    // COLONNES DYNAMIQUES POUR LES 6 MOIS
+
+    // --- COLONNES DYNAMIQUES (MOIS) ---
     ...months.map((m, idx) =>
-    columnHelper.accessor((row) => ({
-        sales: row.monthlySales?.[m.key] ?? 0,
-        stock: row.monthlyStockOpening?.[m.key] ?? 0
-    }), {
-      id: m.key,
-      header: ({ column }) => (
-        <button 
-          onClick={() => column.toggleSorting()} 
-          className="flex items-center justify-end gap-1 uppercase hover:text-emerald-400 transition-colors w-full"
-        >
-          {m.label} <ArrowUpDown size={10} />
-        </button>
-      ),
-      cell: i => {
-        const { sales, stock } = i.getValue();
-        const isLastMonth = idx === months.length - 1;
-        return (
-          <div className={`text-right ${isLastMonth ? 'text-emerald-600 font-black' : 'text-slate-500'}`}>
-            <div>$ {Math.round(sales).toLocaleString()}</div>
-            <div className="text-[10px] text-slate-400 font-mono">Stock: {stock}</div>
-          </div>
-        )
-      },
-      sortingFn: (rowA, rowB, columnId) => {
-        const a = (rowA.getValue(columnId) as any)?.sales ?? 0;
-        const b = (rowB.getValue(columnId) as any)?.sales ?? 0;
-        return a - b;
-      },
-    })
-  ),
-    // TOTAL CUMULÉ 6 MOIS
-    columnHelper.accessor((row) => 
-      Object.values(row.monthlySales || {}).reduce((a: any, b: any) => a + (Number(b) || 0), 0), 
-      {
-        id: 'total',
+      columnHelper.accessor((row) => ({
+          sales: row.monthlySales?.[m.key] ?? 0,
+          stock: row.monthlyStockOpening?.[m.key] ?? 0
+      }), {
+        id: m.key,
         header: ({ column }) => (
-          <button 
-              onClick={() => column.toggleSorting()} 
-              className="flex items-center justify-end gap-1 uppercase hover:text-emerald-400 transition-colors w-full"
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} 
+            className="flex items-center justify-end gap-1 uppercase hover:bg-slate-100 hover:text-emerald-600 transition-colors w-full px-0 h-8 font-bold text-[10px]"
           >
-              TOTAL 6M <ArrowUpDown size={10} />
-          </button>
+            {m.label} 
+            <ArrowUpDown size={10} className={column.getIsSorted() ? "text-emerald-600 opacity-100" : "opacity-30"} />
+          </Button>
         ),
-        cell: i => (
-          <div className="text-right font-black text-slate-900 bg-slate-50 py-1 rounded-lg px-2">
-              $ {Math.round(i.getValue() as number).toLocaleString()}
-          </div>
-        ),
-        sortingFn: "alphanumeric",
-      }),
+        cell: info => {
+          const { sales, stock } = info.getValue<MonthlyMetric>();
+          const isLastMonth = idx === months.length - 1;
+          
+          return (
+            <div className={`text-right flex flex-col justify-center h-full ${isLastMonth ? 'bg-emerald-50/50 -mx-2 px-2 py-1 rounded-lg' : ''}`}>
+              <div className={`font-medium ${isLastMonth ? 'text-emerald-700 font-bold' : 'text-slate-600'}`}>
+                {sales > 0 ? formatCurrency(sales) : <span className="text-slate-300 text-[9px]">—</span>}
+              </div>
+              <div className="text-[9px] text-slate-400 font-mono flex justify-end items-center gap-1">
+                 <span className="scale-75 opacity-50"><Package size={10}/></span> {stock}
+              </div>
+            </div>
+          )
+        },
+        // Logique de tri personnalisée et typée
+        sortingFn: (rowA: Row<ProductTrendData>, rowB: Row<ProductTrendData>, columnId: string) => {
+          const valA = rowA.getValue<MonthlyMetric>(columnId).sales;
+          const valB = rowB.getValue<MonthlyMetric>(columnId).sales;
+          return valA - valB;
+        },
+      })
+    ),
+
+    // --- TOTAL CUMULÉ ---
+    columnHelper.accessor((row) => {
+      // Calcul sécurisé du total
+      const salesValues = Object.values(row.monthlySales || {});
+      return salesValues.reduce((sum, val) => sum + (Number(val) || 0), 0);
+    }, 
+    {
+      id: 'total',
+      header: ({ column }) => (
+        <Button 
+            variant="ghost"
+            size="sm" 
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} 
+            className="flex items-center justify-end gap-1 uppercase hover:bg-slate-100 hover:text-indigo-600 transition-colors w-full px-0 h-8 font-black text-[10px]"
+        >
+            TOTAL 6M <TrendingUp size={10} className={column.getIsSorted() ? "text-indigo-600" : "opacity-30"}/>
+        </Button>
+      ),
+      cell: info => (
+        <div className="text-right font-black text-slate-900 bg-slate-100 py-1.5 rounded-lg px-2 border border-slate-200">
+            {formatCurrency(info.getValue())}
+        </div>
+      ),
+    }),
+
+    // --- STOCK ACTUEL ---
     columnHelper.accessor('currentStock', {
-        header: 'STOCK',
-        cell: i => {
-            const val = i.getValue();
+        header: () => <div className="text-right w-full pr-1">STOCK</div>,
+        cell: info => {
+            const val = info.getValue();
+            const isLow = val < 10; // Exemple de règle métier
             return (
-                <div className="text-right font-black text-indigo-600">
+                <div className={`text-right font-black pr-1 ${isLow ? 'text-rose-500' : 'text-indigo-600'}`}>
                     {val != null ? val : '—'}
                 </div>
             )
         },
     })
-  ], [months]);
+  ], [months]); // Dépendance correcte pour useMemo
 
   const table = useReactTable({
     data,
-    columns,
+    columns, // Types de colonnes inférés correctement grâce à columnHelper typé
     state: { sorting },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    initialState: { pagination: { pageSize: 20 } }
+    initialState: { 
+      pagination: { pageSize: 15 } // Taille de page ajustée
+    }
   });
 
+  // --- RENDER DÉFENSIF ---
+  if (!data || data.length === 0) {
+      return <div className="p-8 text-center text-slate-400 border border-dashed rounded-xl bg-slate-50">Aucune donnée disponible pour cette période.</div>;
+  }
+
   return (
-    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm flex flex-col">
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-[10px] border-collapse">
-          <thead className="bg-slate-800 text-white">
+        <table className="w-full text-left text-[10px] border-collapse min-w-200">
+          <thead className="bg-slate-900 text-slate-200">
             {table.getHeaderGroups().map(hg => (
               <tr key={hg.id}>
                 {hg.headers.map(header => (
-                  <th key={header.id} className="px-2 py-1.5 font-bold uppercase tracking-widest border-r border-slate-700 last:border-none">
-                    {flexRender(header.column.columnDef.header, header.getContext())}
+                  <th key={header.id} className="px-3 py-2 font-bold uppercase tracking-widest border-r border-slate-700 last:border-none whitespace-nowrap">
+                    {header.isPlaceholder 
+                      ? null 
+                      : flexRender(header.column.columnDef.header, header.getContext())}
                   </th>
                 ))}
               </tr>
@@ -128,9 +213,9 @@ export function BeautyTrendTable({ data, months }: { data: any[], months: any[] 
           </thead>
           <tbody className="divide-y divide-slate-100">
             {table.getRowModel().rows.map(row => (
-              <tr key={row.id} className="hover:bg-rose-50/5 transition-colors group">
+              <tr key={row.id} className="hover:bg-slate-50 transition-colors group">
                 {row.getVisibleCells().map(cell => (
-                  <td key={cell.id} className="px-4 py-2 border-r border-slate-50 last:border-none">
+                  <td key={cell.id} className="px-3 py-2 border-r border-slate-50 last:border-none align-middle">
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
                 ))}
@@ -140,13 +225,37 @@ export function BeautyTrendTable({ data, months }: { data: any[], months: any[] 
         </table>
       </div>
       
-      {/* Pagination ultra-compacte */}
-      <div className="p-3 bg-slate-50 flex items-center justify-between border-t">
-        <div className="flex gap-1">
-          <Button variant="outline" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()} className="h-7 w-7 p-0"><ChevronLeft size={14}/></Button>
-          <Button variant="outline" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()} className="h-7 w-7 p-0"><ChevronRight size={14}/></Button>
+      {/* Pagination ultra-compacte et fonctionnelle */}
+      <div className="p-2 bg-slate-50 flex items-center justify-between border-t border-slate-200">
+        <div className="text-[9px] font-medium text-slate-400 pl-2">
+            Affichage de {table.getRowModel().rows.length} sur {data.length} produits
         </div>
-        <span className="text-[9px] font-black text-slate-400 uppercase">Page {table.getState().pagination.pageIndex + 1} / {table.getPageCount()}</span>
+        
+        <div className="flex items-center gap-2">
+            <span className="text-[9px] font-black text-slate-500 uppercase mr-2">
+                Page {table.getState().pagination.pageIndex + 1} / {table.getPageCount()}
+            </span>
+            <div className="flex gap-1">
+                <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => table.previousPage()} 
+                    disabled={!table.getCanPreviousPage()} 
+                    className="h-6 w-6 p-0 rounded-md border-slate-300 hover:bg-white disabled:opacity-30"
+                >
+                    <ChevronLeft size={12}/>
+                </Button>
+                <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => table.nextPage()} 
+                    disabled={!table.getCanNextPage()} 
+                    className="h-6 w-6 p-0 rounded-md border-slate-300 hover:bg-white disabled:opacity-30"
+                >
+                    <ChevronRight size={12}/>
+                </Button>
+            </div>
+        </div>
       </div>
     </div>
   );

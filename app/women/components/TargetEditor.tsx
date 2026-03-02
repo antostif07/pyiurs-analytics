@@ -48,6 +48,8 @@ export default function TargetEditor({
         const amount = await getSalesTarget(selectedMonth, selectedYear);
         setValue(String(amount ?? ""));
       } catch (e) {
+        console.log(e);
+        
         setValue("0");
       } finally {
         setIsFetching(false);
