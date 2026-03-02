@@ -12,6 +12,7 @@ import { formatTimeShort } from "@/lib/format-time-short";
 import { StockQuant } from "../types/stock";
 import { extractBoutiqueCode } from "@/lib/utils";
 import Datatable from "@/components/DataTable";
+import { odooClient as odooJsonCLient } from "@/lib/odoo/odoo-json2-client";
 
 export const dynamic = 'force-dynamic'
 
@@ -38,23 +39,6 @@ export interface ControlStockFemmeModel {
 }
 
 // const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-
-// async function getStockLocations() {
-//   const res = await fetch(
-//     `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/stock.location?fields=id,name,complete_name,active`,
-//     { 
-//       next: { 
-//         revalidate: 300
-//       } 
-//     }
-//   );
-
-//   if (!res.ok) {
-//     throw new Error("Erreur API Odoo - Stock Location");
-//   }
-
-//   return res.json();
-// }
 
 async function getStockQuantsForProducts(productIds: number[]): Promise<{ records: StockQuant[], success: boolean }> {
   if (productIds.length === 0) return { records: [], success: true };;
@@ -134,39 +118,32 @@ async function getProductsByIds(productIds: number[]) {
     return { records: [] };
   }
 
-  const CHUNK_SIZE = 50; // tu peux ajuster (30, 50, 100 selon Odoo)
-  const chunks: number[][] = [];
+  try {
+    const CHUNK_SIZE = 1000;
+    const chunks: number[][] = [];
 
-  // 1️⃣ Découper les IDs en chunks
-  for (let i = 0; i < productIds.length; i += CHUNK_SIZE) {
-    chunks.push(productIds.slice(i, i + CHUNK_SIZE));
-  }
-
-  // 2️⃣ Faire les requêtes en parallèle
-  const requests = chunks.map(async (chunk) => {
-    const domain = JSON.stringify([
-      ["product_variant_ids", "in", chunk],
-    ]);
-
-    const url = `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/product.template?fields=id,name,list_price,categ_id,hs_code,product_variant_id,x_studio_many2one_field_21bvh,x_studio_many2one_field_QyelN,x_studio_many2one_field_Arl5D&domain=${encodeURIComponent(domain)}`;
-
-    const res = await fetch(url, {
-      next: { revalidate: 300 },
-    });
-
-    if (!res.ok) {
-      throw new Error("Erreur API Odoo - Produits par IDs");
+    // 1️⃣ Découper les IDs en chunks
+    for (let i = 0; i < productIds.length; i += CHUNK_SIZE) {
+      chunks.push(productIds.slice(i, i + CHUNK_SIZE));
     }
 
-    return res.json();
-  });
+    const allResults = [];
 
-  // 3️⃣ Fusionner les résultats
-  const results = await Promise.all(requests);
-
-  const records = results.flatMap((r) => r.records ?? []);
-
-  return { records };
+    for (const chunk of chunks) {
+      const res = await odooJsonCLient.searchRead<OdooProductTemplate>('product.template', {
+        domain: [
+          ["product_variant_ids", "in", chunk]
+        ],
+        fields: "id,name,list_price,categ_id,hs_code,product_variant_id,x_studio_many2one_field_21bvh,x_studio_many2one_field_QyelN,x_studio_many2one_field_Arl5D".split(',')
+      })
+      
+      allResults.push(...res);
+      return { records: allResults };
+    }
+  } catch (e) {
+    console.log(e);
+  }
+  return { records: []}
 }
 
 async function getPurchaseOrderLinesByIds(purchaseOrderIds: number[]) {

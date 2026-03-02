@@ -6,6 +6,8 @@ import BeautySalesContent from "./beauty-sales-content";
 import RevenueSmart, { dataToOptions } from "@/components/revenue/revenue-smart";
 import { odooClient } from "@/lib/odoo/xmlrpc";
 import { RevenueSmartFilter } from "@/components/revenue/revenue-smart-filter";
+import { OdooProductTemplate } from "@/app/types/product_template";
+import { odooClient as odooJsonCLient } from "@/lib/odoo/odoo-json2-client";
 
 async function getPurchasesLines(filters: any) {
     let allLines: any[] = [];
@@ -68,24 +70,46 @@ function chunkArray<T>(array: T[], size: number): T[][] {
     return result;
 }
 
-async function getProducts(ids: any) {
-    let allProducts: any[] = [];
-    let offset = 0;
-    let domain = [['x_studio_segment', 'ilike', "beauty"], ['id', 'in', ids]];
+async function getProducts(): Promise<OdooProductTemplate[]> {
+  const pageSize = 2000; // nombre max par page pour éviter timeout
+  let offset = 0;
+  let allProducts: OdooProductTemplate[] = [];
 
-    const chunks = chunkArray(ids, 1000); // Odoo peut gérer des chunks de 1000 IDs pour éviter les problèmes de performance
+  while (true) {
+    const batch = await odooJsonCLient.searchRead<OdooProductTemplate>(
+      "product.template",
+      {
+        domain: [
+          ["x_studio_segment", "ilike", "beauty"],
+          ["categ_id", "not ilike", "make-up"],
+          ["active", "=", true],
+          ["available_in_pos", "=", true],
+        ],
+        fields: [
+          "id",
+          "name",
+          "list_price",
+          "categ_id",
+          "hs_code",
+          "product_variant_id",
+          "x_studio_many2one_field_21bvh",
+          "x_studio_many2one_field_QyelN",
+          "x_studio_many2one_field_Arl5D",
+          "description_pickingin",
+        ],
+        limit: pageSize,
+        offset,
+        order: "id desc",
+      }
+    );
 
-    for (const chunk of chunks) {
-        const chunkDomain = [['x_studio_segment', 'ilike', "beauty"], ['id', 'in', chunk]];
-        const productsChunk = await odooClient.searchRead("product.product", {
-            domain: chunkDomain,
-            fields: ["hs_code", "name", "x_studio_many2one_field_Arl5D", 'categ_id', 'x_studio_many2one_field_21bvh'],
-            limit: 20000, offset: 0
-        }) as any[];
-        allProducts = [...allProducts, ...productsChunk];
-    }
+    allProducts = allProducts.concat(batch);
 
-    return allProducts
+    if (batch.length < pageSize) break;
+    offset += pageSize;
+  }
+
+  return allProducts;
 }
 
 function getUniqueCategories(products: any[]) {
@@ -137,21 +161,23 @@ function getUniqueSuppliers(purchases: any[]) {
 }
 
 async function getData(filters: any) {
-    const purchaseLines = await getPurchasesLines(filters);
-    const purchaseIds = Array.from(new Set(purchaseLines.map(line => line.order_id[0])));
-    const productsIds = Array.from(new Set(purchaseLines.map(line => line.product_id[0])));
+    const products = await getProducts()
+    // const purchaseLines = await getPurchasesLines(filters);
+    // const purchaseIds = Array.from(new Set(purchaseLines.map(line => line.order_id[0])));
+    // const productsIds = Array.from(new Set(purchaseLines.map(line => line.product_id[0])));
     
-    const products = await getProducts(productsIds);
-    const productMap = new Map(products.map(p => [p.id, p]));
-    const purchases = await getPurchases(purchaseIds);
+    // const products = await getProducts(productsIds);
+    // const productMap = new Map(products.map(p => [p.id, p]));
+    // const purchases = await getPurchases(purchaseIds);
 
-    const categories = getUniqueCategories(products);
-    const colors = getUniqueColors(products);
-    const suppliers = getUniqueSuppliers(purchases);
-    const brands = getUniqueBrands(products);
+    // const categories = getUniqueCategories(products);
+    // const colors = getUniqueColors(products);
+    // const suppliers = getUniqueSuppliers(purchases);
+    // const brands = getUniqueBrands(products);
 
 
-    return {categories, colors, suppliers, brands, productsIds, products}
+    // return {categories, colors, suppliers, brands, productsIds, products}
+    return products
 }
 
 export default async function BeautySalesTrendPage({ searchParams }: any) {
@@ -166,7 +192,11 @@ export default async function BeautySalesTrendPage({ searchParams }: any) {
         partner: params.partner
     };
 
-    const {categories, colors, suppliers, brands, productsIds, products} = await getData(filters);
+    // const {categories, colors, suppliers, brands, productsIds, products} = await getData(filters);
+    const data = await getData(filters)
+
+    console.log(data);
+    
 
     return (
         <div className="space-y-6 pb-10">
@@ -175,12 +205,12 @@ export default async function BeautySalesTrendPage({ searchParams }: any) {
                     <h1 className="text-2xl font-black text-slate-900 italic uppercase tracking-tighter">
                         Trend <span className="text-rose-600">Beauty</span> 6 Mois
                     </h1>
-                    <RevenueSmartFilter 
+                    {/* <RevenueSmartFilter 
                         categories={dataToOptions(categories)}
                         colors={dataToOptions(colors)} 
                         suppliers={dataToOptions(suppliers)}
                         brands={dataToOptions(brands)}
-                    />
+                    /> */}
                 </div>
                 <RevenueDateFilter />
             </div>
