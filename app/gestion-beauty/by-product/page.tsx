@@ -2,6 +2,8 @@
 import { getBeautyGroupedPerformance } from "../data-fetcher";
 import ProductListManager from "./ProductListManager";
 
+export const dynamic = 'force-dynamic'
+
 export default async function ByProductPage() {
   const initialGroups = await getBeautyGroupedPerformance(0, 50);
 

@@ -6,6 +6,8 @@ import KPIsSkeleton from "./components/KPIsSkeleton";
 import ClientTable from "./components/ClientTable";
 import { getBeautyClientsData } from "./actions";
 
+export const dynamic = 'force-dynamic'
+
 export default async function BeautyClientsPage({ searchParams }: { searchParams: any }) {
     const {clients, productOptions} = await getBeautyClientsData();
     return (
@@ -21,7 +23,7 @@ export default async function BeautyClientsPage({ searchParams }: { searchParams
             </Suspense>
 
             <Suspense fallback={
-                <div className="h-64 flex flex-col items-center justify-center bg-white rounded-[32px] border border-gray-100 shadow-sm">
+                <div className="h-64 flex flex-col items-center justify-center bg-white rounded-4xl border border-gray-100 shadow-sm">
                     <Loader2 className="animate-spin text-rose-500 mb-4" />
                     <p className="text-xs font-black uppercase text-gray-400">Consolidation du registre client...</p>
                 </div>
@@ -35,7 +37,7 @@ export default async function BeautyClientsPage({ searchParams }: { searchParams
 function FilterSelect({ placeholder, options }: { placeholder: string, options: string[] }) {
     return (
         <Select>
-            <SelectTrigger className="h-10 px-4 rounded-xl bg-gray-50/50 border-gray-100 font-bold text-[10px] uppercase tracking-wider w-[160px]">
+            <SelectTrigger className="h-10 px-4 rounded-xl bg-gray-50/50 border-gray-100 font-bold text-[10px] uppercase tracking-wider w-40">
                 <SelectValue placeholder={placeholder} />
             </SelectTrigger>
             <SelectContent>

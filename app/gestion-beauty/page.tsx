@@ -11,6 +11,8 @@ import Link from "next/link";
 import ProductImage from "../marketing/components/ProductImage";
 import AlertRow from "./components/AlertRow";
 
+export const dynamic = 'force-dynamic'
+
 export default async function BeautyDashboard() {
   const stats = await getBeautyDashboardStats();
   const alerts = await getBeautySmartAlerts();

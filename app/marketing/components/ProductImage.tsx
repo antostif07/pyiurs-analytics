@@ -44,7 +44,7 @@ export default function ProductImage({ src, alt }: ProductImageProps) {
       {/* 2. MODAL PLEIN ÉCRAN (ZOOM) */}
       {isOpen && (
         <div 
-            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+            className="fixed inset-0 z-9999 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in duration-200"
             onClick={() => setIsOpen(false)} // Fermer si on clique sur le fond
         >
             {/* Bouton Fermer */}
