@@ -16,6 +16,7 @@ import { InfoIcon, LockIcon, CalendarIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { ClotureDataView, NegativeSaleJustification } from '@/lib/cloture-service'
+import { POSOrderLineExtra } from './actions'
 
 export type CloturePageDataType = {
   date: Date
@@ -27,7 +28,7 @@ export type CloturePageDataType = {
   expensesTotal: number
   expectedCash: number
   exchangeRate: number
-  sales: POSOrder[]
+  sales: POSOrderLineExtra[]
   expenses: any[]
   shops: POSConfig[],
   totalFemme: number,
@@ -309,8 +310,11 @@ export default function ClotureVentesClient({
           enfants: initialData.totalEnfant,
           beauty: initialData.totalBeauty
         }}
+        transactionsCash={initialData.counts.cash}
         transactionsMobileMoney={initialData.counts.mobile} 
         transactionsCarte={initialData.counts.onl}
+        sales={initialData.sales}
+        shops={initialData.shops}
       />
 
       <DetailsAndAccounting

@@ -22,6 +22,7 @@ export interface ProductProduct {
   categ_id?: [number, string];
   default_code?: string;
   product_tmpl_id: [number, string];
+  x_studio_segment: string|boolean
 }
 
 export interface Product {

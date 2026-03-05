@@ -1,7 +1,7 @@
 import { POSConfig, POSOrder, POSPayment } from "../types/pos"
 import { clotureService } from "@/lib/cloture-service"
 import { getServerAuth } from "@/lib/supabase/server"
-import { filterShopsByUserAccess, getDailyExpenses, getDailyExpensesReport, getDailySalesLines, getExchangeRate, getPOSConfig } from "./actions"
+import { filterShopsByUserAccess, getDailyExpenses, getDailyExpensesReport, getDailySaleLines, getDailySalesLines, getExchangeRate, getPOSConfig } from "./actions"
 import { Expense, ExpenseSheet } from "../types/cloture"
 import ClotureVentesClient from "./cloture-ventes.client"
 
@@ -49,13 +49,12 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
     default: company_name = 'all';
   }
 
-  // Récupérer les données
-  const [salesData, exchangeRate, allShopsData, expe] = await Promise.all([
-    getDailySalesLines(selectedDate, selectedShop), // Notre nouvelle fonction
-    getExchangeRate(),
-    getPOSConfig(),
-    getDailyExpensesReport(selectedDate, company_name)
-  ]);
+  const salesData = await getDailySaleLines(selectedDate, selectedShop)
+
+  // const salesData = await getDailySalesLines(selectedDate, selectedShop)
+  const exchangeRate = await getExchangeRate()
+  const allShopsData = await getPOSConfig()
+  const expe = await getDailyExpensesReport(selectedDate, company_name)
 
   const allShops = allShopsData.records as POSConfig[];
   

@@ -101,8 +101,8 @@ export default function DetailsAndAccounting({initialData, onJustificationsUpdat
         let icon = <CreditCard className="w-4 h-4" />;
         let color = 'text-green-600';
 
-        if (sale.payments && sale.payments.length > 0) {
-            const paymentName = sale.payments[0].payment_method_id[1].toLowerCase();
+        if (sale.order!.payments && sale.order!.payments.length > 0) {
+            const paymentName = sale.order!.payments[0].payment_method_id[1].toLowerCase();
 
             if (paymentName.includes('banque') || paymentName.includes('bank')) {
                 paymentMethod = 'Banque';
@@ -130,9 +130,9 @@ export default function DetailsAndAccounting({initialData, onJustificationsUpdat
             };
         }
 
-        acc[paymentMethod].total += sale.amount_total || 0;
+        acc[paymentMethod].total += sale.price_subtotal_incl || 0;
         acc[paymentMethod].count += 1;
-        acc[paymentMethod].sales.push(sale);
+        acc[paymentMethod].sales.push(sale.order!);
 
         return acc;
     }, {});
@@ -305,7 +305,7 @@ export default function DetailsAndAccounting({initialData, onJustificationsUpdat
                                                                         </div>
                                                                         <div className="flex items-center gap-1 text-xs ml-2.5 text-gray-500">
                                                                             <span className={isNegativeSale ? 'text-red-600' : 'text-gray-500'}>
-                                                                                {format(new Date(sale.create_date), 'dd/MM HH:mm')}
+                                                                                {format(new Date(sale.date_order), 'dd/MM HH:mm')}
                                                                             </span>
                                                                         </div>
                                                                         {saleJustification && (

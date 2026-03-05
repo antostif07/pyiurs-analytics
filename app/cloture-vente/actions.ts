@@ -1,8 +1,10 @@
 import { endOfDay, format, startOfDay } from "date-fns";
-import { POSConfig, POSOrder, POSPayment } from "../types/pos";
-import { AccountAccount, Expense, ExpenseSheet } from "../types/cloture";
+import { POSConfig, POSOrder, POSOrderLine, POSPayment } from "../types/pos";
+// import { AccountAccount, Expense, ExpenseSheet } from "../types/cloture";
 import { Profile } from "@/contexts/AuthContext";
 import { odooClient } from "@/lib/odoo/xmlrpc";
+import { odooClient as odooJsonClient} from "@/lib/odoo/odoo-json2-client"
+import { ProductProduct } from "../types/product_template";
 
 // Type de retour enrichi pour les cartes
 type DailySalesResult = {
@@ -28,13 +30,18 @@ type DailySalesResult = {
   }
 };
 
+export interface POSOrderLineExtra extends POSOrderLine {
+  order: POSOrder|undefined;
+  product: ProductProduct|undefined;
+}
+
 // 1. Récupérer la liste des boutiques (Ultra rapide + Cache)
 export async function getPOSConfig() {
   try {
-    const records = await odooClient.searchRead('pos.config', {
+    const records = await odooJsonClient.searchRead<POSConfig>('pos.config', {
       domain: [["id", "not in", [19]]], // Ton exclusion actuelle
       fields: ['id', 'name'],
-    }) as POSConfig[];
+    });
 
     return { success: true, records };
   } catch (error) {
@@ -43,32 +50,116 @@ export async function getPOSConfig() {
   }
 }
 
+export async function getDailySaleLines(date: Date, shop?: string) {
+  const startDate = format(startOfDay(date), "yyyy-MM-dd HH:mm:ss");
+  const endDate = format(endOfDay(date), "yyyy-MM-dd HH:mm:ss");
+
+  const shopDomain: [string, string, unknown][] = (shop && shop !== 'all') 
+    ? [['config_id', '=', parseInt(shop)]] 
+    : [['config_id', 'not in', [19]]];
+  
+  const commonDomain: [string, string, unknown][] = [
+    ['date_order', '>=', startDate],
+    ['date_order', '<=', endDate],
+  ];
+
+  try {
+    const ordersBasic = await odooJsonClient.searchRead<POSOrder>('pos.order', {
+      domain: [...shopDomain, ...commonDomain],
+      fields: ['id', 'name', 'amount_total', 'partner_id', 'date_order', 'state', 'payment_ids', 'config_id', 'create_date', 'lines'],
+      order: 'date_order desc'
+    });
+
+    const linesIds = ordersBasic.reduce((acc: number[], recc: POSOrder) => {
+      return [...acc, ...recc.lines]
+    }, [])
+
+    const posOrderLines = await odooJsonClient.searchRead<POSOrderLine>('pos.order.line', {
+      domain: [["id", "in", linesIds]],
+      fields: ["id", "product_id", "price_subtotal_incl", "order_id"],
+    });
+
+    const productIds = posOrderLines.reduce((acc: number[], recc: POSOrderLine) => {
+      return [...acc, recc.product_id[0]]
+    }, [])
+
+    const products = await odooJsonClient.searchRead<ProductProduct>('product.product', {
+      domain: [["id", "in", productIds]],
+      fields: ["id", "name", "x_studio_segment"],
+    });
+    
+    const enrichedOrders = posOrderLines.map((posOrderLine: POSOrderLine) => {
+      return {
+        ...posOrderLine,
+        order: ordersBasic.find(o => o.id === posOrderLine.order_id[0]),
+        product: products.find(p => p.id === posOrderLine.product_id[0])
+      }
+    })
+
+    const stats: DailySalesResult["stats"] = {
+      femme: 0,
+      enfants: 0,
+      beauty: 0
+    }
+    const totals: DailySalesResult["totals"] = {
+      cash: 0,
+      daily: 0,
+      bank: 0,
+      mobile: 0,
+      onl: 0
+    }
+    const counts: DailySalesResult["counts"] = {
+      cash: 0,
+      bank: 0,
+      mobile: 0,
+      onl: 0
+    }
+
+    return {
+      success: true,
+      records: enrichedOrders,
+      stats,
+      totals,
+      counts
+    };
+
+  } catch (error) {
+    console.error("❌ Erreur getDailySalesLines:", error);
+    return { 
+        success: false, 
+        records: [], 
+        stats: { femme: 0, beauty: 0, enfants: 0 }, 
+        totals: { cash: 0, bank: 0, mobile: 0, onl: 0, daily: 0 },
+        counts: { cash: 0, bank: 0, mobile: 0, onl: 0 }
+    };
+  }
+}
 // Récupérer les ventes du jour avec filtre shop
 export async function getDailySalesLines(date: Date, shop?: string): Promise<DailySalesResult> {
   const startDate = format(startOfDay(date), "yyyy-MM-dd HH:mm:ss");
   const endDate = format(endOfDay(date), "yyyy-MM-dd HH:mm:ss");
 
   // 1. Définition des filtres
-  const commonDomain = [
+  const commonDomain: [string, string, unknown][] = [
     ['date_order', '>=', startDate],
     ['date_order', '<=', endDate],
     ['state', 'in', ['paid', 'done', 'invoiced']]
   ];
   
   // Si shop='all', on exclut juste le shop historique (19), sinon on filtre précis
-  const shopDomain = (shop && shop !== 'all') 
+  const shopDomain: [string, string, unknown][] = (shop && shop !== 'all') 
     ? [['config_id', '=', parseInt(shop)]] 
     : [['config_id', 'not in', [19]]];
 
-  const fullDomain = [...commonDomain, ...shopDomain];
+  const fullDomain: [string, string, unknown][] = [...commonDomain, ...shopDomain];
 
   try {
     // A. Récupérer les Commandes (Structure de base)
-    const ordersBasic = await odooClient.searchRead('pos.order', {
-        domain: fullDomain,
-        fields: ['id', 'name', 'pos_reference', 'amount_total', 'partner_id', 'date_order', 'state', 'payment_ids', 'config_id', 'create_date'], 
-        order: 'date_order desc'
-      });
+    const ordersBasic = await odooJsonClient.searchRead<POSOrder>('pos.order', {
+      domain: fullDomain,
+      fields: ['id', 'name', 'amount_total', 'partner_id', 'date_order', 'state', 'payment_ids', 'config_id', 'create_date'],
+      order: 'date_order desc'
+    });
 
     const paymentGroups = await odooClient.execute('pos.payment', 'read_group', [], {
       domain: [
@@ -123,7 +214,6 @@ export async function getDailySalesLines(date: Date, shop?: string): Promise<Dai
         payments: paymentsByOrder.get(order.id) || [] // INDISPENSABLE pour DetailsAndAccounting
     }));
 
-
     // 4. TRAITEMENT : Calcul des Stats Segments (Via x_studio_segment)
     const productIds = (lineGroups as any[])
         .map((g: any) => g.product_id ? g.product_id[0] : null)
@@ -143,7 +233,7 @@ export async function getDailySalesLines(date: Date, shop?: string): Promise<Dai
         const segment = p.x_studio_segment ? p.x_studio_segment.toString().toLowerCase() : '';
         segmentMap.set(p.id, segment);
     });
-
+    
     const stats = { femme: 0, enfants: 0, beauty: 0 };
     (lineGroups as any[]).forEach((g: any) => {
         const pId = g.product_id ? g.product_id[0] : 0;
@@ -184,7 +274,7 @@ export async function getDailySalesLines(date: Date, shop?: string): Promise<Dai
             counts.mobile += count;
         }
     });
-
+    
     return {
       success: true,
       records: enrichedOrders as POSOrder[],
@@ -364,20 +454,23 @@ export function filterShopsByUserAccess(allShops: POSConfig[], profile: Profile)
     profile.assigned_shops.includes(shop.id.toString())
   );
 }
+
 export async function getDailyExpensesReport(date: Date, company_name?: string) {
   const startDate = format(startOfDay(date), "yyyy-MM-dd");
   const endDate = format(endOfDay(date), "yyyy-MM-dd");
 
   // 1. Filtre : Date + État validé
-  const domain = [
+  const domainParts: [string, string, unknown][] = [
     ["date", ">=", startDate], // hr.expense stocke souvent en YYYY-MM-DD simple
     ["date", "<=", endDate],
-    ["state", "in", ["approved", "done", "reported"]] // On ne veut pas les brouillons/refusés
+    ["state", "in", ["approved", "done", "reported"]], // On ne veut pas les brouillons/refusés
   ];
-
+  
   if (company_name && company_name !== 'all') {
-    domain.push(["company_id", "ilike", company_name]);
+    domainParts.push(["company_id", "ilike", company_name]);
   }
+  
+  const domain: [string, string, unknown][] = domainParts;
 
   try {
     // 2. Récupération des dépenses (Flat)
