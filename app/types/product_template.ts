@@ -26,6 +26,16 @@ export interface ProductProduct {
   hs_code: string|boolean;
 }
 
+export interface ProductCategory {
+  id: number;
+  name: string;
+}
+
+export interface ProductPOSCategory {
+  id: number;
+  name: string;
+}
+
 export interface Product {
     id: number;
     name: string;

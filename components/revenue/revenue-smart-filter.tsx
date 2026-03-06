@@ -167,7 +167,7 @@ export function RevenueSmartFilter({
             />
 
             <FilterField
-              label="Couleurs"
+              label="Couleurs / Gammes"
               icon={<Palette size={12} />}
               options={colors}
               value={selectedColors}

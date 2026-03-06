@@ -20,6 +20,17 @@ interface OdooResponse<T> {
   };
 }
 
+interface ReadGroupParams {
+  domain?: OdooDomain;
+  fields?: string[];
+  groupby?: string[];
+  offset?: number;
+  limit?: number;
+  orderby?: string;
+  lazy?: boolean;
+  context?: Record<string, unknown>;
+}
+
 const ODOO_URL = process.env.ODOO_URL ?? "https://pyiurs.odoo.com";
 const ODOO_DB = process.env.ODOO_DB ?? "pyiurs";
 const ODOO_API_KEY = process.env.ODOO_API_KEY ?? "";
@@ -105,6 +116,25 @@ export const odooClient = {
     return odooFetch<boolean>(model, "write", {
       ids,
       values,
+    });
+  },
+
+  /**
+   * read_group (agrégations)
+   */
+  async readGroup<T>(
+    model: string,
+    params: ReadGroupParams = {}
+  ): Promise<T[]> {
+    return odooFetch<T[]>(model, "read_group", {
+      context: { lang: "en_US", ...(params.context ?? {}) },
+      domain: params.domain ?? [],
+      fields: params.fields ?? [],
+      groupby: params.groupby ?? [],
+      offset: params.offset,
+      limit: params.limit,
+      orderby: params.orderby,
+      lazy: params.lazy ?? true,
     });
   },
 };

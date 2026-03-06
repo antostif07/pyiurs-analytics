@@ -3,9 +3,11 @@ import { endOfMonth, format, startOfMonth, subMonths, isAfter, isBefore, parseIS
 import { Suspense } from "react";
 import Loader from "@/components/loader";
 import BeautySalesContent from "./beauty-sales-content";
-import { ProductProduct } from "@/app/types/product_template";
+import { ProductPOSCategory, ProductProduct } from "@/app/types/product_template";
 import { odooClient as odooJsonCLient } from "@/lib/odoo/odoo-json2-client";
 import { POSOrderLine } from "@/app/types/pos";
+import { RevenueSmartFilter } from "@/components/revenue/revenue-smart-filter";
+import { dataToOptions } from "@/components/revenue/revenue-smart";
 
 // --- TYPES ---
 
@@ -40,6 +42,8 @@ interface OdooLocation {
     id: number;
     usage: string; // 'internal', 'customer', 'supplier', etc.
 }
+
+interface OdooAttribute { id: number; name: string; x_name?: string }
 
 // --- HELPERS DE REGROUPEMENT ---
 
@@ -189,20 +193,49 @@ function enrichGroupsWithData(
 }
 
 // --- DATA FETCHING ---
+function buildProductDomain(filters: any) {
+  const domain: any[] = [
+    ["x_studio_segment", "ilike", "beauty"],
+    ["categ_id", "not ilike", "make-up"],
+    ["active", "=", true],
+    ["available_in_pos", "=", true],
+  ];
+
+  if (filters.q) {
+    domain.push("|", ["name", "ilike", filters.q], ["hs_code", "ilike", filters.q]);
+  }
+
+  if (filters.category) {
+    const ids = filters.category.split(',').map(Number);
+    if (ids.length > 0) domain.push(["pos_categ_ids", "in", ids]);
+  }
+
+  if (filters.color) {
+    const ids = filters.color.split(',').map(Number);
+    // Adaptez le nom du champ technique Odoo
+    if (ids.length > 0) domain.push(["x_studio_many2one_field_Arl5D", "in", ids]); 
+  }
+
+  // Filtre Marque (Supposons champ 'x_studio_brand')
+  if (filters.brand) {
+    const ids = filters.brand.split(',').map(Number);
+    // Adaptez le nom du champ technique Odoo
+    if (ids.length > 0) domain.push(["x_studio_many2one_field_21bvh", "in", ids]);
+  }
+
+  return domain;
+}
 
 // 1. Produits
-async function getProducts(): Promise<ProductProduct[]> {
+async function getProducts(filters: any): Promise<ProductProduct[]> {
   const pageSize = 5000;
   let offset = 0;
   let allProducts: ProductProduct[] = [];
+
+  const domain = buildProductDomain(filters);
   while (true) {
     const batch = await odooJsonCLient.searchRead<ProductProduct>("product.product", {
-      domain: [
-        ["x_studio_segment", "ilike", "beauty"],
-        ["categ_id", "not ilike", "make-up"],
-        ["active", "=", true],
-        ["available_in_pos", "=", true],
-      ],
+      domain: domain,
       fields: ["id", "name", "hs_code"],
       limit: pageSize,
       offset,
@@ -303,21 +336,87 @@ async function getStockMoves(month: string, year: string, productIds: number[]):
     return { moves: allMoves, internalLocs: internalLocIds };
 }
 
-// --- ORCHESTRATION ---
+async function getFilterOptions(productIds: number[]) {
+  const categories = await odooJsonCLient.searchRead<ProductPOSCategory>("pos.category", {
+    domain: [["name", "ilike", "beauty"]],
+    fields: ["id", "name"]
+  })
 
-async function getData(month: string, year: string) {
-    const products = await getProducts();
+  const BATCH_SIZE = 5000;
+
+  const colorMap = new Map<number, { id: number; name: string }>();
+  const brandMap = new Map<number, { id: number; name: string }>();
+
+  for (let i = 0; i < productIds.length; i += BATCH_SIZE) {
+    const batchIds = productIds.slice(i, i + BATCH_SIZE);
+    const batchColor = await odooJsonCLient.readGroup<{x_studio_many2one_field_Arl5D: [number, string]}>("product.product", {
+      domain: [
+        ["id", "in", batchIds]
+      ],
+      fields: ["x_studio_many2one_field_Arl5D"],
+      groupby: ["x_studio_many2one_field_Arl5D"]
+    })
+
+    const batchBrand = await odooJsonCLient.readGroup<{x_studio_many2one_field_21bvh: [number, string]}>("product.product", {
+      domain: [
+        ["id", "in", batchIds]
+      ],
+      fields: ["x_studio_many2one_field_21bvh"],
+      groupby: ["x_studio_many2one_field_21bvh"]
+    })
+
+    for (const color of batchColor) {
+      const value = color.x_studio_many2one_field_Arl5D;
+
+      if (!value) continue;
+
+      const [id, name] = value;
+
+      if (!colorMap.has(id)) {
+        colorMap.set(id, { id, name });
+      }
+    }
+
+    for (const brand of batchBrand) {
+      const value = brand.x_studio_many2one_field_21bvh;
+
+      if (!value) continue;
+
+      const [id, name] = value;
+
+      if (!brandMap.has(id)) {
+        brandMap.set(id, { id, name });
+      }
+    }
+  }
+
+  const colors = Array.from(colorMap.values());
+  const brands = Array.from(brandMap.values());
+
+  return {
+    categories: dataToOptions(categories || [], 'name'),
+    colors: dataToOptions(colors || [], 'name'),
+    brands: dataToOptions(brands || [], 'name'),
+  };
+}
+
+// --- ORCHESTRATION ---
+async function getData(month: string, year: string, filters: any) {
+    const products = await getProducts(filters);
     const groupedProducts = groupProductsByHsCode(products);
     const allProductIds = groupedProducts.flatMap(g => g.productIds);
+    const filterOptions = await getFilterOptions(allProductIds)
 
-    if (allProductIds.length === 0) return [];
+    if (allProductIds.length === 0) {
+        return { 
+            enrichedData: [], 
+            filterOptions 
+        };
+    }
 
-    // Lancement parallèle des requêtes lourdes
-    const [salesLines, stockMap, { moves, internalLocs }] = await Promise.all([
-        getSalesData(month, year, allProductIds),
-        getCurrentStock(allProductIds),
-        getStockMoves(month, year, allProductIds)
-    ]);
+    const salesLines = await getSalesData(month, year, allProductIds)
+    const stockMap = await getCurrentStock(allProductIds)
+    const { moves, internalLocs } = await getStockMoves(month, year, allProductIds)
 
     // Génération de la liste des mois clés pour l'algo de reverse calculation
     const monthsRange: string[] = [];
@@ -336,15 +435,26 @@ async function getData(month: string, year: string) {
         monthsRange
     );
     
-    return enrichedData;
+    return { enrichedData, filterOptions };
 }
 
-export default async function BeautySalesTrendPage({ searchParams }: any) {
+interface SearchParamsProps {
+    searchParams: Promise<{ [key: string]: string | undefined }>;
+}
+
+export default async function BeautySalesTrendPage({ searchParams }: SearchParamsProps) {
     const params = await searchParams;
     const month = params.month || format(new Date(), "MM");
     const year = params.year || format(new Date(), "yyyy");
 
-    const data = await getData(month, year);
+    const filters = {
+        q: params.q,
+        color: params.color,      // IDs séparés par virgule
+        category: params.category, // IDs séparés par virgule
+        brand: params.brand,
+    };
+
+    const { enrichedData, filterOptions } = await getData(month, year, filters);
 
     return (
         <div className="space-y-6 pb-10">
@@ -353,15 +463,24 @@ export default async function BeautySalesTrendPage({ searchParams }: any) {
                     <h1 className="text-2xl font-black text-slate-900 italic uppercase tracking-tighter">
                         Trend <span className="text-rose-600">Beauty</span> 6 Mois
                     </h1>
+
+                    <div className="max-w-3xl">
+                        <RevenueSmartFilter                        
+                            categories={filterOptions.categories}
+                            colors={filterOptions.colors}
+                            brands={filterOptions.brands}
+                            // suppliers={filterOptions.suppliers} // Si vous l'ajoutez
+                        />
+                    </div>
                 </div>
                 <RevenueDateFilter />
             </div>
             
             <Suspense key={`${month}-${year}`} fallback={<Loader placeholder="Analyse des stocks et ventes..." />}>
                 <BeautySalesContent 
-                    data={data} 
-                    month={month} 
-                    year={year} 
+                    data={enrichedData}
+                    month={month}
+                    year={year}
                 />
             </Suspense>
         </div>
