@@ -39,10 +39,8 @@ export default function BeautySalesContent({ data, month, year }: BeautySalesCon
       hs_code: group.hs_code,
       name: group.name,
       monthlySales: group.monthlySales, // On passe les ventes calculées
-      
-      // --- ON MET A ZERO / VIDE POUR L'INSTANT ---
-      monthlyStockOpening: {}, 
-      currentStock: 0 
+      monthlyStockOpening: group.monthlyStockOpening, 
+      currentStock: group.currentStock
     }));
   }, [data]);
 

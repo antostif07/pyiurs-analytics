@@ -16,16 +16,20 @@ import ProductImage from "@/app/marketing/components/ProductImage"; // Assurez-v
 import { Button } from '@/components/ui/button';
 
 // --- 1. DÉFINITION DES TYPES ---
+export interface MonthlySalesMetrics {
+  revenue: number;
+  qty: number;
+}
 
 export interface MonthlyData {
-  [key: string]: number; // ex: "2023-10": 1500
+  [key: string]: MonthlySalesMetrics; // Changement ici
 }
 
 export interface ProductTrendData {
   hs_code: string;
   name: string;
   monthlySales: MonthlyData;
-  monthlyStockOpening: MonthlyData;
+  monthlyStockOpening: Record<string, number>;
   currentStock: number;
 }
 
@@ -97,7 +101,7 @@ export function BeautyTrendTable({ data, months }: BeautyTrendTableProps) {
     // --- COLONNES DYNAMIQUES (MOIS) ---
     ...months.map((m, idx) =>
       columnHelper.accessor((row) => ({
-          sales: row.monthlySales?.[m.key] ?? 0,
+          sales: row.monthlySales?.[m.key] ?? { revenue: 0, qty: 0 },
           stock: row.monthlyStockOpening?.[m.key] ?? 0
       }), {
         id: m.key,
@@ -113,13 +117,21 @@ export function BeautyTrendTable({ data, months }: BeautyTrendTableProps) {
           </Button>
         ),
         cell: info => {
-          const { sales, stock } = info.getValue<MonthlyMetric>();
+          const { sales, stock } = info.getValue();
           const isLastMonth = idx === months.length - 1;
           
           return (
             <div className={`text-right flex flex-col justify-center h-full ${isLastMonth ? 'bg-emerald-50/50 -mx-2 px-2 py-1 rounded-lg' : ''}`}>
-              <div className={`font-medium ${isLastMonth ? 'text-emerald-700 font-bold' : 'text-slate-600'}`}>
-                {sales > 0 ? formatCurrency(sales) : <span className="text-slate-300 text-[9px]">—</span>}
+              <div className={`font-medium flex items-center justify-end gap-1 ${isLastMonth ? 'text-emerald-700 font-bold' : 'text-slate-600'}`}>
+                {sales.revenue > 0 ? (
+                    <>
+                        <span>{formatCurrency(sales.revenue)}</span>
+                        {/* Affichage de la quantité entre parenthèses, style plus léger */}
+                        <span className="text-[9px] font-normal text-slate-400 tabular-nums">
+                            ({Math.round(sales.qty)})
+                        </span>
+                    </>
+                ) : <span className="text-slate-300 text-[9px]">—</span>}
               </div>
               <div className="text-[9px] text-slate-400 font-mono flex justify-end items-center gap-1">
                  <span className="scale-75 opacity-50"><Package size={10}/></span> {stock}
@@ -128,9 +140,9 @@ export function BeautyTrendTable({ data, months }: BeautyTrendTableProps) {
           )
         },
         // Logique de tri personnalisée et typée
-        sortingFn: (rowA: Row<ProductTrendData>, rowB: Row<ProductTrendData>, columnId: string) => {
-          const valA = rowA.getValue<MonthlyMetric>(columnId).sales;
-          const valB = rowB.getValue<MonthlyMetric>(columnId).sales;
+        sortingFn: (rowA, rowB: Row<ProductTrendData>, columnId: string) => {
+          const valA = rowA.getValue<MonthlyData>(columnId).sales.revenue;
+          const valB = rowB.getValue<MonthlyData>(columnId).sales.revenue;
           return valA - valB;
         },
       })
@@ -140,7 +152,7 @@ export function BeautyTrendTable({ data, months }: BeautyTrendTableProps) {
     columnHelper.accessor((row) => {
       // Calcul sécurisé du total
       const salesValues = Object.values(row.monthlySales || {});
-      return salesValues.reduce((sum, val) => sum + (Number(val) || 0), 0);
+      return salesValues.reduce((sum, val) => sum + (Number(val.revenue) || 0), 0);
     }, 
     {
       id: 'total',
@@ -163,16 +175,31 @@ export function BeautyTrendTable({ data, months }: BeautyTrendTableProps) {
 
     // --- STOCK ACTUEL ---
     columnHelper.accessor('currentStock', {
-        header: () => <div className="text-right w-full pr-1">STOCK</div>,
+        // 1. Le header devient une fonction recevant { column }
+        header: ({ column }) => (
+            <Button 
+                variant="ghost" 
+                size="sm"
+                // 2. Déclenchement du tri au clic
+                onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} 
+                className="flex items-center justify-end w-full gap-1 uppercase hover:bg-transparent hover:text-indigo-600 transition-colors text-[9px] font-black h-8 px-0 pr-1"
+            >
+                STOCK 
+                {/* 3. Indicateur visuel (flèche) */}
+                <ArrowUpDown size={10} className={column.getIsSorted() ? "opacity-100 text-indigo-600" : "opacity-30"}/>
+            </Button>
+        ),
         cell: info => {
             const val = info.getValue();
-            const isLow = val < 10; // Exemple de règle métier
+            const isLow = val < 10;
             return (
                 <div className={`text-right font-black pr-1 ${isLow ? 'text-rose-500' : 'text-indigo-600'}`}>
                     {val != null ? val : '—'}
                 </div>
             )
         },
+        // 4. Force le tri numérique standard (évite le tri alphabétique "10" < "2")
+        sortingFn: "basic" 
     })
   ], [months]); // Dépendance correcte pour useMemo
 
