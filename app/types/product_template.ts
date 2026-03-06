@@ -8,7 +8,7 @@ export interface OdooProductTemplate {
     product_variant_id?: [number, string];
     x_studio_many2one_field_21bvh?: [number, string];
     x_studio_many2one_field_QyelN?: [number, string];
-    x_studio_many2one_field_Arl5D?: [number, string];
+    x_studio_many2one_field_Arl5D?: [number, string]; // color
     description_pickingin?: string;
     create_date: string;
     image_1920: string;
@@ -24,6 +24,9 @@ export interface ProductProduct {
   product_tmpl_id: [number, string];
   x_studio_segment: string|boolean;
   hs_code: string|boolean;
+  x_studio_many2one_field_21bvh?: [number, string];
+  x_studio_many2one_field_QyelN?: [number, string];
+  x_studio_many2one_field_Arl5D?: [number, string];
 }
 
 export interface ProductCategory {

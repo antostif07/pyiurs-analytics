@@ -28,6 +28,7 @@ export interface MonthlyData {
 export interface ProductTrendData {
   hs_code: string;
   name: string;
+  color?: string;
   monthlySales: MonthlyData;
   monthlyStockOpening: Record<string, number>;
   currentStock: number;
@@ -73,14 +74,21 @@ export function BeautyTrendTable({ data, months }: BeautyTrendTableProps) {
       id: 'image', // ID stable requis
       header: '',
       enableSorting: false,
-      cell: info => (
+      cell: info => {
+        const hsCode = info.getValue();
+        const color = info.row.original.color;
+        
+        const suffix = color ? color : ''; 
+        const imageUrl = `https://images.pyiurs.com/images/${hsCode}_${suffix}.jpg`;
+        return (
         <div className="w-12 h-12 rounded-xl overflow-hidden border border-slate-100 bg-slate-50 relative group">
           <ProductImage 
-            src={`https://images.pyiurs.com/images/${info.getValue()}_.jpg`} 
+            src={imageUrl} 
             alt={info.row.original.name} 
           />
         </div>
-      ),
+      )
+      },
     }),
 
     // --- COLONNE NOM ---

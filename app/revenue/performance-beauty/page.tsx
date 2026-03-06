@@ -18,6 +18,7 @@ export interface GroupedProduct {
 }
 
 export interface EnrichedGroupedProduct extends GroupedProduct {
+  color?: any;
   monthlySales: Record<string, { revenue: number; qty: number }>;
   monthlyStockOpening: Record<string, number>; // Nouveau champ
   currentStock: number;                        // Nouveau champ

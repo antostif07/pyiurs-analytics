@@ -5,6 +5,7 @@ import { format, subMonths } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { EnrichedGroupedProduct } from './page';
 import { BeautyTrendTable, MonthDefinition, ProductTrendData } from '@/components/revenue/beauty-trend-table';
+import { color } from 'framer-motion';
 
 interface BeautySalesContentProps {
   data: EnrichedGroupedProduct[];
@@ -40,7 +41,8 @@ export default function BeautySalesContent({ data, month, year }: BeautySalesCon
       name: group.name,
       monthlySales: group.monthlySales, // On passe les ventes calculées
       monthlyStockOpening: group.monthlyStockOpening, 
-      currentStock: group.currentStock
+      currentStock: group.currentStock,
+      color: group.color
     }));
   }, [data]);
 
