@@ -47,27 +47,39 @@ interface OdooLocation {
 interface OdooAttribute { id: number; name: string; x_name?: string }
 
 // --- HELPERS DE REGROUPEMENT ---
-
 function groupProductsByHsCode(products: ProductProduct[]): GroupedProduct[] {
+  // Map avec clé composite (string)
   const groupedMap = new Map<string, GroupedProduct>();
+
   for (const product of products) {
+    // 1. Validation HS Code
     const rawHsCode = product.hs_code;
     if (!rawHsCode || typeof rawHsCode !== 'string') continue;
     const cleanHsCode = rawHsCode.trim();
     if (cleanHsCode === "") continue;
 
-    const existingGroup = groupedMap.get(cleanHsCode);
+    const colorField = product.x_studio_many2one_field_Arl5D;
+    const colorName = Array.isArray(colorField) ? colorField[1] : "";
+    const uniqueKey = `${cleanHsCode}|${colorName}`;
+
+    const existingGroup = groupedMap.get(uniqueKey);
+
     if (existingGroup) {
       existingGroup.productIds.push(product.id);
     } else {
-      groupedMap.set(cleanHsCode, {
+      const nameElts = product.name.split("[")
+      const name = nameElts.toString().split("-")
+      name.pop()
+      nameElts.pop()
+      groupedMap.set(uniqueKey, {
         hs_code: cleanHsCode,
-        name: product.name.split("[")[0],
+        name: name ? name.toString().replaceAll(",", "-") : "",
         productIds: [product.id],
-        color: product.x_studio_many2one_field_Arl5D![1]
+        color: colorName || undefined // On stocke la couleur proprement
       });
     }
   }
+
   return Array.from(groupedMap.values());
 }
 
