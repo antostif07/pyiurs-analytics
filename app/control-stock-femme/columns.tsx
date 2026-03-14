@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowUpDown } from "lucide-react";
 import { ControlStockFemmeModel } from "./page";
 import Image from "next/image";
+import ProductImage from "../marketing/components/ProductImage";
 
 // Fonction pour déterminer la couleur en fonction du stock
 function getStockColor(qty: number): string {
@@ -48,13 +49,16 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
       
       return (
         <div className="flex space-x-2">
-          <Image
+          <div className="w-8">
+            <ProductImage src={imageUrl} alt={row.getValue("name")} />
+          </div>
+          {/* <Image
             src={imageUrl}
             alt={row.getValue("name")}
             className="w-12 h-12 object-cover rounded"
             width={164} height={164}
-            onError={(e) => (e.currentTarget.src = "/file.svg")}
-          />
+            onError={(e) => (e.currentTarget.src = "/logo.png")}
+          /> */}
           <div className="py-2">
             <div className="font-medium text-sm">{row.getValue("name")}</div>
             <div className="text-xs text-gray-500 flex items-center space-x-1 mt-1">

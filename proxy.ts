@@ -1,7 +1,7 @@
 // middleware.ts - VERSION SIMPLIFIÉE
 import { NextResponse, type NextRequest } from "next/server"
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   // Laisser passer toutes les requêtes pour le moment
   return NextResponse.next()
 }
