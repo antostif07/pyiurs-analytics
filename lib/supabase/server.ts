@@ -8,7 +8,6 @@ import { cache } from 'react'
 export interface ServerAuthResult {
   user: User | null
   profile: Profile | null
-  session: Session | null
 }
 
 export const createClient = cache(() => {
@@ -84,26 +83,26 @@ export const getServerAuth = cache(async (): Promise<ServerAuthResult> => {
   const supabase = createClient()
   
   try {
-    const { data: { session }, error } = await supabase.auth.getSession()
+    const { data: { user }, error } = await supabase.auth.getUser()
     
-    if (error || !session) {
-      return { user: null, profile: null, session: null }
+    if (error || !user) {
+      return { user: null, profile: null }
     }
 
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('*')
-      .eq('id', session.user.id)
+      .eq('id', user.id)
       .single()
 
     if (profileError) {
       console.error('Error getting server profile:', profileError)
-      return { user: session.user, profile: null, session }
+      return { user: user, profile: null, }
     }
 
-    return { user: session.user, profile, session }
+    return { user: user, profile, }
   } catch (error) {
     console.error('Error in getServerAuth:', error)
-    return { user: null, profile: null, session: null }
+    return { user: null, profile: null }
   }
 })
