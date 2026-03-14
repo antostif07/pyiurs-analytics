@@ -1,11 +1,14 @@
 // lib/supabase/auth-service.ts
-import { createBrowserClient } from '@supabase/ssr'
+import { SupabaseClient } from '@supabase/supabase-js'
+
+// ✅ PRO: Typage strict et exportation des types pour tout le projet
+export type UserRole = 'admin' | 'user' | 'manager' | 'financier' | 'manager-full';
 
 export interface Profile {
   id: string;
   email: string;
   full_name: string;
-  role: 'admin' | 'user' | 'manager' | 'financier';
+  role: UserRole;
   assigned_shops: string[];
   assigned_companies: string[];
   shop_access_type: 'all' | 'specific';
@@ -15,64 +18,53 @@ export interface Profile {
 }
 
 export class AuthService {
-  private static supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
-
-  static async getCurrentUser() {
-    const { data: { user }, error } = await this.supabase.auth.getUser()
+  // ✅ PRO: Injection de dépendance (Dependency Injection). 
+  // On passe le client (serveur ou navigateur) en paramètre. Zéro fuite de mémoire.
+  
+  static async getCurrentUser(supabase: SupabaseClient) {
+    const { data: { user }, error } = await supabase.auth.getUser()
     if (error || !user) return null
-    
     return user
   }
 
-  static async getProfile(userId: string): Promise<Profile | null> {
-    const { data, error } = await this.supabase
+  static async getProfile(supabase: SupabaseClient, userId: string): Promise<Profile | null> {
+    const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
       .single()
 
     if (error) {
-      console.error('Error fetching profile:', error)
+      console.error('[AUTH_SERVICE_ERROR] Erreur récupération profil:', error.message)
       return null
     }
 
     return data as Profile
   }
 
-  static async getCurrentUserWithProfile() {
-    const user = await this.getCurrentUser()
+  static async getCurrentUserWithProfile(supabase: SupabaseClient) {
+    const user = await this.getCurrentUser(supabase)
     if (!user) return null
 
-    const profile = await this.getProfile(user.id)
+    const profile = await this.getProfile(supabase, user.id)
     return { user, profile }
   }
 
-  // Vérifier les permissions d'accès aux boutiques
+  // ✅ PRO: Logique métier isolée et pure (Facilement testable avec Jest)
   static hasShopAccess(profile: Profile | null, shopId: string): boolean {
     if (!profile) return false
-    
-    // Les admins ont accès à tout
     if (profile.role === 'admin') return true
-    
-    // Vérifier l'accès selon le type
     if (profile.shop_access_type === 'all') return true
     
-    // Vérifier les boutiques spécifiques
-    return profile.assigned_shops.includes(shopId) || 
-           profile.assigned_shops.includes('all')
+    return profile.assigned_shops?.includes(shopId) || 
+           profile.assigned_shops?.includes('all') || false;
   }
 
-  // Obtenir la liste des boutiques accessibles
   static getUserShops(profile: Profile | null): string[] {
-    if (!profile) return []
-    
+    if (!profile) return[]
     if (profile.role === 'admin' || profile.shop_access_type === 'all') {
-      return ['all'] // Accès à toutes les boutiques
+      return ['all']
     }
-    
-    return profile.assigned_shops || []
+    return profile.assigned_shops ||[]
   }
 }

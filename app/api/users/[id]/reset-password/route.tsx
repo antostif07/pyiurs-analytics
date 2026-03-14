@@ -1,61 +1,87 @@
-// app/api/users/[id]/reset-password/route.ts
-import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+// ✅ PRO: Typage strict et prise en compte des "Promises" pour les params (Next.js 15+)
+interface RouteProps {
+  params: Promise<{ id: string }>;
+}
+
+export async function POST(request: NextRequest, props: RouteProps) {
   try {
-    const userId = params.id
-    const supabase = createClient()
-    
-    // Vérifier que l'utilisateur est admin
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+    // 1. Résolution asynchrone des paramètres (Obligatoire Next.js 15+)
+    const params = await props.params;
+    const targetUserId = params.id;
+
+    if (!targetUserId) {
+      return NextResponse.json({ error: 'ID utilisateur manquant' }, { status: 400 });
     }
 
-    // Vérifier le rôle admin
+    // 2. Authentification de l'appelant (L'administrateur qui fait la requête)
+    const supabase = await createClient();
+    const { data: { user: caller }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !caller) {
+      return NextResponse.json({ error: 'Non authentifié.' }, { status: 401 });
+    }
+
+    // 3. Vérification stricte des droits (RBAC - Role Based Access Control)
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('role')
-      .eq('id', user.id)
-      .single()
+      .eq('id', caller.id)
+      .single();
 
     if (profileError || profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Accès non autorisé' }, { status: 403 })
+      // ✅ PRO: Monitoring de sécurité (Alerte si quelqu'un force l'API)
+      console.warn(`[SECURITY_ALERT] Tentative d'accès non autorisé au reset password par l'utilisateur: ${caller.id}`);
+      return NextResponse.json({ error: 'Privilèges administrateur requis.' }, { status: 403 });
     }
 
-    const adminClient = createAdminClient()
+    // 4. Initialisation du client Admin (Bypass le RLS)
+    const adminClient = createAdminClient();
 
-    // Générer un lien de réinitialisation
-    const { data, error } = await adminClient.auth.admin.generateLink({
+    // ✅ PRO & CORRECTION: On doit d'abord récupérer l'email de la cible via son ID
+    const { data: targetUserFetch, error: userFetchError } = await adminClient.auth.admin.getUserById(targetUserId);
+
+    if (userFetchError || !targetUserFetch.user?.email) {
+      return NextResponse.json({ error: 'Utilisateur cible introuvable ou sans email valide.' }, { status: 404 });
+    }
+
+    const targetEmail = targetUserFetch.user.email;
+
+    // 5. Génération du lien de récupération avec le VRAI email
+    const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
       type: 'recovery',
-      email: '', // L'email sera récupéré automatiquement depuis l'ID utilisateur
-    })
+      email: targetEmail,
+    });
 
-    if (error) {
-      console.error('Erreur génération lien:', error)
-      return NextResponse.json({ error: `Erreur génération lien: ${error.message}` }, { status: 400 })
+    if (linkError) {
+      console.error('[AUTH_ADMIN_ERROR] Erreur génération lien:', linkError.message);
+      return NextResponse.json({ error: 'Impossible de générer le lien de réinitialisation.' }, { status: 500 });
     }
 
-    // En production, vous voudrez probablement envoyer l'email directement
-    // Pour l'instant on retourne le lien (à des fins de démo)
+    // ✅ PRO: Audit Log. Indispensable pour la conformité (Savoir QUI a reset le mot de passe de QUI)
+    console.info(`[AUDIT_LOG] Admin ${caller.email} (${caller.id}) a généré un lien de reset pour ${targetEmail} (${targetUserId})`);
+
+    // 6. Réponse structurée
     return NextResponse.json({ 
       success: true,
       message: 'Lien de réinitialisation généré avec succès',
-      // En production, ne pas retourner le lien, l'envoyer par email
-      recovery_link: data.properties?.action_link
-    })
+      data: {
+        // Idéalement, ton front-end admin affichera ce lien dans une modale 
+        // pour que l'admin le copie et l'envoie à l'employé sur Slack/WhatsApp.
+        recoveryUrl: linkData.properties?.action_link,
+        targetEmail: targetEmail
+      }
+    }, { status: 200 });
 
   } catch (error) {
-    console.error('Erreur API reset password:', error)
+    // ✅ PRO: On ne renvoie jamais l'erreur brute au client en production (sécurité)
+    console.error('[API_FATAL_ERROR] reset-password:', error instanceof Error ? error.message : error);
     return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
+      { error: 'Erreur interne du serveur. Veuillez contacter le support.' },
       { status: 500 }
-    )
+    );
   }
 }

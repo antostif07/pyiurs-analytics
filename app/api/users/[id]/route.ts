@@ -110,56 +110,84 @@ export async function PUT(
   }
 }
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+interface RouteProps {
+  params: Promise<{ id: string }>;
+}
+
+export async function DELETE(request: NextRequest, props: RouteProps) {
   try {
-    const userId = params.id
-    const supabase = createClient()
-    
-    // Vérifier que l'utilisateur est admin
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+    // ✅ 1. CORRECTION CRITIQUE : Extraction correcte de la string depuis l'objet params
+    const resolvedParams = await props.params;
+    const targetUserId = resolvedParams.id;
+
+    if (!targetUserId) {
+      return NextResponse.json({ error: 'ID utilisateur cible manquant.' }, { status: 400 });
     }
 
-    // Vérifier le rôle admin
+    // Suivant la version de @supabase/ssr, createClient nécessite souvent un 'await'
+    const supabase = await createClient();
+    
+    // 2. Identifier QUI fait la requête (l'Admin)
+    const { data: { user: caller }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !caller) {
+      return NextResponse.json({ error: 'Non authentifié.' }, { status: 401 });
+    }
+
+    // 3. Bloquer immédiatement la suppression de son propre compte
+    // (Fait avant la requête BDD pour économiser des ressources)
+    if (targetUserId === caller.id) {
+      console.warn(`[SECURITY_WARNING] L'utilisateur ${caller.email} a tenté de supprimer son propre compte.`);
+      return NextResponse.json({ error: 'Vous ne pouvez pas supprimer votre propre compte.' }, { status: 400 });
+    }
+
+    // 4. Vérifier strictement les privilèges Admin (RBAC)
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('role')
-      .eq('id', user.id)
-      .single()
+      .eq('id', caller.id)
+      .single();
 
     if (profileError || profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Accès non autorisé' }, { status: 403 })
+      console.warn(`[SECURITY_ALERT] 🔴 Tentative de suppression non autorisée par: ${caller.id}`);
+      return NextResponse.json({ error: 'Privilèges administrateur requis.' }, { status: 403 });
     }
 
-    // Empêcher la suppression de soi-même
-    if (userId === user.id) {
-      return NextResponse.json({ error: 'Vous ne pouvez pas supprimer votre propre compte' }, { status: 400 })
+    // 5. Initialiser le client Admin (Droits absolus)
+    const adminClient = createAdminClient();
+
+    // ✅ PRO: Récupérer les infos de la cible AVANT de la supprimer pour pouvoir l'écrire dans les logs
+    const { data: targetUserFetch } = await adminClient.auth.admin.getUserById(targetUserId);
+    const targetEmail = targetUserFetch?.user?.email || 'Email inconnu';
+
+    if (!targetUserFetch?.user) {
+      return NextResponse.json({ error: 'L\'utilisateur cible n\'existe pas ou a déjà été supprimé.' }, { status: 404 });
     }
 
-    const adminClient = createAdminClient()
-
-    // Supprimer l'utilisateur Auth
-    const { error: authDeleteError } = await adminClient.auth.admin.deleteUser(userId)
+    // 6. Suppression effective
+    const { error: authDeleteError } = await adminClient.auth.admin.deleteUser(targetUserId);
     
     if (authDeleteError) {
-      console.error('Erreur suppression auth:', authDeleteError)
-      return NextResponse.json({ error: `Erreur suppression utilisateur: ${authDeleteError.message}` }, { status: 400 })
+      console.error('[AUTH_ADMIN_ERROR] Erreur suppression utilisateur BDD:', authDeleteError.message);
+      // ✅ PRO: Ne jamais renvoyer l'erreur brute de la BDD au client
+      return NextResponse.json({ error: 'Impossible de supprimer cet utilisateur suite à un problème serveur.' }, { status: 500 });
     }
 
-    // Le profil sera automatiquement supprimé via les politiques RLS
+    // ✅ PRO: Audit Log Indispensable (Indique QUI a supprimé QUI)
+    console.info(`[AUDIT_LOG_CRITICAL] 🗑️ L'Admin ${caller.email} (${caller.id}) a DÉFINITIVEMENT SUPPRIMÉ l'utilisateur ${targetEmail} (${targetUserId})`);
 
-    return NextResponse.json({ success: true })
+    // 7. Succès standardisé
+    return NextResponse.json({ 
+      success: true,
+      message: 'Utilisateur supprimé avec succès.' 
+    }, { status: 200 });
 
   } catch (error) {
-    console.error('Erreur API users delete:', error)
+    // Capture de n'importe quel crash inattendu
+    console.error('[API_FATAL_ERROR] delete-user:', error instanceof Error ? error.message : error);
     return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
+      { error: 'Erreur interne du serveur. Veuillez contacter le support technique.' },
       { status: 500 }
-    )
+    );
   }
 }
