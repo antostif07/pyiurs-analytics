@@ -1,6 +1,6 @@
 'use server';
 
-import { odooClient } from '@/lib/odoo/xmlrpc';
+import { odooClient, OdooDomainCondition } from '@/lib/odoo/xmlrpc';
 
 const SEGMENT_FIELD = 'product_id.product_tmpl_id.x_studio_segment';
 const SEGMENT_VALUE = 'femme';
@@ -32,17 +32,18 @@ export async function getOrdersAnalysis() {
     startDate.setDate(startDate.getDate() - 90);
     const fmtDate = startDate.toISOString().split('T')[0];
 
-    const domain = [
+    const domain: OdooDomainCondition[] = [
       [SEGMENT_FIELD, 'ilike', SEGMENT_VALUE],
       ['order_id.date_order', '>=', fmtDate],
       ['order_id.state', 'in', ['paid', 'done', 'invoiced']]
     ];
 
     // On récupère les lignes
-    const lines = await odooClient('pos.order.line', 'search_read', [domain], {
+    const lines = await odooClient.searchRead('pos.order.line', {
       fields: ['product_id', 'qty', 'price_subtotal', 'order_id', 'create_date', 'display_name'],
       limit: 2000,
-      order: 'create_date desc'
+      order: 'create_date desc',
+      domain
     }) as any[];
 
     // --- ANALYSE ---

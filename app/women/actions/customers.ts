@@ -1,6 +1,6 @@
 'use server';
 
-import { odooClient } from '@/lib/odoo/xmlrpc';
+import { odooClient, OdooDomainCondition } from '@/lib/odoo/xmlrpc';
 import { unstable_cache } from 'next/cache'; // ⚡ Pour la performance
 
 const SEGMENT_FIELD = 'product_id.x_studio_segment'; // Vérifie bien ce nom technique !
@@ -46,7 +46,7 @@ async function getCustomersFromOdoo(limit: number) {
         const fmtDate = startDate.toISOString().split('T')[0];
 
         // 1. Récupérer plus de lignes (5000) pour être sûr
-        const domain = [
+        const domain: OdooDomainCondition[] = [
             [SEGMENT_FIELD, '=', SEGMENT_VALUE], // '=' est plus rapide que 'ilike' si c'est un choix exact
             ['order_id.date_order', '>=', fmtDate],
             ['order_id.state', 'in', ['paid', 'done', 'invoiced']],

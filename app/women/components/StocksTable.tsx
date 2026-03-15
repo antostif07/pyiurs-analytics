@@ -1,61 +1,29 @@
-"use client";
-
-import React, { useState, useEffect } from "react";
+import { PaginatedStockData, StockProduct } from "@/lib/types";
+import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table";
+import { ChevronLeft, ChevronRight, Package, Search } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { 
-  useReactTable, 
-  getCoreRowModel, 
-  flexRender, 
-  createColumnHelper 
-} from "@tanstack/react-table";
-import { 
-  ChevronLeft, ChevronRight, Search, Package
-} from "lucide-react";
-import { StockProduct, StockResponse } from "../types";
+import { useEffect, useState } from "react";
+import { StatusBadge } from "./status-badge";
 
-// --- BADGES DE STATUT ---
-const StatusBadge = ({ status }: { status: StockProduct['status'] }) => {
-  const styles = {
-    critical: "bg-red-100 text-red-700 border-red-200",
-    low: "bg-orange-100 text-orange-700 border-orange-200",
-    ok: "bg-emerald-100 text-emerald-700 border-emerald-200",
-    overstock: "bg-blue-100 text-blue-700 border-blue-200",
-    dormant: "bg-slate-100 text-slate-600 border-slate-200",
-  };
+interface StocksTableProps {
+  initialData: PaginatedStockData;
+}
 
-  const labels = {
-    critical: "Rupture",
-    low: "Faible",
-    ok: "Bon",
-    overstock: "Surstock",
-    dormant: "Dormant",
-  };
-
-  return (
-    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${styles[status]}`}>
-      {labels[status]}
-    </span>
-  );
-};
-
-// --- TABLE COMPONENT ---
-
-export default function StocksTable({ initialData }: { initialData: StockResponse }) {
+export default function StocksTable({ initialData }: StocksTableProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // État local pour la recherche (debounce)
   const [search, setSearch] = useState(searchParams.get("q") || "");
   
-  // Colonnes
   const columnHelper = createColumnHelper<StockProduct>();
   
-  const columns = [
+  const columns =[
     columnHelper.accessor("name", {
       header: "Produit / Réf",
       cell: (info) => (
         <div>
           <div className="font-medium text-slate-900">{info.getValue()}</div>
+          {/* L'autocomplétion marchera sur "ref" grâce au typage */}
           <div className="text-xs text-slate-500 font-mono">{info.row.original.ref}</div>
         </div>
       ),
@@ -90,7 +58,7 @@ export default function StocksTable({ initialData }: { initialData: StockRespons
       },
     }),
     columnHelper.accessor("restockQty", {
-      header: "Suggestion", // Suggestion de commande
+      header: "Suggestion",
       cell: (info) => {
         const val = info.getValue();
         return val > 0 ? (
@@ -112,37 +80,33 @@ export default function StocksTable({ initialData }: { initialData: StockRespons
     data: initialData.data,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    manualPagination: true, // Pagination gérée par le serveur
+    manualPagination: true,
     pageCount: initialData.meta.pageCount,
   });
 
-  // Gestion Pagination via URL
   const handlePageChange = (newPage: number) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("page", newPage.toString());
     router.push(`/analyse-femme/stocks?${params.toString()}`);
   };
 
-  // Gestion Recherche avec Debounce
   useEffect(() => {
-    const timer = setTimeout(() => {
+    const timer: ReturnType<typeof setTimeout> = setTimeout(() => {
       const params = new URLSearchParams(searchParams.toString());
       if (search) params.set("q", search);
       else params.delete("q");
       
-      // Reset page à 1 lors d'une recherche
       if (search !== searchParams.get("q")) params.set("page", "1");
       
       router.push(`/analyse-femme/stocks?${params.toString()}`);
-    }, 500); // 500ms debounce
+    }, 500);
 
     return () => clearTimeout(timer);
-  }, [search, router, searchParams]);
+  },[search, router, searchParams]);
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
       
-      {/* Toolbar */}
       <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-white">
         <div className="relative w-full max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -159,7 +123,6 @@ export default function StocksTable({ initialData }: { initialData: StockRespons
         </div>
       </div>
 
-      {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead className="bg-slate-50 border-b border-slate-200">
@@ -198,7 +161,6 @@ export default function StocksTable({ initialData }: { initialData: StockRespons
         </table>
       </div>
 
-      {/* Pagination Footer */}
       <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50">
         <div className="text-sm text-slate-500">
           Page <span className="font-medium">{initialData.meta.page}</span> sur <span className="font-medium">{initialData.meta.pageCount}</span>

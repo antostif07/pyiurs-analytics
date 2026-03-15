@@ -1,13 +1,20 @@
 import {GoogleGenAI} from '@google/genai'
+import { z } from 'zod';
 
-export interface StockAnalysisResponse {
-    stockout_date: string;
-    burn_rate: string;
-    trend_analysis: string;
-    purchase_options: PurchaseOption[];
-    email_subject: string;
-    email_body: string;
-}
+export const StockAnalysisSchema = z.object({
+    stockout_date: z.string(),
+    burn_rate: z.string(),
+    trend_analysis: z.string(),
+    purchase_options: z.array(z.object({
+        label: z.string(),
+        qty: z.number(),
+        duration_days: z.number()
+    })),
+    email_subject: z.string(),
+    email_body: z.string()
+});
+
+export type StockAnalysisResponse = z.infer<typeof StockAnalysisSchema>;
 
 export interface PurchaseOption {
     label: string;
@@ -84,9 +91,16 @@ export async function getAIStockAnalysis(data: StockAnalysisInput): Promise<Stoc
         contents: prompt,
         config: {
             responseMimeType: 'application/json', // Force le modèle à répondre en JSON
-            temperature: 0.2, // Réduit la créativité pour augmenter la précision mathématique
+            temperature: 0.1, // Réduit la créativité pour augmenter la précision mathématique
         }
     })
 
-    return JSON.parse(result.text!);
+    try {
+        const rawJson = JSON.parse(result.text!);
+        // ✅ PRO: Zod vérifie que l'IA n'a pas oublié de champs cruciaux
+        return StockAnalysisSchema.parse(rawJson);
+    } catch (error) {
+        console.error("[AI_PARSE_ERROR] L'IA a renvoyé un format invalide:", result.text);
+        throw new Error("Échec de l'analyse IA des stocks.");
+    }
 }

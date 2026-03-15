@@ -28,7 +28,7 @@ export default function CategoryChart({ data }: { data: CategoryData[] }) {
           <Tooltip 
             cursor={{fill: 'transparent'}}
             contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-            formatter={(value: number) => [`${value.toLocaleString()} $`, "CA"]}
+            // formatter={(value: number) => [value, "CA"]}
           />
           <Bar dataKey="revenue" radius={[0, 4, 4, 0]} barSize={24}>
              {chartData.map((entry, index) => (

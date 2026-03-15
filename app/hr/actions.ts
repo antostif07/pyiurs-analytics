@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { endOfMonth, format, startOfMonth } from "date-fns";
 
 export async function getHROverview(range: string) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const today = format(new Date(), 'yyyy-MM-dd');
   
   // 1. Effectif Total

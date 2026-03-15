@@ -1,7 +1,7 @@
 import { Customer } from "@/app/types/partner";
 import { POSOrder } from "@/app/types/pos";
 import { getMonthDateRange, getWeekDateRange, getWeekNumber } from "@/app/utils/date-utils";
-import { Loader } from "@/components/loader";
+import { LoadingScreen } from "@/components/dashboard/loading-screen";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Suspense } from "react";
 
@@ -208,7 +208,7 @@ export default async function WeeklyTabs({startDate, endDate}: {startDate?: stri
             <CardTitle className="text-xl font-semibold">Semaine</CardTitle>
           </CardHeader>
           <CardContent>
-            <Suspense fallback={<Loader />}>
+            <Suspense fallback={<LoadingScreen />}>
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                         <thead>

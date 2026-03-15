@@ -18,7 +18,7 @@ export async function PUT(
 ) {
   try {
     const {id: userId} = await params
-    const supabase = createClient()
+    const supabase = await createClient()
     
     // Vérifier que l'utilisateur est admin
     const { data: { user }, error: authError } = await supabase.auth.getUser()

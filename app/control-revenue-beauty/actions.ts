@@ -1,7 +1,7 @@
 'use server';
 
 import { getMonthDates } from "@/lib/date-utils"; 
-import { odooClient } from "@/lib/odoo/xmlrpc";
+import { odooClient, OdooDomainCondition } from "@/lib/odoo/xmlrpc";
 
 // --- TYPES ---
 export interface BrandData {
@@ -26,7 +26,7 @@ export async function getBeautyBrandsData(boutiqueId?: string, month?: string, y
   const { firstDay, lastDay } = getMonthDates(month, year); // Doit renvoyer 'YYYY-MM-DD'
 
   // 2. Construction du Domain (Filtre SQL Odoo)
-  const domain = [
+  const domain: OdooDomainCondition[] = [
     ['order_id.date_order', '>=', firstDay],
     ['order_id.date_order', '<=', lastDay],
     ['order_id.state', 'in', ['paid', 'done', 'invoiced']],

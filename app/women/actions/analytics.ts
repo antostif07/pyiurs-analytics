@@ -1,6 +1,6 @@
 'use server';
 
-import { odooClient } from '@/lib/odoo/xmlrpc';
+import { odooClient, OdooDomainCondition } from '@/lib/odoo/xmlrpc';
 
 const SEGMENT_FIELD = 'product_id.product_tmpl_id.x_studio_segment';
 const SEGMENT_VALUE = 'femme';
@@ -18,7 +18,7 @@ export type CategoryData = {
 
 export async function getPosConfigs() {
   try {
-    const configs = await odooClient('pos.config', 'search_read', [], {
+    const configs = await odooClient.searchRead('pos.config', {
       fields: ['name'], // On récupère juste ID et Nom
       order: 'name asc'
     }) as any[];
@@ -41,7 +41,7 @@ export async function getSalesTrends(period: '7d' | '30d' | '90d', configId?: st
 
   try {
     // 1. Récupérer les ventes POS
-    const domain = [
+    const domain: OdooDomainCondition[] = [
       [SEGMENT_FIELD, 'ilike', SEGMENT_VALUE],
       ['order_id.date_order', '>=', fmtDate(startDate)],
       ['order_id.state', 'in', ['paid', 'done', 'invoiced']]
@@ -52,7 +52,8 @@ export async function getSalesTrends(period: '7d' | '30d' | '90d', configId?: st
       // Note: Parfois c'est 'order_id.config_id' direct selon version Odoo. 
       // Mais 'order_id.session_id.config_id' est le chemin le plus sûr techniquement.
     }
-    const sales = await odooClient('pos.order.line', 'search_read', [domain], {
+    const sales = await odooClient.searchRead('pos.order.line', {
+      domain,
       fields: ['price_subtotal', 'create_date', 'product_id'], 
       limit: 5000 
     }) as any[];
@@ -61,7 +62,8 @@ export async function getSalesTrends(period: '7d' | '30d' | '90d', configId?: st
     const productIds = [...new Set(sales.map(s => s.product_id[0]))];
     
     // 3. Récupérer les catégories IDs sur les produits (pos_categ_ids)
-    const productsInfo = await odooClient('product.product', 'read', [productIds], {
+    const productsInfo = await odooClient.searchRead('product.product', {
+      domain: [["id", "in", productIds]],
       fields: ['pos_categ_ids'] // <--- Changement ici (Pluriel)
     }) as any[];
 
@@ -79,8 +81,9 @@ export async function getSalesTrends(period: '7d' | '30d' | '90d', configId?: st
     let catIdToName = new Map<number, string>();
     
     if (categoryIds.size > 0) {
-      const categoriesInfo = await odooClient('pos.category', 'read', [[...categoryIds]], {
-        fields: ['name']
+      const categoriesInfo = await odooClient.searchRead('pos.category', {
+        fields: ['name'],
+        domain: [["id", "in", [...categoryIds]]]
       }) as any[];
       
       categoriesInfo.forEach((c: any) => {

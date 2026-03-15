@@ -2,10 +2,21 @@ import { getAIStockAnalysis } from "@/lib/ai/inventory-engine";
 import { odooClient } from "@/lib/odoo/xmlrpc";
 import { Redis } from "@upstash/redis";
 import { format, subDays } from 'date-fns';
-import { NextRequest, NextResponse } from 'next/server';
+import { after, NextRequest, NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
 import { parseOdooFrenchDate } from "../utils";
 import { createAdminClient } from "@/lib/supabase/admin";
+
+const CONFIG = {
+    LOW_STOCK_THRESHOLD: 12,
+    SUPPORT_EMAIL: "info@pyiurs.com",
+    SUPPORT_PHONE: "+243899900151",
+    ADMIN_WHATSAPP: "+243841483052",
+    LOCATIONS_TO_CHECK:[226, 180, 170, 160, 293, 89],
+    MAIN_WAREHOUSE_ID: 226,
+    // Odoo Webhook Secret (À ajouter dans tes variables d'environnement)
+    WEBHOOK_SECRET: process.env.ODOO_WEBHOOK_SECRET || "DEV_SECRET_DO_NOT_USE_IN_PROD"
+};
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
@@ -157,46 +168,33 @@ async function sendMessage(payload: PayloadWhatsappMessage) {
 
 const supabaseAdmin = createAdminClient();
 
-export async function POST(req: NextRequest) {
+/**
+ * Cette fonction s'exécutera APRÈS que le serveur ait répondu 200 OK à Odoo.
+ * Ça évite les Timeouts Vercel et libère la connexion Odoo immédiatement.
+ */
+async function processOrderBackgroundJob(body: any) {
+    const { amount_paid, partner_id, id: orderId, config_id, name, create_date } = body;
+    
     try {
-        const body = await req.json();
+        console.log(`[BACKGROUND_JOB] Démarrage du traitement pour la commande: ${orderId}`);
 
-        const { amount_paid, partner_id, id: orderId, config_id, name, create_date } = body.data || body;
-        
-        if (!orderId) {
-            console.error("❌ orderId manquant dans le webhook");
-            return NextResponse.json({ error: "orderId manquant" }, { status: 400 });
-        }
+        // 1. Appels Odoo Parallélisés
+        const [posConfigData, partnerData, productLines] = await Promise.all([
+            getPOSConfig(config_id),
+            getPartner(partner_id),
+            getPOSOrderLines(orderId)
+        ]);
 
-        // 🔒 Vérification Redis : commande déjà traitée ?
-        const alreadyProcessed = await redis.get(`pyiurs-order:${orderId}`);
+        const partner = partnerData?.records?.[0];
+        const posConfig = posConfigData?.records?.[0];
+        const boutique = getBoutiqueLabel(posConfig?.name);
 
-        if(alreadyProcessed) {
-            console.log(`⚠️ Commande ${orderId} déjà traitée, on ignore.`);
-            return NextResponse.json({ success: false, duplicate: true, orderId });
-        } else {
-            // ✅ Marquer la commande comme traitée pour 10 minutes
-            await redis.set(`pyiurs-order:${orderId}`, "processed", { ex: 1200 });
+        // --- SECTION 1 : NOTIFICATION CLIENT WHATSAPP ---
+        const clientPhone = partner?.phone || "";
+        const formattedPhone = formatPhoneNumber(clientPhone);
 
-            const [posConfigData, partnerData] = await Promise.all([
-                getPOSConfig(config_id),
-                getPartner(partner_id)
-            ]);
-
-            const partner = partnerData?.records?.[0];
-            const posConfig = posConfigData?.records?.[0];
-
-            const boutique = getBoutiqueLabel(posConfig?.name);
-
-            const clientPhone = partner?.phone || "";
-            const formattedPhone = formatPhoneNumber(clientPhone);
-
-            if (!formattedPhone) {
-                console.error(`❌ Numéro client invalide: ${clientPhone}`);
-                return NextResponse.json({ error: "Numéro client invalide" }, { status: 400 });
-            }
-            
-            const payload_client: PayloadWhatsappMessage = {
+        if (formattedPhone && boutique) {
+            const payload_client = {
                 messaging_product: "whatsapp",
                 recipient_type: "individual",
                 to: formattedPhone,
@@ -204,137 +202,166 @@ export async function POST(req: NextRequest) {
                 template: {
                     name: "envoi_details_facture",
                     language: { code: "fr" },
-                    components: [
-                        {
-                            type: "body",
-                            parameters: [
-                                { type: "text", text: partner?.name || "Cher(e) Client(e)", parameter_name: "nom_client" },
-                                { type: "text", text: ` ${boutique?.name}`, parameter_name: "shop_name" },
-                                { type: "text", text: name, parameter_name: "numero_commande" },
-                                { type: "text", text: format(create_date, "dd MMM yyyy"), parameter_name: "date_commande" },
-                                { type: "text", text: `${amount_paid}$`, parameter_name: "montant_total" },
-                                { type: "text", text: "Espèces", parameter_name: "mode_paiement" },
-                                { type: "text", text: ` ${boutique?.name}`, parameter_name: "shop_name_2" },
-                                { type: "text", text: ` ${boutique?.phone}`, parameter_name: "shop_number" },
-                                { type: "text", text: `+243899900151`, parameter_name: "service_number" },
-                                { type: "text", text: `info@pyiurs.com`, parameter_name: "email_support" },
-                            ]
-                        }
-                    ]
+                    components: [{
+                        type: "body",
+                        parameters:[
+                            { type: "text", text: partner?.name || "Client", parameter_name: "nom_client" },
+                            { type: "text", text: ` ${boutique.name}`, parameter_name: "shop_name" },
+                            { type: "text", text: name, parameter_name: "numero_commande" },
+                            { type: "text", text: format(create_date, "dd MMM yyyy"), parameter_name: "date_commande" },
+                            { type: "text", text: `${amount_paid}$`, parameter_name: "montant_total" },
+                            { type: "text", text: "Espèces", parameter_name: "mode_paiement" },
+                            { type: "text", text: ` ${boutique.name}`, parameter_name: "shop_name_2" },
+                            { type: "text", text: ` ${boutique.phone}`, parameter_name: "shop_number" },
+                            { type: "text", text: CONFIG.SUPPORT_PHONE, parameter_name: "service_number" },
+                            { type: "text", text: CONFIG.SUPPORT_EMAIL, parameter_name: "email_support" },
+                        ]
+                    }]
                 }
             };
             
-            if(boutique){
-                await sendMessage(payload_client);
-            }
-            await sendMessage({...payload_client, to: "+243841483052"} as PayloadWhatsappMessage)
+            // Envoi asynchrone client + admin
+            await Promise.allSettled([
+                sendMessage(payload_client as any),
+                sendMessage({ ...payload_client, to: CONFIG.ADMIN_WHATSAPP } as any)
+            ]);
+        } else {
+            console.warn(`[WHATSAPP_SKIP] Impossible d'envoyer, numéro ou boutique invalide. Commande: ${orderId}`);
         }
 
-        // Send Report
-        const productLines = await getPOSOrderLines(orderId);
-        // const startDate = format(subDays(new Date(), 60), 'yyyy-MM-dd HH:mm:ss');
+        // --- SECTION 2 : ANALYSE DES STOCKS & INTELLIGENCE ARTIFICIELLE ---
+        const supabaseAdmin = createAdminClient();
+        const transporter = nodemailer.createTransport({
+            host: process.env.SMTP_HOST,
+            port: Number(process.env.SMTP_PORT),
+            secure: true,
+            auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+        });
 
-        await Promise.all(
-            productLines.records.map(async (pl: {id: number, product_id: [number, string]}) => {
-                const product = await getProductInfo(pl.product_id[0])
-                const productName = product.records[0].name.split("[")[0];
+        // ✅ PRO: Traitement séquentiel avec 'for...of' pour éviter d'exploser les limites de l'API Odoo
+        // Contrairement à Promise.all qui lance tout en même temps.
+        for (const pl of productLines?.records ||[]) {
+            try {
+                const product = await getProductInfo(pl.product_id[0]);
+                const productRecord = product?.records?.[0];
 
-                if(product.records && product.records[0].x_studio_segment.toLowerCase() === "beauty" ) {
-                    const hs_code = product.records[0].hs_code;
-
-                    // 1. Récupération du stock réel via stock.quant
-                    const quants = await odooClient.execute("stock.quant", "read_group", [
-                        [
-                            ["product_id.hs_code", "=", hs_code],
-                            ["location_id.id", "in", [226, 180, 170, 160, 293, 89]]
-                        ],
-                        ["quantity"],
-                        []
-                    ]) as any[];
-
-                    const currentStock = quants[0]?.quantity || 0; 
-
-                    // 2. Si le stock est bas, on lance l'IA et on synchronise le Tracker
-                    if(currentStock < 12) {
-                        const sl = await odooClient.execute("pos.order.line", "read_group",[
-                            [
-                                ["product_id.hs_code", "=", hs_code],
-                                ["order_id.state", "in", ["paid", "done", "invoiced"]],
-                                // ["create_date", ">=", startDate]
-                            ],
-                            ["qty"],
-                            ["create_date:day"]
-                        ]) as Array<{"create_date:day": string; qty: number}>
-
-                        const lines = sl.map(s => ({date: parseOdooFrenchDate(s["create_date:day"]), qty: s.qty}))
-
-                        const rM = await odooClient.execute("stock.move", "read_group", [
-                            [
-                                ["product_id.hs_code", "=", product.records[0].hs_code],
-                                ["state", "=", "done"],
-                                // ["date", ">=", startDate],
-                                ["location_dest_id", "=", 226]
-                            ],
-                            ["product_uom_qty"],
-                            ["date:day"]
-                        ]) as Array<{"date:day": string; product_uom_qty: number}>
-
-                        const moves = rM.map(m => ({date: parseOdooFrenchDate(m["date:day"]), qty: m.product_uom_qty}))
-                    
-                        const history = {
-                            sales: lines,
-                            restocks: moves,
-                        };
-
-                        const aiInsight = await getAIStockAnalysis({
-                            productName,
-                            currentStock,
-                            history: history
-                        });
-
-                        const { error: trackerError } = await supabaseAdmin
-                            .from('beauty_inventory_tracker')
-                            .upsert({
-                                hs_code: hs_code,
-                                product_name_base: productName,
-                                last_total_stock: currentStock,
-                                ai_prediction_data: aiInsight,
-                                status: currentStock <= 0 ? 'out_of_stock' : 'low_stock',
-                                last_analysis_at: new Date().toISOString(),
-                                updated_at: new Date().toISOString()
-                            }, { onConflict: 'hs_code' });
-
-                        if (trackerError) console.error("❌ Erreur Sync Tracker:", trackerError);
-                        
-                        const transporter = nodemailer.createTransport({
-                            host: process.env.SMTP_HOST,
-                            port: Number(process.env.SMTP_PORT),
-                            secure: true,
-                            auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
-                        });
-
-                        await transporter.sendMail({
-                            from: `"RAPPORT STOCK" <${process.env.SMTP_USER}>`,
-                            to: process.env.SUPPLY_CHAIN_EMAIL,
-                            cc: process.env.SUPPLY_CHAIN_EMAIL_2,
-                            subject: aiInsight.email_subject,
-                            html: aiInsight.email_body
-                        });
-                    }
+                // ✅ PRO: Safe navigation (?.) empêchant le crash si 'records' est vide
+                if (!productRecord || productRecord.x_studio_segment?.toLowerCase() !== "beauty") {
+                    continue; // On passe au produit suivant
                 }
-            })
-        )
 
+                const hs_code = productRecord.hs_code;
+                const productName = productRecord.name.split("[")[0];
+
+                // Check Stock
+                const quants = await odooClient.execute("stock.quant", "read_group",[
+                    [["product_id.hs_code", "=", hs_code],["location_id.id", "in", CONFIG.LOCATIONS_TO_CHECK]],
+                    ["quantity"], []
+                ]) as any[];
+
+                const currentStock = quants?.[0]?.quantity || 0; 
+
+                // Si stock OK, on arrête l'analyse pour ce produit
+                if (currentStock >= CONFIG.LOW_STOCK_THRESHOLD) continue;
+
+                console.log(`[STOCK_ALERT] Lancement analyse IA pour ${productName} (Stock: ${currentStock})`);
+
+                // Récupération historique pour l'IA
+                const [sl, rM] = await Promise.all([
+                    odooClient.execute("pos.order.line", "read_group", [
+                        [["product_id.hs_code", "=", hs_code], ["order_id.state", "in",["paid", "done", "invoiced"]]],
+                        ["qty"], ["create_date:day"]
+                    ]) as Promise<any[]>,
+                    odooClient.execute("stock.move", "read_group", [
+                        [["product_id.hs_code", "=", hs_code], ["state", "=", "done"],["location_dest_id", "=", CONFIG.MAIN_WAREHOUSE_ID]],
+                        ["product_uom_qty"],["date:day"]
+                    ]) as Promise<any[]>
+                ]);
+
+                const history = {
+                    sales: sl.map(s => ({ date: parseOdooFrenchDate(s["create_date:day"]), quantity: s.qty })),
+                    restocks: rM.map(m => ({ date: parseOdooFrenchDate(m["date:day"]), quantity: m.product_uom_qty })),
+                };
+
+                // Appel IA Zod-validé
+                const aiInsight = await getAIStockAnalysis({ productName, currentStock, history });
+
+                // Sauvegarde Tracker
+                await supabaseAdmin.from('beauty_inventory_tracker').upsert({
+                    hs_code,
+                    product_name_base: productName,
+                    last_total_stock: currentStock,
+                    ai_prediction_data: aiInsight,
+                    status: currentStock <= 0 ? 'out_of_stock' : 'low_stock',
+                    last_analysis_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'hs_code' });
+
+                // Envoi Email
+                await transporter.sendMail({
+                    from: `"RAPPORT STOCK" <${process.env.SMTP_USER}>`,
+                    to: process.env.SUPPLY_CHAIN_EMAIL,
+                    cc: process.env.SUPPLY_CHAIN_EMAIL_2,
+                    subject: aiInsight.email_subject,
+                    html: aiInsight.email_body
+                });
+
+            } catch (err) {
+                // ✅ PRO: Un produit qui plante n'empêche pas les autres produits de la même commande d'être traités
+                console.error(`[PRODUCT_PROCESS_ERROR] Erreur sur le produit ${pl.product_id[0]}:`, err);
+            }
+        }
+
+        console.log(`[BACKGROUND_JOB_SUCCESS] Traitement terminé pour la commande: ${orderId}`);
+
+    } catch (error) {
+        console.error(`[BACKGROUND_JOB_FATAL] Erreur majeure sur la commande ${orderId}:`, error);
+    }
+}
+
+export async function POST(req: NextRequest) {
+    try {
+        // ✅ PRO: Vérification d'autorisation basique (Odoo doit envoyer ce token dans ses headers)
+        // const authHeader = req.headers.get('authorization');
+        // if (authHeader !== `Bearer ${CONFIG.WEBHOOK_SECRET}`) {
+        //     console.warn("[WEBHOOK_SECURITY_BLOCK] Tentative non autorisée d'accès au webhook Odoo.");
+        //     return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+        // }
+
+        const rawBody = await req.json();
+        const body = rawBody.data || rawBody;
+        const orderId = body?.id;
+
+        if (!orderId) {
+            return NextResponse.json({ error: "orderId manquant" }, { status: 400 });
+        }
+
+        // 🔒 Vérification Redis (Empêche les doublons si Odoo retry)
+        const redisKey = `pyiurs-order:${orderId}`;
+        const alreadyProcessed = await redis.get(redisKey);
+
+        if (alreadyProcessed) {
+            return NextResponse.json({ success: true, duplicate: true, orderId }, { status: 200 });
+        } 
+        
+        // Marquer en cours de traitement pour 20 minutes (1200s)
+        await redis.set(redisKey, "processed", { ex: 1200 });
+
+        // ✅ PRO: Délégation du travail lourd en arrière-plan (Next.js 15)
+        after(() => {
+            processOrderBackgroundJob(body);
+        });
+
+        // ✅ PRO: Réponse ultra-rapide à Odoo (évite le timeout de leur côté et bloque les retries intempestifs)
         return NextResponse.json({
             success: true,
-        });
-    } catch (error: unknown) {
-        console.error('💥 Webhook Error:', error);
-        const errorMessage = typeof error === 'object' && error !== null && 'message' in error
-            ? (error as { message: string }).message
-            : String(error);
+            message: "Commande reçue, traitement en arrière-plan démarré.",
+            orderId
+        }, { status: 202 }); // 202 Accepted = Reçu mais traitement asynchrone
 
-        return NextResponse.json({ error: errorMessage }, { status: 500 });
+    } catch (error: unknown) {
+        console.error('[WEBHOOK_FATAL_ERROR]', error);
+        return NextResponse.json({ error: "Erreur interne du serveur" }, { status: 500 });
     }
 }
 

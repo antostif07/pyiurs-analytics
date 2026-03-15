@@ -1,6 +1,6 @@
 // odoo-json2-client.ts
 
-type OdooDomain = Array<[string, string, unknown]>;
+export type OdooDomain = Array<[string, string, unknown]>;
 
 interface SearchReadParams {
   domain?: OdooDomain;

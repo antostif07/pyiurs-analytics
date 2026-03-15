@@ -1,17 +1,17 @@
 // lib/supabase/server.ts
-import { Profile } from '@/contexts/AuthContext'
 import { createServerClient } from '@supabase/ssr'
 import { Session, User } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { cache } from 'react'
+import { Profile } from './auth-service'
 
 export interface ServerAuthResult {
   user: User | null
   profile: Profile | null
 }
 
-export const createClient = cache(() => {
-  const cookieStore = cookies()
+export const createClient = cache(async () => {
+  const cookieStore = await cookies()
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -19,12 +19,12 @@ export const createClient = cache(() => {
     {
       cookies: {
         async getAll() {
-          return (await cookieStore).getAll()
+          return cookieStore.getAll()
         },
         setAll(cookiesToSet) {
           try {
             cookiesToSet.forEach(async ({ name, value, options }) =>
-              (await cookieStore).set(name, value, options)
+              cookieStore.set(name, value, options)
             )
           } catch (error) {
             console.log(error);
@@ -38,7 +38,7 @@ export const createClient = cache(() => {
 
 // Fonction pour récupérer l'utilisateur côté serveur
 export const getServerUser = cache(async () => {
-  const supabase = createClient()
+  const supabase = await createClient()
   
   try {
     const { data: { user }, error } = await supabase.auth.getUser()
@@ -57,7 +57,7 @@ export const getServerUser = cache(async () => {
 
 // Fonction pour récupérer le profil côté serveur
 export const getServerProfile = cache(async (userId: string) => {
-  const supabase = createClient()
+  const supabase = await createClient()
   
   try {
     const { data: profile, error } = await supabase
@@ -80,7 +80,7 @@ export const getServerProfile = cache(async (userId: string) => {
 
 // Fonction pour récupérer user + profile + session côté serveur
 export const getServerAuth = cache(async (): Promise<ServerAuthResult> => {
-  const supabase = createClient()
+  const supabase = await createClient()
   
   try {
     const { data: { user }, error } = await supabase.auth.getUser()

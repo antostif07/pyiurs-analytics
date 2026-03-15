@@ -4,6 +4,7 @@
 import { odooClient } from "@/lib/odoo/xmlrpc";
 import { supabase } from "@/lib/supabase";
 import { revalidatePath } from "next/cache";
+import { POSOrderLine } from "../types/pos";
 
 export async function getDashboardStats() {
   try {
@@ -17,47 +18,48 @@ export async function getDashboardStats() {
     const startOfWeekStr = now.toISOString().split('T')[0];
 
     // --- REQUÊTE 1 : CA DU JOUR (POS) ---
-    const dailyOrders: any = await odooClient('pos.order', 'search_read', [
+    const dailyOrders: any = await odooClient.searchRead('pos.order', {
+      domain:
       [
         ['date_order', '>=', todayStr], 
         ['state', 'in', ['paid', 'done', 'invoiced']] // États valides du POS
       ],
-      ['amount_total'] 
-    ]);
+      fields: ['amount_total'] 
+    });
 
     const dailyRevenue = dailyOrders.reduce((sum: number, order: any) => sum + order.amount_total, 0);
 
     // --- REQUÊTE 2 : CA SEMAINE (POS) ---
-    const weeklyOrders: any = await odooClient('pos.order', 'search_read', [
-      [
+    const weeklyOrders: any = await odooClient.searchRead('pos.order', {
+      domain: [
         ['date_order', '>=', startOfWeekStr], 
         ['state', 'in', ['paid', 'done', 'invoiced']]
       ],
-      ['amount_total']
-    ]);
+      fields: ['amount_total']
+    });
     
     const weeklyRevenue = weeklyOrders.reduce((sum: number, order: any) => sum + order.amount_total, 0);
 
     // --- REQUÊTE 3 : STOCK FAIBLE (Reste inchangé, c'est le produit) ---
-    const lowStockIds: any = await odooClient('product.product', 'search_count', [
-      [
+    const lowStockIds: any = await odooClient.searchRead('product.product',{
+      domain: [
         ['type', '=', 'product'],
         ['qty_available', '<', 3],
         ['qty_available', '>', 0]
       ]
-    ]);
+    });
 
     // --- REQUÊTE 4 : STOCK DORMANT (Reste inchangé) ---
     const twoMonthsAgo = new Date();
     twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
     const dateDormantStr = twoMonthsAgo.toISOString().split('T')[0];
 
-    const dormantStockCount: any = await odooClient('product.product', 'search_count', [
-        [
+    const dormantStockCount: any = await odooClient.searchRead('product.product',{
+      domain: [
             ['create_date', '<', dateDormantStr],
             ['qty_available', '>', 0]
         ]
-    ]);
+    });
 
     return {
       dailyRevenue,
@@ -87,24 +89,24 @@ export async function getTopProducts() {
     const dateStr = sevenDaysAgo.toISOString().split('T')[0];
 
     // 1. Récupérer les lignes
-    const lines: any = await odooClient('pos.order.line', 'search_read', [
-      [
+    const lines: any = await odooClient.searchRead('pos.order.line', {
+      domain: [
         ['create_date', '>=', dateStr],
         ['qty', '>', 0]
       ],
-      ['product_id', 'qty', 'price_subtotal_incl']
-    ]);
+      fields: ['product_id', 'qty', 'price_subtotal_incl']
+    });
 
     if (!lines || lines.length === 0) return { beauty: [], fashion: [] };
 
     // 2. IDs uniques
-    const productIds = [...new Set(lines.map((l: any) => l.product_id[0]))];
+    const productIds = [...new Set(lines.map((l: POSOrderLine) => l.product_id[0]))] as number[];
 
     // 3. Infos produits (Ajout du champ couleur custom)
-    const productsDetails: any = await odooClient('product.product', 'search_read', [
-      [['id', 'in', productIds]],
-      ['hs_code', 'name', 'categ_id', 'x_studio_many2one_field_Arl5D'] // <-- Le champ couleur est ici
-    ]);
+    const productsDetails: any = await odooClient.searchRead('product.product', {
+      domain: [['id', 'in', productIds]],
+      fields: ['hs_code', 'name', 'categ_id', 'x_studio_many2one_field_Arl5D']
+    });
 
     const productMap = new Map();
     productsDetails.forEach((p: any) => {
@@ -185,9 +187,8 @@ export async function getTopProducts() {
 }
 
 export async function getTodayTasks() {
-  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  const today = new Date().toISOString().split('T')[0];
 
-  // On récupère les tâches qui sont soit pour aujourd'hui, soit en retard (non faites avant aujourd'hui)
   const { data, error } = await supabase
     .from('tasks')
     .select('*')
@@ -244,7 +245,7 @@ export async function addTaskFull(formData: FormData) {
   });
 
   if (error) console.error(error);
-  revalidatePath('/dashboard/agenda'); // On rafraîchit la page agenda
+  revalidatePath('/dashboard/agenda');
 }
 
 // Les autres fonctions (toggle, delete) restent les mêmes...
@@ -346,13 +347,13 @@ export async function getDormantStock() {
     const dateLimit = twoMonthsAgo.toISOString().split('T')[0];
 
     // On cherche les produits créés avant cette date et qui ont encore du stock
-    const products: any = await odooClient('product.product', 'search_read', [
-      [
+    const products: any = await odooClient.searchRead('product.product', {
+      domain: [
         ['create_date', '<', dateLimit],
         ['qty_available', '>', 0]
       ],
-      ['name', 'hs_code', 'qty_available', 'list_price', 'create_date'] // list_price = prix de vente
-    ]);
+      fields: ['name', 'hs_code', 'qty_available', 'list_price', 'create_date']
+    });
 
     // On ajoute le calcul de la réduction suggérée
     return products.map((p: any) => {
@@ -388,13 +389,14 @@ export async function getRecentArrivals() {
     oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
     const dateLimit = oneMonthAgo.toISOString().split('T')[0];
 
-    const products: any = await odooClient('product.product', 'search_read', [
-      [
+    const products: any = await odooClient.searchRead('product.product', {
+      domain: [
         ['create_date', '>=', dateLimit],
         ['qty_available', '>', 0]
       ],
-      ['name', 'hs_code', 'qty_available', 'create_date']
-    ], { limit: 20, order: 'create_date desc' }); // Les 20 plus récents
+      fields: ['name', 'hs_code', 'qty_available', 'create_date'],
+      limit: 20, order: 'create_date desc'
+    });
 
     return products;
   } catch (error) {
@@ -406,18 +408,15 @@ export async function getRecentArrivals() {
 // CRM
 export async function getCRMClients() {
   try {
-    // On récupère les 50 meilleurs clients qui ont un téléphone
-    // On demande des champs utiles : nom, tél, email, CA total, nombre de ventes
-    const clients: any = await odooClient('res.partner', 'search_read', [
-      [
+    const clients: any = await odooClient.searchRead('res.partner', {
+      domain: [
         ['customer_rank', '>', 0], // C'est un client
         ['mobile', '!=', false],    // Il a un numéro de portable
         ['email', '!=', false]      // (Optionnel) Il a un email
       ],
-      ['id', 'name', 'mobile', 'email', 'total_invoiced', 'sale_order_count', 'create_date'] 
-    ], { 
+      fields: ['id', 'name', 'mobile', 'email', 'total_invoiced', 'sale_order_count', 'create_date'],
       limit: 50, 
-      order: 'total_invoiced desc' // Les plus gros acheteurs en premier
+      order: 'total_invoiced desc'
     });
 
     if (!clients) return [];
@@ -465,10 +464,10 @@ function formatWhatsAppLink(phone: string) {
 export async function getAvailableRefs() {
   try {
     // On récupère tous les produits avec du stock
-    const products: any = await odooClient('product.product', 'search_read', [
-      [['qty_available', '>', 0]],
-      ['name', 'hs_code', 'qty_available', 'list_price']
-    ]);
+    const products: any = await odooClient.searchRead('product.product', {
+      domain: [['qty_available', '>', 0]],
+      fields: ['name', 'hs_code', 'qty_available', 'list_price']
+    });
 
     const groupedMap: Record<string, any> = {};
 
@@ -511,13 +510,13 @@ export async function getActivePromosPerformance() {
   if (!activePromos || activePromos.length === 0) return [];
 
   const performances = await Promise.all(activePromos.map(async (promo) => {
-    const sales: any = await odooClient('pos.order.line', 'search_read', [
-      [
+    const sales: any = await odooClient.searchRead('pos.order.line', {
+      domain: [
         ['product_id', 'in', promo.product_ids],
         ['create_date', '>=', promo.created_at]
       ],
-      ['qty', 'price_subtotal_incl']
-    ]);
+      fields: ['qty', 'price_subtotal_incl']
+    });
 
     const soldQty = sales.reduce((sum: number, line: any) => sum + line.qty, 0);
     const revenue = sales.reduce((sum: number, line: any) => sum + line.price_subtotal_incl, 0);
@@ -551,10 +550,10 @@ export async function createCustomPromo(formData: FormData) {
 
   // A. On interroge Odoo pour TOUS les HS Codes sélectionnés
   // On cherche les produits dont le hs_code est DANS la liste (opérateur 'in')
-  const products: any = await odooClient('product.template', 'search_read', [
-    [['hs_code', 'in', hsCodes], ['qty_available', '>', 0], ['categ_id', 'ilike', 'fashion']],
-    ['id', 'qty_available', 'name']
-  ]);
+  const products: any = await odooClient.searchRead('product.template', {
+    domain: [['hs_code', 'in', hsCodes], ['qty_available', '>', 0], ['categ_id', 'ilike', 'fashion']],
+    fields: ['id', 'qty_available', 'name']
+  });
 
   if (!products || products.length === 0) return;
 
@@ -564,10 +563,10 @@ export async function createCustomPromo(formData: FormData) {
   // B. On sauvegarde dans Supabase avec le tableau de HS Codes
   const { error } = await supabase.from('active_promos').insert({
     product_name: name,
-    hs_codes: hsCodes, // <-- Tableau de strings
+    hs_codes: hsCodes,
     discount_percent: discount,
     initial_stock: totalStock,
-    product_ids: productIds, // Contient les IDs de TOUS les produits de TOUS les codes
+    product_ids: productIds,
     status: 'active'
   });
 
@@ -577,10 +576,10 @@ export async function createCustomPromo(formData: FormData) {
 
 export async function getPromoCandidates() {
   try {
-    const products: any = await odooClient('product.product', 'search_read', [
-      [['qty_available', '>', 0]],
-      ['name', 'hs_code', 'qty_available', 'create_date', 'standard_price', 'list_price', 'categ_id', 'x_studio_many2one_field_Arl5D']
-    ]);
+    const products: any = await odooClient.searchRead('product.product', {
+      domain: [['qty_available', '>', 0]],
+      fields: ['name', 'hs_code', 'qty_available', 'create_date', 'standard_price', 'list_price', 'categ_id', 'x_studio_many2one_field_Arl5D']
+    });
 
     const groupedMap: Record<string, any> = {};
 
@@ -639,10 +638,10 @@ export async function getCampaignDetails(campaignId: string) {
     if(!campaign) return null;
 
     // B. Récup produits Odoo correspondants
-    const products: any = await odooClient('product.template', 'search_read', [
-        [['id', 'in', campaign.product_ids]],
-        ['name', 'hs_code', 'qty_available', 'standard_price', 'list_price', 'barcode', 'categ_id', 'x_studio_many2one_field_Arl5D']
-    ]);
+    const products: any = await odooClient.searchRead('product.template', {
+      domain: [['id', 'in', campaign.product_ids]],
+      fields: ['name', 'hs_code', 'qty_available', 'standard_price', 'list_price', 'barcode', 'categ_id', 'x_studio_many2one_field_Arl5D']
+    });
 
     // C. Calcul des prix et génération image
     const details = products.map((p: any) => {
@@ -664,9 +663,6 @@ export async function getCampaignDetails(campaignId: string) {
              }
         }
 
-        // --- LOGIQUE PRIX ---
-        // Note: Tu utilises list_price comme base. Si c'est le coût d'achat, c'est OK.
-        // Sinon remplace p.list_price par p.standard_price.
         const cost = p.list_price || 0; 
         const shopPrice = cost * 1.25; // RÈGLE : BASE + 25%
         const discountAmount = cost * (campaign.discount_percent / 100);

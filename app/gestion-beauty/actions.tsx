@@ -104,8 +104,7 @@ export async function getDataAnalyseByProductData(month: string, year: string): 
 
     const products = await odooClient.searchRead("product.product", {
         domain: [
-            [["id", "in", productIds]],
-            ["id", "product_tmpl_id"]
+            ["id", "in", productIds]
         ],
     });
 

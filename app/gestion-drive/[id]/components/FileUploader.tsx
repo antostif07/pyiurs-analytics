@@ -430,7 +430,7 @@ function FileItem({
               {file.file_name}
             </a>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              {formatFileSize(file.file_size)} • {file.file_type}
+              {formatFileSize(file.file_size!)} • {file.file_type}
             </p>
           </div>
         </div>

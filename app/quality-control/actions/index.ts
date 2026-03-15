@@ -1,6 +1,6 @@
 'use server';
 
-import { odooClient } from '@/lib/odoo/xmlrpc';
+import { odooClient, OdooDomainCondition } from '@/lib/odoo/xmlrpc';
 
 const SEGMENT_FIELD = 'x_studio_segment'; // Champ sur le template
 
@@ -100,7 +100,7 @@ export async function getProductQualityData(
 
 export async function getAvailableHSCodes(from: string, to: string, segment: string) {
   try {
-    const domain = [
+    const domain: OdooDomainCondition[] = [
       [SEGMENT_FIELD, 'ilike', segment],
       ['create_date', '>=', from],
       ['create_date', '<=', `${to} 23:59:59`],

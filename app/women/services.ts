@@ -1,4 +1,4 @@
-import { odooClient } from "@/lib/odoo/xmlrpc";
+import { odooClient } from "@/lib/odoo/odoo-json2-client";
 
 // --- TYPES ---
 export interface ProductLifecycle {
@@ -88,15 +88,7 @@ export async function getLifecycleData(page: number = 1, pageSize: number = 50):
   try {
     const offset = (page - 1) * pageSize;
 
-    // --- ÉTAPE 1 : Récupérer la liste des HS Codes paginée ---
-    // On groupe d'abord les produits par HS Code pour savoir "Quoi afficher sur cette page ?"
-    // read_group nous donne aussi le count total implicitement si on ne met pas lazy=false trop tôt
-    // Note: Pour avoir le total exact avec read_group, c'est parfois complexe. 
-    // On va faire un search_count sur les produits uniques si besoin, ou se fier au length.
-    
-    // Pour simplifier et être précis sur la pagination des GROUPES :
-    // On utilise read_group sur product.product
-    const hsCodeGroups = await odooClient.execute('product.product', 'read_group', [], {
+    const hsCodeGroups = await odooClient.readGroup('product.product', {
       domain: [
         ['x_studio_segment', '=', 'Femme'],
         ['active', '=', true]
@@ -104,16 +96,15 @@ export async function getLifecycleData(page: number = 1, pageSize: number = 50):
       fields: ['hs_code'],
       groupby: ['hs_code'],
       limit: pageSize,
-      offset: offset
-      // orderby: 'create_date desc' // Optionnel: Trier par nouveauté
+      offset: offset,
+      orderby: 'create_date desc'
     }) as any[];
     
-    // Si pas de résultats, on arrête
     if (!hsCodeGroups || hsCodeGroups.length === 0) {
       return { data: [], total: 0 };
     }
-    // Pour le total, on peut faire un read_group sans limit/offset juste pour compter
-    const totalGroupsCount = await odooClient.execute('product.product', 'read_group', [], {
+
+    const totalGroupsCount = await odooClient.readGroup('product.product', {
        domain: [['x_studio_segment', '=', 'Femme'], ['active', '=', true]],
        fields: ['hs_code'],
        groupby: ['hs_code'],
@@ -121,12 +112,8 @@ export async function getLifecycleData(page: number = 1, pageSize: number = 50):
     }) as any[];
     const total = totalGroupsCount.length; 
 
-
-    // --- ÉTAPE 2 : Récupérer les IDs produits de CES groupes ---
-    // On extrait les HS Codes de la page courante
     const targetHsCodes = hsCodeGroups.map((g: any) => g.hs_code).filter(Boolean);
     
-    // On cherche TOUS les produits qui ont ces HS Codes
     const productsInPage = await odooClient.searchRead('product.product', {
       domain: [
         ['hs_code', 'in', targetHsCodes],
@@ -147,24 +134,23 @@ export async function getLifecycleData(page: number = 1, pageSize: number = 50):
     date30d.setDate(date30d.getDate() - 30);
     const date30dStr = date30d.toISOString().split('T')[0];
 
-    // Parallélisme (Vitesse max)
     const [stockGroups, salesTotalGroups, sales30dGroups] = await Promise.all([
       // Stocks
-      odooClient.execute('stock.quant', 'read_group', [], {
+      odooClient.readGroup('stock.quant', {
         domain: [['product_id', 'in', productIds], ['location_id', 'in', TARGET_LOCATION_IDS]],
         fields: ['quantity', 'product_id'],
         groupby: ['product_id'],
         lazy: false
       }),
       // Ventes Totales
-      odooClient.execute('pos.order.line', 'read_group', [], {
+      odooClient.readGroup('pos.order.line', {
         domain: [['product_id', 'in', productIds], ['order_id.state', 'in', ['paid', 'done', 'invoiced']]],
         fields: ['qty', 'price_subtotal_incl', 'product_id'],
         groupby: ['product_id'],
         lazy: false
       }),
-      // Ventes 30j
-      odooClient.execute('pos.order.line', 'read_group', [], {
+      
+      odooClient.readGroup('pos.order.line', {
         domain: [['product_id', 'in', productIds], ['order_id.date_order', '>=', date30dStr], ['order_id.state', 'in', ['paid', 'done', 'invoiced']]],
         fields: ['qty', 'product_id'],
         groupby: ['product_id'],

@@ -1,5 +1,4 @@
 import { CellData, Document, DocumentColumn, DocumentRow } from "@/app/types/documents";
-import { Profile } from "@/contexts/AuthContext";
 import { User } from "@supabase/supabase-js";
 import Link from "next/link";
 import { Dispatch, SetStateAction, useEffect, useState } from "react";
@@ -7,6 +6,7 @@ import PermissionManager from "./PermissionManager";
 import { supabase } from "@/lib/supabase";
 import SearchAndFilters from "./SearchAndFilters";
 import { FilterState } from "@/app/types/search";
+import { Profile } from "@/lib/supabase/auth-service";
 
 interface Props {
     document: Document,

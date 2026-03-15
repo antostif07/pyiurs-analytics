@@ -26,7 +26,7 @@ async function getEnhancedUsers(search?: string, role?: string): Promise<Enhance
 
   try {
     // Récupérer les profiles
-    const supabase = createClient();
+    const supabase = await createClient();
     let profileQuery = supabase
       .from('profiles')
       .select('*')

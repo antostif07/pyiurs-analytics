@@ -1,4 +1,4 @@
-import { odooClient, OdooDomain } from "@/lib/odoo/xmlrpc";
+import { odooClient, OdooDomainCondition } from "@/lib/odoo/xmlrpc";
 import { RevenueSmartFilter } from "./revenue-smart-filter";
 import { Option } from "../ui/multiselect";
 
@@ -44,7 +44,7 @@ interface FilterDataResult {
  */
 async function fetchData({ segment }: FetchDataParams) {
     try {
-        const categoryDomain: OdooDomain =[
+        const categoryDomain: OdooDomainCondition[] =[
             ['complete_name', 'ilike', ' / ']
         ];
 

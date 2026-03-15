@@ -8,11 +8,11 @@ const ODOO_PASSWORD = process.env.ODOO_PASSWORD || '';
 // --- TYPES DE BASE ODOO ---
 
 // Un domaine Odoo est un tableau de triplets : ['champ', 'opérateur', 'valeur']
-export type OdooDomain = [string, string, unknown][];
+export type OdooDomainCondition =[string, string, string | number | boolean | number[] | string[]];
 
 // Options pour la recherche
 export interface SearchReadOptions {
-  domain?: OdooDomain;
+  domain?: OdooDomainCondition[];
   fields?: string[];
   limit?: number;
   offset?: number;
@@ -121,7 +121,7 @@ export const odooClient = {
   /**
    * Helper pour compter les éléments
    */
-  searchCount: async (model: string, domain: OdooDomain = []): Promise<number> => {
+  searchCount: async (model: string, domain: OdooDomainCondition[] = []): Promise<number> => {
     return odooClient.execute<number>(model, 'search_count', [domain]);
   }
 };

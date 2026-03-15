@@ -5,8 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 
 export async function updateSalesTarget(targetAmount: number, month: number, year: number) {
-  const cookieStore = cookies();
-  const supabase = createClient();
+  const supabase = await createClient();
 
   try {
     // Check existance
@@ -43,8 +42,7 @@ export async function updateSalesTarget(targetAmount: number, month: number, yea
 }
 
 export async function getSalesTarget(month: number, year: number) {
-  const cookieStore = cookies();
-  const supabase = createClient();
+  const supabase = await createClient();
 
   try {
     const { data } = await supabase

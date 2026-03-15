@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
 
     // Le createClient serveur de @supabase/ssr va AUTOMATIQUEMENT
     // générer et attacher les cookies sécurisés à la réponse Next.js
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // 1. Authentification via Supabase
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({

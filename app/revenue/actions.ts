@@ -1,12 +1,12 @@
 // app/finance/revenue/actions.ts
 'use server'
 
-import { odooClient } from "@/lib/odoo/xmlrpc";
+import { odooClient, OdooDomainCondition } from "@/lib/odoo/xmlrpc";
 import {odooClient as odooJsonClient} from "@/lib/odoo/odoo-json2-client"
 import { createClient } from "@/lib/supabase/server";
 import { startOfMonth, endOfMonth, subMonths, format, getWeek, subDays, startOfWeek } from "date-fns";
 import { fr } from "date-fns/locale";
-import { POSConfig, POSOrder, POSOrderLine } from "../types/pos";
+import { POSOrder, POSOrderLine } from "../types/pos";
 
 function getMonthKey(odooMonthStr: string): string {
   const months: Record<string, string> = {
@@ -48,7 +48,7 @@ function ensureTrackerEntry(tracker: Map<string, any>, hsCode: string, name = "P
 }
 
 export async function getRevenueDashboardData(month: string, year: string) {
-    const supabase = createClient();
+    const supabase = await createClient();
     const now = new Date();
     
     // --- DÉFINITION DES PÉRIODES ---
@@ -314,8 +314,8 @@ export async function getBeautySixMonthSales(month: string, year: string, filter
         ["create_date", ">=", startDate],
         ["create_date", "<=", endDate]
     ]
-    let productsDomain = [["x_studio_segment", "=", "Beauty"]];
-    let stockDomain = [["product_id.x_studio_segment", "=", "Beauty"], ["location_id.usage", "=", "internal"]];
+    let productsDomain: OdooDomainCondition[] = [["x_studio_segment", "=", "Beauty"]];
+    let stockDomain: OdooDomainCondition[] = [["product_id.x_studio_segment", "=", "Beauty"], ["location_id.usage", "=", "internal"]];
 
     if (filters.q) {
         salesDomain.push(["product_id.name", "ilike", filters.q]);

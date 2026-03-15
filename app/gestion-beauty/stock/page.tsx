@@ -2,12 +2,12 @@
 import { Suspense } from "react";
 import InventoryTable from "./InventoryTable"; // Le composant react-table
 import { Loader2 } from "lucide-react";
-import { odooClient } from "@/lib/odoo/xmlrpc";
+import { odooClient, OdooDomainCondition } from "@/lib/odoo/xmlrpc";
 
 // Fonction pour récupérer les compteurs des 4 cartes (Summary)
 async function getStockSummary() {
   try {
-    const beautyDomain = [["x_studio_segment", "=", "Beauty"]];
+    const beautyDomain: OdooDomainCondition[] = [["x_studio_segment", "=", "Beauty"]];
     
     // On récupère les stocks de tous les produits beauty
     const products = await odooClient.searchRead("product.product", {

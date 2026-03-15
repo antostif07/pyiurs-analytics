@@ -1,6 +1,6 @@
 'use server';
 
-import { odooClient } from '@/lib/odoo/xmlrpc';
+import { odooClient } from "@/lib/odoo/odoo-json2-client";
 
 const SEGMENT_FIELD = 'product_tmpl_id.x_studio_segment';
 const SEGMENT_VALUE = 'femme';
@@ -18,13 +18,12 @@ export type HSCycleStats = {
 export async function getHSCycleAnalysis() {
   try {
     // 1. Trouver l'emplacement
-    const locations = await odooClient('stock.location', 'search_read', 
-      [
-        [['complete_name', 'ilike', WAREHOUSE_KEYWORD]], // Domaine
-        ['id', 'complete_name'] // Champs
-      ], 
-      { limit: 1 }
-    ) as any[];
+    const locations = await odooClient.searchRead('stock.location',{
+      domain: [
+        ['complete_name', 'ilike', WAREHOUSE_KEYWORD]],
+      fields: ['id', 'complete_name'],
+      limit: 1
+    }) as any[];
 
     if (locations.length === 0) {
       console.error(`Emplacement "${WAREHOUSE_KEYWORD}" introuvable.`);
@@ -33,13 +32,10 @@ export async function getHSCycleAnalysis() {
     const locationDestId = locations[0].id;
 
     // 2. Trouver les produits Femme
-    const products = await odooClient('product.product', 'search_read', 
-      [
-        [[SEGMENT_FIELD, 'ilike', SEGMENT_VALUE]], // Domaine
-        ['hs_code', 'name'] // Champs
-      ],
-      {}
-    ) as any[];
+    const products = await odooClient.searchRead('product.product', {
+      domain: [[SEGMENT_FIELD, 'ilike', SEGMENT_VALUE]],
+      fields: ['hs_code', 'name']
+    }) as any[];
 
     const productMap = new Map<number, { hs: string, name: string }>();
     const productIds: number[] = [];
@@ -52,17 +48,14 @@ export async function getHSCycleAnalysis() {
     if (productIds.length === 0) return [];
 
     // 3. Récupérer les Mouvements
-    const moves = await odooClient('stock.move', 'search_read', 
-      [
-        [ // Domaine
-          ['location_dest_id', '=', locationDestId], 
-          ['product_id', 'in', productIds],          
-          ['state', '=', 'done']                     
-        ],
-        ['product_id', 'date', 'quantity', 'product_uom_qty'] // Champs
+    const moves = await odooClient.searchRead('stock.move', {
+      domain: [
+        ['location_dest_id', '=', locationDestId], 
+        ['product_id', 'in', productIds],          
+        ['state', '=', 'done']                     
       ],
-      {}
-    ) as any[];
+      fields: ['product_id', 'date', 'quantity', 'product_uom_qty']
+    }) as any[];
 
     // 4. Aggrégation (Reste inchangée)
     const statsMap = new Map<string, {

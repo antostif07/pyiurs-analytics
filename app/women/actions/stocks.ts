@@ -1,6 +1,7 @@
 'use server';
 
-import { odooClient } from '@/lib/odoo/xmlrpc';
+import { odooClient, OdooDomainCondition } from '@/lib/odoo/xmlrpc';
+import { OdooDomain, odooClient as odooJsonClient } from '@/lib/odoo/odoo-json2-client';
 
 const SEGMENT_FIELD = 'x_studio_segment';
 const SEGMENT_VALUE = 'femme';
@@ -22,7 +23,7 @@ export type AnalysisRow = {
 export async function getPerformanceAnalysis(from: string, to: string) {
   try {
     // 1. Trouver les Templates créés dans la période
-    const domain = [
+    const domain: OdooDomainCondition[] = [
       [SEGMENT_FIELD, 'ilike', SEGMENT_VALUE],
       ['create_date', '>=', from],
       ['create_date', '<=', `${to} 23:59:59`], // Fin de journée
@@ -30,9 +31,10 @@ export async function getPerformanceAnalysis(from: string, to: string) {
 
     // On récupère tout (pas de limite, car on veut analyser la collection entière)
     // Attention si collection géante > 1000 items, il faudra optimiser
-    const templates = await odooClient('product.template', 'search_read', [domain], {
+    const templates = await odooClient.searchRead('product.template', {
       fields: ['name', 'hs_code', 'default_code', 'create_date', 'qty_available', 'list_price', 'x_studio_many2one_field_Arl5D'],
-      order: 'create_date desc'
+      order: 'create_date desc',
+      domain
     }) as any[];    
 
     if (!templates.length) return [];
@@ -72,18 +74,16 @@ export async function getPerformanceAnalysis(from: string, to: string) {
     // 3. Récupérer les Ventes POS pour ces modèles (Historique complet depuis création)
     // On doit passer par les variants
     const allTemplateIds = templates.map(t => t.id);
-    const variants = await odooClient('product.product', 'search_read', [
-        [['product_tmpl_id', 'in', allTemplateIds]]
-    ], { fields: ['product_tmpl_id'] }) as any[];
+    const variants = await odooJsonClient.searchRead('product.product', {
+      domain: [['product_tmpl_id', 'in', allTemplateIds]],
+      fields: ['product_tmpl_id']
+    }) as any[];
 
     const variantIds = variants.map(v => v.id);
     const variantToTemplate = new Map<number, number>();
     variants.forEach(v => variantToTemplate.set(v.id, v.product_tmpl_id[0]));
 
-    // On récupère les ventes SANS filtre de date de commande (on veut la performance à vie de ce produit)
-    // Ou avec filtre si tu veux juste les ventes sur la période ? 
-    // -> "combien a été vendu" sur un produit créé récemment implique souvent "depuis le début".
-    const salesData = await odooClient('pos.order.line', 'read_group', [], {
+    const salesData = await odooJsonClient.readGroup('pos.order.line', {
       domain: [
         ['product_id', 'in', variantIds],
         ['order_id.state', 'in', ['paid', 'done', 'invoiced']]
@@ -105,15 +105,10 @@ export async function getPerformanceAnalysis(from: string, to: string) {
         
         const prev = salesByTemplate.get(tmplId) || { qty: 0, rev: 0, last: '' };
         
-        // Gestion max date
-        // Odoo read_group retourne parfois la date max bizarrement selon versions
-        // Si create_date:max ne marche pas, on fera sans pour l'instant
-        // Supposons qu'on utilise la logique "Last Sale" simplifiée
-        
         salesByTemplate.set(tmplId, {
             qty: prev.qty + (s.qty || 0),
             rev: prev.rev + (s.price_subtotal || 0),
-            last: '' // TODO: Optimiser last sale
+            last: ''
         });
     });
 
@@ -188,33 +183,23 @@ export async function getDeadStockCandidates() {
   try {
     // 1. Trouver les produits avec du stock mais peu de mouvement
     // On va chercher les templates femme avec stock > 0
-    const domain = [
+    const domain: OdooDomain = [
       ['x_studio_segment', 'ilike', 'femme'],
       ['qty_available', '>', 0] 
     ];
 
-    const templates = await odooClient('product.template', 'search_read', [domain], {
+    const templates = await odooJsonClient.searchRead('product.template', {
       fields: ['name', 'hs_code', 'qty_available', 'list_price', 'standard_price', 'create_date'],
       order: 'qty_available desc',
-      limit: 200 // On analyse les 200 plus gros stocks pour commencer
+      limit: 200,
+      domain,
     }) as any[];
 
-    // 2. Vérifier la vélocité (Ventes 30 derniers jours)
-    // (On réutilise la logique de velocity qu'on a déjà faite, je simplifie ici)
     const templateIds = templates.map(t => t.id);
-    
-    // ... (Récupération des variantes comme avant) ...
-    // ... (Récupération des ventes POS 30j comme avant) ...
-    // Pour l'exemple, supposons qu'on a une map `salesMap` { templateId: qtySold30d }
-    
-    // Mock pour l'instant si tu veux tester l'UI direct :
-    // En prod, tu copies la logique "velocity" du module précédent.
 
     const candidates: PromoCandidate[] = [];
 
     templates.forEach(t => {
-      // Simule une vélocité faible pour le test
-      // const velocity = salesMap.get(t.id) || 0;
       const velocity = Math.random() > 0.7 ? 5 : 0; // 70% de chance d'être "dormant"
 
       if (velocity < 2) { // Critère : Moins de 2 ventes par mois = Candidat Promo

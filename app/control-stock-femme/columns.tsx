@@ -1,72 +1,90 @@
 'use client'
 
-import { ColumnDef } from "@tanstack/react-table";
+import { ColumnDef, Row } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { ArrowUpDown } from "lucide-react";
 import { ControlStockFemmeModel } from "./page";
-import Image from "next/image";
 import ProductImage from "../marketing/components/ProductImage";
 
-// Fonction pour déterminer la couleur en fonction du stock
-function getStockColor(qty: number): string {
+// ============================================================================
+// 1. UTILITAIRES & COMPOSANTS RÉUTILISABLES (DRY Principle)
+// ============================================================================
+
+// Couleur dynamique du stock
+const getStockColor = (qty: number): string => {
   if (qty <= 0) return 'bg-black text-white';
   if (qty <= 5) return 'bg-red-500 text-white';
   if (qty <= 11) return 'bg-yellow-500 text-black';
   return 'bg-green-500 text-white';
-}
+};
 
-export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
+// Composant Header générique pour le tri
+const SortableHeader = ({ column, title }: { column: any, title: string }) => (
+  <Button
+    variant="ghost"
+    onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+    className="p-2 h-auto text-xs font-semibold hover:bg-slate-100"
+  >
+    {title}
+    <ArrowUpDown className="ml-1 h-3 w-3 text-slate-400" />
+  </Button>
+);
+
+// Composant Cellule générique pour les badges de stock
+const StockBadgeCell = ({ value }: { value: number }) => (
+  <span className={`px-2 py-1 rounded-full text-xs font-bold text-center min-w-[2.5rem] inline-block ${getStockColor(value)}`}>
+    {value}
+  </span>
+);
+
+// Fonction de filtre générique pour les plages de nombres (Range)
+const numberRangeFilter = (row: Row<ControlStockFemmeModel>, id: string, filterValue:[number, number]) => {
+  const value = Number(row.getValue(id));
+  const[min, max] = filterValue ??[];
+  if (min !== undefined && value < min) return false;
+  if (max !== undefined && value > max) return false;
+  return true;
+};
+
+// Fonction de filtre générique pour les multi-selects
+const multiSelectFilter = (row: Row<ControlStockFemmeModel>, id: string, filterValues: string[]) => {
+  const value = row.getValue(id) as string;
+  if (!filterValues?.length) return true;
+  return filterValues.includes(value);
+};
+
+// ============================================================================
+// 2. DÉFINITION DES COLONNES
+// ============================================================================
+
+export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] =[
   {
     accessorKey: "po_name",
     header: "PO",
-    enableHiding: true,          // on pourra la cacher
-    enableColumnFilter: true,    // elle reste filtrable
-    meta: { filterVariant: "multi-select", label: "PO" },
-    filterFn: (row, id, filterValues) => {
-      const value = row.getValue(id);
-      if (!filterValues?.length) return true;
-      return filterValues.includes(value);
-    },
+    enableHiding: true,
+    enableColumnFilter: true,
+    // ✅ CORRECTION TS : Ajout de `type: "text"` (ou ce que ton interface exige)
+    meta: { type: "text", filterVariant: "multi-select", label: "PO" },
+    filterFn: multiSelectFilter,
   },
   {
     accessorKey: "name",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="p-2 h-auto text-xs font-semibold"
-        >
-          Reference
-          <ArrowUpDown className="ml-1 h-3 w-3" />
-        </Button>
-      )
-    },
+    header: ({ column }) => <SortableHeader column={column} title="Reference" />,
     cell: ({ row }) => {
-      const brand = row.original.brand;
-      const color = row.original.color;
-      const imageUrl = row.original.imageUrl;
-      
+      const { brand, color, imageUrl, name } = row.original;
       return (
-        <div className="flex space-x-2">
-          <div className="w-8">
-            <ProductImage src={imageUrl} alt={row.getValue("name")} />
+        <div className="flex space-x-3 items-center">
+          <div className="w-10 h-10 shrink-0">
+            <ProductImage src={imageUrl} alt={name} />
           </div>
-          {/* <Image
-            src={imageUrl}
-            alt={row.getValue("name")}
-            className="w-12 h-12 object-cover rounded"
-            width={164} height={164}
-            onError={(e) => (e.currentTarget.src = "/logo.png")}
-          /> */}
-          <div className="py-2">
-            <div className="font-medium text-sm">{row.getValue("name")}</div>
-            <div className="text-xs text-gray-500 flex items-center space-x-1 mt-1">
-              <span>{brand}</span>
+          <div className="py-1">
+            <div className="font-medium text-sm text-slate-900 line-clamp-1">{name}</div>
+            <div className="text-xs text-slate-500 flex items-center space-x-1 mt-0.5">
+              <span className="font-semibold">{brand}</span>
               {color && color !== 'Non spécifié' && (
                 <>
-                  <span>•</span>
-                  <span className="text-blue-600">{color}</span>
+                  <span className="text-slate-300">•</span>
+                  <span className="text-blue-600 font-medium">{color}</span>
                 </>
               )}
             </div>
@@ -76,461 +94,141 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
     },
     enableColumnFilter: true,
     size: 300,
-    meta: { filterVariant: "multi-select", label: "Référence", },
-    filterFn: (row, id, filterValues) => {
-      const value = row.getValue(id);
-      if (!filterValues?.length) return true;
-      return filterValues.includes(value);
-    },
+    meta: { type: "text", filterVariant: "multi-select", label: "Référence" },
+    filterFn: multiSelectFilter,
   },
   {
     accessorKey: "product_qty",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="p-2 h-auto text-xs font-semibold"
-        >
-          Achts
-          <ArrowUpDown className="ml-1 h-3 w-3" />
-        </Button>
-      )
-    },
-    cell: ({ getValue }) => {
-      const value = getValue<number>();
-      return (
-        <span className="font-medium text-blue-600 text-sm">
-          {value}
-        </span>
-      );
-    },
+    header: ({ column }) => <SortableHeader column={column} title="Achts" />,
+    cell: ({ getValue }) => <span className="font-semibold text-blue-600 text-sm">{getValue<number>()}</span>,
     size: 90,
-    meta: { filterVariant: "range", label: "Achats", },
-    filterFn: (row, id, filterValue) => {
-      const value = Number(row.getValue(id))
-      const [min, max] = filterValue ?? []
-      if (min !== undefined && value < min) return false
-      if (max !== undefined && value > max) return false
-      return true
-    },
+    meta: { type: "number", filterVariant: "range", label: "Achats" },
+    filterFn: numberRangeFilter,
   },
   {
     accessorKey: "qty_received",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="p-2 h-auto text-xs font-semibold"
-        >
-          Reçu
-          <ArrowUpDown className="ml-1 h-3 w-3" />
-        </Button>
-      )
-    },
-    cell: ({ getValue }) => {
-      const value = getValue<number>();
-      return (
-        <span className="font-medium text-green-600 text-sm">
-          {value}
-        </span>
-      );
-    },
+    header: ({ column }) => <SortableHeader column={column} title="Reçu" />,
+    cell: ({ getValue }) => <span className="font-semibold text-emerald-600 text-sm">{getValue<number>()}</span>,
     size: 90,
-    meta: { filterVariant: "range", label: "Recu", },
-    filterFn: (row, id, filterValue) => {
-      const value = Number(row.getValue(id))
-      const [min, max] = filterValue ?? []
-      if (min !== undefined && value < min) return false
-      if (max !== undefined && value > max) return false
-      return true
-    },
+    meta: { type: "number", filterVariant: "range", label: "Recu" },
+    filterFn: numberRangeFilter,
   },
   {
     accessorKey: "not_received",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="p-2 h-auto text-xs font-semibold"
-        >
-          Rlq
-          <ArrowUpDown className="ml-1 h-3 w-3" />
-        </Button>
-      )
-    },
+    header: ({ column }) => <SortableHeader column={column} title="Rlq" />,
     cell: ({ getValue }) => {
       const value = getValue<number>();
       return (
-        <span className={value > 0 ? "bg-orange-100 text-orange-900 px-2 py-1 rounded text-xs font-medium" : "text-gray-400 text-sm"}>
+        <span className={value > 0 ? "bg-orange-100 text-orange-800 px-2 py-0.5 rounded text-xs font-semibold" : "text-slate-400 text-sm"}>
           {value}
         </span>
       );
     },
     size: 90,
-    meta: { filterVariant: "range", label: "Rlq", },
-    filterFn: (row, id, filterValue) => {
-      const value = Number(row.getValue(id))
-      const [min, max] = filterValue ?? []
-      if (min !== undefined && value < min) return false
-      if (max !== undefined && value > max) return false
-      return true
-    },
+    meta: { type: "number", filterVariant: "range", label: "Rlq" },
+    filterFn: numberRangeFilter,
   },
   {
     accessorKey: "qty_sold",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="p-2 h-auto text-xs font-semibold"
-        >
-          Vendu
-          <ArrowUpDown className="ml-1 h-3 w-3" />
-        </Button>
-      )
-    },
-    cell: ({ getValue }) => {
-      const value = getValue<number>();
-      return (
-        <span className="font-medium text-purple-600 text-sm">
-          {value}
-        </span>
-      );
-    },
+    header: ({ column }) => <SortableHeader column={column} title="Vendu" />,
+    cell: ({ getValue }) => <span className="font-semibold text-purple-600 text-sm">{getValue<number>()}</span>,
     size: 90,
-    meta: { filterVariant: "range", label: "Vendu", },
-    filterFn: (row, id, filterValue) => {
-      const value = Number(row.getValue(id))
-      const [min, max] = filterValue ?? []
-      if (min !== undefined && value < min) return false
-      if (max !== undefined && value > max) return false
-      return true
-    },
+    meta: { type: "number", filterVariant: "range", label: "Vendu" },
+    filterFn: numberRangeFilter,
   },
+  
+  // ✅ PRO: Les colonnes de stock utilisent maintenant TOUTES le même composant StockBadgeCell !
   {
     accessorKey: "qty_available",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="p-2 h-auto text-xs font-semibold"
-        >
-          Stock
-          <ArrowUpDown className="ml-1 h-3 w-3" />
-        </Button>
-      )
-    },
-    cell: ({ getValue }) => {
-      const value = getValue<number>();
-      const colorClass = getStockColor(value);
-      return (
-        <span className={`px-2 py-1 rounded-full text-xs font-bold text-center min-w-10 inline-block ${colorClass}`}>
-          {value}
-        </span>
-      );
-    },
+    header: ({ column }) => <SortableHeader column={column} title="Stock" />,
+    cell: ({ getValue }) => <StockBadgeCell value={getValue<number>()} />,
     size: 90,
-    meta: { filterVariant: "range", label: "Dispo", },
-    filterFn: (row, id, filterValue) => {
-      const value = Number(row.getValue(id))
-      const [min, max] = filterValue ?? []
-      if (min !== undefined && value < min) return false
-      if (max !== undefined && value > max) return false
-      return true
-    },
+    meta: { type: "number", filterVariant: "range", label: "Dispo" },
+    filterFn: numberRangeFilter,
   },
   {
     accessorKey: "stock_24",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="p-2 h-auto text-xs font-semibold"
-        >
-          P.24
-          <ArrowUpDown className="ml-1 h-3 w-3" />
-        </Button>
-      )
-    },
-    cell: ({ getValue }) => {
-      const value = getValue<number>();
-      const colorClass = getStockColor(value);
-      return (
-        <span className={`px-2 py-1 rounded-full text-xs font-bold text-center min-w-10 inline-block ${colorClass}`}>
-          {value}
-        </span>
-      );
-    },
+    header: ({ column }) => <SortableHeader column={column} title="P.24" />,
+    cell: ({ getValue }) => <StockBadgeCell value={getValue<number>()} />,
     size: 90,
-    meta: { filterVariant: "range", label: "P.24", },
-    filterFn: (row, id, filterValue) => {
-      const value = Number(row.getValue(id))
-      const [min, max] = filterValue ?? []
-      if (min !== undefined && value < min) return false
-      if (max !== undefined && value > max) return false
-      return true
-    },
+    meta: { type: "number", filterVariant: "range", label: "P.24" },
+    filterFn: numberRangeFilter,
   },
   {
     accessorKey: "stock_ktm",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="p-2 h-auto text-xs font-semibold"
-        >
-          P.KTM
-          <ArrowUpDown className="ml-1 h-3 w-3" />
-        </Button>
-      )
-    },
-    cell: ({ getValue }) => {
-      const value = getValue<number>();
-      const colorClass = getStockColor(value);
-      return (
-        <span className={`px-2 py-1 rounded-full text-xs font-bold text-center min-w-10 inline-block ${colorClass}`}>
-          {value}
-        </span>
-      );
-    },
+    header: ({ column }) => <SortableHeader column={column} title="P.KTM" />,
+    cell: ({ getValue }) => <StockBadgeCell value={getValue<number>()} />,
     size: 90,
-    meta: { filterVariant: "range", label: "P.KTM", },
-    filterFn: (row, id, filterValue) => {
-      const value = Number(row.getValue(id))
-      const [min, max] = filterValue ?? []
-      if (min !== undefined && value < min) return false
-      if (max !== undefined && value > max) return false
-      return true
-    },
+    meta: { type: "number", filterVariant: "range", label: "P.KTM" },
+    filterFn: numberRangeFilter,
   },
   {
     accessorKey: "stock_lmb",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="p-2 h-auto text-xs font-semibold"
-        >
-          LMB
-          <ArrowUpDown className="ml-1 h-3 w-3" />
-        </Button>
-      )
-    },
-    cell: ({ getValue }) => {
-      const value = getValue<number>();
-      const colorClass = getStockColor(value);
-      return (
-        <span className={`px-2 py-1 rounded-full text-xs font-bold text-center min-w-10 inline-block ${colorClass}`}>
-          {value}
-        </span>
-      );
-    },
+    header: ({ column }) => <SortableHeader column={column} title="LMB" />,
+    cell: ({ getValue }) => <StockBadgeCell value={getValue<number>()} />,
     size: 90,
-    meta: { filterVariant: "range", label: "P.LMB", },
-    filterFn: (row, id, filterValue) => {
-      const value = Number(row.getValue(id))
-      const [min, max] = filterValue ?? []
-      if (min !== undefined && value < min) return false
-      if (max !== undefined && value > max) return false
-      return true
-    },
+    meta: { type: "number", filterVariant: "range", label: "P.LMB" },
+    filterFn: numberRangeFilter,
   },
   {
     accessorKey: "stock_mto",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="p-2 h-auto text-xs font-semibold"
-        >
-          MTO
-          <ArrowUpDown className="ml-1 h-3 w-3" />
-        </Button>
-      )
-    },
-    cell: ({ getValue }) => {
-      const value = getValue<number>();
-      const colorClass = getStockColor(value);
-      return (
-        <span className={`px-2 py-1 rounded-full text-xs font-bold text-center min-w-10 inline-block ${colorClass}`}>
-          {value}
-        </span>
-      );
-    },
+    header: ({ column }) => <SortableHeader column={column} title="MTO" />,
+    cell: ({ getValue }) => <StockBadgeCell value={getValue<number>()} />,
     size: 90,
-    meta: { filterVariant: "range", label: "P.MTO", },
-    filterFn: (row, id, filterValue) => {
-      const value = Number(row.getValue(id))
-      const [min, max] = filterValue ?? []
-      if (min !== undefined && value < min) return false
-      if (max !== undefined && value > max) return false
-      return true
-    },
+    meta: { type: "number", filterVariant: "range", label: "P.MTO" },
+    filterFn: numberRangeFilter,
   },
   {
     accessorKey: "stock_onl",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="p-2 h-auto text-xs font-semibold"
-        >
-          ONL
-          <ArrowUpDown className="ml-1 h-3 w-3" />
-        </Button>
-      )
-    },
-    cell: ({ getValue }) => {
-      const value = getValue<number>();
-      const colorClass = getStockColor(value);
-      return (
-        <span className={`px-2 py-1 rounded-full text-xs font-bold text-center min-w-10 inline-block ${colorClass}`}>
-          {value}
-        </span>
-      );
-    },
+    header: ({ column }) => <SortableHeader column={column} title="ONL" />,
+    cell: ({ getValue }) => <StockBadgeCell value={getValue<number>()} />,
     size: 90,
-    meta: { filterVariant: "range", label: "P.ONL", },
-    filterFn: (row, id, filterValue) => {
-      const value = Number(row.getValue(id))
-      const [min, max] = filterValue ?? []
-      if (min !== undefined && value < min) return false
-      if (max !== undefined && value > max) return false
-      return true
-    },
+    meta: { type: "number", filterVariant: "range", label: "P.ONL" },
+    filterFn: numberRangeFilter,
   },
   {
     accessorKey: "stock_dc",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="p-2 h-auto text-xs font-semibold"
-        >
-          BC
-          <ArrowUpDown className="ml-1 h-3 w-3" />
-        </Button>
-      )
-    },
-    cell: ({ getValue }) => {
-      const value = getValue<number>();
-      const colorClass = getStockColor(value);
-      return (
-        <span className={`px-2 py-1 rounded-full text-xs font-bold text-center min-w-10 inline-block ${colorClass}`}>
-          {value}
-        </span>
-      );
-    },
+    header: ({ column }) => <SortableHeader column={column} title="BC" />,
+    cell: ({ getValue }) => <StockBadgeCell value={getValue<number>()} />,
     size: 90,
-    meta: { filterVariant: "range", label: "DC", },
-    filterFn: (row, id, filterValue) => {
-      const value = Number(row.getValue(id))
-      const [min, max] = filterValue ?? []
-      if (min !== undefined && value < min) return false
-      if (max !== undefined && value > max) return false
-      return true
-    },
+    meta: { type: "number", filterVariant: "range", label: "DC" },
+    filterFn: numberRangeFilter,
   },
-  // {
-  //   accessorKey: "other",
-  //   header: ({ column }) => {
-  //     return (
-  //       <Button
-  //         variant="ghost"
-  //         onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-  //         className="p-2 h-auto text-xs font-semibold"
-  //       >
-  //         Autres.
-  //         <ArrowUpDown className="ml-1 h-3 w-3" />
-  //       </Button>
-  //     )
-  //   },
-  //   cell: ({ getValue }) => {
-  //     const value = getValue<number>();
-  //     const colorClass = getStockColor(value);
-  //     return (
-  //       <span className={`px-2 py-1 rounded-full text-xs font-bold text-center min-w-10 inline-block`}>
-  //         {value}
-  //       </span>
-  //     );
-  //   },
-  // },
   {
     accessorKey: "age",
     id: "stock_age",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="p-2 h-auto text-xs font-semibold"
-        >
-          Age
-          <ArrowUpDown className="ml-1 h-3 w-3" />
-        </Button>
-      )
-    },
+    header: ({ column }) => <SortableHeader column={column} title="Age" />,
     cell: ({ getValue }) => {
       const value = getValue<number>();
       return (
-        <span className={value > 0 ? "bg-orange-100 text-orange-900 px-2 py-1 rounded text-xs font-medium" : "text-gray-400 text-sm"}>
+        <span className={value > 0 ? "bg-orange-100 text-orange-800 px-2 py-0.5 rounded text-xs font-semibold" : "text-slate-400 text-sm"}>
           {value}
         </span>
       );
     },
     size: 90,
+    meta: { type: "number", filterVariant: "range", label: "Age" },
+    filterFn: numberRangeFilter,
   },
+  
+  // ✅ PRO: Optimisation de la colonne calculée "Perf"
   {
     id: "perf",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="p-2 h-auto text-xs font-semibold"
-        >
-          Perf
-          <ArrowUpDown className="ml-1 h-3 w-3" />
-        </Button>
-      )
-    },
-    cell: ({ row }) => {
-      const qty_received = row.original.qty_received || 0;
-      const qty_sold = row.original.qty_sold || 0;
-      const perf = qty_received > 0 ? ((qty_sold / qty_received) * 100).toFixed(2) : "0.00";
-      return (
-        <span className={"text-gray-400 text-sm"}>
-          {`${perf}%`}
-        </span>
-      );
-    },
+    header: ({ column }) => <SortableHeader column={column} title="Perf" />,
+    // accessorFn crée la valeur virtuelle. Pas besoin d'une custom sortingFn, React Table va trier ce chiffre automatiquement !
     accessorFn: (row) => (row.qty_sold / (row.qty_received || 1)) * 100,
-    sortingFn: (rowA, rowB) => {
-      const perfA = (rowA.original.qty_sold / (rowA.original.qty_received || 1)) * 100;
-      const perfB = (rowB.original.qty_sold / (rowB.original.qty_received || 1)) * 100;
-      return perfA - perfB;
-    },
+    cell: ({ getValue }) => (
+      <span className="text-slate-500 font-medium text-sm">
+        {getValue<number>().toFixed(2)}%
+      </span>
+    ),
     filterFn: (row, columnId, filterValue) => {
-      const qty_received = row.original.qty_received || 0;
-      const qty_sold = row.original.qty_sold || 0;
-      const perf = qty_received > 0 ? (qty_sold / qty_received) * 100 : 0;
-
-      // ✅ Exemple : filtrer les produits dont la perf ≥ filtre choisi
+      const perf = row.getValue<number>(columnId);
       return perf >= Number(filterValue);
     },
     enableSorting: true,
     enableColumnFilter: true,
     size: 90,
+    meta: { type: "number", filterVariant: "range", label: "Performance" },
   },
-]
+];

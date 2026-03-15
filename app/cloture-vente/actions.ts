@@ -1,10 +1,10 @@
 import { endOfDay, format, startOfDay } from "date-fns";
 import { POSConfig, POSOrder, POSOrderLine, POSPayment } from "../types/pos";
 // import { AccountAccount, Expense, ExpenseSheet } from "../types/cloture";
-import { Profile } from "@/contexts/AuthContext";
-import { odooClient } from "@/lib/odoo/xmlrpc";
+import { odooClient, OdooDomainCondition } from "@/lib/odoo/xmlrpc";
 import { odooClient as odooJsonClient} from "@/lib/odoo/odoo-json2-client"
 import { ProductProduct } from "../types/product_template";
+import { Profile } from "@/lib/supabase/auth-service";
 
 // Type de retour enrichi pour les cartes
 type DailySalesResult = {
@@ -460,7 +460,7 @@ export async function getDailyExpensesReport(date: Date, company_name?: string) 
   const endDate = format(endOfDay(date), "yyyy-MM-dd");
 
   // 1. Filtre : Date + État validé
-  const domainParts: [string, string, unknown][] = [
+  const domainParts: OdooDomainCondition[] = [
     ["date", ">=", startDate], // hr.expense stocke souvent en YYYY-MM-DD simple
     ["date", "<=", endDate],
     ["state", "in", ["approved", "done", "reported"]], // On ne veut pas les brouillons/refusés
@@ -470,7 +470,7 @@ export async function getDailyExpensesReport(date: Date, company_name?: string) 
     domainParts.push(["company_id", "ilike", company_name]);
   }
   
-  const domain: [string, string, unknown][] = domainParts;
+  const domain: OdooDomainCondition[] = domainParts;
 
   try {
     // 2. Récupération des dépenses (Flat)

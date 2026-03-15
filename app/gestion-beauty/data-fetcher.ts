@@ -1,5 +1,5 @@
 'use server'
-import { odooClient } from "@/lib/odoo/xmlrpc";
+import { odooClient, OdooDomainCondition } from "@/lib/odoo/xmlrpc";
 import { createClient } from "@/lib/supabase/server";
 
 // types/odoo.ts ou directement dans data-fetcher.ts
@@ -26,7 +26,7 @@ export interface BeautyDashboardStats {
 }
 
 export async function getBeautyDashboardStats() {
-  const beautyDomain = [["x_studio_segment", "=", "Beauty"]];
+  const beautyDomain: OdooDomainCondition[] = [["x_studio_segment", "=", "Beauty"]];
   
   // 1. Nombre total de produits Beauty
   const stockData = await odooClient.execute("stock.quant", "read_group", [
@@ -41,7 +41,7 @@ export async function getBeautyDashboardStats() {
   const totalQuantity = stockData[0]?.quantity || 0;
 
   // 2. Produits en stock faible (ex: < 10 unités)
-  const lowStockDomain = [
+  const lowStockDomain: OdooDomainCondition[] = [
     ["x_studio_segment", "=", "Beauty"],
     ["qty_available", "<", 10],
     ["type", "=", "product"]
@@ -75,7 +75,7 @@ export async function getBeautyDashboardStats() {
 }
 
 export async function getBeautyGroupedPerformance(page: number = 0, limit: number = 50): Promise<GroupedProduct[]> {
-  const beautyDomain = [["x_studio_segment", "=", "Beauty"]];
+  const beautyDomain: OdooDomainCondition[] = [["x_studio_segment", "=", "Beauty"]];
   const offset = page * limit;
 
   try {
@@ -122,9 +122,7 @@ export async function loadMoreProducts(page: number) {
 }
 
 export async function getProductsByHSCode(hsCode: string): Promise<any[]> {
-  console.log("Recherche des variantes pour :", hsCode);
-    
-  const domain = [
+  const domain: OdooDomainCondition[] = [
     ["x_studio_segment", "=", "Beauty"],
     ["hs_code", "=", hsCode === "Sans Code" ? false : hsCode]
   ];
@@ -156,7 +154,7 @@ export async function getProductsByHSCode(hsCode: string): Promise<any[]> {
 }
 
 export async function getBeautySmartAlerts() {
-  const supabase = createClient();
+  const supabase = await createClient();
   
   // On récupère les produits qui ne sont pas en statut 'normal' 
   // ou ceux qui ont une date de rupture proche

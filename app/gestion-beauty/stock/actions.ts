@@ -1,6 +1,6 @@
 'use server'
 
-import { odooClient } from "@/lib/odoo/xmlrpc";
+import { odooClient, OdooDomainCondition } from "@/lib/odoo/xmlrpc";
 
 export interface InventoryGroup {
   hsCode: string;
@@ -28,7 +28,7 @@ export async function getPaginatedInventory(
     sortDesc: boolean = true
 ) {
   try {
-    const beautyDomain = [["x_studio_segment", "=", "Beauty"]];
+    const beautyDomain: OdooDomainCondition[] = [["x_studio_segment", "=", "Beauty"]];
 
     const allProducts = await odooClient.searchRead("product.product", {
       domain: beautyDomain,

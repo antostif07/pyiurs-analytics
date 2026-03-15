@@ -1,6 +1,6 @@
 'use server';
 
-import { odooClient } from '@/lib/odoo/xmlrpc';
+import { odooClient, OdooDomain } from '@/lib/odoo/odoo-json2-client';
 import { createClient } from '@/lib/supabase/server';
 
 // CONFIGURATION
@@ -19,7 +19,7 @@ export async function getFemmeOverview(range: '7j' | '30j' | '12m') {
 
   try {
     // --- DOMAINE ---
-    const posDomain = [
+    const posDomain: OdooDomain = [
       [SEGMENT_FIELD, 'ilike', SEGMENT_VALUE],
       ['order_id.date_order', '>=', fmtDate],
       ['order_id.state', 'in', ['paid', 'done', 'invoiced']]
@@ -30,11 +30,11 @@ export async function getFemmeOverview(range: '7j' | '30j' | '12m') {
     // pour constituer le TOP 5 Modèles après regroupement.
     const [statsResult, topVariantsResult, targetResult] = await Promise.all([
       // A. KPI Totaux (Reste inchangé)
-      odooClient('pos.order.line', 'read_group', [], {
+      odooClient.readGroup('pos.order.line', {
         domain: posDomain, fields: ['price_subtotal', 'qty'], groupby: [] 
       }),
       // B. Top 100 Variants (On trie, on groupe plus tard)
-      odooClient('pos.order.line', 'read_group', [], {
+      odooClient.readGroup('pos.order.line',{
         domain: posDomain, fields: ['price_subtotal', 'qty'], groupby: ['product_id'], orderby: 'qty desc', limit: 100
       }),
       // C. Target
@@ -49,9 +49,10 @@ export async function getFemmeOverview(range: '7j' | '30j' | '12m') {
     if (topVariants.length > 0) {
         const variantIds = topVariants.map((v: any) => v.product_id[0]);
         // On récupère hs_code et name
-        variantsInfo = await odooClient('product.product', 'read', [
-            variantIds, ['hs_code', 'name', 'qty_available']
-        ]) as any[];
+        variantsInfo = await odooClient.searchRead('product.product', {
+          domain: [["id", "in", variantIds]],
+          fields: ['hs_code', 'name', 'qty_available']
+        }) as any[];
     }
 
     // Création d'une Map pour grouper par HS Code
@@ -97,10 +98,10 @@ export async function getFemmeOverview(range: '7j' | '30j' | '12m') {
 
     if (topHsCodes.length > 0) {
         // On cherche tous les produits qui ont ces HS Codes
-        const allVariantsForStock = await odooClient('product.product', 'search_read', [
-            [['hs_code', 'in', topHsCodes]], // Domaine
-            ['hs_code', 'qty_available']     // Champs
-        ]) as any[];
+        const allVariantsForStock = await odooClient.searchRead('product.product', {
+          domain: [['hs_code', 'in', topHsCodes]],
+          fields: ['hs_code', 'qty_available']
+        }) as any[];
 
         // On somme le stock par HS Code
         allVariantsForStock.forEach(v => {
@@ -147,7 +148,7 @@ export async function getFemmeOverview(range: '7j' | '30j' | '12m') {
 }
 
 async function getSupabaseTarget() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const now = new Date();
   
   const { data } = await supabase
