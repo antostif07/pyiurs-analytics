@@ -305,6 +305,8 @@ async function transformToControlStockModel(
       }
     }
     const hsCode = product.hs_code || 'UNKNOWN';
+    const color = product.x_studio_many2one_field_Arl5D?.[1];
+    const groupKey = `${hsCode}_${color}`;
     const categ_id = product?.categ_id?.[1] ?? "";
     const category = categ_id.split("/").pop()?.trim() ?? "";
     const price = product.list_price;
@@ -312,10 +314,10 @@ async function transformToControlStockModel(
     
     const stock = stockByProductAndBoutique.get(productId)
     
-    if (!linesByHsCode.has(hsCode)) {
+    if (!linesByHsCode.has(groupKey)) {
       const po = line.order_id ? purchaseOrders.find(p => p.id === line.order_id[0]) : null;
       const po_name = po ? `${po.partner_id[1].split("-")[1]} - ${po.partner_ref}`: "Aucune Reference"
-      linesByHsCode.set(hsCode, {
+      linesByHsCode.set(groupKey, {
         lines: [],
         productNames: new Set<string>(),
         brands: new Set<string>(),
@@ -329,7 +331,7 @@ async function transformToControlStockModel(
       });
     }
 
-    const hsCodeGroup = linesByHsCode.get(hsCode)!;
+    const hsCodeGroup = linesByHsCode.get(groupKey)!;
     hsCodeGroup.lines.push(line);
     
     // Ajouter les informations du produit
@@ -342,7 +344,6 @@ async function transformToControlStockModel(
       hsCodeGroup.brands.add(brand);
     }
     
-    const color = product.x_studio_many2one_field_Arl5D?.[1];
     if (color) {
       hsCodeGroup.colors.add(color);
     }
@@ -356,11 +357,12 @@ async function transformToControlStockModel(
   // Transformer les données groupées par hs_code
   const result: ControlStockFemmeModel[] = [];
   
-  linesByHsCode.forEach((group, hsCode) => {
+  linesByHsCode.forEach((group, key) => {
     // Calculer les quantités totales pour ce hs_code
     const product_qty = group.lines.reduce((sum, line) => sum + (line.product_qty || 0), 0);
     const qty_received = group.lines.reduce((sum, line) => sum + (line.qty_received || 0), 0);
     const not_received = product_qty - qty_received;
+    const [hsCode, color] = key.split("_");
 
     // Calculer les ventes totales pour tous les produits de ce hs_code
     let qty_sold = 0;
@@ -380,13 +382,9 @@ async function transformToControlStockModel(
     const brand = brands.length > 0 
       ? `${brands[0]}${brands.length > 1 ? `, +${brands.length - 1}` : ''}`
       : 'Autres';
-    
-    const color = colors.length > 0 
-      ? `${colors[0]}${colors.length > 1 ? `, +${colors.length - 1}` : ''}`
-      : 'Non spécifié';
       
     result.push({
-      name: `${group.category} - ${hsCode} (${group.price})`, // Utiliser le hs_code comme nom principal
+      name: `${group.category} ${color} - ${hsCode} (${group.price})`, // Utiliser le hs_code comme nom principal
       brand,
       color,
       product_qty,
