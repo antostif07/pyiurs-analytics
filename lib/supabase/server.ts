@@ -1,6 +1,7 @@
 // lib/supabase/server.ts
+"use server"
 import { createServerClient } from '@supabase/ssr'
-import { Session, User } from '@supabase/supabase-js'
+import { User } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { cache } from 'react'
 import { Profile } from './auth-service'

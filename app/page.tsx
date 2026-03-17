@@ -45,10 +45,8 @@ export default function Home() {
     }
   };
 
-  // Rendu de sécurité : Chargement
   if (loading || !user) return <LoadingScreen />;
 
-  // Rendu Principal
   return (
     <div className={`${darkMode ? "dark" : ""} min-h-screen bg-slate-50 dark:bg-slate-900 transition-colors`}>
       

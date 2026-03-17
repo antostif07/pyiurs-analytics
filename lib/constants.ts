@@ -54,7 +54,7 @@ export const MODULES_CONFIG: AppModule[] =[
   { name: "Gestion Drive", description: "Créez et gérez vos documents dynamiques type Excel", href: "/gestion-drive", icon: FileSpreadsheet, color: "bg-blue-500", permissions:["admin", "user", "manager", "financier"] },
   { name: "Clôtures de Caisse", description: "Gérez les clôtures quotidiennes de caisse", href: "/cloture-vente", icon: MonitorPlay, color: "bg-green-500", permissions: ["admin", "manager", "financier"] },
   { name: "Gestion Beauty", description: "Analyse et Gestion Beauty", icon: Heart, color: "bg-teal-600", href: "/gestion-beauty", permissions:["admin", "manager"] },
-  { name: "Femme", description: "Analyse et Gestion du Segment Femme", icon: Users, color: "bg-orange-600", href: "/women", permissions:["admin", "manager"] },
+  { name: "Gestion Femme", description: "Analyse et Gestion du Segment Femme", icon: Users, color: "bg-orange-600", href: "/gestion-femme", permissions:["admin", "manager"] },
   { name: "Marketing", description: "Suivi et Rapports Marketing", href: "/marketing", icon: TrendingUp, color: "bg-purple-500", permissions:["admin", "manager"] },
   { name: "Utilisateurs", description: "Gérez les utilisateurs et permissions", href: "/users", icon: Users, color: "bg-orange-500", permissions: ["admin"] },
   { name: "Ressources Humaines", description: "Pointage, Absences, Planning et Paie", href: "/hr", icon: Clock, color: "bg-rose-600", permissions: ["admin", "manager", "user", "financier"] },
