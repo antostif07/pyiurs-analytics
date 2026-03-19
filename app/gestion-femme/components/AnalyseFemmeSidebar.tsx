@@ -1,4 +1,3 @@
-// components/AnalyseBeautySidebar.tsx
 'use client'
 
 import Link from 'next/link';
@@ -12,7 +11,7 @@ import {
 import clsx from 'clsx';
 import { motion } from 'framer-motion';
 
-const mainPath = '/gestion-beauty';
+const mainPath = '/gestion-femme';
 
 const menuGroups = [
   {
@@ -71,7 +70,7 @@ export default function AnalyseBeautySidenbar({
         <div className="flex items-center gap-2 px-1">
           <div className="w-8 h-8 bg-pink-500 rounded-lg flex items-center justify-center text-white font-bold">B</div>
           <div>
-            <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Beauty Segment</h2>
+            <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Segment Femme</h2>
           </div>
         </div>
       </div>

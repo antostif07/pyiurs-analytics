@@ -14,7 +14,7 @@ export default async function BeautyClientsPage({ searchParams }: { searchParams
         <div className="space-y-8">
             <div className="flex flex-col gap-2">
                 <h1 className="text-2xl font-black text-gray-900 tracking-tight italic uppercase">
-                    Portefeuille Clients <span className="text-rose-600">Beauty</span>
+                    Portefeuille Clients <span className="text-rose-600">Femme</span>
                 </h1>
                 <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">Analyse en temps réel</p>
             </div>

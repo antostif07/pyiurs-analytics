@@ -310,7 +310,7 @@ async function transformToControlStockModel(
     const categ_id = product?.categ_id?.[1] ?? "";
     const category = categ_id.split("/").pop()?.trim() ?? "";
     const price = product.list_price;
-    const imageUrl = `http://pyiurs.com/images/images/${hsCode}_${product.x_studio_many2one_field_Arl5D![1]}.jpg`;
+    const imageUrl = `http://images.bybkm.fr/${hsCode}_${product.x_studio_many2one_field_Arl5D![1]}.jpg`;
     
     const stock = stockByProductAndBoutique.get(productId)
     
@@ -340,12 +340,16 @@ async function transformToControlStockModel(
     }
     
     const brand = product.x_studio_many2one_field_21bvh?.[1];
+    const size = product.x_studio_many2one_field_QyelN?.[1];
     if (brand) {
       hsCodeGroup.brands.add(brand);
     }
     
-    if (color) {
-      hsCodeGroup.colors.add(color);
+    // if (color) {
+    //   hsCodeGroup.colors.add(color);
+    // }
+    if(size) {
+      hsCodeGroup.colors.add(size)
     }
 
     // Ajouter le stock
@@ -377,16 +381,18 @@ async function transformToControlStockModel(
 
     // Gérer les marques et couleurs multiples
     const brands = Array.from(group.brands);
-    const colors = Array.from(group.colors);
+    const sizes = Array.from(group.colors)
     
     const brand = brands.length > 0 
       ? `${brands[0]}${brands.length > 1 ? `, +${brands.length - 1}` : ''}`
       : 'Autres';
+    
+    const size = sizes.length > 0 ? sizes.toString() : ""
       
     result.push({
-      name: `${group.category} ${color} - ${hsCode} (${group.price})`, // Utiliser le hs_code comme nom principal
+      name: `${group.category} ${color} - ${hsCode} (${group.price})`,
       brand,
-      color,
+      color: size,
       product_qty,
       qty_received,
       not_received,

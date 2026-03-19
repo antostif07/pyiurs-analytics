@@ -1,6 +1,7 @@
 'use server'
 
-import { odooClient } from "@/lib/odoo/xmlrpc";
+import { POSOrder } from "@/app/types/pos";
+import { odooClient } from "@/lib/odoo/odoo-json2-client";
 
 /**
  * Normalise les numéros de téléphone pour le dédoublonnage (Format RDC)
@@ -43,7 +44,7 @@ export async function getBeautyKPIs() {
     // 1. Récupérer les lignes de vente Beauty
     const beautyLines = await odooClient.searchRead("pos.order.line", {
       domain: [
-        ["product_id.x_studio_segment", "=", "Beauty"],
+        ["product_id.x_studio_segment", "=", "Femme"],
         ["order_id.state", "in", ["paid", "done", "invoiced"]],
         ["order_id.partner_id", "not in", [28987, 28907]]
       ],
@@ -54,18 +55,18 @@ export async function getBeautyKPIs() {
 
     // 2. Récupérer les partenaires via les commandes
     const orderIds = [...new Set(beautyLines.map(l => l.order_id[0]))];
-    const orders = await odooClient.execute("pos.order", "read", [
-      orderIds,
-      ["partner_id"]
-    ]) as any[];
+    const orders = await odooClient.searchRead<POSOrder>("pos.order", {
+      domain:  [["id", "in", orderIds]],
+      fields: ["partner_id"]
+    })
 
-    const partnerIds = [...new Set(orders.filter(o => o.partner_id).map(o => o.partner_id[0]))];
+    const partnerIds = [...new Set(orders.filter(o => o.partner_id).map(o => o.partner_id![0]))];
 
     // 3. Récupérer les détails des partenaires (Phone)
-    const partners = await odooClient.execute("res.partner", "read", [
-      partnerIds,
-      ["name", "phone"]
-    ]) as any[];
+    const partners = await odooClient.searchRead("res.partner",{
+      domain: [["id", "in", partnerIds]],
+      fields: ["name", "phone"]
+    }) as any[];
 
     // 4. Créer un mapping : PartnerID -> NormalizedPhone
     const partnerToPhoneMap = new Map<number, string>();
@@ -128,7 +129,7 @@ export async function getBeautyClientsData() {
   try {
     const lines = await odooClient.searchRead("pos.order.line", {
       domain: [
-        ["product_id.x_studio_segment", "=", "Beauty"],
+        ["product_id.x_studio_segment", "ilike", "femme"],
         ["order_id.state", "in", ["paid", "done", "invoiced"]],
         ["order_id.partner_id", "not in", [28987, 28907]]
       ],
@@ -136,14 +137,16 @@ export async function getBeautyClientsData() {
     }) as any[];
 
     const orderIds = [...new Set(lines.map(l => l.order_id[0]))];
-    const orders = await odooClient.execute("pos.order", "read", [
-        orderIds, ["partner_id", "date_order"]
-    ]) as any[];
+    const orders = await odooClient.searchRead("pos.order", {
+      domain: [["id", "in", orderIds]],
+      fields: ["partner_id", "date_order"]
+    }) as any[];
 
     const partnerIds = [...new Set(orders.filter(o => o.partner_id).map(o => o.partner_id[0]))];
-    const partners = await odooClient.execute("res.partner", "read", [
-      partnerIds, ["name", "email", "phone"]
-    ]) as any[];
+    const partners = await odooClient.searchRead("res.partner", {
+      domain: [["id", "in", partnerIds]],
+      fields: ["name", "email", "phone"]
+    }) as any[];
 
     const consolidated = new Map<string, any>();
     const allUniqueCleanProducts = new Set<string>(); // Pour le filtre frontend

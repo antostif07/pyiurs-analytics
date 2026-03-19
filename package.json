@@ -34,6 +34,7 @@
     "@tanstack/react-table": "^8.21.3",
     "@tanstack/table-core": "^8.21.3",
     "@upstash/redis": "^1.35.5",
+    "basic-ftp": "^5.2.0",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

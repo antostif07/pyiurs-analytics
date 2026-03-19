@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import AnalyseBeautySidebar from "./components/AnalyseBeautySidebar";
+import AnalyseFemmeSidebar from "./components/AnalyseFemmeSidebar";
 import { Menu, X } from "lucide-react";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -9,7 +9,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-[#F8F9FB]">
-      <AnalyseBeautySidebar isOpen={isSidebarOpen} onClose={() => setIsOpen(false)} />
+      <AnalyseFemmeSidebar isOpen={isSidebarOpen} onClose={() => setIsOpen(false)} />
 
       {/* OVERLAY : Fond sombre quand le menu est ouvert sur mobile */}
       {isSidebarOpen && (

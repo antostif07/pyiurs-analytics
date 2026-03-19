@@ -1,4 +1,4 @@
-import { TrendingUp, Package, Database, PieChart, Heart, PiggyBank, ShieldCheck, Users, Wallet, FileSpreadsheet, MonitorPlay, Clock } from "lucide-react"
+import { TrendingUp, Package, Database, PieChart, Heart, PiggyBank, ShieldCheck, Users, Wallet, FileSpreadsheet, MonitorPlay, Clock, PictureInPicture } from "lucide-react"
 
 export interface Denomination {
   currency: 'USD' | 'CDF'
@@ -38,7 +38,9 @@ export interface AppModule {
 
 export const MODULES_CONFIG: AppModule[] =[
   { name: "Revenu", description: "Analysez les performances de vos ventes, suivez les objectifs et optimisez votre stratégie financière.", href: "/revenue", icon: TrendingUp, color: "bg-purple-500", permissions: ["admin", "manager"] },
-  { name: "Stock", description: "Suivi du Stock en temps réel, alertes de réapprovisionnement.", icon: Package, color: "bg-yellow-500", href: "/stock", permissions: ["admin", "manager", "user"] },
+  { name: "Catalogue", description: "Catalogue des produits.", icon: Package, color: "bg-yellow-500", href: "/catalog", permissions: ["admin", "manager", "user"] },
+  { name: "Medias", description: "Image des produits.", icon: PictureInPicture, color: "bg-yellow-500", href: "/medias", permissions: ["admin", "manager", "user"] },
+  
   { name: "Base Test Odoo", description: "Base Test Odoo", icon: Database, color: "bg-purple-600", href: "/base-test-odoo", permissions: ["admin"] },
   { name: "KPI Manager", description: "KPI Manager", icon: PieChart, color: "bg-purple-600", href: "/manager-kpis", permissions: ["admin", "manager"] },
   { name: "Suivi des Ventes Beauty", description: "Suivi des Ventes Beauty", icon: Heart, color: "bg-teal-600", href: "/control-revenue-beauty", permissions: ["admin", "manager", "user"] },
