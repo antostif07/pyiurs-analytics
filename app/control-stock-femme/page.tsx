@@ -132,7 +132,8 @@ async function getProductsByIds(productIds: number[]) {
     for (const chunk of chunks) {
       const res = await odooJsonCLient.searchRead<OdooProductTemplate>('product.template', {
         domain: [
-          ["product_variant_ids", "in", chunk]
+          ["product_variant_ids", "in", chunk],
+          ["type", "=", "consu"]
         ],
         fields: "id,name,list_price,categ_id,hs_code,product_variant_id,x_studio_many2one_field_21bvh,x_studio_many2one_field_QyelN,x_studio_many2one_field_Arl5D".split(',')
       })
@@ -310,7 +311,7 @@ async function transformToControlStockModel(
     const categ_id = product?.categ_id?.[1] ?? "";
     const category = categ_id.split("/").pop()?.trim() ?? "";
     const price = product.list_price;
-    const imageUrl = `http://images.bybkm.fr/${hsCode}_${product.x_studio_many2one_field_Arl5D![1]}.jpg`;
+    const imageUrl = `http://${process.env.NEXT_PUBLIC_IMAGES_DIR ?? "images.bybkm.fr"}/${hsCode}_${product.x_studio_many2one_field_Arl5D![1]}.jpg`;
     
     const stock = stockByProductAndBoutique.get(productId)
     
