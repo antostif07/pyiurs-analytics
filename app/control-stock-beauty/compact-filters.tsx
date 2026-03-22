@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronDown, ChevronUp, Filter, X, SlidersHorizontal } from "lucide-react"
+import { ChevronDown, ChevronUp, Filter, X, SlidersHorizontal, Tag } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
@@ -10,9 +10,11 @@ import { Badge } from "@/components/ui/badge"
 interface CompactFiltersProps {
   brands: string[];
   colors: string[];
+  categories: string[];
   selectedBrand?: string;
   selectedColor?: string;
   selectedStock?: string;
+  selectedCategory?: string;
   stockLevels: {
     outOfStock: number;
     critical: number;
@@ -21,23 +23,28 @@ interface CompactFiltersProps {
   };
   filteredBrands?: string[]; // Marques filtrées selon les autres filtres
   filteredColors?: string[]; // Couleurs filtrées selon les autres filtres
+  filteredCategories?: string[]
 }
 
 export function CompactFilters({ 
   brands, 
-  colors, 
+  colors,
+  categories,
   selectedBrand, 
   selectedColor, 
   selectedStock,
+  selectedCategory,
   stockLevels,
   filteredBrands = brands,
-  filteredColors = colors
+  filteredColors = colors,
+  filteredCategories = categories
 }: CompactFiltersProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [brandOpen, setBrandOpen] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);
+  const [categoryOpen, setCategoryOpen] = useState(false);
 
-  const updateFilter = (type: 'brand' | 'color' | 'stock', value: string) => {
+  const updateFilter = (type: 'brand' | 'color' | 'category' | 'stock', value: string) => {
     const url = new URL(window.location.href);
     
     if (value === 'all') {
@@ -51,32 +58,26 @@ export function CompactFilters({
 
   const clearAllFilters = () => {
     const url = new URL(window.location.href);
-    url.searchParams.delete('brand');
-    url.searchParams.delete('color');
-    url.searchParams.delete('stock');
+    ['brand', 'color', 'category', 'stock'].forEach(param => url.searchParams.delete(param));
     window.location.href = url.toString();
   };
 
-  const hasActiveFilters = selectedBrand && selectedBrand !== 'all' || 
-                          selectedColor && selectedColor !== 'all' || 
-                          selectedStock && selectedStock !== 'all';
+  const hasActiveFilters = (selectedBrand && selectedBrand !== 'all') || 
+                          (selectedColor && selectedColor !== 'all') || 
+                          (selectedCategory && selectedCategory !== 'all') ||
+                          (selectedStock && selectedStock !== 'all');
 
   const activeFiltersCount = [
     selectedBrand && selectedBrand !== 'all',
     selectedColor && selectedColor !== 'all', 
+    selectedCategory && selectedCategory !== 'all', // Ajouté
     selectedStock && selectedStock !== 'all'
   ].filter(Boolean).length;
 
   // Fonctions pour formater l'affichage des valeurs sélectionnées
-  const getBrandDisplayValue = () => {
-    if (!selectedBrand || selectedBrand === 'all') return "Toutes les marques";
-    return selectedBrand;
-  };
-
-  const getColorDisplayValue = () => {
-    if (!selectedColor || selectedColor === 'all') return "Toutes les gammes";
-    return selectedColor;
-  };
+  const getBrandDisplayValue = () => (!selectedBrand || selectedBrand === 'all' ? "Toutes les marques" : selectedBrand);
+  const getColorDisplayValue = () => (!selectedColor || selectedColor === 'all' ? "Toutes les gammes" : selectedColor);
+  const getCategoryDisplayValue = () => (!selectedCategory || selectedCategory === 'all' ? "Toutes les catégories" : selectedCategory);
 
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl p-6 border border-gray-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow duration-200">
@@ -130,7 +131,49 @@ export function CompactFilters({
       </div>
 
       {/* Filtres principaux - Design carte avec Combobox */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+         <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg p-4 border border-gray-200 dark:border-slate-600">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+            <Tag className="h-3.5 w-3.5" /> Catégorie
+          </label>
+          <Popover open={categoryOpen} onOpenChange={setCategoryOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                className="w-full justify-between bg-white dark:bg-slate-700"
+              >
+                <span className="truncate">{getCategoryDisplayValue()}</span>
+                <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-full p-0" align="start">
+              <Command>
+                <CommandInput placeholder="Rechercher une catégorie..." />
+                <CommandList>
+                  <CommandEmpty>Aucune catégorie trouvée.</CommandEmpty>
+                  <CommandGroup>
+                    <CommandItem value="all" onSelect={() => { updateFilter('category', 'all'); setCategoryOpen(false); }}>
+                      Toutes les catégories
+                    </CommandItem>
+                    {filteredCategories.map((cat) => (
+                      <CommandItem
+                        key={cat}
+                        value={cat}
+                        onSelect={() => {
+                          updateFilter('category', cat);
+                          setCategoryOpen(false);
+                        }}
+                      >
+                        {cat}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+        </div>
         {/* Carte Marque avec Combobox */}
         <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg p-4 border border-gray-200 dark:border-slate-600">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
@@ -341,7 +384,12 @@ export function CompactFilters({
         <div className="mt-4 pt-4 border-t border-gray-200 dark:border-slate-600">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm text-gray-600 dark:text-gray-400">Filtres appliqués :</span>
-            
+            {selectedCategory && selectedCategory !== 'all' && (
+              <Badge variant="secondary" className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
+                Catégorie: {selectedCategory}
+                <X className="h-3 w-3 ml-1 cursor-pointer" onClick={() => updateFilter('category', 'all')} />
+              </Badge>
+            )}
             {selectedBrand && selectedBrand !== 'all' && (
               <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
                 Marque: {selectedBrand}

@@ -4,6 +4,7 @@ export interface ControlStockBeautyModel {
   name: string;
   brand: string;
   color: string;
+  category: string;
   product_qty: number;
   qty_received: number;
   not_received: number;

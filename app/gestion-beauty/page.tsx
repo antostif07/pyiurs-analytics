@@ -7,8 +7,6 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import Link from "next/link";
-import ProductImage from "../marketing/components/ProductImage";
 import AlertRow from "./components/AlertRow";
 
 export const dynamic = 'force-dynamic'

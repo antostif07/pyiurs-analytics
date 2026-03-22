@@ -13,6 +13,17 @@ import { calculateSalesLast30Days, calculateLastSaleDate, calculateReplenishment
 import { odooClient } from "@/lib/odoo/xmlrpc";
 import { odooClient as odooJsonCLient } from "@/lib/odoo/odoo-json2-client";
 
+// Utilitaire pour extraire proprement le nom de la catégorie
+const extractCategoryName = (categId: any): string => {
+  if (Array.isArray(categId) && categId.length > 1) {
+    const fullName = categId[1];
+    // Optionnel : on ne garde que le dernier segment (ex: "All / Skin / Cream" -> "Cream")
+    const segments = fullName.split(' / ');
+    return segments[segments.length - 1];
+  }
+  return "Non classé";
+}
+
 // --- Fonctions d'appel API (Privées au module) ---
 async function getProducts(): Promise<OdooProductTemplate[]> {
   const pageSize = 1000; // nombre max par page pour éviter timeout
@@ -48,8 +59,6 @@ async function getProducts(): Promise<OdooProductTemplate[]> {
     );
 
     allProducts = allProducts.concat(batch);
-
-    // console.log(`Fetched ${batch.length} products, total: ${allProducts.length}`);
 
     if (batch.length < pageSize) break; // dernière page
     offset += pageSize;
@@ -102,8 +111,6 @@ async function getPurchaseOrderLines() {
     fields: ["id", "product_id", "product_qty", "qty_received", "price_unit", "price_unit", "order_id"] 
   })
 
-  console.log("Total PurchaseOrderLines", (res as any).length);
-
   return res as any[]
 }
 
@@ -129,7 +136,6 @@ async function getPOSOrderLines(productIds: number[]): Promise<POSOrderLine[]> {
       // if (!result.success) throw new Error(`Erreur POS fetch: ${result.error}`);
       allResults.push(...result);
     }
-    console.log("Total POSOrderlines", (allResults as any).length);
     return allResults as POSOrderLine[]
   } catch (error) {
     console.error('❌ Erreur lors de la récupération des ventes POS:', error);
@@ -142,6 +148,10 @@ async function getPOSOrderLines(productIds: number[]): Promise<POSOrderLine[]> {
 // Fonction interne qui fait le gros travail
 async function fetchAndProcessStockData() {
   const products = await getProducts();
+  const categoryMap = new Map<number, string>();
+  products.forEach(p => {
+    categoryMap.set(p.id, extractCategoryName(p.categ_id));
+  });
   const allProductIds = products.map((product: OdooProductTemplate) => product.product_variant_id![0]);
   const productsData = products.map((p) => mapOdooProduct(p))
 
@@ -152,25 +162,19 @@ async function fetchAndProcessStockData() {
   const salesLast30Days = calculateSalesLast30Days(posOrderLines, allProductIds);
   const lastSaleDates = calculateLastSaleDate(posOrderLines, allProductIds);
 
-  // Map des stocks
   const stockByProductAndBoutique = new Map<number, any>();
-
-  // Initialisation à 0
   allProductIds.forEach((productId: number) => {
     stockByProductAndBoutique.set(productId, {
       P24: 0, ktm: 0, mto: 0, lmb: 0, onl: 0, dc: 0, other: 0, total: 0
     });
   });
 
-  // Remplissage avec les données réelles
   stockQuants.records.forEach((quant: StockQuant) => {
     const productId = quant.product_id[0];
     const locationName = quant.location_id[1];
     
     const quantity = quant.quantity;
     const boutiqueCode = extractBoutiqueCode(locationName);
-
-    // if(locationName === "LMB N/Stock") console.log(locationName, boutiqueCode, quantity );
     
     const currentStock = stockByProductAndBoutique.get(productId);
     if(currentStock) {
@@ -187,6 +191,7 @@ async function fetchAndProcessStockData() {
   const groupedMap = new Map<string, Product[]>();
   const brandsSet = new Set<string>();
   const colorsSet = new Set<string>();
+  const categoriesSet = new Set<string>();
 
   productsData.forEach((product: Product) => {
     const key = product.hs_code || "UNKNOWN";
@@ -194,14 +199,17 @@ async function fetchAndProcessStockData() {
     groupedMap.get(key)!.push(product);
     brandsSet.add(extractBrandFromProduct(product));
     colorsSet.add(extractColorFromProduct(product));
+    const catName = categoryMap.get(product.id) || "Non classé";
+    categoriesSet.add(catName);
   });
 
   groupedMap.forEach((productsGroup, hs_code) => {
-    const label = productsGroup[0].name;
-    const cleanName = label.split("[").shift()?.trim();
+    const firstProduct = productsGroup[0];
+    const cleanName = firstProduct.name.split("[").shift()?.trim();
     const brand = extractBrandFromProduct(productsGroup[0]);
     const color = extractColorFromProduct(productsGroup[0]);
-    const name = `${cleanName} - ${hs_code} - (${productsGroup[0].listPrice}$)`;
+    const name = `${cleanName} - ${hs_code} - (${productsGroup[0].listPrice}$)`;    
+    const category = categoryMap.get(firstProduct.id) || "Non classé";
 
     const relatedLines = purchaseOrderLines.filter(
       (line: PurchaseOrderLine) =>
@@ -233,6 +241,7 @@ async function fetchAndProcessStockData() {
         listPrice: product.listPrice,
         brand: extractBrandFromProduct(product),
         color: extractColorFromProduct(product),
+        category: categoryMap.get(product.id) || "Non classé",
         stock_P24: productStock.P24,
         stock_ktm: productStock.ktm,
         stock_mto: productStock.mto,
@@ -264,6 +273,7 @@ async function fetchAndProcessStockData() {
       brand,
       color,
       product_qty,
+      category,
       qty_received,
       not_received,
       qty_sold,
@@ -291,6 +301,7 @@ async function fetchAndProcessStockData() {
     data: groupedData,
     brands: Array.from(brandsSet).sort(),
     colors: Array.from(colorsSet).sort(),
+    categories: Array.from(categoriesSet).sort(),
   };
 }
 
