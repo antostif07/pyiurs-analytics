@@ -63,7 +63,7 @@ export default function PologPerformanceClient({ initialData, allPurchaseOrders 
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           className="p-0 hover:bg-transparent font-bold text-[11px] uppercase tracking-wider"
         >
-          Articles <ArrowUpDown className="ml-2 h-3 w-3" />
+          Cmd. <ArrowUpDown className="ml-2 h-3 w-3" />
         </Button>
       ),
       cell: ({ row }) => <span className="font-medium">{row.getValue("productCount")}</span>,
@@ -102,7 +102,7 @@ export default function PologPerformanceClient({ initialData, allPurchaseOrders 
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           className="p-0 hover:bg-transparent font-bold text-[11px] uppercase tracking-wider"
         >
-          Valeur Achat <ArrowUpDown className="ml-2 h-3 w-3" />
+          Val. Achat <ArrowUpDown className="ml-2 h-3 w-3" />
         </Button>
       ),
       cell: ({ row }) => (
@@ -119,7 +119,7 @@ export default function PologPerformanceClient({ initialData, allPurchaseOrders 
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           className="p-0 hover:bg-transparent font-bold text-[11px] uppercase tracking-wider"
         >
-          CA Réalisé <ArrowUpDown className="ml-2 h-3 w-3" />
+          CA <ArrowUpDown className="ml-2 h-3 w-3" />
         </Button>
       ),
       cell: ({ row }) => <span className="font-semibold text-slate-900">${(row.getValue("totalRevenue") as number).toLocaleString()}</span>,
@@ -132,7 +132,7 @@ export default function PologPerformanceClient({ initialData, allPurchaseOrders 
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           className="p-0 hover:bg-transparent font-bold text-[11px] uppercase tracking-wider"
         >
-          Bénéfice Réel <ArrowUpDown className="ml-2 h-3 w-3" />
+          Profit <ArrowUpDown className="ml-2 h-3 w-3" />
         </Button>
       ),
       cell: ({ row }) => {
@@ -273,7 +273,7 @@ export default function PologPerformanceClient({ initialData, allPurchaseOrders 
               {table.getHeaderGroups().map(hg => (
                 <tr key={hg.id} className="border-b border-slate-100">
                   {hg.headers.map(header => (
-                    <th key={header.id} className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    <th key={header.id} className="px-2 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                       {flexRender(header.column.columnDef.header, header.getContext())}
                     </th>
                   ))}
@@ -284,7 +284,7 @@ export default function PologPerformanceClient({ initialData, allPurchaseOrders 
               {table.getRowModel().rows.map(row => (
                 <tr key={row.id} className="hover:bg-slate-50 transition-colors group">
                   {row.getVisibleCells().map(cell => (
-                    <td key={cell.id} className="px-6 py-4 text-sm text-slate-600">
+                    <td key={cell.id} className="px-2 py-3 text-sm text-slate-600">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}

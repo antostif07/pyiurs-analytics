@@ -15,10 +15,11 @@ import { ChevronRight, ChevronDown, Package, TrendingUp, DollarSign, ShoppingBag
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import ProductImage from '@/app/marketing/components/ProductImage'
+import { Button } from '@/components/ui/button'
 
 export default function PologDetailClient({ data }: { data: any }) {
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [expanded, setExpanded] = useState<ExpandedState>(true);
+  const [expanded, setExpanded] = useState<ExpandedState>({});
 
   const columns = useMemo<ColumnDef<any>[]>(() => [
     {
@@ -200,6 +201,22 @@ export default function PologDetailClient({ data }: { data: any }) {
         />
       </div>
 
+      <div className="flex gap-2 mb-4">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => setExpanded(true)}
+        >
+          Tout ouvrir
+        </Button>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => setExpanded({})}
+        >
+          Tout fermer
+        </Button>
+      </div>
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
             <table className="w-full text-left">

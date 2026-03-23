@@ -183,6 +183,7 @@ export async function getPologDetailData(pologId: string) {
       "standard_price", 
       "hs_code", 
       "product_variant_id",
+      "x_studio_segment",
       "x_studio_many2one_field_21bvh", // brand
       "x_studio_many2one_field_Arl5D"  // color/gamme
     ],
@@ -239,12 +240,14 @@ export async function getPologDetailData(pologId: string) {
       revenue,
       profit,
       stock: purchase.qtyReceived  - sales,
-      image: `${hsCode}_${p.X_studio_segment === "Femme" ? color : ""}.jpg` 
+      image: `${hsCode}_${p.x_studio_segment === "Femme" ? color : ""}.jpg` 
     };
 
     if (!groupsMap.has(groupKey)) {
       // Nettoyage du nom du premier produit pour le titre du groupe
-      const trimmedName = `${p.name.split("[").shift()} - (${p.list_price}$)`;
+      const trimmedName = p.x_studio_segment === "Beauty" 
+        ? `${p.name.split("[").shift()} - (${p.list_price}$)` : 
+      `${p.name.split("[")[0].split("-")[1]} - ${hsCode} - (${p.list_price}$)`;
       
       groupsMap.set(groupKey, {
         groupKey,
@@ -252,7 +255,7 @@ export async function getPologDetailData(pologId: string) {
         color,
         displayName: trimmedName,
         brand: p.x_studio_many2one_field_21bvh?.[1] || "N/A",
-        image: `${hsCode}_${p.X_studio_segment === "Femme" ? color : ""}.jpg`,
+        image: `${hsCode}_${p.x_studio_segment === "Femme" ? color : ""}.jpg`,
         qtyOrdered: 0,
         qtyReceived: 0,
         qtySold: 0,
