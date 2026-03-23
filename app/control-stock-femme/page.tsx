@@ -39,7 +39,6 @@ export interface ControlStockFemmeModel {
 }
 
 // const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-
 async function getStockQuantsForProducts(productIds: number[]): Promise<{ records: StockQuant[], success: boolean }> {
   if (productIds.length === 0) return { records: [], success: true };;
 

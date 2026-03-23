@@ -143,8 +143,6 @@ async function getPOSOrderLines(productIds: number[]): Promise<POSOrderLine[]> {
   }
 }
 
-// --- Fonction Principale (Transformations) ---
-
 // Fonction interne qui fait le gros travail
 async function fetchAndProcessStockData() {
   const products = await getProducts();
