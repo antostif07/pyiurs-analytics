@@ -42,7 +42,7 @@ export default async function PologPerformancePage({ searchParams }: Props) {
 }
 
 async function PologDataWrapper({ start, end }: { start: string, end: string }) {
-  const data = await getPologPerformanceData(start, end);
+  const { data, allPurchaseOrders } = await getPologPerformanceData(start, end);
   
   if (data.length === 0) {
     return (
@@ -52,5 +52,5 @@ async function PologDataWrapper({ start, end }: { start: string, end: string }) 
     );
   }
 
-  return <PologPerformanceClient initialData={data} />;
+  return <PologPerformanceClient initialData={data} allPurchaseOrders={allPurchaseOrders} />;
 }

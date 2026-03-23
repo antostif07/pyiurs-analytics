@@ -11,15 +11,31 @@ import {
   getPaginationRowModel,
   SortingState,
 } from "@tanstack/react-table"
-import { ChevronLeft, ChevronRight, Search, ArrowUpDown, TrendingUp, DollarSign, Package } from "lucide-react"
+import { ChevronLeft, ChevronRight, Search, ArrowUpDown, TrendingUp, DollarSign, Package, Filter } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from '@/components/ui/badge'
+import Link from 'next/link'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
-export default function PologPerformanceClient({ initialData }: { initialData: any[] }) {
+export default function PologPerformanceClient({ initialData, allPurchaseOrders }: { initialData: any[]; allPurchaseOrders: string[] }) {
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [selectedPo, setSelectedPo] = useState<string>("all");
   const [globalFilter, setGlobalFilter] = useState<string>("");
+
+  const filteredData = useMemo(() => {
+    let filtered = initialData;
+
+    // Filtre par Purchase Order
+    if (selectedPo !== "all") {
+      filtered = filtered.filter(item => 
+        item.purchaseOrders.includes(selectedPo)
+      );
+    }
+
+    return filtered;
+  }, [initialData, selectedPo])
 
   const columns = useMemo<ColumnDef<any>[]>(() => [
     {
@@ -33,7 +49,11 @@ export default function PologPerformanceClient({ initialData }: { initialData: a
           POLOG ID <ArrowUpDown className="ml-2 h-3 w-3" />
         </Button>
       ),
-      cell: ({ row }) => <span className="font-bold text-blue-600">{row.getValue("polog")}</span>,
+      cell: ({ row }) => (
+        <Link href={`performance-polog/${encodeURIComponent(row.getValue("polog"))}`} className="font-bold text-blue-600 hover:underline">
+            {row.getValue("polog")}
+        </Link>
+      ),
     },
     {
       accessorKey: "productCount",
@@ -46,9 +66,21 @@ export default function PologPerformanceClient({ initialData }: { initialData: a
           Articles <ArrowUpDown className="ml-2 h-3 w-3" />
         </Button>
       ),
-      cell: ({ row }) => <span className="font-medium">{row.getValue("productCount")} réf.</span>,
+      cell: ({ row }) => <span className="font-medium">{row.getValue("productCount")}</span>,
     },
-    
+    {
+      accessorKey: "qtyReceived",
+      header: ({ column }) => (
+        <Button 
+          variant="ghost" 
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="p-0 hover:bg-transparent font-bold text-[11px] uppercase tracking-wider"
+        >
+          Reçus <ArrowUpDown className="ml-2 h-3 w-3" />
+        </Button>
+      ),
+      cell: ({ row }) => <span className="font-bold text-slate-700">{row.getValue("qtyReceived")?.toLocaleString() ?? 0}</span>,
+    },
     {
       accessorKey: "qtySold",
       header: ({ column }) => (
@@ -75,7 +107,7 @@ export default function PologPerformanceClient({ initialData }: { initialData: a
       ),
       cell: ({ row }) => (
         <span className="text-slate-500 font-medium">
-          ${(row.getValue("totalPurchaseValue") as number).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+          ${(row.getValue("totalPurchaseValue") as number).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}
         </span>
       ),
     },
@@ -160,7 +192,7 @@ export default function PologPerformanceClient({ initialData }: { initialData: a
     ], []);
 
   const table = useReactTable({
-    data: initialData,
+    data: filteredData,
     columns,
     state: { sorting, globalFilter },
     onSortingChange: setSorting,
@@ -173,15 +205,46 @@ export default function PologPerformanceClient({ initialData }: { initialData: a
   });
 
   const totals = useMemo(() => {
-    return initialData.reduce((acc, curr) => ({
+    return filteredData .reduce((acc, curr) => ({
       rev: acc.rev + curr.totalRevenue,
       prof: acc.prof + curr.netProfit,
       qty: acc.qty + curr.qtySold
     }), { rev: 0, prof: 0, qty: 0 });
-  }, [initialData]);
+  }, [initialData, filteredData]);
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-col md:flex-row gap-4 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+        
+        {/* Recherche */}
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <Input 
+            placeholder="Rechercher un POLOG..." 
+            value={globalFilter}
+            onChange={e => setGlobalFilter(e.target.value)}
+            className="pl-9 border-slate-200"
+          />
+        </div>
+
+        {/* Filtre Purchase Order */}
+        <div className="w-full md:w-64">
+          <Select value={selectedPo} onValueChange={setSelectedPo}>
+            <SelectTrigger className="bg-slate-50 border-slate-200 font-medium">
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-slate-400" />
+                <SelectValue placeholder="Filtrer par PO" />
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Toutes les commandes (PO)</SelectItem>
+              {allPurchaseOrders.map(po => (
+                <SelectItem key={po} value={po}>{po}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <KpiCard title="Revenu sur période" value={`$${totals.rev.toLocaleString()}`} icon={<DollarSign className="text-blue-600" />} />
