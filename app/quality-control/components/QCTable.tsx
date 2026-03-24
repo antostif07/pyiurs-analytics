@@ -16,7 +16,7 @@ export default function QCTable({ data }: { data: ProductQC[] }) {
                 row.xml_id || `__export__.product_template_${row.db_id}`, // ID Externe
                 `"${row.name.replace(/"/g, '""')}"`,
                 row.default_code,
-                `https://images.pyiurs.com/images/${image_name}`
+                `https://images.bybkm.fr/${image_name}`
             ]
         });
 
@@ -97,7 +97,7 @@ export default function QCTable({ data }: { data: ProductQC[] }) {
                             </td>
                             <td className="px-6 py-3 font-medium text-slate-900">
                                 <div className="h-24 w-18">
-                                    <ProductImage alt={row.name} src={`https://images.pyiurs.com/images/${image_name}`} />
+                                    <ProductImage alt={row.name} src={`https://images.bybkm.fr/${image_name}`} />
                                 </div>
                             </td>
                         </tr>

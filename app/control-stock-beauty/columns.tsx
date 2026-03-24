@@ -46,7 +46,7 @@ const SortableHeader = ({ column, title, align = "center" }: { column: Column<Co
 function ProductNameWithTooltip({ name, brand, color, hs_code }: { 
   name: string; brand: string; color: string; hs_code: string;
 }) {
-  const imageUrl = `http://pyiurs.com/images/images/${hs_code}_`;
+  const imageUrl = `https://images.bybkm.fr/${hs_code}_`;
   
   return (
     <div className="flex space-x-2 w-96">

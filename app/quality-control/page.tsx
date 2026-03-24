@@ -5,7 +5,6 @@ import { format, subDays } from "date-fns";
 import { getAvailableHSCodes, getProductQualityData } from "./actions";
 import BackButton from "@/components/BackButton";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
-import SearchFilter from "@/components/SearchFilter";
 import HSCodeMultiSelect from "./components/HSCodeMultiSelect";
 
 export const metadata = { title: "Contrôle Qualité • Pyiurs Admin" };
