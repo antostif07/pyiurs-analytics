@@ -76,7 +76,7 @@ export async function getDailySaleLines(date: Date, shop?: string) {
 
     const posOrderLines = await odooJsonClient.searchRead<POSOrderLine>('pos.order.line', {
       domain: [["id", "in", linesIds]],
-      fields: ["id", "product_id", "price_subtotal_incl", "order_id"],
+      fields: ["id", "product_id", "price_unit", "order_id", "qty"],
     });
 
     const productIds = posOrderLines.reduce((acc: number[], recc: POSOrderLine) => {
@@ -91,6 +91,7 @@ export async function getDailySaleLines(date: Date, shop?: string) {
     const enrichedOrders = posOrderLines.map((posOrderLine: POSOrderLine) => {
       return {
         ...posOrderLine,
+        price_subtotal_incl: posOrderLine.price_unit * posOrderLine.qty,
         order: ordersBasic.find(o => o.id === posOrderLine.order_id[0]),
         product: products.find(p => p.id === posOrderLine.product_id[0])
       }

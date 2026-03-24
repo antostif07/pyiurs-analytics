@@ -4,8 +4,7 @@ import { Suspense } from "react";
 import { TableSkeleton } from "./table-skeleton";
 import Link from "next/link";
 import { ExpandableDataTable } from "./data-table";
-import { getControlStockData } from "./services";
-import { ControlStockBeautyModel } from "../types/ControlStockBeautyModel";
+import { fetchAndProcessStockData, } from "./services";
 import { Legend } from "./components/legend";
 import { LevelCard } from "./components/level-card";
 
@@ -28,7 +27,7 @@ export default async function ControlStockBeautyPage({ searchParams }: PageProps
   const selectedStock = params.stock;
   
   // Récupération des données (on suppose que le service retourne maintenant 'categories')
-  const { data: allData, brands, colors, categories } = await getControlStockData();
+  const { data: allData, brands, colors, categories } = await fetchAndProcessStockData();
 
   // --- Logique de Filtrage ---
   let filteredData = allData;

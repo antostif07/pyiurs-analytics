@@ -99,11 +99,11 @@ export async function getRevenueDashboardData(month: string, year: string) {
         // 2. RÉCUPÉRER LES LIGNES POUR LES SEGMENTS
         const currentLines = await odooJsonClient.searchRead<POSOrderLine>("pos.order.line", {
             domain: [["order_id", "in", currentOrders.map(o => o.id)]],
-            fields: ["order_id", "price_subtotal_incl", "product_id"]
+            fields: ["order_id", "price_unit", "qty", "product_id"]
         })
         const previousLines = await odooJsonClient.searchRead<POSOrderLine>("pos.order.line", {
             domain: [["order_id", "in", previousOrders.map(o => o.id)]],
-            fields: ["order_id", "price_subtotal_incl", "product_id"]
+            fields: ["order_id", "price_unit", "qty", "product_id"]
         });
 
         // Map orderId -> order
@@ -135,10 +135,10 @@ export async function getRevenueDashboardData(month: string, year: string) {
                 if (!order) return;
                 if (!posIds.includes(order.config_id?.[0])) return;
 
-                mtd += line.price_subtotal_incl;
+                mtd += line.price_unit * line.qty;
 
                 const wNum = `W${getWeek(new Date(order.date_order), { weekStartsOn: 1 })}`;
-                weeks[wNum] = (weeks[wNum] || 0) + line.price_subtotal_incl;
+                weeks[wNum] = (weeks[wNum] || 0) + (line.price_unit * line.qty);
             });
 
             // --- MTD PREV ---
@@ -147,7 +147,7 @@ export async function getRevenueDashboardData(month: string, year: string) {
                 if (!order) return;
                 if (!posIds.includes(order.config_id?.[0])) return;
 
-                mtdPrev += line.price_subtotal_incl;
+                mtdPrev += line.price_unit * line.qty;
             });
 
             // --- TODAY / YESTERDAY / WEEKLY ---
@@ -157,15 +157,15 @@ export async function getRevenueDashboardData(month: string, year: string) {
                 if (!posIds.includes(order.config_id?.[0])) return;
 
                 if (order.date_order.includes(todayStr)) {
-                    today += line.price_subtotal_incl;
+                    today += line.price_unit * line.qty;
                 }
 
                 if (order.date_order.includes(yesterdayStr)) {
-                    yesterday += line.price_subtotal_incl;
+                    yesterday += line.price_unit * line.qty;
                 }
 
                 if (order.date_order >= currentWeekStart) {
-                    weekly += line.price_subtotal_incl;
+                    weekly += line.price_unit * line.qty;
                 }
             });
 
@@ -201,12 +201,12 @@ export async function getRevenueDashboardData(month: string, year: string) {
                 if (!segmentHierarchy[segment]) segmentHierarchy[segment] = { mtd: 0, mtdPrev: 0, weeks: {}, subRows: {} };
                 if (!segmentHierarchy[segment].subRows[category]) segmentHierarchy[segment].subRows[category] = { mtd: 0, mtdPrev: 0, weeks: {} };
 
-                segmentHierarchy[segment][field] += l.price_subtotal_incl;
-                segmentHierarchy[segment].subRows[category][field] += l.price_subtotal_incl;
+                segmentHierarchy[segment][field] += l.price_unit * l.qty;
+                segmentHierarchy[segment].subRows[category][field] += l.price_unit * l.qty;
 
                 if (field === 'mtd') {
-                    segmentHierarchy[segment].weeks[wNum] = (segmentHierarchy[segment].weeks[wNum] || 0) + l.price_subtotal_incl;
-                    segmentHierarchy[segment].subRows[category].weeks[wNum] = (segmentHierarchy[segment].subRows[category].weeks[wNum] || 0) + l.price_subtotal_incl;
+                    segmentHierarchy[segment].weeks[wNum] = (segmentHierarchy[segment].weeks[wNum] || 0) + (l.price_unit * l.qty);
+                    segmentHierarchy[segment].subRows[category].weeks[wNum] = (segmentHierarchy[segment].subRows[category].weeks[wNum] || 0) + (l.price_unit * l.qty);
                 }
             });
         };
@@ -254,7 +254,7 @@ export async function getBeautySalesByProduct(month: string, year: string) {
                 ["create_date", ">=", startDate],
                 ["create_date", "<=", endDate]
             ],
-            ["qty", "price_subtotal_incl"], // Champs à sommer
+            ["qty", "price_unit"], // Champs à sommer
             ["product_id"]                  // On groupe par produit
         ]) as any[];
 
@@ -288,7 +288,7 @@ export async function getBeautySalesByProduct(month: string, year: string) {
 
             const entry = consolidated.get(hsCode);
             entry.totalQty += sale.qty;
-            entry.totalRevenue += sale.price_subtotal_incl;
+            entry.totalRevenue += sale.price_unit * sale.qty;
         });
 
         // Convertir en tableau et trier par plus grosses ventes
@@ -362,7 +362,7 @@ export async function getBeautySixMonthSales(month: string, year: string, filter
         // 2. Récupérer les ventes groupées par Produit ET par Mois
         const salesRaw = await odooClient.execute("pos.order.line", "read_group", [
             salesDomain,
-            ["price_subtotal_incl", "product_id"],
+            ["price_unit", "qty", "product_id"],
             ["product_id", "create_date:month"], // Double groupement
         ], { lazy: false }) as any[];
 
@@ -420,7 +420,7 @@ export async function getBeautySixMonthSales(month: string, year: string, filter
 
             if (monthMatch) {
                 const key = format(monthMatch, 'yyyy-MM');
-                entry.monthlySales[key] = (entry.monthlySales[key] || 0) + sale.price_subtotal_incl;
+                entry.monthlySales[key] = (entry.monthlySales[key] || 0) + (sale.price_unit * sale.qty);
             }
         });
 
@@ -488,7 +488,7 @@ export async function getFemmeSixMonthSales(month: string, year: string) {
                 ["create_date", ">=", startDate],
                 ["create_date", "<=", endDate]
             ],
-            ["price_subtotal_incl", "product_id"],
+            ["price_unit", "qty", "product_id"],
             ["product_id", "create_date:month"],
         ], { lazy: false }) as any[];
 
@@ -547,7 +547,7 @@ export async function getFemmeSixMonthSales(month: string, year: string) {
 
             if (monthMatch) {
                 const key = format(monthMatch, 'yyyy-MM');
-                entry.monthlySales[key] = (entry.monthlySales[key] || 0) + sale.price_subtotal_incl;
+                entry.monthlySales[key] = (entry.monthlySales[key] || 0) + (sale.qty * sale.price_unit);
             }
         });
 

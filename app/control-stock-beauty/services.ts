@@ -10,7 +10,6 @@ import { mapOdooProduct, OdooProductTemplate, Product } from "../types/product_t
 import { ControlStockBeautyModel, IndividualProductModel } from "../types/ControlStockBeautyModel";
 import { PurchaseOrderLine } from "../types/purchase";
 import { calculateSalesLast30Days, calculateLastSaleDate, calculateReplenishmentMetrics } from "../utils/stockCalculations";
-import { odooClient } from "@/lib/odoo/xmlrpc";
 import { odooClient as odooJsonCLient } from "@/lib/odoo/odoo-json2-client";
 
 // Utilitaire pour extraire proprement le nom de la catégorie
@@ -144,7 +143,7 @@ async function getPOSOrderLines(productIds: number[]): Promise<POSOrderLine[]> {
 }
 
 // Fonction interne qui fait le gros travail
-async function fetchAndProcessStockData() {
+export async function fetchAndProcessStockData() {
   const products = await getProducts();
   const categoryMap = new Map<number, string>();
   products.forEach(p => {
@@ -302,11 +301,3 @@ async function fetchAndProcessStockData() {
     categories: Array.from(categoriesSet).sort(),
   };
 }
-
-// --- Export public avec Cache Next.js ---
-
-// On utilise unstable_cache au lieu de 'let cachedData'
-// Cela permet de mettre en cache le RÉSULTAT du calcul lourd, pas seulement les fetchs.
-export const getControlStockData = async () => {
-    return await fetchAndProcessStockData();
-  }
