@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { VendeuseSalesDashboard } from "./page.client";
 import { TableSkeleton } from "@/components/table-skeleton";
 import { POSOrder, POSOrderLine } from "../types/pos";
+import { odooClient, OdooDomain } from "@/lib/odoo/odoo-json2-client";
 
 // Types
 export interface VenteDetail {
@@ -45,39 +46,33 @@ async function getPOSOrderLinesWithAgent(month?: string, year?: string, agentId?
   const date = `${y}-${m}-01`;
   const lastDay = new Date(parseInt(y), parseInt(m), 0).getDate();
 
-  const fields = "id,qty,name,product_id,price_unit,price_subtotal,full_product_name,order_id,create_date"
-
   // Base domain
-  let domain = `[["create_date", ">=", "${date} 00:01:00"], ["create_date", "<=", "${y}-${m}-${lastDay} 23:59:59"]]`;
+  let domain: OdooDomain = [["create_date", ">=", `${date} 00:01:00`], ["create_date", "<=", `${y}-${m}-${lastDay} 23:59:59`]];
 
   if (agentId) {
-    domain = `[["create_date", ">=", "${date} 00:01:00"], ["create_date", "<=", "${y}-${m}-${lastDay} 23:59:59"], ["order_id.pricelist_id","in",[${agentId}]]]`;
+    domain = [
+      ["create_date", ">=", `${date} 00:01:00`],
+      ["create_date", "<=", `${y}-${m}-${lastDay} 23:59:59`],
+      ["order_id.pricelist_id","in",[Number(agentId)]]
+    ];
   }
 
   // 1️⃣ Récupérer les lignes POS
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.order.line?fields=${fields}&domain=${domain}`,
-    { next: { revalidate: 300 } }
-  );
+  const orderLines = await odooClient.searchRead<POSOrderLine>("pos.order.line", {
+    domain: domain,
+    fields: ["id", "qty", "name", "product_id", "price_unit", "full_product_name", "order_id", "create_date"]
+  })
   
-  if (!res.ok) throw new Error("Erreur API Odoo - POS Order Lines");
-
-  const { records: orderLines } = await res.json();
-
   // 2️⃣ Récupérer les commandes correspondantes (pour avoir le client)
   const uniqueOrderIds = [...new Set(orderLines.map((l: POSOrderLine) => l.order_id?.[0]))];
 
   if (uniqueOrderIds.length === 0) return orderLines;
 
-  const ordersRes = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.order?fields=id,name,partner_id&domain=[["id","in",[${uniqueOrderIds.join(",")}]]]`,
-    { next: { revalidate: 300 } }
-  );
-
-  if (!ordersRes.ok) throw new Error("Erreur API Odoo - POS Orders");
-
-  const { records: orders } = await ordersRes.json();
-
+  const orders = await odooClient.searchRead<POSOrder>("pos.order", {
+    domain: [["id","in",uniqueOrderIds]],
+    fields: ["id","name","partner_id"]
+  })
+  
   // 3️⃣ Fusionner les clients dans les lignes
   const ordersMap = new Map(orders.map((o: POSOrder) => [o.id, o.partner_id]));
 
@@ -86,22 +81,16 @@ async function getPOSOrderLinesWithAgent(month?: string, year?: string, agentId?
     partner_id: ordersMap.get(line.order_id?.[0]) || null,
   }));
 
-  return { records: linesWithClients };
+  return linesWithClients;
 }
 
 
 async function getPriceList() {
-  // 1️⃣ Récupération des lignes POS
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/product.pricelist?fields=id,name`,
-    { next: { revalidate: 300 } }
-  );
-
-  if (!res.ok) throw new Error("Erreur API Odoo - Liste de prix");
-
-  const orderLines = await res.json();
-
-  return orderLines;
+  const pricelists = await odooClient.searchRead("product.pricelist", {
+    fields: ["id","name"]
+  })
+  
+  return pricelists;
 }
 
 export default async function VendeuseSalesPage({ searchParams }: PageProps) {
@@ -114,10 +103,8 @@ export default async function VendeuseSalesPage({ searchParams }: PageProps) {
   // En pratique, cela viendrait de votre système d'authentification
   const isAdmin = true; // ou false selon l'utilisateur connecté
 
-  const [orderLines, pricelist] = await Promise.all([
-    getPOSOrderLinesWithAgent(month, year, agentId),
-    getPriceList()
-  ])
+  const orderLines = await getPOSOrderLinesWithAgent(month, year, agentId);
+  const pricelist = await getPriceList()
 
   return (
     <Suspense fallback={<TableSkeleton />}>
@@ -126,8 +113,8 @@ export default async function VendeuseSalesPage({ searchParams }: PageProps) {
         year={year}
         agentId={agentId}
         isAdmin={isAdmin}
-        agents={pricelist.records}
-        orderLines={orderLines.records}
+        agents={pricelist as { id: number; name: string; }[]}
+        orderLines={orderLines as POSOrderLine[]}
       />
     </Suspense>
   );

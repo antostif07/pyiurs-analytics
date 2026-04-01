@@ -1,41 +1,40 @@
 // app/hr/layout.tsx
-"use client";
+import { HRProvider } from "./_components/hr-context";
+import Sidebar from "./_components/Sidebar";
+import { Header } from "./_components/header";
+import { MobileOverlay } from "./_components/mobile-overlay";
 
-import { useState } from "react";
-import Sidebar from "./components/Sidebar";
-import { Menu } from "lucide-react";
+export const metadata = {
+  title: "Gestion RH | Entreprise Name",
+  description: "Portail de gestion des ressources humaines",
+};
 
 export default function HRLayout({ children }: { children: React.ReactNode }) {
-  const [isSidebarOpen, setIsOpen] = useState(false);
-
   return (
-    <div className="flex min-h-screen bg-gray-50 dark:bg-gray-900">
-      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsOpen(false)} />
+    <HRProvider>
+      <div className="flex min-h-screen bg-slate-50/50 dark:bg-slate-950">
+        {/* Sidebar - La logique d'ouverture est gérée en interne via le hook */}
+        <Sidebar />
 
-      {/* Overlay mobile */}
-      {isSidebarOpen && (
-        <div className="fixed inset-0 bg-black/20 z-40 lg:hidden backdrop-blur-sm" onClick={() => setIsOpen(false)} />
-      )}
+        <MobileOverlay />
 
-      <main className="flex-1 lg:ml-64 flex flex-col min-w-0">
-        {/* Topbar RH */}
-        <header className="h-16 border-b border-gray-200 bg-white sticky top-0 z-30 px-4 lg:px-8 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button onClick={() => setIsOpen(true)} className="p-2 hover:bg-gray-100 rounded-lg lg:hidden">
-              <Menu size={20} className="text-gray-600" />
-            </button>
-            <h1 className="text-sm font-bold text-gray-700 uppercase tracking-wider">
-              Gestion RH {/* <span className="text-rose-600"></span> */}
-            </h1>
-          </div>
-        </header>
+        <div className="flex flex-1 flex-col min-w-0 lg:pl-64">
+          <Header />
 
-        <div className="p-4 lg:p-8">
-          <div className="max-w-7xl mx-auto">
-            {children}
-          </div>
+          <main className="flex-1 overflow-y-auto outline-none">
+            <div className="p-4 lg:p-8">
+              <div className="max-w-7xl mx-auto space-y-6">
+                {children}
+              </div>
+            </div>
+          </main>
+          
+          {/* Footer d'entreprise optionnel */}
+          <footer className="py-4 px-8 border-t border-slate-200 bg-white text-xs text-slate-500">
+            &copy; {new Date().getFullYear()} Entreprise - Module RH v1.2.0
+          </footer>
         </div>
-      </main>
-    </div>
+      </div>
+    </HRProvider>
   );
 }

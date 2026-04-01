@@ -155,7 +155,7 @@ export function VendeuseSalesDashboard({
       header: 'Total',
       cell: ({ row }: { row: OrderLineRow }) => (
         <div className="text-right font-bold text-green-600">
-          {formatAmount(row.original.price_subtotal)}
+          {formatAmount(row.original.price_unit * row.original.qty)}
         </div>
       ),
       size: 120,
@@ -203,7 +203,7 @@ export function VendeuseSalesDashboard({
     pageCount: Math.ceil(orderLines.length / pagination.pageSize),
   });
 
-  const totalVentes = orderLines.reduce((acc: number, ol: POSOrderLine) => acc + ol.price_subtotal, 0);
+  const totalVentes = orderLines.reduce((acc: number, ol: POSOrderLine) => acc + (ol.price_unit * ol.qty), 0);
   const totalCout = totalVentes * 0.485;
   const totalCommission = totalCout * 0.12;
 

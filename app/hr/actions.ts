@@ -2,52 +2,68 @@
 import { odooClient } from "@/lib/odoo/xmlrpc";
 import { createClient } from "@/lib/supabase/server";
 import { endOfMonth, format, startOfMonth } from "date-fns";
+import { HROverviewData } from "./types"; // Importe l'interface qu'on a définie
 
-export async function getHROverview(range: string) {
+export async function getHROverview(range: string): Promise<HROverviewData> {
   const supabase = await createClient();
-  const today = format(new Date(), 'yyyy-MM-dd');
+  const now = new Date();
+  const todayStr = format(now, 'yyyy-MM-dd');
   
-  // 1. Effectif Total
-  const { count: totalEmployees } = await supabase
-    .from('employees')
-    .select('*', { count: 'exact', head: true })
-    .eq('is_active', true);
+  // Bornes du mois en cours pour la validation et la paie
+  const start = format(startOfMonth(now), 'yyyy-MM-dd');
+  const end = format(endOfMonth(now), 'yyyy-MM-dd');
 
-  // 2. Statistiques de présence (Aujourd'hui)
-  const { data: attendanceToday } = await supabase
-    .from('attendances')
-    .select('status, is_validated')
-    .eq('date', today);
+  // 1. Exécution des requêtes en parallèle (Performance Entreprise)
+  const [employeesRes, attendanceTodayRes, pendingValidationRes, bonusesCheckRes] = await Promise.all([
+    // Effectif Total
+    supabase.from('employees').select('*', { count: 'exact', head: true }).eq('is_active', true),
+    
+    // Présences du jour
+    supabase.from('attendances').select('status').eq('date', todayStr),
+    
+    // Validations en attente (Mois en cours)
+    supabase.from('attendances').select('*', { count: 'exact', head: true })
+      .eq('is_validated', false)
+      .gte('date', start)
+      .lte('date', end),
 
-  const presentToday = attendanceToday?.filter(a => a.status === 'present' || a.status === 'late').length || 0;
-  const absentsToday = attendanceToday?.filter(a => a.status === 'absent').length || 0;
+    // Vérification si des primes ont été saisies ce mois-ci (pour le statut paie)
+    supabase.from('bonuses_debts').select('id', { count: 'exact', head: true })
+      .gte('created_at', start)
+      .lte('created_at', end)
+  ]);
 
-  // 3. Travail à faire (Validation en attente pour le mois en cours)
-  const start = format(startOfMonth(new Date()), 'yyyy-MM-dd');
-  const end = format(endOfMonth(new Date()), 'yyyy-MM-dd');
+  // 2. Traitement des résultats
+  const totalEmployees = employeesRes.count || 0;
+  const attendanceToday = attendanceTodayRes.data || [];
   
-  const { count: pendingValidation } = await supabase
-    .from('attendances')
-    .select('*', { count: 'exact', head: true })
-    .eq('is_validated', false)
-    .gte('date', start)
-    .lte('date', end);
+  const presentToday = attendanceToday.filter(a => ['present', 'late'].includes(a.status)).length;
+  const absentsToday = attendanceToday.filter(a => a.status === 'absent').length;
+  const pendingValidation = pendingValidationRes.count || 0;
 
-  // 4. Répartition par boutique (pour le graph)
-  const { data: shopDistribution } = await supabase
-    .from('employees')
-    .select('shops(name)')
-    .eq('is_active', true);
+  // 3. Logique métier pour le statut de la paie (Payroll Status)
+  // On considère la clôture des présences finie s'il n'y a plus rien à valider
+  const isAttendanceClosed = pendingValidation === 0;
+  const isBonusesCalculated = (bonusesCheckRes.count || 0) > 0;
+
+  // Calcul du progrès global du mois (0 à 100)
+  let progress = 10; // Setup initial
+  if (isAttendanceClosed) progress += 40;
+  if (isBonusesCalculated) progress += 50;
 
   return {
     stats: {
-      totalEmployees: totalEmployees || 0,
+      totalEmployees,
       presentToday,
       absentsToday,
-      pendingValidation: pendingValidation || 0,
+      pendingValidation,
     },
-    today,
-    range
+    payrollStatus: {
+      month: format(now, 'MMMM yyyy'),
+      isAttendanceClosed,
+      isBonusesCalculated,
+      progress
+    }
   };
 }
 

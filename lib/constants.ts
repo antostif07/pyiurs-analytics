@@ -38,6 +38,7 @@ export interface AppModule {
 
 export const MODULES_CONFIG: AppModule[] =[
   { name: "Revenu", description: "Analysez les performances de vos ventes, suivez les objectifs et optimisez votre stratégie financière.", href: "/revenue", icon: TrendingUp, color: "bg-purple-500", permissions: ["admin", "manager"] },
+  { name: "Stock", description: "Analysez  du stock.", href: "/stock", icon: TrendingUp, color: "bg-gray-500", permissions: ["admin", "manager"] },
   { name: "Catalogue", description: "Catalogue des produits.", icon: Package, color: "bg-yellow-500", href: "/catalog", permissions: ["admin", "manager", "user"] },
   { name: "Medias", description: "Image des produits.", icon: PictureInPicture, color: "bg-yellow-500", href: "/medias", permissions: ["admin", "manager", "user"] },
   
