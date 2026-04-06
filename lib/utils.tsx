@@ -1,11 +1,12 @@
 import { EditableCell } from "@/app/gestion-drive/[id]/components/EditableCell";
 import { FilteredExpensesResult } from "@/app/types/cloture";
-import { CellData, DocumentColumn, DocumentRow } from "@/app/types/documents";
 import { Product } from "@/app/types/product_template";
 import { ColumnOption } from "@/app/types/table";
 import { CellContext, ColumnDef } from "@tanstack/react-table";
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { CellData, DocumentColumn, DocumentRow } from "./supabase/database.types";
+import { getConfig } from "./helpers";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -114,7 +115,7 @@ export function generateColumns<TData extends Record<string, unknown>>(
   return [...columnConfigs]
     .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
     .map((col): ColumnDef<TData, unknown> => {
-      
+      const config = getConfig<{options?: ColumnOption[]}>(col.data_type);
       return {
         id: col.id,
         accessorKey: col.id, 
@@ -124,10 +125,10 @@ export function generateColumns<TData extends Record<string, unknown>>(
         // Meta est maintenant strictement typé via l'extension du module
         meta: {
           type: col.data_type,
-          options: (col.config?.options as unknown as ColumnOption[]) || [],
+          options: (config?.options as unknown as ColumnOption[]) || [],
           style: {
-            backgroundColor: col.background_color,
-            color: col.text_color
+            backgroundColor: col.background_color || 'transparent',
+            color: col.text_color || 'black'
           }
         },
 
@@ -172,13 +173,13 @@ export function transformToTableData(rows: DocumentRow[], cells: CellData[]): Ro
   const cellsByRow: Record<string, Record<string, string|number|boolean|null|undefined>> = {};
 
   cells.forEach((cell) => {
-    if (!cellsByRow[cell.row_id]) cellsByRow[cell.row_id] = {};
+    if (cell.row_id && !cellsByRow[cell.row_id]) cellsByRow[cell.row_id] = {};
     
     // 1. On stocke la valeur pour l'affichage (clé = column_id)
-    cellsByRow[cell.row_id][cell.column_id] = getCellValue(cell);
+    if(cell.row_id && cell.column_id) cellsByRow[cell.row_id][cell.column_id] = getCellValue(cell);
     
     // 2. ON STOCKE AUSSI L'ID DE LA CELLULE (clé = column_id + "_id")
-    cellsByRow[cell.row_id][`${cell.column_id}_id`] = cell.id; 
+    if(cell.row_id && cell.column_id) cellsByRow[cell.row_id][`${cell.column_id}_id`] = cell.id; 
   });
 
   return rows.map((row) => {

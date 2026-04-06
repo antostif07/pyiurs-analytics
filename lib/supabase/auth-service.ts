@@ -1,21 +1,9 @@
 // lib/supabase/auth-service.ts
 import { SupabaseClient } from '@supabase/supabase-js'
+import { Profile } from './database.types';
 
 // ✅ PRO: Typage strict et exportation des types pour tout le projet
 export type UserRole = 'admin' | 'user' | 'manager' | 'financier' | 'manager-full';
-
-export interface Profile {
-  id: string;
-  email: string;
-  full_name: string;
-  role: UserRole;
-  assigned_shops: string[];
-  assigned_companies: string[];
-  shop_access_type: 'all' | 'specific';
-  avatar_url?: string;
-  created_at: string;
-  updated_at: string;
-}
 
 export class AuthService {
   // ✅ PRO: Injection de dépendance (Dependency Injection). 
@@ -51,20 +39,20 @@ export class AuthService {
   }
 
   // ✅ PRO: Logique métier isolée et pure (Facilement testable avec Jest)
-  static hasShopAccess(profile: Profile | null, shopId: string): boolean {
+  static hasShopAccess(profile: Partial<Profile> | null, shopId: string): boolean {
     if (!profile) return false
     if (profile.role === 'admin') return true
     if (profile.shop_access_type === 'all') return true
     
-    return profile.assigned_shops?.includes(shopId) || 
-           profile.assigned_shops?.includes('all') || false;
+    return (profile.assigned_shops as string[])?.includes(shopId) || 
+           (profile.assigned_shops as string[])?.includes('all') || false;
   }
 
-  static getUserShops(profile: Profile | null): string[] {
+  static getUserShops(profile: Partial<Profile> | null): string[] {
     if (!profile) return[]
     if (profile.role === 'admin' || profile.shop_access_type === 'all') {
       return ['all']
     }
-    return profile.assigned_shops ||[]
+    return profile.assigned_shops as string[] || []
   }
 }

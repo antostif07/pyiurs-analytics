@@ -14,7 +14,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
-import { Document } from '@/app/types/documents';
+import { Document } from '@/lib/supabase/database.types';
 
 interface DocCardProps {
   doc: Document;
@@ -53,7 +53,7 @@ export function DocCard({ doc, onPin, onEdit, onCopy, onDelete }: DocCardProps) 
       <div className="mt-6 pt-6 border-t border-gray-50 flex items-center justify-between">
         <div className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-tighter">
           <Clock size={12} />
-          {format(new Date(doc.updated_at), 'dd MMM', { locale: fr })}
+          {format(new Date(doc.updated_at!), 'dd MMM', { locale: fr })}
         </div>
         
         <DropdownMenu>

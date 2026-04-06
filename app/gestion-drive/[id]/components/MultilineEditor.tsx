@@ -1,19 +1,15 @@
 'use client';
 
-import { useState, useEffect, useRef, ChangeEvent, KeyboardEvent, JSXElementConstructor, Key, ReactElement, ReactNode, ReactPortal } from 'react';
+import { useState, useEffect, KeyboardEvent, JSXElementConstructor, Key, ReactElement, ReactNode, ReactPortal } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useParams } from 'next/navigation';
-import { 
-  SubColumn, 
-  MultilineData, 
-  DocumentColumn, 
-  DataType,
-  FileAttachment
-} from '@/app/types/documents';
 import FileAttachmentManager from './FileAttachmentManager';
 import FileCellPreview from './FileCellPreview';
 import { Paperclip } from 'lucide-react';
+import { DocumentColumn, FileAttachment, MultilineData, SubColumn } from '@/lib/supabase/database.types';
+import { DataType } from './ColumnModal';
+import { getConfig } from '@/lib/helpers';
 
 // --- INTERFACES LOCALES ---
 interface MultilineEditorProps {
@@ -240,14 +236,14 @@ export default function MultilineEditor({
                     <tr>
                       <th className="border border-gray-200 dark:border-gray-600 p-2 bg-gray-100 dark:bg-gray-700 min-w-12 text-gray-900 dark:text-white">#</th>
                       {subColumns.map(subCol => (
-                        <th key={subCol.id} className="border border-gray-200 dark:border-gray-600 p-2 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white relative group min-w-[150px]" style={{ width: subCol.width }}>
+                        <th key={subCol.id} className="border border-gray-200 dark:border-gray-600 p-2 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white relative group min-w-[150px]" style={{ width: subCol.width ?? 'auto' }}>
                           <div className="flex items-center justify-between">
                             <span className="truncate">{subCol.label}</span>
                             <span className="text-xs bg-gray-200 dark:bg-gray-600 px-1.5 py-0.5 rounded ml-2">{subCol.data_type}</span>
                           </div>
                           <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex space-x-1 bg-gray-100 dark:bg-gray-700 p-1 rounded shadow-sm">
                             <button onClick={() => setEditingSubColumn(subCol)} className="p-1 text-blue-600 hover:bg-blue-50 rounded" title="Configurer">⚙️</button>
-                            <button onClick={() => deleteSubColumn(subCol.id)} className="p-1 text-red-600 hover:bg-red-50 rounded" title="Supprimer">×</button>
+                            <button onClick={() => deleteSubColumn(subCol.id)} className="p-1 text-red-600 hover:bg-red-50 rounded" title="Supprimer">x</button>
                           </div>
                         </th>
                       ))}
@@ -298,7 +294,7 @@ export default function MultilineEditor({
                             <td key={subCol.id} className="border border-gray-200 dark:border-gray-600 p-0 h-auto min-h-[40px] bg-white dark:bg-gray-900 align-top">
                               {isEditing ? (
                                 <EditorInput 
-                                  type={subCol.data_type}
+                                  type={subCol.data_type as DataType}
                                   value={editValue}
                                   options={(subCol.config as ColumnConfig)?.options || []}
                                   onChange={setEditValue}
@@ -307,7 +303,7 @@ export default function MultilineEditor({
                                   onEscape={() => setEditingCell(null)}
                                 />
                               ) : (
-                                <div onClick={() => startEditing(orderIndex, subCol.id, subCol.data_type)} className="w-full h-full min-h-[40px] px-2 py-1 cursor-cell flex items-center text-gray-900 dark:text-white">
+                                <div onClick={() => startEditing(orderIndex, subCol.id, (subCol.data_type as DataType))} className="w-full h-full min-h-[40px] px-2 py-1 cursor-cell flex items-center text-gray-900 dark:text-white">
                                   {subCol.data_type === 'boolean' ? (rawValue === 'true' ? '✅ Oui' : '❌ Non') : (
                                     <span className="truncate block w-full">{rawValue}</span>
                                   )}
@@ -375,8 +371,9 @@ interface SubColumnConfigModalProps {
 function SubColumnConfigModal({ subColumn, onSave, onClose }: SubColumnConfigModalProps) {
   const [formData, setFormData] = useState({ label: subColumn.label, data_type: subColumn.data_type, width: subColumn.width || 150, options: (subColumn.config as any)?.options || [] });
   const [newOption, setNewOption] = useState('');
+  const config = getConfig<{ options?: string[] }>(subColumn.config);
 
-  const handleSave = () => { onSave(subColumn.id, { label: formData.label, data_type: formData.data_type, width: formData.width, config: { ...subColumn.config, options: formData.options } as any }); };
+  const handleSave = () => { onSave(subColumn.id, { label: formData.label, data_type: formData.data_type, width: formData.width, config: { ...config, options: formData.options } as any }); };
   const addOption = () => { if(newOption.trim()) { setFormData({...formData, options: [...formData.options, newOption.trim()]}); setNewOption(''); } };
 
   return (

@@ -1,12 +1,12 @@
 'use client'
 import { useEffect, useRef, useState } from "react";
 import { Column, Row, Table } from "@tanstack/react-table";
-import { DocumentColumn, FileAttachment, MultilineData, SubColumn } from "@/app/types/documents";
 import MultilineCellModal from "./MultilineCellModal";
 import { Plus, Upload } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import FileAttachmentManager from "./FileAttachmentManager";
 import { FilePreview } from "./FilePreview";
+import { DocumentColumn, FileAttachment, MultilineData, SubColumn } from "@/lib/supabase/database.types";
 
 interface EditableCellProps<TData extends Record<string, unknown>> {
     getValue: () => unknown;

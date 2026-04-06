@@ -14,9 +14,9 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { format, endOfMonth, getDay } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { AttendanceStatus } from '../types'
-import { STATUS_CONFIG } from '../utils'
-import { generateAttendancePDF } from './exportPDF'
+import { AttendanceStatus } from '../../types'
+import { STATUS_CONFIG } from '../../utils'
+import { generateAttendancePDF } from '../exportPDF'
 
 const STATUS_OPTIONS = [
   { val: 'present', label: 'Présent' },
@@ -57,6 +57,9 @@ export default function AttendanceDashboard({ shops }: { shops: any[] }) {
         return employees.filter(e => selectedShopId === "all" || e.shop_id === selectedShopId);
     }, [employees, selectedShopId]);
 
+    const employeeMap = useMemo(() => {
+        return new Map(employees.map(e => [e.id, e]))
+    }, [employees])
     useEffect(() => { fetchInitialData() }, [])
     useEffect(() => { if (selectedEmployeeId) fetchEmployeeMonthlyData() }, [selectedEmployeeId, selectedMonth, selectedYear])
 
@@ -93,7 +96,7 @@ export default function AttendanceDashboard({ shops }: { shops: any[] }) {
     const isFullyConfirmed = workingDaysAttendances.length > 0 && workingDaysAttendances.every(a => a.is_confirmed);
 
     const handlePrintPDF = () => {
-        const emp = employees.find(e => e.id === selectedEmployeeId);
+        const emp = employeeMap.get(selectedEmployeeId);
         const stats = (Object.keys(STATUS_CONFIG) as AttendanceStatus[]).reduce((acc, statusKey) => {
             acc[statusKey] = workingDaysAttendances.filter(a => (a.is_validated ? a.validated_status : a.status) === statusKey).length;
             return acc;

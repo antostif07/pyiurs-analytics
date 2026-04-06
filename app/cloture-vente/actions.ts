@@ -4,7 +4,7 @@ import { POSConfig, POSOrder, POSOrderLine, POSPayment } from "../types/pos";
 import { odooClient, OdooDomainCondition } from "@/lib/odoo/xmlrpc";
 import { odooClient as odooJsonClient} from "@/lib/odoo/odoo-json2-client"
 import { ProductProduct } from "../types/product_template";
-import { Profile } from "@/lib/supabase/auth-service";
+import { Profile } from "@/lib/supabase/database.types";
 
 // Type de retour enrichi pour les cartes
 type DailySalesResult = {
@@ -439,20 +439,20 @@ export async function getExchangeRate(): Promise<number> {
 }
 
 // Fonction pour filtrer les shops selon les permissions
-export function filterShopsByUserAccess(allShops: POSConfig[], profile: Profile): POSConfig[] {
+export function filterShopsByUserAccess(allShops: POSConfig[], profile: Partial<Profile>): POSConfig[] {
   // Les admins voient tout
   if (profile.role === 'admin') {
     return allShops;
   }
   
   // Si l'utilisateur a accès à tout
-  if (profile.assigned_shops.includes('all')) {
+  if ((profile.assigned_shops as string[])!.includes('all')) {
     return allShops;
   }
   
   // Filtrer selon les boutiques assignées
   return allShops.filter(shop => 
-    profile.assigned_shops.includes(shop.id.toString())
+    (profile.assigned_shops as string[]).includes(shop.id.toString())
   );
 }
 

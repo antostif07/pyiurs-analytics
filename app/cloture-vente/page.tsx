@@ -171,10 +171,10 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
       initialData={initialData}
       searchParams={params} 
       shopLastClosure={lastClosure} 
-      userShops={profile.assigned_shops}
+      userShops={profile.assigned_shops as string[]}
       isUserRestricted={isUserRestricted}
       showShopSelector={true}
-      userRole={profile.role}
+      userRole={profile.role || undefined}
       userName={userName}
     />
   );

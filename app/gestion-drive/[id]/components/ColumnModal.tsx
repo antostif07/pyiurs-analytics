@@ -1,7 +1,9 @@
+import { getConfig } from "@/lib/helpers";
+import { DocumentColumn, SubColumn } from "@/lib/supabase/database.types";
 import { useState, useEffect, Dispatch, SetStateAction } from "react";
-import { DocumentColumn, DataType, SubColumn } from "@/app/types/documents";
 
 type ColumnData = DocumentColumn | SubColumn;
+export type DataType = 'text' | 'number' | 'date' | 'boolean' | 'select' | 'multiline' | 'file';
 
 interface ColumnModalProps {
     isOpen: boolean;
@@ -26,7 +28,7 @@ const DATA_TYPES: { value: DataType; label: string }[] = [
 export default function ColumnModal({ isOpen, onClose, onSave, onDelete, initialData, isSubmitting, isSubColumn = false }: ColumnModalProps){
     const [label, setLabel] = useState("");
     const [dataType, setDataType] = useState<DataType>("text");
-    const [width, setWidth] = useState(200);
+    const [width, setWidth] = useState<number|null>(200);
     const [options, setOptions] = useState(""); // Pour le type select (séparé par virgules)
     const [bgColor, setBgColor] = useState("#FFFFFF");
     const [textColor, setTextColor] = useState("#000000");
@@ -34,7 +36,7 @@ export default function ColumnModal({ isOpen, onClose, onSave, onDelete, initial
     useEffect(() => {
         if (initialData) {
             setLabel(initialData.label);
-            setDataType(initialData.data_type);
+            setDataType(initialData.data_type as DataType);
             setWidth(initialData.width);
             
             // Gestion des différences de types entre DocumentColumn et SubColumn
@@ -44,13 +46,13 @@ export default function ColumnModal({ isOpen, onClose, onSave, onDelete, initial
                 setBgColor(docCol.background_color || "#FFFFFF");
                 setTextColor(docCol.text_color || "#000000");
                 
-                // Config options (string[])
-                setOptions(docCol.config?.options?.join(", ") || "");
+                const config = getConfig<{ options?: string[] }>(docCol.config);
+                setOptions(config.options?.join(", ") || "");
             } else {
                 // SubColumn (config est Record<string, string>)
                 const subCol = initialData as SubColumn;
-                // On récupère la string directement
-                setOptions(subCol.config?.['options'] || "");
+                const config = getConfig<{ options?: string[] }>(subCol.config);
+                setOptions(config.options?.join(", ") || "");
             }
         } else {
             setLabel("");
@@ -123,7 +125,7 @@ export default function ColumnModal({ isOpen, onClose, onSave, onDelete, initial
                             <label className="block text-sm font-medium mb-1 dark:text-gray-200">Largeur (px)</label>
                             <input 
                                 type="number" 
-                                value={width} 
+                                value={width || "64"} 
                                 onChange={e => setWidth(Number(e.target.value))}
                                 className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                             />

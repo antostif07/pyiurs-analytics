@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { Document, DocumentColumn, DocumentRow, CellData } from '@/app/types/documents';
 import { supabase } from '@/lib/supabase';
+import { CellData, Document, DocumentColumn, DocumentRow } from '@/lib/supabase/database.types';
 
 export const useDocumentData = () => {
   const params = useParams();

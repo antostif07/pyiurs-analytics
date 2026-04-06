@@ -12,32 +12,14 @@ import {
 
 // UI Components
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator
-} from "@/components/ui/dropdown-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 
 // Types & Utils
-import { Document } from '../types/documents';
 import { duplicateDocumentProcess } from '@/lib/documentUtils';
-import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
 import { DocumentDialogs } from './components/DocumentDialogs';
 import { DocCard } from './components/DocumentCard';
+import { Document } from '@/lib/supabase/database.types';
 
 export default function DocumentsPage() {
   const { user, profile, loading, supabase } = useAuth();

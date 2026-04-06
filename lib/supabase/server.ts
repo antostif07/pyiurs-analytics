@@ -4,17 +4,17 @@ import { createServerClient } from '@supabase/ssr'
 import { User } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { cache } from 'react'
-import { Profile } from './auth-service'
+import { Database, Profile } from './database.types'
 
 export interface ServerAuthResult {
   user: User | null
-  profile: Profile | null
+  profile: Partial<Profile> | null
 }
 
 export const createClient = cache(async () => {
   const cookieStore = await cookies()
 
-  return createServerClient(
+  return createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {

@@ -1,11 +1,11 @@
 'use client'
 import { useState, useMemo, useEffect } from "react";
-import { SubColumn, MultilineData } from "@/app/types/documents";
 import { supabase } from "@/lib/supabase";
 import { createPortal } from "react-dom";
 import { deleteSubColumn, upsertSubColumn } from "@/lib/utils/documents";
 import { Plus, Settings, Upload, X, FileText, Loader2, ExternalLink } from "lucide-react"; 
 import ColumnModal from "./ColumnModal";
+import { MultilineData, SubColumn } from "@/lib/supabase/database.types";
 
 // --- COMPOSANT INPUT ISOLÉ ---
 const SubCellInput = ({ 
@@ -224,7 +224,7 @@ export default function MultilineCellModal({
         const rows: Record<number, Record<string, any>> = {};
         localData.forEach(d => {
             if (!rows[d.order_index]) rows[d.order_index] = {};
-            rows[d.order_index][d.sub_column_id] = d; 
+            if(d.sub_column_id) rows[d.order_index][d.sub_column_id] = d; 
         });
         return rows;
     }, [localData]);
@@ -294,7 +294,7 @@ export default function MultilineCellModal({
         setIsSubmittingCol(true);
         try {
             const parentColId = parentColumnDefinitionId || (subColumns.length > 0 ? subColumns[0].parent_column_id : "");
-            await upsertSubColumn(parentColId, colData, subColumns);
+            if(parentColId) await upsertSubColumn(parentColId, colData, subColumns);
             alert("Structure mise à jour. Veuillez fermer et rouvrir pour voir les changements."); 
             setIsColModalOpen(false);
         } catch (e) {

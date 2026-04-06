@@ -1,5 +1,5 @@
-import { FileAttachment } from "@/app/types/documents";
 import { supabase } from "@/lib/supabase";
+import { FileAttachment } from "@/lib/supabase/database.types";
 
 interface FilePreviewProps {
     file: FileAttachment;

@@ -14,7 +14,9 @@ export async function getHROverview(range: string): Promise<HROverviewData> {
   const end = format(endOfMonth(now), 'yyyy-MM-dd');
 
   // 1. Exécution des requêtes en parallèle (Performance Entreprise)
-  const [employeesRes, attendanceTodayRes, pendingValidationRes, bonusesCheckRes] = await Promise.all([
+  const [employeesRes, attendanceTodayRes, pendingValidationRes, 
+    // bonusesCheckRes
+  ] = await Promise.all([
     // Effectif Total
     supabase.from('employees').select('*', { count: 'exact', head: true }).eq('is_active', true),
     
@@ -28,28 +30,28 @@ export async function getHROverview(range: string): Promise<HROverviewData> {
       .lte('date', end),
 
     // Vérification si des primes ont été saisies ce mois-ci (pour le statut paie)
-    supabase.from('bonuses_debts').select('id', { count: 'exact', head: true })
-      .gte('created_at', start)
-      .lte('created_at', end)
+    // supabase.from('bonuses_debts').select('id', { count: 'exact', head: true })
+    //   .gte('created_at', start)
+    //   .lte('created_at', end)
   ]);
 
   // 2. Traitement des résultats
   const totalEmployees = employeesRes.count || 0;
   const attendanceToday = attendanceTodayRes.data || [];
   
-  const presentToday = attendanceToday.filter(a => ['present', 'late'].includes(a.status)).length;
+  const presentToday = attendanceToday.filter(a => ['present', 'late'].includes(a.status!)).length;
   const absentsToday = attendanceToday.filter(a => a.status === 'absent').length;
   const pendingValidation = pendingValidationRes.count || 0;
 
   // 3. Logique métier pour le statut de la paie (Payroll Status)
   // On considère la clôture des présences finie s'il n'y a plus rien à valider
   const isAttendanceClosed = pendingValidation === 0;
-  const isBonusesCalculated = (bonusesCheckRes.count || 0) > 0;
+  const isBonusesCalculated = false; // (bonusesCheckRes.count || 0) > 0;
 
   // Calcul du progrès global du mois (0 à 100)
   let progress = 10; // Setup initial
   if (isAttendanceClosed) progress += 40;
-  if (isBonusesCalculated) progress += 50;
+  // if (isBonusesCalculated) progress += 50;
 
   return {
     stats: {

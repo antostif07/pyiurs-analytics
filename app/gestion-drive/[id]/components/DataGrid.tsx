@@ -4,9 +4,9 @@ import { useState, useEffect, useMemo, KeyboardEvent, ChangeEvent } from 'react'
 import { useAuth } from '@/contexts/AuthContext';
 import MultilineEditor from './MultilineEditor';
 import FileAttachmentManager from './FileAttachmentManager';
-import { CellData, DocumentColumn, DocumentRow, FileAttachment, MultilineData, SubColumn } from '@/app/types/documents';
 import { supabase } from '@/lib/supabase';
 import FileCellPreview from './FileCellPreview';
+import { CellData, DocumentColumn, DocumentRow, FileAttachment, MultilineData, SubColumn } from '@/lib/supabase/database.types';
 
 // --- TYPES ---
 interface DisplayRow {
@@ -61,7 +61,7 @@ function MultilineCellDisplay({
         <div className="flex w-full h-full items-center p-1 space-x-2 text-gray-800 dark:text-gray-300">
             {subColumns.map(subCol => {
                 const entry = currentLineEntries.find(e => e.sub_column_id === subCol.id);
-                if (!entry) return <div key={subCol.id} style={{ width: subCol.width }} className="flex-shrink-0"></div>;
+                if (!entry) return <div key={subCol.id} style={{ width: subCol.width ?? 64 }} className="flex-shrink-0"></div>;
 
                 let content: React.ReactNode = '';
                 switch (entry.value_type) {
@@ -79,7 +79,7 @@ function MultilineCellDisplay({
                         content = entry.text_value || entry.number_value?.toString() || '';
                 }
                 return (
-                    <div key={subCol.id} style={{ width: subCol.width }} className="flex-shrink-0 text-xs truncate border-r dark:border-gray-600 last:border-r-0 px-2 flex items-center h-full">
+                    <div key={subCol.id} style={{ width: subCol.width ?? 64 }} className="flex-shrink-0 text-xs truncate border-r dark:border-gray-600 last:border-r-0 px-2 flex items-center h-full">
                         {content}
                     </div>
                 );
@@ -280,12 +280,12 @@ export default function DataGrid({
             <tr>
               <th className="sticky left-0 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 p-2 min-w-12 z-20">#</th>
               {sortedColumns.map(column => (
-                <th key={column.id} className="border border-gray-300 dark:border-gray-600 p-2 sticky top-0 bg-gray-100 dark:bg-gray-800 z-10" style={{ width: column.width }}>
+                <th key={column.id} className="border border-gray-300 dark:border-gray-600 p-2 sticky top-0 bg-gray-100 dark:bg-gray-800 z-10" style={{ width: column.width ?? 'auto' }}>
                   <span>{column.label}</span>
                   {column.data_type === 'multiline' && (
                     <div className="flex text-xs font-normal text-gray-500 dark:text-gray-400 border-t dark:border-gray-600 mt-1 pt-1 space-x-2">
                         {subColumns.filter(sc => sc.parent_column_id === column.id).map(sc => (
-                            <span key={sc.id} style={{ width: sc.width}} className="flex-shrink-0 truncate">{sc.label}</span>
+                            <span key={sc.id} style={{ width: sc.width  ?? 'auto' }} className="flex-shrink-0 truncate">{sc.label}</span>
                         ))}
                     </div>
                   )}
@@ -310,7 +310,7 @@ export default function DataGrid({
                     return (
                       <td key={column.id} 
                         className="border border-gray-300 dark:border-gray-600 p-0 h-12 align-top" 
-                        style={{ backgroundColor: column.background_color }}
+                        style={{ backgroundColor: column.background_color ?? 'transparent', color: column.text_color ?? 'inherit' }}
                         onClick={() => cell && handleCellClick(displayRow.originalRow.id, column)}>
                         {cell && (
                           <MultilineCellDisplay
@@ -334,8 +334,8 @@ export default function DataGrid({
                         rowSpan={displayRow.rowSpan} 
                         className="border border-gray-300 dark:border-gray-600 p-0 h-12 align-top"
                         style={{
-                          backgroundColor: column.background_color,
-                          color: column.text_color,
+                          backgroundColor: column.background_color ?? 'transparent',
+                          color: column.text_color ?? 'inherit',
                         }}
                     >
                          {column.data_type === 'file' ? (

@@ -29,17 +29,15 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-
-// Types
-import { DocumentPermissions, PermissionAction, PermissionRole } from '@/app/types/documents';
 import { Card } from '@/components/ui/card';
+import { DocumentPermissions, PermissionAction, PermissionRole } from '../permissions.types';
 
 interface PermissionManagerProps {
   documentId: string;
   columnId?: string;
   currentPermissions: DocumentPermissions;
   onPermissionsChange: (permissions: any) => void;
-  documentOwnerId?: string;
+  documentOwnerId: string| null;
 }
 
 export default function PermissionManager({

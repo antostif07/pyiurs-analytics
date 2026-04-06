@@ -5,7 +5,7 @@ import { useState, useRef, useEffect, JSX } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { FileAttachment } from '@/app/types/documents';
+import { FileAttachment } from '@/lib/supabase/database.types';
 
 interface FileUploaderProps {
   cellDataId: string;
@@ -445,7 +445,7 @@ function FileItem({
       </div>
 
       <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-        Ajouté le {new Date(file.uploaded_at).toLocaleString('fr-FR')}
+        Ajouté le {new Date(file.uploaded_at!).toLocaleString('fr-FR')}
       </p>
     </div>
   );

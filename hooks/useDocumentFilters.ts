@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
-import { DocumentColumn, DocumentRow, CellData } from '@/app/types/documents';
 import { FilterState } from '@/app/types/search';
+import { CellData, DocumentColumn, DocumentRow } from '@/lib/supabase/database.types';
 
 export const useDocumentFilters = (
   rows: DocumentRow[], 

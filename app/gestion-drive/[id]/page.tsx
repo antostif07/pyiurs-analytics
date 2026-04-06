@@ -10,6 +10,7 @@ import PermissionManager from "./components/PermissionManager";
 import Footer from "@/components/footer";
 import { useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { DocumentPermissions } from "./permissions.types";
 
 export default function DocumentEditorPage() {
     const params = useParams();
@@ -103,7 +104,7 @@ export default function DocumentEditorPage() {
                     <div className="flex items-center gap-2">
                         <PermissionManager
                             documentId={document.id}
-                            currentPermissions={document.default_permissions}
+                            currentPermissions={document.default_permissions as DocumentPermissions}
                             documentOwnerId={document.created_by}
                             onPermissionsChange={handlePermissionsChange}
                         />

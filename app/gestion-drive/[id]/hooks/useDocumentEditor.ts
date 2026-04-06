@@ -2,8 +2,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
-import { CellData, Document, DocumentColumn, DocumentRow, FileAttachment, MultilineData, SubColumn } from "@/app/types/documents";
 import { applyFilters } from '../../components/editor/filter-logic';
+import { CellData, Document, DocumentColumn, DocumentRow, FileAttachment, MultilineData, SubColumn } from '@/lib/supabase/database.types';
 
 export type SaveStatus = 'saved' | 'dirty' | 'saving' | 'error';
 
@@ -92,8 +92,8 @@ export function useDocumentEditor(documentId: string) {
                         supabase.rpc("get_multiline_by_cells", { cell_ids: cellIds }),
                         supabase.rpc("get_files_by_cells", { cell_ids: cellIds })
                     ]);
-                    setMultilineData(multiRes.data || []);
-                    setFileAttachments(filesRes.data || []);
+                    setMultilineData((multiRes.data as MultilineData[]) || []);
+                    setFileAttachments((filesRes.data as FileAttachment[]) || []);
                 }
             }
         } catch (error) {

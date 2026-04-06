@@ -6,13 +6,14 @@ import type { User, Session, SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import { Loader2 } from 'lucide-react';
 // ✅ PRO: Unique source de vérité (Single Source of Truth)
-import { AuthService, Profile, UserRole } from '@/lib/supabase/auth-service';
+import { AuthService, UserRole } from '@/lib/supabase/auth-service';
+import { Profile } from '@/lib/supabase/database.types';
 
 // Typage strict du contexte
 interface AuthContextType {
   user: User | null;
   session: Session | null;
-  profile: Profile | null;
+  profile: Partial<Profile> | null;
   loading: boolean;
   supabase: SupabaseClient;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -24,7 +25,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 interface AuthProviderProps {
   children: ReactNode;
   serverUser?: User | null;
-  serverProfile?: Profile | null;
+  serverProfile?: Partial<Profile> | null;
 }
 
 export function AuthProvider({ 
@@ -39,7 +40,7 @@ export function AuthProvider({
   
   // États initiaux basés sur les données du serveur (Zéro flickering)
   const [user, setUser] = useState<User | null>(serverUser);
-  const [profile, setProfile] = useState<Profile | null>(serverProfile);
+  const [profile, setProfile] = useState<Partial<Profile> | null>(serverProfile);
   const [session, setSession] = useState<Session | null>(null);
   
   // Si le serveur a fourni l'utilisateur, on n'est pas en chargement !
@@ -179,7 +180,7 @@ export const useShopAccess = () => {
     hasAccessToCompany: (companyId: string): boolean => {
       if (!profile) return false;
       if (profile.role === 'admin' || profile.shop_access_type === 'all') return true;
-      return profile.assigned_companies?.includes(companyId) || profile.assigned_companies?.includes('all');
+      return (profile.assigned_companies as string[])?.includes(companyId) || (profile.assigned_companies as string[])?.includes('all');
     },
     
     isUserRestricted: profile ? profile.shop_access_type === 'specific' : true

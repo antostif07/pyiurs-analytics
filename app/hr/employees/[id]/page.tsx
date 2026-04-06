@@ -99,8 +99,8 @@ export default async function EmployeeProfilePage({ params }: { params: { id: st
                     <Card className="p-8 border-none shadow-sm rounded-[32px] bg-white">
                         <h3 className="text-xs font-black uppercase text-gray-400 tracking-[0.2em] mb-8 border-b pb-4">Produits suivis pour commissions</h3>
                         <div className="flex flex-wrap gap-2">
-                            {employee.commission_product_ids?.length > 0 ? (
-                                employee.commission_product_ids.map((prodId: number) => (
+                            {employee.commission_product_ids?.length! > 0 ? (
+                                employee.commission_product_ids!.map((prodId: number) => (
                                     <Badge key={prodId} variant="secondary" className="bg-blue-50 text-blue-600 border-blue-100 px-4 py-2 rounded-xl flex gap-2 items-center">
                                         <ShoppingBag size={12} /> ID Produit Odoo: {prodId}
                                     </Badge>
@@ -119,16 +119,16 @@ export default async function EmployeeProfilePage({ params }: { params: { id: st
                         <div className="space-y-6">
                             <div className="flex justify-between items-end">
                                 <span className="text-gray-400 text-sm">Salaire Base</span>
-                                <span className="text-2xl font-black">{employee.base_salary.toLocaleString()} $</span>
+                                <span className="text-2xl font-black">{employee.base_salary!.toLocaleString()} $</span>
                             </div>
                             <div className="flex justify-between items-end">
                                 <span className="text-gray-400 text-sm">Transport</span>
-                                <span className="text-2xl font-black">{employee.transport_allowance.toLocaleString()} $</span>
+                                <span className="text-2xl font-black">{employee.transport_allowance!.toLocaleString()} $</span>
                             </div>
                             <div className="pt-6 border-t border-white/10 flex justify-between items-end">
                                 <span className="text-rose-400 font-bold uppercase text-xs">Total Mensuel</span>
                                 <span className="text-3xl font-black text-rose-500">
-                                    {(employee.base_salary + employee.transport_allowance).toLocaleString()} $
+                                    {(employee.base_salary! + employee.transport_allowance!).toLocaleString()} $
                                 </span>
                             </div>
                         </div>

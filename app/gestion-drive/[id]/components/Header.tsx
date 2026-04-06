@@ -1,4 +1,3 @@
-import { CellData, Document, DocumentColumn, DocumentRow } from "@/app/types/documents";
 import { User } from "@supabase/supabase-js";
 import Link from "next/link";
 import { Dispatch, SetStateAction, useEffect, useState } from "react";
@@ -6,7 +5,8 @@ import PermissionManager from "./PermissionManager";
 import { supabase } from "@/lib/supabase";
 import SearchAndFilters from "./SearchAndFilters";
 import { FilterState } from "@/app/types/search";
-import { Profile } from "@/lib/supabase/auth-service";
+import { CellData, Document, DocumentColumn, DocumentRow, Profile } from "@/lib/supabase/database.types";
+import { DocumentPermissions } from "../permissions.types";
 
 interface Props {
     document: Document,
@@ -16,7 +16,7 @@ interface Props {
     darkMode: boolean
     setDarkMode: Dispatch<SetStateAction<boolean>>
     user: User
-    profile: Profile|null
+    profile: Partial<Profile>|null
     columns: DocumentColumn[]
     rows: DocumentRow[]
     cellData: CellData[]
@@ -48,7 +48,7 @@ export default function DocumentEditorHeader({
                 <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
                 
                 {/* Nom du document avec édition */}
-                <div className="flex items-center space-x-2 group">
+                {/* <div className="flex items-center space-x-2 group">
                   {document.isEditing ? (
                     <div className="flex items-center space-x-2">
                       <input
@@ -104,7 +104,7 @@ export default function DocumentEditorHeader({
                       </button>
                     </>
                   )}
-                </div>
+                </div> */}
 
                 {/* Description */}
                 {document.description && (
@@ -150,7 +150,7 @@ export default function DocumentEditorHeader({
 
                 <PermissionManager
                   documentId={document.id}
-                  currentPermissions={document?.default_permissions}
+                  currentPermissions={document?.default_permissions as DocumentPermissions}
                   onPermissionsChange={async (newPermissions) => {
                     try {
                       const { error } = await supabase

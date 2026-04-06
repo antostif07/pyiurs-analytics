@@ -3,8 +3,8 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { FileAttachment } from '@/app/types/documents';
 import { Paperclip } from 'lucide-react';
+import { FileAttachment } from '@/lib/supabase/database.types';
 
 interface FileCellPreviewProps {
   files: FileAttachment[];

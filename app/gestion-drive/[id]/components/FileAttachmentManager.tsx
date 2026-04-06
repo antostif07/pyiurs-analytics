@@ -5,8 +5,8 @@ import { useState, useRef, useEffect, JSX } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { FileAttachment } from '@/app/types/documents';
 import { createPortal } from 'react-dom';
+import { FileAttachment } from '@/lib/supabase/database.types';
 
 type ParentType = 'cell' | 'multiline';
 

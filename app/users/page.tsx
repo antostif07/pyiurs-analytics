@@ -59,27 +59,29 @@ async function getEnhancedUsers(search?: string, role?: string): Promise<Enhance
       // Retourner seulement les profiles si erreur sur auth
       return profiles.map(profile => ({
         ...profile,
+        full_name: profile.full_name || '',
         last_sign_in_at: undefined,
         created_at_auth: undefined,
         email_confirmed_at: undefined,
         is_online: false,
         phone: undefined
-      }));
+      })) as EnhancedUser[];
     }
 
     // Fusionner les données
     const enhancedUsers = profiles.map(profile => {
       const authUser = authUsers.users.find(authUser => authUser.id === profile.id);
-      
+
       return {
         ...profile,
+        full_name: profile.full_name || '',
         last_sign_in_at: authUser?.last_sign_in_at || undefined,
         created_at_auth: authUser?.created_at || undefined,
         email_confirmed_at: authUser?.email_confirmed_at || undefined,
-        is_online: authUser?.last_sign_in_at ? 
+        is_online: authUser?.last_sign_in_at ?
           (new Date(authUser.last_sign_in_at).getTime() > Date.now() - 15 * 60 * 1000) : false,
         phone: authUser?.phone || undefined
-      };
+      } as EnhancedUser;
     });
 
     console.log(`✅ ${enhancedUsers.length} utilisateurs enrichis récupérés`);

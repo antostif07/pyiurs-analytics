@@ -1,8 +1,9 @@
 // app/documents/[id]/components/SearchAndFilters.tsx
 'use client';
 
-import { DocumentColumn } from '@/app/types/documents';
 import { DateRangeFilter, FilterState, FilterValue, NumberRangeFilter } from '@/app/types/search';
+import { getConfig } from '@/lib/helpers';
+import { DocumentColumn } from '@/lib/supabase/database.types';
 import { useState } from 'react';
 
 interface SearchAndFiltersProps {
@@ -91,106 +92,109 @@ export default function SearchAndFilters({
       {showFilters && (
         <div className="border-t pt-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {columns.map(column => (
-              <div key={column.id} className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  {column.label}
-                </label>
-                
-                {/* Filtre Texte */}
-                {column.data_type === 'text' && (
-                  <input
-                    type="text"
-                    placeholder="Filtrer..."
-                    value={(filters[column.id] as string) || ''}
-                    onChange={(e) => handleFilterChange(column.id, e.target.value)}
-                    className="w-full px-2 py-1 border rounded text-sm"
-                  />
-                )}
-                
-                {/* Filtre Select (Liste déroulante) */}
-                {column.data_type === 'select' && (
-                  <select
-                    value={(filters[column.id] as string) || ''}
-                    onChange={(e) => handleFilterChange(column.id, e.target.value || null)}
-                    className="w-full px-2 py-1 border rounded text-sm bg-white"
-                  >
-                    <option value="">Tous</option>
-                    {/* On suppose que column.options est un tableau de strings */}
-                    {column.config.options?.map((option: string, index: number) => (
-                      <option key={index} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                )}
+            {columns.map(column => {
+              const config = getConfig<{ options?: string[] }>(column);
 
-                {/* Filtre Nombre */}
-                {column.data_type === 'number' && (
-                  <div className="flex space-x-2">
+              return (
+                <div key={column.id} className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    {column.label}
+                  </label>
+                  
+                  {/* Filtre Texte */}
+                  {column.data_type === 'text' && (
                     <input
-                      type="number"
-                      placeholder="Min"
-                      value={(filters[column.id] as NumberRangeFilter)?.min || ''}
-                      onChange={(e) => handleFilterChange(column.id, {
-                        ...(filters[column.id] as NumberRangeFilter) || {},
-                        min: e.target.value ? parseFloat(e.target.value) : null
-                      })}
+                      type="text"
+                      placeholder="Filtrer..."
+                      value={(filters[column.id] as string) || ''}
+                      onChange={(e) => handleFilterChange(column.id, e.target.value)}
                       className="w-full px-2 py-1 border rounded text-sm"
                     />
-                    <input
-                      type="number"
-                      placeholder="Max"
-                      value={(filters[column.id] as NumberRangeFilter)?.max || ''}
-                      onChange={(e) => handleFilterChange(column.id, {
-                        ...(filters[column.id] as NumberRangeFilter) || {},
-                        max: e.target.value ? parseFloat(e.target.value) : null
-                      })}
-                      className="w-full px-2 py-1 border rounded text-sm"
-                    />
-                  </div>
-                )}
-                
-                {/* Filtre Date */}
-                {column.data_type === 'date' && (
-                  <div className="flex space-x-2">
-                    <input
-                      type="date"
-                      placeholder="De"
-                      value={(filters[column.id] as DateRangeFilter)?.start || ''}
-                      onChange={(e) => handleFilterChange(column.id, {
-                        ...(filters[column.id] as DateRangeFilter) || {},
-                        start: e.target.value
-                      })}
-                      className="w-full px-2 py-1 border rounded text-sm"
-                    />
-                    <input
-                      type="date"
-                      placeholder="À"
-                      value={(filters[column.id] as DateRangeFilter)?.end || ''}
-                      onChange={(e) => handleFilterChange(column.id, {
-                        ...(filters[column.id] as DateRangeFilter) || {},
-                        end: e.target.value
-                      })}
-                      className="w-full px-2 py-1 border rounded text-sm"
-                    />
-                  </div>
-                )}
-                
-                {/* Filtre Booléen */}
-                {column.data_type === 'boolean' && (
-                  <select
-                    value={(filters[column.id] as string) || ''}
-                    onChange={(e) => handleFilterChange(column.id, e.target.value || null)}
-                    className="w-full px-2 py-1 border rounded text-sm bg-white"
-                  >
-                    <option value="">Tous</option>
-                    <option value="true">Oui</option>
-                    <option value="false">Non</option>
-                  </select>
-                )}
-              </div>
-            ))}
+                  )}
+                  
+                  {/* Filtre Select (Liste déroulante) */}
+                  {column.data_type === 'select' && (
+                    <select
+                      value={(filters[column.id] as string) || ''}
+                      onChange={(e) => handleFilterChange(column.id, e.target.value || null)}
+                      className="w-full px-2 py-1 border rounded text-sm bg-white"
+                    >
+                      <option value="">Tous</option>
+                      {config.options?.map((option: string, index: number) => (
+                        <option key={index} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+
+                  {/* Filtre Nombre */}
+                  {column.data_type === 'number' && (
+                    <div className="flex space-x-2">
+                      <input
+                        type="number"
+                        placeholder="Min"
+                        value={(filters[column.id] as NumberRangeFilter)?.min || ''}
+                        onChange={(e) => handleFilterChange(column.id, {
+                          ...(filters[column.id] as NumberRangeFilter) || {},
+                          min: e.target.value ? parseFloat(e.target.value) : null
+                        })}
+                        className="w-full px-2 py-1 border rounded text-sm"
+                      />
+                      <input
+                        type="number"
+                        placeholder="Max"
+                        value={(filters[column.id] as NumberRangeFilter)?.max || ''}
+                        onChange={(e) => handleFilterChange(column.id, {
+                          ...(filters[column.id] as NumberRangeFilter) || {},
+                          max: e.target.value ? parseFloat(e.target.value) : null
+                        })}
+                        className="w-full px-2 py-1 border rounded text-sm"
+                      />
+                    </div>
+                  )}
+                  
+                  {/* Filtre Date */}
+                  {column.data_type === 'date' && (
+                    <div className="flex space-x-2">
+                      <input
+                        type="date"
+                        placeholder="De"
+                        value={(filters[column.id] as DateRangeFilter)?.start || ''}
+                        onChange={(e) => handleFilterChange(column.id, {
+                          ...(filters[column.id] as DateRangeFilter) || {},
+                          start: e.target.value
+                        })}
+                        className="w-full px-2 py-1 border rounded text-sm"
+                      />
+                      <input
+                        type="date"
+                        placeholder="À"
+                        value={(filters[column.id] as DateRangeFilter)?.end || ''}
+                        onChange={(e) => handleFilterChange(column.id, {
+                          ...(filters[column.id] as DateRangeFilter) || {},
+                          end: e.target.value
+                        })}
+                        className="w-full px-2 py-1 border rounded text-sm"
+                      />
+                    </div>
+                  )}
+                  
+                  {/* Filtre Booléen */}
+                  {column.data_type === 'boolean' && (
+                    <select
+                      value={(filters[column.id] as string) || ''}
+                      onChange={(e) => handleFilterChange(column.id, e.target.value || null)}
+                      className="w-full px-2 py-1 border rounded text-sm bg-white"
+                    >
+                      <option value="">Tous</option>
+                      <option value="true">Oui</option>
+                      <option value="false">Non</option>
+                    </select>
+                  )}
+                </div>
+              )
+            })}
           </div>
 
           {/* Tri */}

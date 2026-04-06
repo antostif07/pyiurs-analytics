@@ -7,7 +7,7 @@ import { BoutiqueSelector } from "@/components/boutique-selector";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useMemo } from "react";
-import { Profile } from "@/lib/supabase/auth-service";
+import { Profile } from "@/lib/supabase/database.types";
 
 export interface Boutique {
   id: number;
@@ -20,7 +20,7 @@ interface DailySalesClientProps {
   selectedBoutiqueId?: string;
   selectedMonth?: string;
   selectedYear?: string;
-  profile: Profile|null;
+  profile: Partial<Profile>|null;
 }
 
 function SalesTable({ data }: { data: DailySaleData[] }) {

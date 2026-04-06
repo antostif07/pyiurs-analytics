@@ -1,6 +1,7 @@
-import { Document } from '@/app/types/documents';
 import PermissionManager from './PermissionManager';
 import ExportImport from './ExportImport';
+import { Document } from '@/lib/supabase/database.types';
+import { DocumentPermissions } from '../permissions.types';
 
 interface DocumentToolbarProps {
   document: Document;
@@ -42,7 +43,7 @@ export const DocumentToolbar: React.FC<DocumentToolbarProps> = ({
 
         <PermissionManager
           documentId={documentId}
-          currentPermissions={document.default_permissions}
+          currentPermissions={document.default_permissions as DocumentPermissions}
           onPermissionsChange={onPermissionsChange}
           documentOwnerId={document.created_by}
         />

@@ -106,7 +106,7 @@ export default function HistoryTracker({ documentId }: HistoryTrackerProps) {
         document_id: documentId,
         user_id: user.id,
         user_email: user.email,
-        user_name: profile?.full_name,
+        user_name: profile?.full_name || 'Utilisateur',
         action,
         table_name: tableName,
         record_id: recordId,

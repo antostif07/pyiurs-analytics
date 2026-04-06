@@ -122,7 +122,7 @@ export default async function HSCodeDetailPage({ params }: { params: Promise<{ h
                                 <h3 className="font-black text-[10px] uppercase text-rose-400 tracking-widest">Diagnostic Intelligence Artificielle</h3>
                             </div>
                             <p className="text-xs italic leading-relaxed text-gray-300">
-                                "{ai?.trend_analysis || "Analyse en attente de données complémentaires."}"
+                                {/* "{ai?.trend_analysis || "Analyse en attente de données complémentaires."}" */}
                             </p>
                         </Card>
                     </div>
@@ -133,7 +133,7 @@ export default async function HSCodeDetailPage({ params }: { params: Promise<{ h
                     <Card className="p-8 border-none shadow-xl rounded-[40px] bg-rose-600 text-white relative overflow-hidden">
                         <div className="relative z-10">
                             <h3 className="text-4xl font-black tracking-tighter mb-1">
-                                {ai?.stockout_date ? format(new Date(ai.stockout_date), 'dd MMMM', { locale: fr }) : "Indisponible"}
+                                {/* {ai?.stockout_date ? format(new Date(ai.stockout_date), 'dd MMMM', { locale: fr }) : "Indisponible"} */}
                             </h3>
                             <p className="text-[10px] font-black uppercase tracking-widest text-rose-200">Date de rupture estimée</p>
                             
@@ -141,7 +141,7 @@ export default async function HSCodeDetailPage({ params }: { params: Promise<{ h
                                 <span className="text-[10px] font-bold uppercase text-rose-100 italic">Vitesse de vente</span>
                                 {/* On affiche directement la string renvoyée par l'IA */}
                                 <span className="font-black text-sm text-right leading-tight">
-                                    {ai?.burn_rate || "Analyse en cours..."}
+                                    {/* {ai?.burn_rate || "Analyse en cours..."} */}
                                 </span>
                             </div>
                         </div>
@@ -153,7 +153,7 @@ export default async function HSCodeDetailPage({ params }: { params: Promise<{ h
 
                     <div className="space-y-4">
                         <h3 className="font-black text-[10px] uppercase text-gray-400 tracking-[0.3em] ml-4">Plan de réapprovisionnement</h3>
-                        {ai?.purchase_options?.map((opt: any) => (
+                        {/* {ai?.purchase_options?.map((opt: any) => (
                             <Card key={opt.label} className="p-6 border-none shadow-sm rounded-[28px] bg-white flex justify-between items-center group hover:shadow-md transition-all border border-transparent hover:border-rose-100">
                                 <div>
                                     <p className="text-[9px] font-black uppercase text-rose-500 mb-1 tracking-widest">{opt.label}</p>
@@ -166,7 +166,7 @@ export default async function HSCodeDetailPage({ params }: { params: Promise<{ h
                                     </Badge>
                                 </div>
                             </Card>
-                        ))}
+                        ))} */}
                     </div>
                 </div>
 

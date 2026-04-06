@@ -71,7 +71,7 @@ export function VendeuseSalesDashboard({
       const newParams = new URLSearchParams();
       if (month) newParams.set('month', month);
       if (year) newParams.set('year', year);
-      newParams.set('agent', profile.id);
+      newParams.set('agent', profile.id!);
       router.push(`${pathname}?${newParams.toString()}`);
     }
   }, [agentId, month, year, pathname, router, profile]);

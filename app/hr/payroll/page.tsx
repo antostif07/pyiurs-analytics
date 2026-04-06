@@ -96,7 +96,7 @@ export default function PayrollPage() {
                     if (isSunday) return; // Le dimanche n'existe pas pour la paie
 
                     const status = log.validated_status || log.status;
-                    const dailyRate = emp.base_salary / PAYROLL_BASIS;
+                    const dailyRate = emp.base_salary! / PAYROLL_BASIS;
                     const hourlyRate = dailyRate / WORK_HOURS_PER_DAY;
 
                     // A. Logique Salaire
@@ -119,7 +119,7 @@ export default function PayrollPage() {
                 });
 
                 const transportEligibleDays = Math.max(0, PAYROLL_BASIS - transportPenaltyDays);
-                const netTransport = (emp.transport_allowance / PAYROLL_BASIS) * transportEligibleDays;
+                const netTransport = (emp.transport_allowance! / PAYROLL_BASIS) * transportEligibleDays;
                 const totalBonuses = filteredBonuses.reduce((acc: number, b: any) => acc + b.amount, 0);
                 const totalDebtRemaining = activeDebts.reduce((acc: number, d: any) => acc + d.remaining_amount, 0);
 

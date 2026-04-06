@@ -1,9 +1,4 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
-// ✅ CORRECTION TS : Ajout de ColumnOption dans les imports
-import { 
-    CellData, Document, DocumentColumn, DocumentRow, 
-    FileAttachment, MultilineData, SubColumn
-} from "@/app/types/documents";
 import { generateColumns, transformToTableData } from "@/lib/utils";
 import { flexRender, getCoreRowModel, useReactTable, ColumnDef, RowData } from "@tanstack/react-table";
 import ColumnModal from "./ColumnModal";
@@ -16,6 +11,7 @@ import { toast } from 'sonner';
 // ✅ PRO: Remplacement des SVG bruts par les icônes standardisées
 import { Copy, Trash2, Plus } from "lucide-react";
 import { ColumnOption } from "@/app/types/table";
+import { CellData, Document, DocumentColumn, DocumentRow, FileAttachment, MultilineData, SubColumn } from "@/lib/supabase/database.types";
 
 interface Props {
     document: Document;

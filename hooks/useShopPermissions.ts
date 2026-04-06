@@ -13,9 +13,10 @@ export function useShopPermissions() {
     // Vérifier le type d'accès
     if (profile.shop_access_type === 'all') return true;
     
+    const assignedShops = (profile.assigned_shops as string[]) || [];
     // Vérifier les boutiques spécifiques
-    return profile.assigned_shops.includes(shopId) || 
-           profile.assigned_shops.includes('all');
+    return assignedShops.includes(shopId) || 
+           assignedShops.includes('all');
   };
 
   const getUserShops = (): string[] => {
@@ -25,14 +26,14 @@ export function useShopPermissions() {
       return ['all'];
     }
     
-    return profile.assigned_shops || [];
+    return (profile.assigned_shops as string[]) || [];
   };
 
   const canManageShop = (shopId: string): boolean => {
     if (!profile) return false;
     
     // Seuls les managers et admins peuvent gérer
-    if (!['admin', 'manager'].includes(profile.role)) return false;
+    if (profile.role && !['admin', 'manager'].includes(profile.role)) return false;
     
     return hasShopAccess(shopId);
   };

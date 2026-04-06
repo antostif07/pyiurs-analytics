@@ -246,10 +246,11 @@ export default async function DailySalesTablePage({ searchParams }: PageProps) {
 
   try {
     let posDataWithProducts: EnrichedPOSLine[] = [];
-    if(profile?.role === 'manager' && profile?.assigned_shops?.length === 1) {
-      posDataWithProducts = await getPOSDataWithProducts(profile?.assigned_shops[0], month, year);
+    const assignedShops = profile?.assigned_shops as string[] || [];
+    if(profile?.role === 'manager' && assignedShops.length === 1) {
+      posDataWithProducts = await getPOSDataWithProducts(assignedShops[0], month, year);
     } else {
-      posDataWithProducts = await getPOSDataWithProducts(profile?.assigned_shops[0], month, year);
+      posDataWithProducts = await getPOSDataWithProducts(assignedShops[0], month, year);
     }
     
     const salesData = calculateDailySales(posDataWithProducts);
@@ -265,7 +266,7 @@ export default async function DailySalesTablePage({ searchParams }: PageProps) {
     }
     
     if(profile.shop_access_type === 'specific') {
-      boutiques = boutiques.filter((boutique: { id: number; name: string }) => profile?.assigned_shops?.includes(boutique.id.toString()));
+      boutiques = boutiques.filter((boutique: { id: number; name: string }) => assignedShops.includes(boutique.id.toString()));
     }
 
     return (

@@ -1,5 +1,5 @@
-import { CellData, DocumentColumn, DocumentRow, SubColumn } from "@/app/types/documents";
 import { supabase } from "../supabase";
+import { DocumentColumn, DocumentRow, CellData, SubColumn } from "../supabase/database.types";
 
 type ColumnInsert = Omit<DocumentColumn, 'id' | 'created_at' | 'permissions'>;
 type RowInsert = Omit<DocumentRow, 'id' | 'created_at' | 'updated_at'>;
@@ -225,7 +225,7 @@ export const saveColumnOrder = async (
 
     // 2. Construire le payload
     // On utilise map pour créer les objets et un type guard pour le filtrage
-    const updates: DocumentColumn[] = validIds
+    const updates = validIds
         .map((colId, index) => {
             const originalCol = existingColumns.find(c => c.id === colId);
 
@@ -237,7 +237,7 @@ export const saveColumnOrder = async (
                 document_id: documentId,
                 order_index: index,
                 updated_at: new Date().toISOString()
-            };
+            } as DocumentColumn;
         })
         .filter((item): item is DocumentColumn => item !== null); // Type Guard pour supprimer les nulls
 

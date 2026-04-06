@@ -1,8 +1,8 @@
 // app/documents/[id]/components/ExportImport.tsx
 'use client';
 
-import { CellData, DocumentColumn, DocumentRow } from '@/app/types/documents';
 import { supabase } from '@/lib/supabase';
+import { CellData, DocumentColumn, DocumentRow } from '@/lib/supabase/database.types';
 import { useState } from 'react';
 
 interface ExportImportProps {
