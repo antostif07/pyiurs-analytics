@@ -2,7 +2,7 @@ import { AdvancedPerformanceTable } from "@/components/revenue/advanced-performa
 import { RevenueDateFilter } from "@/components/revenue/revenue-date-filter";
 import { RevenueKPICard } from "@/components/revenue/revenue-kpi-card";
 import { WeeklyRevenueTable } from "@/components/revenue/weekly-revenue-table";
-import { format, getWeek, subWeeks } from "date-fns";
+import { format } from "date-fns";
 import { getRevenueDashboardData } from "./actions";
 
 export default async function RevenueOverviewPage({
@@ -16,7 +16,7 @@ export default async function RevenueOverviewPage({
   
 
   // 1. RÉCUPÉRATION DES DONNÉES RÉELLES
-  const data = await getRevenueDashboardData(month, year);
+  const data = await getRevenueDashboardData(month, year);  
 
   // 2. CALCUL DES TOTAUX GLOBAUX POUR LES CARTES KPI
   const totals = {

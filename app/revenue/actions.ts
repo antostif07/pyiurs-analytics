@@ -196,17 +196,19 @@ export async function getRevenueDashboardData(month: string, year: string) {
                 const prod = productsInfo.find(p => p.id === l.product_id[0]);
                 const segment = prod?.x_studio_segment || "Autres";
                 const category = prod?.pos_categ_id?.[1] || "Général";
+                const shop = dbShops.find(s => s.odoo_pos_ids?.includes(order.config_id?.[0]));
+                const shopName = shop ? shop.name : "Inconnu";
                 const wNum = `W${getWeek(new Date(order.date_order || now), { weekStartsOn: 1 })}`;
 
                 if (!segmentHierarchy[segment]) segmentHierarchy[segment] = { mtd: 0, mtdPrev: 0, weeks: {}, subRows: {} };
-                if (!segmentHierarchy[segment].subRows[category]) segmentHierarchy[segment].subRows[category] = { mtd: 0, mtdPrev: 0, weeks: {} };
+                if (!segmentHierarchy[segment].subRows[shopName]) segmentHierarchy[segment].subRows[shopName] = { mtd: 0, mtdPrev: 0, weeks: {} };
 
                 segmentHierarchy[segment][field] += l.price_unit * l.qty;
-                segmentHierarchy[segment].subRows[category][field] += l.price_unit * l.qty;
+                segmentHierarchy[segment].subRows[shopName][field] += l.price_unit * l.qty;
 
                 if (field === 'mtd') {
                     segmentHierarchy[segment].weeks[wNum] = (segmentHierarchy[segment].weeks[wNum] || 0) + (l.price_unit * l.qty);
-                    segmentHierarchy[segment].subRows[category].weeks[wNum] = (segmentHierarchy[segment].subRows[category].weeks[wNum] || 0) + (l.price_unit * l.qty);
+                    segmentHierarchy[segment].subRows[shopName].weeks[wNum] = (segmentHierarchy[segment].subRows[shopName].weeks[wNum] || 0) + (l.price_unit * l.qty);
                 }
             });
         };
