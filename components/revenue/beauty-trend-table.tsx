@@ -79,7 +79,7 @@ export function BeautyTrendTable({ data, months }: BeautyTrendTableProps) {
         const color = info.row.original.color;
         
         const suffix = color ? color : ''; 
-        const imageUrl = `https://images.pyiurs.com/images/${hsCode}_${suffix}.jpg`;
+        const imageUrl = `https://images.bybkm.fr/${hsCode}_${suffix}.jpg`;
         return (
         <div className="w-12 h-12 rounded-xl overflow-hidden border border-slate-100 bg-slate-50 relative group">
           <ProductImage 

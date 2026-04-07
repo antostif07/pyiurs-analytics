@@ -14,7 +14,8 @@ interface BeautySalesContentProps {
 }
 
 export default function BeautySalesContent({ data, month, year }: BeautySalesContentProps) {
-
+  console.log(data[0]);
+  
   // 1. Générer les colonnes des 6 derniers mois (Chronologique : M-5 -> M)
   const months = useMemo<MonthDefinition[]>(() => {
     // Date de référence (ex: 1er Mars 2026)
