@@ -119,6 +119,40 @@ export async function getRevenueDashboardData(month: string, year: string) {
         
         
         // --- A. LOGIQUE PAR BOUTIQUE ---
+        const shopHierarchy: any = {};
+        // const shopAggregate = (lines: any[], orders: any[], field: 'mtd' | 'mtdPrev') => {
+        //     lines.forEach(l => {
+        //         const order = orders.find(o => o.id === l.order_id[0]);
+        //         if (!order) return;
+        //         const shop = dbShops.find(s => s.odoo_pos_ids?.includes(order.config_id?.[0]));
+        //         if (!shop) return;
+        //         if (!shopHierarchy[shop.name]) shopHierarchy[shop.name] = { mtd: 0, mtdPrev: 0, weeks: {} };
+
+        //         shopHierarchy[shop.name][field] += l.price_unit * l.qty;
+        //         if (field === 'mtd') {
+        //             const wNum = `W${getWeek(new Date(order.date_order), { weekStartsOn: 1 })}`;
+        //             shopHierarchy[shop.name].weeks[wNum] = (shopHierarchy[shop.name].weeks[wNum] || 0) + (l.price_unit * l.qty);
+        //         }
+        //     });
+        // }
+
+        // shopAggregate(currentLines, currentOrders, 'mtd');
+        // shopAggregate(previousLines, previousOrders, 'mtdPrev');
+
+        // const shopPerformance = Object.entries(shopHierarchy).map(([shopName, shopData]: [string, any]) => {
+        //     const shopTarget = targets?.find(t => t.category_tag === shopName)?.target_amount || 0;
+        //     return {
+        //         boutique: shopName,
+        //         mtd: Math.round(shopData.mtd),
+        //         mtdPrev: Math.round(shopData.mtdPrev),
+        //         deltaMoM: shopData.mtdPrev > 0 ? Math.round(((shopData.mtd - shopData.mtdPrev) / shopData.mtdPrev) * 100) : 0,
+        //         forecast: Math.round((shopData.mtd / daysPassed) * totalDaysInMonth),
+        //         budgetMensuel: shopTarget,
+        //         pctBudget: shopTarget > 0 ? Math.round((shopData.mtd / shopTarget) * 100) : 0,
+        //         weeks: shopData.weeks
+        //     };
+        // }).sort((a, b) => b.mtd - a.mtd);
+
         const shopPerformance = dbShops.map(shop => {
             const posIds = shop.odoo_pos_ids || [];
 

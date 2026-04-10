@@ -97,11 +97,29 @@ export async function getDailySaleLines(date: Date, shop?: string) {
       }
     })
 
-    const stats: DailySalesResult["stats"] = {
+    let stats: DailySalesResult["stats"] = {
       femme: 0,
       enfants: 0,
       beauty: 0
     }
+    
+    enrichedOrders.forEach(element => {
+      switch (element.product?.x_studio_segment?.toString().toLowerCase()) {
+        case 'femme':
+          stats.femme += element.price_subtotal_incl || 0;
+          break;
+        case 'enfant':
+        case 'enfants':
+          stats.enfants += element.price_subtotal_incl || 0;
+          break;
+        case 'beauty':
+          stats.beauty += element.price_subtotal_incl || 0;
+          break;
+        default:
+          break;
+      }
+    });
+
     const totals: DailySalesResult["totals"] = {
       cash: 0,
       daily: 0,
@@ -115,7 +133,7 @@ export async function getDailySaleLines(date: Date, shop?: string) {
       mobile: 0,
       onl: 0
     }
-
+    
     return {
       success: true,
       records: enrichedOrders,
@@ -230,8 +248,11 @@ export async function getDailySalesLines(date: Date, shop?: string): Promise<Dai
     }
 
     const segmentMap = new Map<number, string>();
+    
     productInfos.forEach((p: any) => {
         const segment = p.x_studio_segment ? p.x_studio_segment.toString().toLowerCase() : '';
+        console.log(segment);
+        
         segmentMap.set(p.id, segment);
     });
     
@@ -243,7 +264,11 @@ export async function getDailySalesLines(date: Date, shop?: string): Promise<Dai
 
         if (segment === 'femme') stats.femme += amount;
         else if (segment.includes('enfant')) stats.enfants += amount;
-        else if (segment === 'beauty') stats.beauty += amount;
+        else if (segment === 'beauty') {
+          console.log(segment);
+          
+          stats.beauty += amount
+        };
     });
 
 

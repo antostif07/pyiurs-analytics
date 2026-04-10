@@ -62,7 +62,7 @@ export default function PaymentCards({
       </div>
 
       <Badge className="bg-white/20 text-white px-4 py-1 text-sm font-semibold">
-        Aujourd’hui
+        {`Aujourd’hui - ${new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}`}
       </Badge>
     </div>
 
@@ -84,7 +84,7 @@ export default function PaymentCards({
       <div className="grid grid-cols-5 bg-white/10 text-xs uppercase text-blue-200 font-semibold px-4 py-3">
         <div>Shop</div>
         <div className="text-right">Femme</div>
-        <div className="text-right">Enfants</div>
+        <div className="text-right">Enfant</div>
         <div className="text-right">Beauty</div>
         <div className="text-right">Total</div>
       </div>
@@ -97,13 +97,13 @@ export default function PaymentCards({
             (posOrderLine: POSOrderLineExtra) => posOrderLine.order!.config_id[0] === shop.id
           )
 
-          const femme = shopSales.filter(ss => ss.product?.x_studio_segment === "Femme")
+          const femme = shopSales.filter(ss => ss.product?.x_studio_segment?.toString().toLowerCase() === "femme")
             .reduce((acc: number, curr: POSOrderLineExtra) => acc + curr.price_subtotal_incl, 0)
 
-          const enfants = shopSales.filter(ss => ss.product?.x_studio_segment === "Enfant")
+          const enfants = shopSales.filter(ss => ss.product?.x_studio_segment?.toString().toLowerCase() === "enfant")
             .reduce((acc: number, curr: POSOrderLineExtra) => acc + curr.price_subtotal_incl, 0)
 
-          const beauty = shopSales.filter(ss => ss.product?.x_studio_segment === "Beauty")
+          const beauty = shopSales.filter(ss => ss.product?.x_studio_segment?.toString().toLowerCase() === "beauty")
             .reduce((acc: number, curr: POSOrderLineExtra) => acc + curr.price_subtotal_incl, 0)
 
           const total = femme + enfants + beauty

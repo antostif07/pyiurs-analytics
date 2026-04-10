@@ -273,13 +273,13 @@ export default function DetailsAndAccounting({initialData, onJustificationsUpdat
                                                         </h4>
                                                     </div>
                                                     <div className="space-y-1">
-                                                        {group.sales.map((sale) => {
+                                                        {group.sales.map((sale, key: number) => {
                                                             const isNegativeSale = (sale.amount_total || 0) <= 0;
                                                             const saleJustification = getSaleJustification(sale.id);
 
                                                             return (
                                                                 <div 
-                                                                    key={sale.id} 
+                                                                    key={key} 
                                                                     className={`flex justify-between items-center p-2 rounded border transition-shadow ${
                                                                         isNegativeSale 
                                                                             ? 'bg-red-50 border-red-200 hover:shadow-red-sm' 

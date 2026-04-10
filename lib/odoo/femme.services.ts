@@ -160,7 +160,7 @@ export async function getFemmeDashboardData(): Promise<FemmeDashboardStats> {
             color: colorName,
             qtySold: sale.qty || 0,
             revenue: sale.price_subtotal_incl || 0,
-            imageUrl: `http://pyiurs.com/images/images/${groupKey}.jpg`
+            imageUrl: `http://${process.env.NEXT_PUBLIC_IMAGES_DIR}/${groupKey}.jpg`
           });
         }
       }
