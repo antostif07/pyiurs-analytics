@@ -1,11 +1,13 @@
 // app/layout.tsx
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css"
+import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { getServerAuth } from "@/lib/supabase/server";
 import NextTopLoader from 'nextjs-toploader';
+import { QueryProvider } from "./providers/query-provider";
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -51,7 +53,10 @@ export default async function RootLayout({
           height={3}
         />
         <AuthProvider serverUser={user} serverProfile={profile}>
-          {children}
+          <QueryProvider>
+            {children}
+            <ReactQueryDevtools initialIsOpen={false} />
+          </QueryProvider>
         </AuthProvider>
         <Toaster richColors position="top-right" />
       </body>

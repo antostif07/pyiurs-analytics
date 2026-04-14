@@ -22,7 +22,8 @@ const menuGroups = [
       { name: 'Vue d\'ensemble', href: mainPath, icon: BarChart3 },
       { name: 'Performance Beauty', href: `${mainPath}/performance-beauty`, icon: TrendingUp },
       { name: 'Performance Femme', href: `${mainPath}/performance-femme`, icon: TrendingUpDown },
-      { name: 'Performance POLOG', href: `${mainPath}/performance-polog`, icon: TrendingDown }
+      { name: 'Performance POLOG', href: `${mainPath}/performance-polog`, icon: TrendingDown },
+      { name: 'ARPU', href: `${mainPath}/arpu`, icon: TrendingDown },
     ]
   },
   {
