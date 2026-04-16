@@ -1,4 +1,4 @@
-import { TrendingUp, Package, Database, PieChart, Heart, PiggyBank, ShieldCheck, Users, Wallet, FileSpreadsheet, MonitorPlay, Clock, PictureInPicture } from "lucide-react"
+import { TrendingUp, Package, Database, PieChart, Heart, PiggyBank, ShieldCheck, Users, Wallet, FileSpreadsheet, MonitorPlay, Clock, PictureInPicture, Banknote } from "lucide-react"
 
 export interface Denomination {
   currency: 'USD' | 'CDF'
@@ -77,6 +77,18 @@ export const MODULES_CONFIG: AppModule[] =[
     color: "bg-gray-500", 
     category: "inventory", 
     permissions: ["admin", "manager"] 
+  },
+  {
+    id: "finance",
+    name: "Finance",
+    description: "Suivez et analysez vos flux financiers, gérez les budgets et optimisez la rentabilité de votre entreprise.",
+    href: "/finance",
+    icon: Banknote, // Assurez-vous d'importer Banknote de lucide-react
+    color: "bg-emerald-600",
+    category: "finance",
+    permissions: ["admin", "manager", "financier"],
+    isNew: true, // Pour marquer le nouveau module
+    order: 0
   },
   {
     id: "catalog", 
