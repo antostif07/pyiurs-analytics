@@ -126,9 +126,6 @@ export async function getCaissePrincipaleStats(dateRange: { from: Date; to: Date
 
   const result: any = { cash: initType(), mobile: initType(), bank: initType() };
 
-  const posConfigs = await odooClient.searchRead<any>("pos.config", { fields: ["id", "journal_id"] });
-  const journalToConfigMap = new Map(posConfigs.map(c => [c.journal_id[0], c.id]));
-
   // 1. Fetch PAIEMENTS cumulés (Entrées)
   const payments = await odooClient.searchRead<any>("pos.payment", {
     domain: [
@@ -169,6 +166,7 @@ export async function getCaissePrincipaleStats(dateRange: { from: Date; to: Date
   payments.forEach(p => {
     const type = methodMap.get(p.payment_method_id[0]) || "bank";
     const configId = orderToConfig.get(p.pos_order_id[0]);
+    
     if (!configId) return;
 
     const isOpening = isBefore(parseISO(p.payment_date), daySelectionStart);
@@ -180,6 +178,10 @@ export async function getCaissePrincipaleStats(dateRange: { from: Date; to: Date
 
   // Agrégation des Dépenses (uniquement sur le Cash)
   expenseLines.forEach(line => {
+    const configId = line.company_id ? (
+      line.company_id[1] === "PB - BC" ? 
+      shops.find(s => s.name === "PB - ONL")?.id : shops.find(s => s.name === line.company_id[1])?.id) : "Autres"
+    
     // const configId = journalToConfigMap.get(line.journal_id[0]);
     // if (!configId) return;
 
@@ -187,10 +189,10 @@ export async function getCaissePrincipaleStats(dateRange: { from: Date; to: Date
     if (isOpening) {
       // Les dépenses passées depuis Avril diminuent le S.O actuel
       result.cash.so.total -= line.total_amount;
-      // result.cash.so.shops[configId] -= line.total_amount;
+      result.cash.so.shops[configId] -= line.total_amount;
     } else {
       result.cash.depense.total += line.total_amount;
-      // result.cash.depense.shops[configId] += line.total_amount;
+      result.cash.depense.shops[configId] += line.total_amount;
     }
   });
 
