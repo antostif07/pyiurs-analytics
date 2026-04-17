@@ -120,14 +120,14 @@ export async function getCaissePrincipaleStats(dateRange: { from: Date; to: Date
     entree: { total: 0, shops: Object.fromEntries(shops.map(s => [s.id, 0])) }, 
     depense: { total: 0, shops: Object.fromEntries(shops.map(s => [s.id, 0])) },
     epargne: { total: 0, shops: Object.fromEntries(shops.map(s => [s.id, 0])) },
-    sortie: { total: 0, shops: Object.fromEntries(shops.map(s => [s.id, 0])) }
+    sortie: { total: 0, shops: Object.fromEntries(shops.map(s => [s.id, 0])) },
+    sf: { total: 0, shops: Object.fromEntries(shops.map(s => [s.id, 0])) }
   });
 
   const result: any = { cash: initType(), mobile: initType(), bank: initType() };
 
   const posConfigs = await odooClient.searchRead<any>("pos.config", { fields: ["id", "journal_id"] });
   const journalToConfigMap = new Map(posConfigs.map(c => [c.journal_id[0], c.id]));
-  const cashJournalIds = posConfigs.map(c => c.journal_id[0]);
 
   // 1. Fetch PAIEMENTS cumulés (Entrées)
   const payments = await odooClient.searchRead<any>("pos.payment", {
@@ -140,15 +140,16 @@ export async function getCaissePrincipaleStats(dateRange: { from: Date; to: Date
   });
 
   // 2. Fetch DÉPENSES cumulées (Sorties de caisse manuelles)
-  const expenseLines = await odooClient.searchRead<any>("account.move.line", {
+  const expenseLines = await odooClient.searchRead<any>("hr.expense", {
     domain: [
-      ["journal_id", "in", cashJournalIds],
       ["date", ">=", "2026-04-01"],
       ["date", "<=", format(dateRange.to, "yyyy-MM-dd")],
-      ["payment_id", "=", false],
-      ["credit", ">", 0]
     ],
-    fields: ["credit", "journal_id", "date"]
+    // fields: [],
+    fields: [
+      "id", "name", "company_id", "product_id", "state", "journal_id", "approval_state",
+      "total_amount", "currency_id", "date", "employee_id", "payment_method_line_id"
+    ],
   });
 
   // Logic identification méthode de paiement (Cash/Mobile/Bank)
@@ -179,18 +180,37 @@ export async function getCaissePrincipaleStats(dateRange: { from: Date; to: Date
 
   // Agrégation des Dépenses (uniquement sur le Cash)
   expenseLines.forEach(line => {
-    const configId = journalToConfigMap.get(line.journal_id[0]);
-    if (!configId) return;
+    // const configId = journalToConfigMap.get(line.journal_id[0]);
+    // if (!configId) return;
 
     const isOpening = isBefore(parseISO(line.date), daySelectionStart);
     if (isOpening) {
       // Les dépenses passées depuis Avril diminuent le S.O actuel
-      result.cash.so.total -= line.credit;
-      result.cash.so.shops[configId] -= line.credit;
+      result.cash.so.total -= line.total_amount;
+      // result.cash.so.shops[configId] -= line.total_amount;
     } else {
-      result.cash.depense.total += line.credit;
-      result.cash.depense.shops[configId] += line.credit;
+      result.cash.depense.total += line.total_amount;
+      // result.cash.depense.shops[configId] += line.total_amount;
     }
+  });
+
+  ["cash", "mobile", "bank"].forEach(type => {
+    const t = result[type];
+    
+    // Calcul pour chaque shop individuellement
+    shops.forEach(shop => {
+      const id = shop.id;
+      const closing = (t.so.shops[id] || 0) + 
+        (t.entree.shops[id] || 0) - 
+        (t.depense.shops[id] || 0) - 
+        (t.epargne.shops[id] || 0) - 
+        (t.sortie.shops[id] || 0);
+      
+      t.sf.shops[id] = closing;
+    });
+
+    // Calcul du total global pour ce type
+    t.sf.total = t.so.total + t.entree.total - t.depense.total - t.epargne.total - t.sortie.total;
   });
 
   return result;
