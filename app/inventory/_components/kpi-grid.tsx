@@ -2,7 +2,7 @@
 import { motion } from "framer-motion";
 import { Boxes, Package, Truck, ShoppingCart, AlertCircle } from "lucide-react";
 import KpiCard from "./kpi-card";
-import { KpiSkeleton } from "./skeletons";
+import { KpiSkeleton } from "../../../components/new-ui/layout/skeletons";
 import { useStockKpis } from "@/hooks/use-stock-kpis";
 import { useInventory } from "@/hooks/use-inventory"; // Import indispensable
 

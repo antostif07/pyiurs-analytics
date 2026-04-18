@@ -1,6 +1,6 @@
 // app/finance/cash-flow/page.tsx
 import { Suspense } from "react";
-import { DashboardSkeleton } from "@/app/inventory/_components/skeletons";
+import { DashboardSkeleton } from "@/components/new-ui/layout/skeletons";
 import { getFinanceMetadata } from "./actions";
 import CashFlowClient from "./cash-flow-client";
 

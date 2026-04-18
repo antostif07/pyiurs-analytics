@@ -6,7 +6,7 @@ import ArpuAnalytics from "./_components/analytics-section";
 import ArpuTable from "./_components/arpu-table";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { endOfMonth, parseISO, startOfMonth } from "date-fns";
-import { DashboardSkeleton } from "@/app/inventory/_components/skeletons";
+import { DashboardSkeleton } from "@/components/new-ui/layout/skeletons";
 import { useArpuData } from "@/hooks/use-arpu";
 import DashboardHeader from "./_components/arpu-header";
 import { toast } from "sonner";

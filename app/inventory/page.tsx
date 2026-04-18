@@ -1,7 +1,7 @@
 // app/dashboard/inventory/page.tsx
 import { Suspense } from "react";
 import { getInventoryMetadata } from "@/app/actions/odoo";
-import { DashboardSkeleton } from "./_components/skeletons";
+import { DashboardSkeleton } from "../../components/new-ui/layout/skeletons";
 import StockDashboardClient from "./stock-dashboard-client";
 
 export default async function InventoryPage() {

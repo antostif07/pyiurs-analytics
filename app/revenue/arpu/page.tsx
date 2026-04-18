@@ -1,7 +1,7 @@
 // app/dashboard/arpu/page.tsx
 import { Suspense } from "react";
 import ArpuDashboardClient from "./arpu-dashboard-client";
-import { DashboardSkeleton } from "@/app/inventory/_components/skeletons";
+import { DashboardSkeleton } from "@/components/new-ui/layout/skeletons";
 
 export default async function ArpuPage() {
   // Simuler un appel API pour les métadonnées (Plans, Régions, etc.)
