@@ -86,6 +86,8 @@ export default function AppSidebar({ role, collapsed, onCollapse, groups, mainPa
     : [];
 
   const isActive = (path: string) => {
+    console.log(path, mainPath);
+    
     if (path === mainPath) {
       return pathname === mainPath;
     }

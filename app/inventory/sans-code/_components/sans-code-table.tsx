@@ -123,16 +123,15 @@ export default function SansCodeTable() {
                           <td className="p-2 text-right">{inv.qtySansCode}</td>
                           <td className="p-2 text-right font-medium">{inv.amountSansCode.toLocaleString()} $</td>
                           <td className="p-2 text-center">
-                            {inv.isRefund ? (
-                              <Badge variant="destructive" className="text-[9px] gap-1 px-1.5 py-0">
-                                <RotateCcw className="w-2.5 h-2.5" /> Retour de {inv.refundLink || "Ticket"}
+                            {inv.isRefunded ? (
+                              <Badge className="text-[9px] gap-1 px-1.5 py-0 bg-orange-100 text-orange-700 border border-orange-200">
+                                <RotateCcw className="w-2.5 h-2.5" />
+                                Facture remboursée
                               </Badge>
-                            ) : inv.amountSansCode < 0 ? (
-                                <Badge variant="outline" className="text-orange-500 border-orange-200 text-[9px] gap-1">
-                                    <AlertCircle className="w-2.5 h-2.5" /> Annulation
-                                </Badge>
                             ) : (
-                              <span className="text-emerald-500 opacity-50">—</span>
+                              <Badge className="text-[9px] gap-1 px-1.5 py-0 bg-emerald-100 text-emerald-700 border border-emerald-200">
+                                Facture non remboursée
+                              </Badge>
                             )}
                           </td>
                         </tr>
