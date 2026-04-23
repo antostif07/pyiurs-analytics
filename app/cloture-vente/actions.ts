@@ -76,7 +76,7 @@ export async function getDailySaleLines(date: Date, shop?: string) {
 
     const posOrderLines = await odooJsonClient.searchRead<POSOrderLine>('pos.order.line', {
       domain: [["id", "in", linesIds]],
-      fields: ["id", "product_id", "price_unit", "order_id", "qty"],
+      fields: ["id", "product_id", "price_unit", "order_id", "qty", "price_subtotal", "discount", "price_subtotal_incl"],
     });
 
     const productIds = posOrderLines.reduce((acc: number[], recc: POSOrderLine) => {
@@ -88,10 +88,17 @@ export async function getDailySaleLines(date: Date, shop?: string) {
       fields: ["id", "name", "x_studio_segment"],
     });
     
+    let summ = 0
+    
     const enrichedOrders = posOrderLines.map((posOrderLine: POSOrderLine) => {
+      // if(posOrderLine.order_id[1].includes("ONL")) {
+      //   console.log(posOrderLine.order_id[1], posOrderLine.price_unit, posOrderLine.qty, posOrderLine.discount,);
+      //   summ += posOrderLine.discount === 100 ? 0 : posOrderLine.price_unit * posOrderLine.qty
+      // }
+      
       return {
         ...posOrderLine,
-        price_subtotal_incl: posOrderLine.price_unit * posOrderLine.qty,
+        price_subtotal_incl: posOrderLine.discount === 100 ? 0 : posOrderLine.price_unit * posOrderLine.qty,
         order: ordersBasic.find(o => o.id === posOrderLine.order_id[0]),
         product: products.find(p => p.id === posOrderLine.product_id[0])
       }
@@ -300,6 +307,7 @@ export async function getDailySalesLines(date: Date, shop?: string): Promise<Dai
             counts.mobile += count;
         }
     });
+    
     
     return {
       success: true,

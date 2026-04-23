@@ -50,7 +50,7 @@ export default async function ClotureVentesPage({ searchParams }: PageProps) {
   }
 
   const salesData = await getDailySaleLines(selectedDate, selectedShop)
-
+  
   // const salesData = await getDailySalesLines(selectedDate, selectedShop)
   const exchangeRate = await getExchangeRate()
   const allShopsData = await getPOSConfig()

@@ -36,6 +36,13 @@ export default function PaymentCards({
   shops,
   transactionsCash
 }: PaymentCardsProps) {
+  const totlOnl = sales.reduce((acc: number, curr: POSOrderLineExtra) => {
+    if (curr.order?.config_id[1].includes("ONL")) {
+      return acc + curr.price_subtotal_incl;
+    }
+    return acc;
+  }, 0)
+  
   return (
     <div className="container mx-auto px-4 py-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

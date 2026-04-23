@@ -99,11 +99,11 @@ export async function getRevenueDashboardData(month: string, year: string) {
         // 2. RÉCUPÉRER LES LIGNES POUR LES SEGMENTS
         const currentLines = await odooJsonClient.searchRead<POSOrderLine>("pos.order.line", {
             domain: [["order_id", "in", currentOrders.map(o => o.id)]],
-            fields: ["order_id", "price_unit", "qty", "product_id"]
+            fields: ["order_id", "price_unit", "qty", "product_id", "discount"]
         })
         const previousLines = await odooJsonClient.searchRead<POSOrderLine>("pos.order.line", {
             domain: [["order_id", "in", previousOrders.map(o => o.id)]],
-            fields: ["order_id", "price_unit", "qty", "product_id"]
+            fields: ["order_id", "price_unit", "qty", "product_id", "discount"]
         });
 
         // Map orderId -> order
@@ -191,15 +191,15 @@ export async function getRevenueDashboardData(month: string, year: string) {
                 if (!posIds.includes(order.config_id?.[0])) return;
 
                 if (order.date_order.includes(todayStr)) {
-                    today += line.price_unit * line.qty;
+                    today += line.discount === 100 ? 0 : line.price_unit * line.qty;
                 }
 
                 if (order.date_order.includes(yesterdayStr)) {
-                    yesterday += line.price_unit * line.qty;
+                    yesterday += line.discount === 100 ? 0 : line.price_unit * line.qty;
                 }
 
                 if (order.date_order >= currentWeekStart) {
-                    weekly += line.price_unit * line.qty;
+                    weekly += line.discount === 100 ? 0 : line.price_unit * line.qty;
                 }
             });
 
