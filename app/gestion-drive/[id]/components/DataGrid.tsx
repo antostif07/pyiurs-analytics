@@ -6,7 +6,7 @@ import MultilineEditor from './MultilineEditor';
 import FileAttachmentManager from './FileAttachmentManager';
 import { supabase } from '@/lib/supabase';
 import FileCellPreview from './FileCellPreview';
-import { CellData, DocumentColumn, DocumentRow, FileAttachment, MultilineData, SubColumn } from '@/lib/supabase/database.types';
+import { CellData, DocumentColumn, DocumentRow, FileAttachment, MultilineData, SubColumn } from '@/lib/supabase/types';
 
 // --- TYPES ---
 interface DisplayRow {

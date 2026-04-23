@@ -7,7 +7,7 @@ import { useParams } from 'next/navigation';
 import FileAttachmentManager from './FileAttachmentManager';
 import FileCellPreview from './FileCellPreview';
 import { Paperclip } from 'lucide-react';
-import { DocumentColumn, FileAttachment, MultilineData, SubColumn } from '@/lib/supabase/database.types';
+import { DocumentColumn, FileAttachment, MultilineData, SubColumn } from '@/lib/supabase/types';
 import { DataType } from './ColumnModal';
 import { getConfig } from '@/lib/helpers';
 

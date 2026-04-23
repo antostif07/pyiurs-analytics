@@ -3,7 +3,7 @@
 
 import { DateRangeFilter, FilterState, FilterValue, NumberRangeFilter } from '@/app/types/search';
 import { getConfig } from '@/lib/helpers';
-import { DocumentColumn } from '@/lib/supabase/database.types';
+import { DocumentColumn } from '@/lib/supabase/types';
 import { useState } from 'react';
 
 interface SearchAndFiltersProps {

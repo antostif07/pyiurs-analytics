@@ -13,7 +13,7 @@ import { AttendanceStatus } from '../types';
 // import MonthlySummary from './MonthlySummary';
 import { toast } from 'sonner';
 import { fetchAttendances, updateAttendance } from '../_actions';
-import { Attendance } from '@/lib/supabase/database.types';
+import { Attendance } from '@/lib/supabase/types';
 
 // Types synchronisés avec Supabase
 export interface EmployeeWithShop {

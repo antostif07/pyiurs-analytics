@@ -1,67 +1,69 @@
-import { ShoppingBag, Sparkles, Shirt } from 'lucide-react'; // Ajout d'icones
-import { getDashboardStats, getTodayTasks, getTopProducts } from './actions';
-import StatCard from './components/StatCard';
-import TopProductsList from './components/TopProductsList';
-import AgendaWidget from './components/AgendaWidget';
+import MarketingKpiGrid from "./_components/kpi-grid";
+import MarketingAnalytics from "./_components/analytics-section";
+import { Button } from "@/components/ui/button";
+import { Plus, Download, Filter } from "lucide-react";
 
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'USD' }).format(amount);
-};
-
-export default async function DashboardPage() {
-  const [stats, topProducts, tasks] = await Promise.all([
-    getDashboardStats(),
-    getTopProducts(),
-    getTodayTasks()
-  ]);
-
+export default function MarketingPage() {
   return (
-    <div className="p-8 bg-gray-50 min-h-screen">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Marketing</h1>
-        <p className="text-gray-500">Vue d'ensemble en temps réel (Source: Odoo)</p>
+    <div className="space-y-6">
+      {/* Header avec Actions - Style SaaS */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Marketing Intelligence</h1>
+          <p className="text-sm text-muted-foreground italic">Analyse de la performance et ROI publicitaire.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="rounded-xl gap-2 h-9 border-border bg-card">
+            <Filter className="w-4 h-4" /> Filtres
+          </Button>
+          <Button variant="outline" size="sm" className="rounded-xl gap-2 h-9 border-border bg-card">
+            <Download className="w-4 h-4" /> Exporter
+          </Button>
+          <Button size="sm" className="rounded-xl gap-2 h-9 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/20 transition-all active:scale-95">
+            <Plus className="w-4 h-4" /> Lancer une Campagne
+          </Button>
+        </div>
       </div>
 
-      {/* --- SECTION KPI --- */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatCard title="CA du Jour" value={formatCurrency(stats.dailyRevenue)} subValue={`${stats.orderCount} commandes`} iconName="money" color="blue" delay={0.1} />
-        <StatCard title="CA de la Semaine" value={formatCurrency(stats.weeklyRevenue)} subValue="Total cumulé" iconName="trend" color="green" delay={0.2} />
-        <StatCard title="Stock Faible" value={stats.lowStockCount} subValue="Produits < 3 pièces" iconName="alert" color="red" delay={0.3} />
-        <StatCard title="Stock Dormant" value={stats.dormantStockCount} subValue="+60 jours sans mouvement" iconName="archive" color="orange" delay={0.4} />
+      {/* KPI Grid Style Inventory */}
+      <MarketingKpiGrid />
+
+      {/* Analytics Section Style Inventory */}
+      <MarketingAnalytics />
+
+      {/* Section Campagnes Actives (Tableau simplifié pour l'Overview) */}
+      <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold">Campagnes les plus performantes</h3>
+          <Button variant="link" className="text-xs text-blue-500">Voir tout</Button>
+        </div>
+        <div className="space-y-4">
+          {/* Exemple d'item de campagne rapide */}
+          <CampaignQuickRow name="Promo Été - Facebook" spend="$1,200" roas="8.2x" status="Active" />
+          <CampaignQuickRow name="WeShindi - Relance" spend="$450" roas="12.4x" status="Active" />
+          <CampaignQuickRow name="Flash Sale - Lingwala" spend="$2,300" roas="4.1x" status="Paused" />
+        </div>
       </div>
+    </div>
+  );
+}
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-        
-        {/* --- MODULE TOP VENTES (Prend 2 colonnes sur grand écran) --- */}
-        <div className="xl:col-span-2 space-y-6">
-            
-            {/* BLOC 1 : MODE (Femme/Enfant) */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                  <Shirt size={20} className="text-blue-600"/> Top Ventes : Mode (Femme/Enfant)
-                </h2>
-              </div>
-              <TopProductsList products={topProducts.fashion} />
-            </div>
-
-            {/* BLOC 2 : BEAUTY */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                  <Sparkles size={20} className="text-pink-500"/> Top Ventes : Beauty
-                </h2>
-              </div>
-              <TopProductsList products={topProducts.beauty} />
-            </div>
-
+function CampaignQuickRow({ name, spend, roas, status }: any) {
+  return (
+    <div className="flex items-center justify-between p-3 rounded-xl bg-muted/30 border border-border/50">
+      <div className="flex flex-col">
+        <span className="text-xs font-bold">{name}</span>
+        <span className="text-[10px] text-muted-foreground uppercase">{status}</span>
+      </div>
+      <div className="flex items-center gap-8 text-right">
+        <div className="flex flex-col">
+          <span className="text-[10px] text-muted-foreground uppercase">Dépenses</span>
+          <span className="text-xs font-medium">{spend}</span>
         </div>
-
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 h-[600px] xl:sticky xl:top-6">
-          {/* On passe les tâches récupérées au composant Client */}
-          <AgendaWidget initialTasks={tasks} />
+        <div className="flex flex-col">
+          <span className="text-[10px] text-muted-foreground uppercase">ROAS</span>
+          <span className="text-xs font-bold text-emerald-500">{roas}</span>
         </div>
-
       </div>
     </div>
   );

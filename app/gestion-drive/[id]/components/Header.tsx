@@ -5,8 +5,8 @@ import PermissionManager from "./PermissionManager";
 import { supabase } from "@/lib/supabase";
 import SearchAndFilters from "./SearchAndFilters";
 import { FilterState } from "@/app/types/search";
-import { CellData, Document, DocumentColumn, DocumentRow, Profile } from "@/lib/supabase/database.types";
 import { DocumentPermissions } from "../permissions.types";
+import { CellData, DocumentColumn, DocumentRow, Profile, Document } from "@/lib/supabase/types";
 
 interface Props {
     document: Document,

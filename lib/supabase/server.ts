@@ -4,7 +4,8 @@ import { createServerClient } from '@supabase/ssr'
 import { User } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { cache } from 'react'
-import { Database, Profile } from './database.types'
+import { Database } from './database.types'
+import { Profile } from './types'
 
 export interface ServerAuthResult {
   user: User | null

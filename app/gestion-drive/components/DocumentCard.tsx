@@ -14,7 +14,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
-import { Document } from '@/lib/supabase/database.types';
+import { Document } from '@/lib/supabase/types';
 
 interface DocCardProps {
   doc: Document;

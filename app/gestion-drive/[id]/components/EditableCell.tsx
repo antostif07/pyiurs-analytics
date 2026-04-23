@@ -6,7 +6,7 @@ import { Plus, Upload } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import FileAttachmentManager from "./FileAttachmentManager";
 import { FilePreview } from "./FilePreview";
-import { DocumentColumn, FileAttachment, MultilineData, SubColumn } from "@/lib/supabase/database.types";
+import { DocumentColumn, SubColumn, FileAttachment, MultilineData } from "@/lib/supabase/types";
 
 interface EditableCellProps<TData extends Record<string, unknown>> {
     getValue: () => unknown;

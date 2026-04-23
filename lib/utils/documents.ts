@@ -1,5 +1,5 @@
 import { supabase } from "../supabase";
-import { DocumentColumn, DocumentRow, CellData, SubColumn } from "../supabase/database.types";
+import { DocumentColumn, DocumentRow, CellData, SubColumn } from "../supabase/types";
 
 type ColumnInsert = Omit<DocumentColumn, 'id' | 'created_at' | 'permissions'>;
 type RowInsert = Omit<DocumentRow, 'id' | 'created_at' | 'updated_at'>;

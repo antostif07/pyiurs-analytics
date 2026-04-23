@@ -3,8 +3,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import AppSidebar from "../../components/new-ui/layout/app-sidebar";
 import ReportTopbar from "../../components/new-ui/layout/app-topbar";
-import { NAV_GROUPS } from "../inventory/config";
-import App from "next/app";
+import { NAV_GROUPS } from "./config";
 
 type Role = "Admin" | "Manager" | "Staff";
 

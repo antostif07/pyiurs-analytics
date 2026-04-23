@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { applyFilters } from '../../components/editor/filter-logic';
-import { CellData, Document, DocumentColumn, DocumentRow, FileAttachment, MultilineData, SubColumn } from '@/lib/supabase/database.types';
+import { CellData, Document, DocumentColumn, DocumentRow, FileAttachment, MultilineData, SubColumn } from '@/lib/supabase/types';
 
 export type SaveStatus = 'saved' | 'dirty' | 'saving' | 'error';
 

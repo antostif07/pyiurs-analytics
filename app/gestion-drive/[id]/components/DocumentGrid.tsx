@@ -8,10 +8,10 @@ import { arrayMove, horizontalListSortingStrategy, SortableContext } from "@dnd-
 import { DragAlongCell, DraggableTableHeader } from "./DraggableComponents";
 import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
 import { toast } from 'sonner';
-// ✅ PRO: Remplacement des SVG bruts par les icônes standardisées
+
 import { Copy, Trash2, Plus } from "lucide-react";
 import { ColumnOption } from "@/app/types/table";
-import { CellData, Document, DocumentColumn, DocumentRow, FileAttachment, MultilineData, SubColumn } from "@/lib/supabase/database.types";
+import { DocumentColumn, DocumentRow, CellData, SubColumn, MultilineData, FileAttachment, Document } from "@/lib/supabase/types";
 
 interface Props {
     document: Document;

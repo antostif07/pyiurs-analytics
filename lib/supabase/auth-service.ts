@@ -1,6 +1,6 @@
 // lib/supabase/auth-service.ts
 import { SupabaseClient } from '@supabase/supabase-js'
-import { Profile } from './database.types';
+import { Profile } from './types';
 
 // ✅ PRO: Typage strict et exportation des types pour tout le projet
 export type UserRole = 'admin' | 'user' | 'manager' | 'financier' | 'manager-full';

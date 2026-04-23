@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { User } from '@supabase/supabase-js';
-import { Document } from '@/lib/supabase/database.types';
+import { Document } from '@/lib/supabase/types';
 
 interface DocumentHeaderProps {
   document: Document;

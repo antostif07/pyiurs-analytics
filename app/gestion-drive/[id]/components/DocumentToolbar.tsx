@@ -1,7 +1,7 @@
 import PermissionManager from './PermissionManager';
 import ExportImport from './ExportImport';
-import { Document } from '@/lib/supabase/database.types';
 import { DocumentPermissions } from '../permissions.types';
+import { Document } from '@/lib/supabase/types';
 
 interface DocumentToolbarProps {
   document: Document;

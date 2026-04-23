@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { createPortal } from 'react-dom';
-import { FileAttachment } from '@/lib/supabase/database.types';
+import { FileAttachment } from '@/lib/supabase/types';
 
 type ParentType = 'cell' | 'multiline';
 

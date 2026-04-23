@@ -2,25 +2,6 @@ import { NavGroup } from "@/components/new-ui/layout/app-sidebar";
 import {
   LayoutDashboard,
   FileText,
-  Users,
-  TrendingUp,
-  PieChart,
-  BarChart3,
-  ArrowLeftRight,
-  Bell,
-  Boxes,
-  FilePlus,
-  Plug,
-  ReceiptText,
-  Settings,
-  ShieldCheck,
-  ShoppingCart,
-  Shuffle,
-  SlidersHorizontal,
-  Store,
-  Tags,
-  Truck,
-  UserCog,
 } from "lucide-react";
 
 export const NAV_GROUPS: NavGroup[] = [

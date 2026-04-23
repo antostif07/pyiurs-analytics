@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { duplicateDocumentProcess } from '@/lib/documentUtils';
 import { DocumentDialogs } from './components/DocumentDialogs';
 import { DocCard } from './components/DocumentCard';
-import { Document } from '@/lib/supabase/database.types';
+import { Document } from '@/lib/supabase/types';
 
 export default function DocumentsPage() {
   const { user, profile, loading, supabase } = useAuth();

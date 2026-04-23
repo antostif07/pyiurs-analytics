@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Loader2 } from 'lucide-react';
 // ✅ PRO: Unique source de vérité (Single Source of Truth)
 import { AuthService, UserRole } from '@/lib/supabase/auth-service';
-import { Profile } from '@/lib/supabase/database.types';
+import { Profile } from '@/lib/supabase/types';
 
 // Typage strict du contexte
 interface AuthContextType {

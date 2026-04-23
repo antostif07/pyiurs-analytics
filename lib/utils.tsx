@@ -5,7 +5,7 @@ import { ColumnOption } from "@/app/types/table";
 import { CellContext, ColumnDef } from "@tanstack/react-table";
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
-import { CellData, DocumentColumn, DocumentRow } from "./supabase/database.types";
+import { CellData, DocumentColumn, DocumentRow } from "./supabase/types";
 import { getConfig } from "./helpers";
 
 export function cn(...inputs: ClassValue[]) {

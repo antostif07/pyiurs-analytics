@@ -4,7 +4,7 @@ import { POSConfig, POSOrder, POSOrderLine, POSPayment } from "../types/pos";
 import { odooClient, OdooDomainCondition } from "@/lib/odoo/xmlrpc";
 import { odooClient as odooJsonClient} from "@/lib/odoo/odoo-json2-client"
 import { ProductProduct } from "../types/product_template";
-import { Profile } from "@/lib/supabase/database.types";
+import { Profile } from "@/lib/supabase/types";
 
 // Type de retour enrichi pour les cartes
 type DailySalesResult = {

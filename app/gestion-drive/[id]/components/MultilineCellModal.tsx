@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { deleteSubColumn, upsertSubColumn } from "@/lib/utils/documents";
 import { Plus, Settings, Upload, X, FileText, Loader2, ExternalLink } from "lucide-react"; 
 import ColumnModal from "./ColumnModal";
-import { MultilineData, SubColumn } from "@/lib/supabase/database.types";
+import { MultilineData, SubColumn } from "@/lib/supabase/types";
 
 // --- COMPOSANT INPUT ISOLÉ ---
 const SubCellInput = ({ 

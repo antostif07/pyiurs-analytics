@@ -5,7 +5,7 @@ import { useState, useRef, useEffect, JSX } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { FileAttachment } from '@/lib/supabase/database.types';
+import { FileAttachment } from '@/lib/supabase/types';
 
 interface FileUploaderProps {
   cellDataId: string;

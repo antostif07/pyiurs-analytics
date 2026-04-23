@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Paperclip } from 'lucide-react';
-import { FileAttachment } from '@/lib/supabase/database.types';
+import { FileAttachment } from '@/lib/supabase/types';
 
 interface FileCellPreviewProps {
   files: FileAttachment[];

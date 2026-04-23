@@ -7,7 +7,7 @@ import { BoutiqueSelector } from "@/components/boutique-selector";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useMemo } from "react";
-import { Profile } from "@/lib/supabase/database.types";
+import { Profile } from "@/lib/supabase/types";
 
 export interface Boutique {
   id: number;

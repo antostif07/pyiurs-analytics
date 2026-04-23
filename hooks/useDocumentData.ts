@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { CellData, Document, DocumentColumn, DocumentRow } from '@/lib/supabase/database.types';
+import { CellData, Document, DocumentColumn, DocumentRow } from '@/lib/supabase/types';
 
 export const useDocumentData = () => {
   const params = useParams();

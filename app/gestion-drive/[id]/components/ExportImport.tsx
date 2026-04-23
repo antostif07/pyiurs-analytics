@@ -2,7 +2,7 @@
 'use client';
 
 import { supabase } from '@/lib/supabase';
-import { CellData, DocumentColumn, DocumentRow } from '@/lib/supabase/database.types';
+import { DocumentColumn, DocumentRow, CellData } from '@/lib/supabase/types';
 import { useState } from 'react';
 
 interface ExportImportProps {

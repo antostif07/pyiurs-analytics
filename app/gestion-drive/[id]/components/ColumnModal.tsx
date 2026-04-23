@@ -1,5 +1,5 @@
 import { getConfig } from "@/lib/helpers";
-import { DocumentColumn, SubColumn } from "@/lib/supabase/database.types";
+import { DocumentColumn, SubColumn } from "@/lib/supabase/types";
 import { useState, useEffect, Dispatch, SetStateAction } from "react";
 
 type ColumnData = DocumentColumn | SubColumn;
