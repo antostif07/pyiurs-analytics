@@ -169,10 +169,10 @@ export async function getRevenueDashboardData(month: string, year: string) {
                 if (!order) return;
                 if (!posIds.includes(order.config_id?.[0])) return;
 
-                mtd += line.price_unit * line.qty;
+                mtd += line.discount === 100 ? 0 : line.price_unit * line.qty;
 
                 const wNum = `W${getWeek(new Date(order.date_order), { weekStartsOn: 1 })}`;
-                weeks[wNum] = (weeks[wNum] || 0) + (line.price_unit * line.qty);
+                weeks[wNum] = (weeks[wNum] || 0) + (line.discount === 100 ? 0 : line.price_unit * line.qty);
             });
 
             // --- MTD PREV ---
@@ -181,7 +181,7 @@ export async function getRevenueDashboardData(month: string, year: string) {
                 if (!order) return;
                 if (!posIds.includes(order.config_id?.[0])) return;
 
-                mtdPrev += line.price_unit * line.qty;
+                mtdPrev += line.discount === 100 ? 0 : line.price_unit * line.qty;
             });
 
             // --- TODAY / YESTERDAY / WEEKLY ---
@@ -237,12 +237,12 @@ export async function getRevenueDashboardData(month: string, year: string) {
                 if (!segmentHierarchy[segment]) segmentHierarchy[segment] = { mtd: 0, mtdPrev: 0, weeks: {}, subRows: {} };
                 if (!segmentHierarchy[segment].subRows[shopName]) segmentHierarchy[segment].subRows[shopName] = { mtd: 0, mtdPrev: 0, weeks: {} };
 
-                segmentHierarchy[segment][field] += l.price_unit * l.qty;
-                segmentHierarchy[segment].subRows[shopName][field] += l.price_unit * l.qty;
+                segmentHierarchy[segment][field] += l.discount === 100 ? 0 : l.price_unit * l.qty;
+                segmentHierarchy[segment].subRows[shopName][field] += l.discount === 100 ? 0 : l.price_unit * l.qty;
 
                 if (field === 'mtd') {
-                    segmentHierarchy[segment].weeks[wNum] = (segmentHierarchy[segment].weeks[wNum] || 0) + (l.price_unit * l.qty);
-                    segmentHierarchy[segment].subRows[shopName].weeks[wNum] = (segmentHierarchy[segment].subRows[shopName].weeks[wNum] || 0) + (l.price_unit * l.qty);
+                    segmentHierarchy[segment].weeks[wNum] = (segmentHierarchy[segment].weeks[wNum] || 0) + (l.discount === 100 ? 0 : l.price_unit * l.qty);
+                    segmentHierarchy[segment].subRows[shopName].weeks[wNum] = (segmentHierarchy[segment].subRows[shopName].weeks[wNum] || 0) + (l.discount === 100 ? 0 : l.price_unit * l.qty);
                 }
             });
         };
@@ -324,7 +324,7 @@ export async function getBeautySalesByProduct(month: string, year: string) {
 
             const entry = consolidated.get(hsCode);
             entry.totalQty += sale.qty;
-            entry.totalRevenue += sale.price_unit * sale.qty;
+            entry.totalRevenue += sale.discount === 100 ? 0 : sale.price_unit * sale.qty;
         });
 
         // Convertir en tableau et trier par plus grosses ventes
@@ -456,7 +456,7 @@ export async function getBeautySixMonthSales(month: string, year: string, filter
 
             if (monthMatch) {
                 const key = format(monthMatch, 'yyyy-MM');
-                entry.monthlySales[key] = (entry.monthlySales[key] || 0) + (sale.price_unit * sale.qty);
+                entry.monthlySales[key] = (entry.monthlySales[key] || 0) + (sale.discount === 100 ? 0 : sale.price_unit * sale.qty);
             }
         });
 
@@ -583,7 +583,7 @@ export async function getFemmeSixMonthSales(month: string, year: string) {
 
             if (monthMatch) {
                 const key = format(monthMatch, 'yyyy-MM');
-                entry.monthlySales[key] = (entry.monthlySales[key] || 0) + (sale.qty * sale.price_unit);
+                entry.monthlySales[key] = (entry.monthlySales[key] || 0) + (sale.discount === 100 ? 0 : sale.qty * sale.price_unit);
             }
         });
 
