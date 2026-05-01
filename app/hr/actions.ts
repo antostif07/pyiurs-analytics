@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { AttendanceStatus, Employee, EmployeeWithShop, InsertEmployee } from "@/lib/supabase/types";
+import { AttendanceStatus, Employee, EmployeeWithShop, InsertEmployee, PaySlip } from "@/lib/supabase/types";
 
 /**
  * Récupère la liste paginée des agents avec recherche et tri
@@ -132,8 +132,7 @@ export async function getMonthlyAttendance(month: string, year: string, shopId?:
       )
     `)
     .gte('date', startDate)
-    .lte('date', endDate)
-    .order("name", { ascending: true, foreignTable: "employees" });
+    .lte('date', endDate);
 
   // Filtrage par boutique si spécifié
   if (shopId && shopId !== "all") {
@@ -150,4 +149,130 @@ export async function getMonthlyAttendance(month: string, year: string, shopId?:
   const noSundays = (data || []).filter(att => new Date(att.date).getDay() !== 0);
 
   return { attendances: noSundays };
+}
+
+export async function prepareEmployeePayslip(employeeId: string, month: number, year: number) {
+  const supabase = await createClient();
+
+  // 1. Récupérer les infos de l'employé (Salaire de base, Transport)
+  const { data: employee } = await supabase
+    .from('employees')
+    .select('base_salary, transport_allowance')
+    .eq('id', employeeId)
+    .single();
+
+  // 2. Récupérer les absences du mois (Table attendances)
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+  const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+  
+  const { count: absencesCount } = await supabase
+    .from('attendances')
+    .select('*', { count: 'exact', head: true })
+    .eq('employee_id', employeeId)
+    .eq('status', 'absent') // On ne compte que les absences non justifiées
+    .gte('date', startDate)
+    .lte('date', endDate);
+
+  // 3. Calcul de la déduction pour absence
+  // Logique entreprise : Salaire de base / 26 jours ouvrables * nombre d'absences
+  const dailyRate = (employee?.base_salary || 0) / 26;
+  const absenceDeduction = (absencesCount || 0) * dailyRate;
+
+  // 4. Préparer l'objet pour la table payslips
+  const payslipDraft = {
+    employee_id: employeeId,
+    month,
+    year,
+    base_salary: employee?.base_salary || 0,
+    transport_allowance: employee?.transport_allowance || 0,
+    deductions_absences: Math.round(absenceDeduction),
+    net_payable: Math.round((employee?.base_salary || 0) + (employee?.transport_allowance || 0) - absenceDeduction),
+    status: 'draft'
+  };
+
+  return payslipDraft;
+}
+
+export async function getPayrollData(month: number, year: number, shopId: string) {
+  const supabase = await createClient();
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+  const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+
+  let query = supabase
+    .from('employees')
+    .select(`
+      *,
+      shops(name),
+      attendances(*),
+      employee_bonuses(*),
+      employee_debts(*),
+      payslips(*)
+    `)
+    .eq('is_active', true)
+    .filter('attendances.date', 'gte', startDate)
+    .filter('attendances.date', 'lte', endDate);
+
+  if (shopId !== 'all') query = query.eq('shop_id', shopId);
+
+  const { data: employees, error } = await query;
+  return { employees: employees || [], error };
+}
+
+export async function getPayrollStats(month: number, year: number) {
+  const supabase = await createClient();
+  
+  const { data: payslips } = await supabase
+    .from('payslips')
+    .select('net_payable, base_salary_snapshot, status') // Adapté à tes noms de colonnes
+    .eq('month', month)
+    .eq('year', year);
+
+  const { count: activeEmployees } = await supabase
+    .from('employees')
+    .select('*', { count: 'exact', head: true })
+    .eq('is_active', true);
+
+  const totalNet = (payslips as unknown as PaySlip[])?.reduce((acc, p) => acc + (Number(p.net_payable) || 0), 0) || 0;
+  const validatedCount = payslips?.length || 0;
+
+  return {
+    totalNet,
+    validatedCount,
+    totalEmployees: activeEmployees || 0,
+    progress: activeEmployees ? (validatedCount / activeEmployees) * 100 : 0
+  };
+}
+
+export async function getPayrollPrepData(month: number, year: number, shopId: string) {
+  const supabase = await createClient();
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+  const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+
+  let query = supabase
+    .from('employees')
+    .select(`
+      id, name, matricule, base_salary, transport_allowance,
+      shops(name),
+      attendances(*),
+      employee_bonuses(*),
+      employee_debts(*),
+      payslips(*)
+    `)
+    .eq('is_active', true)
+    // Filtre les présences uniquement pour le mois sélectionné
+    .filter('attendances.date', 'gte', startDate)
+    .filter('attendances.date', 'lte', endDate)
+    // Filtre les primes pour le mois
+    .filter('employee_bonuses.month', 'eq', month)
+    .filter('employee_bonuses.year', 'eq', year)
+    // Filtre les dettes actives
+    .filter('employee_debts.status', 'eq', 'active');
+
+  if (shopId !== 'all') {
+    query = query.eq('shop_id', shopId);
+  }
+
+  const { data, error } = await query.order('name');
+  if (error) throw error;
+  return data;
 }

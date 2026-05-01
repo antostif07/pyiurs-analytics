@@ -28,3 +28,6 @@ export const ATTENDANCE_LABELS: Record<AttendanceStatus, string> = {
   "suspension": "Suspension",
   "sick": "Maladie / Sick"
 };
+
+// Payroll
+export type PaySlip = Database["public"]["Tables"]["payslips"]["Row"]
