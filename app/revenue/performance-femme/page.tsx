@@ -8,6 +8,7 @@ import { POSOrderLine } from "@/app/types/pos";
 import { RevenueSmartFilter } from "@/components/revenue/revenue-smart-filter";
 import { dataToOptions } from "@/components/revenue/revenue-smart";
 import BeautySalesContent from "../performance-beauty/beauty-sales-content";
+import { SearchParamsProps } from "@/app/types/app";
 
 // --- TYPES ---
 
@@ -451,10 +452,6 @@ async function getData(month: string, year: string, filters: any) {
     );
     
     return { enrichedData, filterOptions };
-}
-
-interface SearchParamsProps {
-    searchParams: Promise<{ [key: string]: string | undefined }>;
 }
 
 export default async function WomenSalesTrendPage({ searchParams }: SearchParamsProps) {

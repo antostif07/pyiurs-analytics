@@ -2,8 +2,11 @@
 'use client';
 
 import { useState } from "react";
-import { Menu, Bell, Search, User } from "lucide-react";
-import RevenueSidebar from "@/components/revenue/revenue-sidebar";
+import { Menu, Bell, Search } from "lucide-react";
+import AppSidebar from "@/components/new-ui/layout/app-sidebar";
+import { NAV_GROUPS } from "./config";
+import { AnimatePresence, motion } from "framer-motion";
+import AppTopbar from "@/components/new-ui/layout/app-topbar";
 
 export default function RevenueLayout({
   children,
@@ -11,61 +14,74 @@ export default function RevenueLayout({
   children: React.ReactNode;
 }) {
   const [isSidebarOpen, setIsOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [dark, setDark] = useState(false);
+
+  const handleToggleDark = () => {
+    setDark((d) => {
+      document.documentElement.classList.toggle("dark", !d);
+      return !d;
+    });
+  };
 
   return (
-    <div className="flex min-h-screen bg-[#F8F9FB]">
-      {/* SIDEBAR RESPONSIVE */}
-      <RevenueSidebar isOpen={isSidebarOpen} onClose={() => setIsOpen(false)} />
-
-      {/* OVERLAY MOBILE */}
-      {isSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/20 z-40 lg:hidden backdrop-blur-sm"
-          onClick={() => setIsOpen(false)}
+    <div className="flex h-screen bg-background overflow-hidden">
+      <div className="hidden md:flex h-full">
+        <AppSidebar
+          role={"Admin"}
+          collapsed={collapsed}
+          onCollapse={setCollapsed}
+          groups={NAV_GROUPS}
+          mainPath={"/revenue"}        
         />
-      )}
+      </div>
 
-      {/* ZONE DE CONTENU */}
-      <main className="flex-1 lg:ml-64 flex flex-col min-w-0 transition-all duration-300">
-        
-        {/* TOPBAR : Look Enterprise & Dense */}
-        <header className="h-16 border-b border-gray-100 bg-white/80 backdrop-blur-md sticky top-0 z-40 px-4 lg:px-8 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={() => setIsOpen(true)}
-              className="p-2 hover:bg-gray-100 rounded-xl lg:hidden text-gray-600"
+      {/* Mobile sidebar drawer */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setMobileOpen(false)}
+              className="fixed inset-0 bg-black/40 z-40 md:hidden"
+            />
+            {/* Drawer */}
+            <motion.div
+              initial={{ x: -280 }}
+              animate={{ x: 0 }}
+              exit={{ x: -280 }}
+              transition={{ duration: 0.25, ease: "easeInOut" }}
+              className="fixed left-0 top-0 bottom-0 w-64 z-50 md:hidden"
             >
-              <Menu size={20} />
-            </button>
-            
-            <div className="hidden md:flex items-center gap-2 bg-gray-50 px-4 py-2 rounded-xl border border-gray-100 group focus-within:border-emerald-200 transition-all">
-               <Search size={14} className="text-gray-400 group-focus-within:text-emerald-500" />
-               <input 
-                 type="text" 
-                 placeholder="Chercher une transaction, boutique..." 
-                 className="bg-transparent border-none outline-none text-xs font-medium w-64"
-               />
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-2 lg:gap-4">
-            {/* Notification & Profil Rapide */}
-            <button className="h-10 w-10 flex items-center justify-center text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all">
-                <Bell size={20} />
-            </button>
-            <div className="h-10 w-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-black text-xs border border-emerald-200">
-                AD
-            </div>
-          </div>
-        </header>
+              <AppSidebar
+                groups={NAV_GROUPS}
+                mainPath="/revenue"
+                role={"Admin"}
+                collapsed={false}
+                onCollapse={() => setMobileOpen(false)}
+              />
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+        
 
-        {/* CONTENU DE LA PAGE */}
-        <div className="p-4 lg:p-8 flex-1 overflow-auto">
-          <div className="max-w-7xl mx-auto">
-            {children}
-          </div>
-        </div>
-      </main>
+      {/* Right side: topbar + content */}
+            <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+              <AppTopbar
+                dark={dark}
+                onToggleDark={handleToggleDark}
+                onMenuOpen={() => setMobileOpen(true)}
+              />
+              <main className="flex-1 overflow-y-auto bg-background">
+                {children}
+              </main>
+            </div>
     </div>
   );
 }

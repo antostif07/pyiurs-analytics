@@ -1,281 +1,386 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import * as XLSX from 'xlsx'
+import { useState, useEffect } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import * as XLSX from 'xlsx';
 import { 
-  Upload, Save, Loader2, UserCheck, 
-  AlertCircle, CheckCircle2, Calendar, 
-  Clock, FileSpreadsheet, ChevronDown
-} from 'lucide-react'
-
-// UI SHADCN
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Card } from "@/components/ui/card"
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Label } from '@/components/ui/label'
-
-interface ParsedEmployee {
-  nameFromFile: string;
-  days: (string | null)[];
-}
-
-const MONTHS = [
-  { val: "01", label: "Janvier" }, { val: "02", label: "Février" },
-  { val: "03", label: "Mars" }, { val: "04", label: "Avril" },
-  { val: "05", label: "Mai" }, { val: "06", label: "Juin" },
-  { val: "07", label: "Juillet" }, { val: "08", label: "Août" },
-  { val: "09", label: "Septembre" }, { val: "10", label: "Octobre" },
-  { val: "11", label: "Novembre" }, { val: "12", label: "Décembre" }
-];
-
-function formatExcelTime(value: any): string | null {
-  if (value === null || value === undefined || value === "") return null;
-  if (typeof value === 'string' && value.includes(':')) return value;
-  if (typeof value === 'number') {
-    const totalSeconds = Math.round(value * 24 * 3600);
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-  }
-  return null;
-}
+  Upload, Save, Loader2, UserCheck, CheckCircle2, FileSpreadsheet, Info
+} from 'lucide-react';
+import { Card } from "@/components/ui/card";
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { formatExcelTime, getInitialStatus } from '../utils';
+import { ATTENDANCE_LABELS, AttendanceStatus } from '@/lib/supabase/types';
+import { toast } from 'sonner';
 
 export default function AttendanceImportPage() {
-  const supabase = createClient()
+  const supabase = createClient();
   
-  // États de période
-  const [selectedMonth, setSelectedMonth] = useState(String(new Date().getMonth() + 1).padStart(2, '0'))
-  const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()))
+  const [selectedMonth, setSelectedMonth] = useState(String(new Date().getMonth() + 1).padStart(2, '0'));
+  const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()));
+  const [dbEmployees, setDbEmployees] = useState<any[]>([]);
+  const [parsedData, setParsedData] = useState<any[]>([]);
+  const [mappings, setMappings] = useState<Record<string, string>>({});
+  const [isSaving, setIsSaving] = useState(false);
 
-  const [dbEmployees, setDbEmployees] = useState<any[]>([])
-  const [parsedData, setParsedData] = useState<ParsedEmployee[]>([])
-  const [mappings, setMappings] = useState<Record<string, string>>({})
-  const [loading, setLoading] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
-
-  // Calcul du nombre de jours dans le mois sélectionné
-  const daysInMonth = new Date(parseInt(selectedYear), parseInt(selectedMonth), 0).getDate();
-
+  const currentYearNum = new Date().getFullYear();
+  const yearOptions = Array.from({ length: 11 }, (_, i) => String(currentYearNum - i));
+  
   useEffect(() => {
     const fetchEmployees = async () => {
-      const { data } = await supabase.from('employees').select('id, name, matricule').eq('is_active', true).order('name')
-      if (data) setDbEmployees(data)
-    }
-    fetchEmployees()
-  }, [])
+      const { data, error } = await supabase.from('employees').select('id, name, matricule').eq('is_active', true).order('name');
+      
+      setDbEmployees(data || []);
+    };
+    fetchEmployees();
+  }, [supabase]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    setLoading(true)
-    const reader = new FileReader()
+    const reader = new FileReader();
     reader.onload = (evt) => {
-      const bstr = evt.target?.result
-      const wb = XLSX.read(bstr, { type: 'binary' })
-      const ws = wb.Sheets[wb.SheetNames[0]]
-      const rows = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1 })
+      const bstr = evt.target?.result;
+      const wb = XLSX.read(bstr, { type: 'binary' });
+      const rows = XLSX.utils.sheet_to_json<any[]>(wb.Sheets[wb.SheetNames[0]], { header: 1 });
 
-      const results: ParsedEmployee[] = []
+      const results: any[] = [];
+      const daysInMonth = new Date(parseInt(selectedYear), parseInt(selectedMonth), 0).getDate();
 
       for (let i = 0; i < rows.length; i++) {
-        const row = rows[i]
-        const nameLabelIdx = row.findIndex(cell => String(cell).includes("Name :"))
+        const row = rows[i];
+        const nameIdx = row.findIndex(cell => String(cell).includes("Name :"));
 
-        if (nameLabelIdx !== -1) {
-          const nameValue = String(row[nameLabelIdx + 2] || row[nameLabelIdx + 1]).trim()
-          const timeRow = rows[i + 1]
+        if (nameIdx !== -1) {
+          const nameValue = String(row[nameIdx + 2] || row[nameIdx + 1]).trim();
+          const timeRow = rows[i + 1];
 
           if (timeRow && nameValue && nameValue !== "undefined") {
-            const daysData = []
-            // On boucle sur le nombre réel de jours du mois sélectionné
+            const daysData = [];
             for (let d = 0; d < daysInMonth; d++) {
-              daysData.push(formatExcelTime(timeRow[d]));
+              const time = formatExcelTime(timeRow[d]);
+              const dateObj = new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, d + 1);
+              daysData.push({
+                day: d + 1,
+                time,
+                status: getInitialStatus(time, dateObj)
+              });
             }
-            results.push({ nameFromFile: nameValue, days: daysData })
+            results.push({ nameFromFile: nameValue, days: daysData });
           }
         }
       }
-      setParsedData(results)
-      setLoading(false)
-    }
-    reader.readAsBinaryString(file)
-  }
+      setParsedData(results);
+    };
+    reader.readAsBinaryString(file);
+  };
 
   const saveAttendances = async () => {
-    if (Object.keys(mappings).length === 0) return alert("Veuillez lier au moins un employé.")
-    
-    setIsSaving(true)
-    const toInsert: any[] = []
+    if (Object.keys(mappings).length === 0) {
+        toast.error("Action impossible", {
+            description: "Veuillez lier au moins un agent avant de sauvegarder."
+        });
+        return;
+    }
+
+    setIsSaving(true);
+    const toInsert: any[] = [];
 
     parsedData.forEach(pEmp => {
-      const supabaseId = mappings[pEmp.nameFromFile]
-      if (supabaseId) {
-        pEmp.days.forEach((time, index) => {
-          const day = String(index + 1).padStart(2, '0')
-          const date = `${selectedYear}-${selectedMonth}-${day}`
-          
-          toInsert.push({
-            employee_id: supabaseId,
-            date: date,
-            check_in: time || null,
-            status: !time ? 'absent' : (time > "09:00" ? 'late' : 'present'),
-            is_late: time ? time > "09:01" : false
-          })
-        })
-      }
-    })
+        const empId = mappings[pEmp.nameFromFile];
+        if (empId) {
+            pEmp.days.forEach((dayData: any) => {
+                // Construction propre de la date YYYY-MM-DD
+                const date = `${selectedYear}-${selectedMonth}-${String(dayData.day).padStart(2, '0')}`;
+                
+                toInsert.push({
+                    employee_id: empId,
+                    date: date,
+                    check_in: dayData.time || null,
+                    status: dayData.status,
+                    is_late: dayData.time ? dayData.time > "09:01" : false,
+                    // Ajoute l'ID de celui qui confirme si tu l'as (optionnel)
+                    // confirmed_by: (await supabase.auth.getUser()).data.user?.id 
+                });
+            });
+        }
+    });
 
-    const { error } = await supabase.from('attendances').insert(toInsert)
+    if (toInsert.length === 0) {
+        toast.warning("Aucune donnée", { description: "Aucun pointage n'a été trouvé dans le fichier." });
+        setIsSaving(false);
+        return;
+    }
+
+    console.log("Tentative d'insertion de", toInsert.length, "lignes...");
+
+    // Tentative d'upsert
+    const { error } = await supabase
+        .from('attendances')
+        .upsert(toInsert, { 
+            onConflict: 'employee_id, date', // Doit correspondre à la contrainte SQL créée à l'étape 1
+            ignoreDuplicates: false 
+        });
 
     if (error) {
-      alert("Erreur: " + error.message)
+        toast.error("Erreur de sauvegarde", {
+            description: error.message || "Une erreur est survenue lors de l'insertion."
+        });
     } else {
-      alert(`Pointages de ${MONTHS.find(m => m.val === selectedMonth)?.label} enregistrés !`)
-      setParsedData([])
-      setMappings({})
+      toast.success("Importation réussie", {
+          description: `Succès ! ${toInsert.length} pointages ont été enregistrés ou mis à jour.`,
+      });
+        setParsedData([]); // On vide l'interface après succès
+        setMappings({});
     }
-    setIsSaving(false)
-  }
+      
+    setIsSaving(false);
+  };
 
   return (
-    <div className="space-y-6 pb-20">
-      {/* HEADER AVEC SÉLECTEUR DE PÉRIODE */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-[32px] shadow-sm border border-gray-100">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-black text-gray-900">Importation Pointage</h1>
-          <div className="flex items-center gap-3">
+    <div className="max-w-7xl mx-auto p-8 space-y-8">
+      
+      {/* HEADER */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Import des présences
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Importez et associez les données de pointage des employés
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <input
+            type="file"
+            id="upload"
+            hidden
+            onChange={handleFileUpload}
+            accept=".xlsx"
+          />
+
+          <Button variant="outline" asChild className="h-9">
+            <label htmlFor="upload" className="cursor-pointer flex items-center">
+              <Upload className="w-4 h-4 mr-2" />
+              Importer Excel
+            </label>
+          </Button>
+
+          {parsedData.length > 0 && (
+            <Button
+              onClick={saveAttendances}
+              disabled={isSaving}
+              className="h-9"
+            >
+              {isSaving ? (
+                <Loader2 className="animate-spin mr-2" />
+              ) : (
+                <Save className="w-4 h-4 mr-2" />
+              )}
+              Enregistrer
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* FILTRES */}
+      <Card className="p-5 border bg-card shadow-sm rounded-2xl">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">Période</p>
+            <p className="text-xs text-muted-foreground">
+              Sélectionnez le mois et l'année d'importation
+            </p>
+          </div>
+
+          <div className="flex gap-3">
             <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-              <SelectTrigger className="w-[140px] h-8 rounded-full border-gray-100 bg-rose-50 text-rose-600 font-bold text-xs">
+              <SelectTrigger className="w-36 h-9">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {MONTHS.map(m => <SelectItem key={m.val} value={m.val}>{m.label}</SelectItem>)}
+                {Array.from({ length: 12 }).map((_, i) => (
+                  <SelectItem
+                    key={i}
+                    value={String(i + 1).padStart(2, "0")}
+                  >
+                    {new Date(2000, i).toLocaleString("fr-FR", {
+                      month: "long",
+                    }).toUpperCase()}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
+
             <Select value={selectedYear} onValueChange={setSelectedYear}>
-              <SelectTrigger className="w-[100px] h-8 rounded-full border-gray-100 bg-gray-50 text-gray-600 font-bold text-xs">
+              <SelectTrigger className="w-28 h-9 font-medium">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="2024">2024</SelectItem>
-                <SelectItem value="2025">2025</SelectItem>
-                <SelectItem value="2026">2026</SelectItem>
+                {yearOptions.map((year) => (
+                  <SelectItem key={year} value={year}>
+                    {year}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
         </div>
-        
-        {parsedData.length > 0 && (
-          <Button 
-            onClick={saveAttendances}
-            disabled={isSaving}
-            className="bg-rose-600 hover:bg-rose-700 text-white rounded-2xl px-8 h-12 font-bold shadow-lg transition-all"
-          >
-            {isSaving ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2" size={18} />}
-            Sauvegarder {Object.keys(mappings).length} employés
-          </Button>
-        )}
-      </div>
+      </Card>
 
-      {parsedData.length === 0 ? (
-        <label className="group border-2 border-dashed border-gray-200 rounded-[40px] p-24 bg-white flex flex-col items-center justify-center cursor-pointer hover:border-rose-300 hover:bg-rose-50/30 transition-all">
-          <div className="bg-rose-50 p-6 rounded-3xl mb-4 group-hover:scale-110 transition-transform">
-            <FileSpreadsheet className="text-rose-600" size={48} />
-          </div>
-          <p className="text-gray-700 font-bold text-lg text-center">Cliquez pour importer le fichier de Janvier</p>
-          <p className="text-gray-400 text-[10px] mt-1 uppercase tracking-[0.2em] font-black">Excel .xlsx uniquement</p>
-          <input type="file" className="hidden" onChange={handleFileUpload} accept=".xlsx" />
-        </label>
-      ) : (
-        <Tabs defaultValue={parsedData[0].nameFromFile} className="w-full">
-          <div className="bg-white p-2 rounded-2xl border border-gray-100 shadow-sm mb-6 overflow-hidden">
-            <ScrollArea className="w-full">
-              <TabsList className="bg-transparent h-auto p-1 gap-2 flex justify-start">
-                {parsedData.map((emp) => (
-                  <TabsTrigger 
-                    key={emp.nameFromFile} 
-                    value={emp.nameFromFile}
-                    className="rounded-xl px-4 py-2 text-xs font-bold data-[state=active]:bg-rose-600 data-[state=active]:text-white transition-all"
-                  >
-                    {emp.nameFromFile}
-                    {mappings[emp.nameFromFile] && <CheckCircle2 size={12} className="ml-2" />}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </ScrollArea>
+      {/* CONTENT */}
+      {parsedData.length > 0 ? (
+        <Tabs defaultValue={parsedData[0].nameFromFile}>
+          
+          {/* TABS */}
+          <div className="border-b pb-2 overflow-x-auto">
+            <TabsList className="bg-transparent">
+              {parsedData.map((emp) => (
+                <TabsTrigger
+                  key={emp.nameFromFile}
+                  value={emp.nameFromFile}
+                  className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none"
+                >
+                  {emp.nameFromFile}
+                  {mappings[emp.nameFromFile] && (
+                    <CheckCircle2 className="ml-2 w-4 h-4 text-emerald-500" />
+                  )}
+                </TabsTrigger>
+              ))}
+            </TabsList>
           </div>
 
           {parsedData.map((user) => (
-            <TabsContent key={user.nameFromFile} value={user.nameFromFile} className="mt-0 outline-none">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <Card className="p-8 h-fit space-y-6 border-none shadow-sm rounded-[32px] bg-white">
-                  <div className="space-y-2 text-center lg:text-left">
-                    <div className="bg-rose-50 w-12 h-12 rounded-2xl flex items-center justify-center text-rose-600 mb-4 mx-auto lg:mx-0">
-                        <UserCheck size={24} />
-                    </div>
-                    <h3 className="font-black text-gray-900 text-xl">Lier l'employé</h3>
-                    <p className="text-xs text-gray-500">Assignation pour {MONTHS.find(m => m.val === selectedMonth)?.label} {selectedYear}</p>
-                  </div>
-                  
-                  <div className="space-y-4 pt-4">
-                    <Label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Base de données</Label>
-                    <Select onValueChange={(val) => setMappings(prev => ({ ...prev, [user.nameFromFile]: val }))}>
-                        <SelectTrigger className="h-14 rounded-2xl border-gray-100 bg-gray-50/50 font-bold">
-                            <SelectValue placeholder="Choisir l'employé..." />
-                        </SelectTrigger>
-                        <SelectContent className="z-[100]">
-                            {dbEmployees.map((emp) => (
-                                <SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                  </div>
-                </Card>
+            <TabsContent
+              key={user.nameFromFile}
+              value={user.nameFromFile}
+              className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6"
+            >
+              
+              {/* MAPPING */}
+              <Card className="p-6 rounded-2xl border shadow-sm space-y-5">
+                <div>
+                  <h3 className="font-semibold text-sm">
+                    Association employé
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Liez cet utilisateur à un employé existant
+                  </p>
+                </div>
 
-                <Card className="lg:col-span-2 border-none shadow-sm rounded-[32px] bg-white overflow-hidden">
-                   <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                        <thead className="bg-gray-50/50 border-b border-gray-100">
-                        <tr>
-                            <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase">Jour</th>
-                            <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase">Arrivée</th>
-                            <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase text-right">Statut (Limite 09:00)</th>
-                        </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-50">
-                        {user.days.map((time, idx) => (
-                            <tr key={idx} className={!time ? "bg-red-50/5" : "hover:bg-gray-50/30 transition-colors"}>
-                            <td className="px-8 py-3 text-sm font-bold text-gray-400">
-                                {idx + 1} {MONTHS.find(m => m.val === selectedMonth)?.label}
-                            </td>
-                            <td className="px-8 py-3 font-black text-gray-900">
-                                {time || "—"}
-                            </td>
-                            <td className="px-8 py-3 text-right">
-                                {!time ? (
-                                    <Badge variant="destructive" className="text-[9px] font-black">ABSENT</Badge>
-                                ) : time > "09:00" ? (
-                                    <Badge className="bg-amber-500 text-[9px] font-black">RETARD</Badge>
-                                ) : (
-                                    <Badge className="bg-emerald-500 text-[9px] font-black">PRÉSENT</Badge>
-                                )}
-                            </td>
-                            </tr>
-                        ))}
-                        </tbody>
-                    </table>
-                   </div>
-                </Card>
-              </div>
+                <Select
+                  onValueChange={(val) =>
+                    setMappings((prev) => ({
+                      ...prev,
+                      [user.nameFromFile]: val,
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choisir un employé" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {dbEmployees.map((e) => (
+                      <SelectItem key={e.id} value={e.id}>
+                        {e.name} ({e.matricule})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <div className="text-xs text-muted-foreground flex gap-2">
+                  <Info className="w-3 h-3 mt-[2px]" />
+                  Vérifiez la correspondance du matricule
+                </div>
+              </Card>
+
+              {/* TABLE */}
+              <Card className="lg:col-span-2 overflow-hidden border rounded-2xl shadow-sm">
+                <div className="px-6 py-4 border-b bg-muted/30 flex justify-between items-center">
+                  <p className="text-sm font-medium">
+                    Détails des présences
+                  </p>
+                </div>
+
+                <table className="w-full text-sm">
+                  <thead className="text-xs text-muted-foreground">
+                    <tr className="border-b">
+                      <th className="px-6 py-3 text-left">Jour</th>
+                      <th className="px-6 py-3 text-left">Heure</th>
+                      <th className="px-6 py-3 text-right">Statut</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {user.days.map((day: any, idx: number) => (
+                      <tr
+                        key={idx}
+                        className="border-b last:border-none hover:bg-muted/20 transition"
+                      >
+                        <td className="px-6 py-3 font-medium">
+                          {day.day}
+                        </td>
+
+                        <td className="px-6 py-3 font-mono text-primary">
+                          {day.time || "--:--"}
+                        </td>
+
+                        <td className="px-6 py-3 text-right">
+                          <select
+                            value={day.status}
+                            onChange={(e) => {
+                              const newData = [...parsedData];
+                              newData.find(
+                                (u) =>
+                                  u.nameFromFile === user.nameFromFile
+                              ).days[idx].status = e.target.value;
+                              setParsedData(newData);
+                            }}
+                            className={`text-xs font-semibold px-2 py-1 rounded-md border ${getStatusColor(
+                              day.status
+                            )}`}
+                          >
+                            {(Object.keys(
+                              ATTENDANCE_LABELS
+                            ) as AttendanceStatus[]).map((statusKey) => (
+                              <option key={statusKey} value={statusKey}>
+                                {ATTENDANCE_LABELS[statusKey]}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </Card>
             </TabsContent>
           ))}
         </Tabs>
+      ) : (
+        <div className="h-72 border border-dashed rounded-2xl flex flex-col items-center justify-center text-muted-foreground bg-muted/20">
+          <FileSpreadsheet className="w-10 h-10 mb-3 opacity-30" />
+          <p className="text-sm">
+            Importez un fichier Excel pour commencer
+          </p>
+        </div>
       )}
     </div>
-  )
+  );
+}
+
+function getStatusColor(status: AttendanceStatus) {
+    switch(status) {
+        case 'present': return 'bg-emerald-50 text-emerald-600 border-emerald-200';
+        case 'late': return 'bg-amber-50 text-amber-600 border-amber-200';
+        case 'absent': return 'bg-red-50 text-red-600 border-red-200';
+        case 'repos': return 'bg-blue-50 text-blue-600 border-blue-200';
+        case 'conge_circonstanciel':
+        case 'conge_non_circonstanciel': return 'bg-purple-50 text-purple-600 border-purple-200';
+        case 'sick': return 'bg-pink-50 text-pink-600 border-pink-200';
+        default: return 'bg-gray-50 text-gray-600 border-gray-200';
+    }
 }

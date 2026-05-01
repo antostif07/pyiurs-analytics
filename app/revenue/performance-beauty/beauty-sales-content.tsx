@@ -5,7 +5,6 @@ import { format, subMonths } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { EnrichedGroupedProduct } from './page';
 import { BeautyTrendTable, MonthDefinition, ProductTrendData } from '@/components/revenue/beauty-trend-table';
-import { color } from 'framer-motion';
 
 interface BeautySalesContentProps {
   data: EnrichedGroupedProduct[];

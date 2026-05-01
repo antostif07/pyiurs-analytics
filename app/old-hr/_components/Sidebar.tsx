@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogOut, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils"; // Utilitaire standard (clsx + tailwind-merge)
-import { useHRUI } from "../_components/hr-context";
+import { useHRUI } from "./hr-context";
 import { HR_NAV_ITEMS } from "../_config/navigation";
 
 export default function Sidebar() {

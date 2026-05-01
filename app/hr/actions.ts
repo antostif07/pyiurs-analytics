@@ -1,112 +1,153 @@
 "use server";
-import { odooClient } from "@/lib/odoo/xmlrpc";
+
 import { createClient } from "@/lib/supabase/server";
-import { endOfMonth, format, startOfMonth } from "date-fns";
-import { HROverviewData } from "./types"; // Importe l'interface qu'on a définie
+import { AttendanceStatus, Employee, EmployeeWithShop, InsertEmployee } from "@/lib/supabase/types";
 
-export async function getHROverview(range: string): Promise<HROverviewData> {
-  const supabase = await createClient();
-  const now = new Date();
-  const todayStr = format(now, 'yyyy-MM-dd');
-  
-  // Bornes du mois en cours pour la validation et la paie
-  const start = format(startOfMonth(now), 'yyyy-MM-dd');
-  const end = format(endOfMonth(now), 'yyyy-MM-dd');
+/**
+ * Récupère la liste paginée des agents avec recherche et tri
+ * @param page 
+ * @param limit 
+ * @param searchQuery 
+ * @param sortBy 
+ * @param sortOrder 
+ * @returns 
+ */
+export async function getEmployees(
+    page: number = 1,
+    limit: number = 10,
+    searchQuery: string = "",
+    sortBy: string = "name", // Colonne par défaut
+    sortOrder: "asc" | "desc" = "asc" // Ordre par défaut
+): Promise<{ data: EmployeeWithShop[], totalCount: number, totalPages: number, currentPage: number }> {
+    const supabase = await createClient();
 
-  // 1. Exécution des requêtes en parallèle (Performance Entreprise)
-  const [employeesRes, attendanceTodayRes, pendingValidationRes, 
-    // bonusesCheckRes
-  ] = await Promise.all([
-    // Effectif Total
-    supabase.from('employees').select('*', { count: 'exact', head: true }).eq('is_active', true),
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+
+    let query = supabase
+        .from("employees")
+        .select(`
+            id, matricule, name, email, is_active, service_phone, department, job_title, base_salary, transport_allowance,  
+            shops ( id,name )
+        `, { count: "exact" });
     
-    // Présences du jour
-    supabase.from('attendances').select('status').eq('date', todayStr),
-    
-    // Validations en attente (Mois en cours)
-    supabase.from('attendances').select('*', { count: 'exact', head: true })
-      .eq('is_validated', false)
-      .gte('date', start)
-      .lte('date', end),
-
-    // Vérification si des primes ont été saisies ce mois-ci (pour le statut paie)
-    // supabase.from('bonuses_debts').select('id', { count: 'exact', head: true })
-    //   .gte('created_at', start)
-    //   .lte('created_at', end)
-  ]);
-
-  // 2. Traitement des résultats
-  const totalEmployees = employeesRes.count || 0;
-  const attendanceToday = attendanceTodayRes.data || [];
-  
-  const presentToday = attendanceToday.filter(a => ['present', 'late'].includes(a.status!)).length;
-  const absentsToday = attendanceToday.filter(a => a.status === 'absent').length;
-  const pendingValidation = pendingValidationRes.count || 0;
-
-  // 3. Logique métier pour le statut de la paie (Payroll Status)
-  // On considère la clôture des présences finie s'il n'y a plus rien à valider
-  const isAttendanceClosed = pendingValidation === 0;
-  const isBonusesCalculated = false; // (bonusesCheckRes.count || 0) > 0;
-
-  // Calcul du progrès global du mois (0 à 100)
-  let progress = 10; // Setup initial
-  if (isAttendanceClosed) progress += 40;
-  // if (isBonusesCalculated) progress += 50;
-
-  return {
-    stats: {
-      totalEmployees,
-      presentToday,
-      absentsToday,
-      pendingValidation,
-    },
-    payrollStatus: {
-      month: format(now, 'MMMM yyyy'),
-      isAttendanceClosed,
-      isBonusesCalculated,
-      progress
+    if (searchQuery) {
+        query = query.or(
+            `name.ilike.%${searchQuery}%,matricule.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%`
+        );
     }
-  };
-}
 
-export async function getOdooCompanies() {
-  try {
-    const companies = await odooClient.searchRead("res.company", {
-      fields: ["id", "name"],
-    }) as { id: number; name: string }[];
+    // Application du tri dynamique
+    const { data, count, error } = await query
+        .order(sortBy, { ascending: sortOrder === "asc" })
+        .range(from, to);
 
-    return companies;
-  } catch (error) {
-    console.error("Erreur lors de la récupération des compagnies Odoo:", error);
-    return [];
-  }
-}
-
-export async function getOdooHRData() {
-  try {
-    const [employees, products] = await Promise.all([
-      // Récupération des employés Odoo
-      odooClient.searchRead("hr.employee", {
-        fields: ["id", "name"],
-        order: "name asc"
-      }),
-      
-      // Récupération des produits de tarification Odoo
-      odooClient.searchRead("product.pricelist", {
-        fields: ["id", "name"],
-        order: "name asc"
-      })
-    ]);
+    if (error) {
+        console.error("Erreur lors de la récupération des agents:", error);
+        throw new Error("Impossible de charger les agents.");
+    }
 
     return {
-      employees: (employees as any[]).map(e => ({ value: String(e.id), label: e.name })),
-      products: (products as any[]).map(p => ({ 
-        value: String(p.id), 
-        label: `${p.name} (${p.list_price} $)` 
-      }))
+        data: data as unknown as EmployeeWithShop[],
+        totalCount: count || 0,
+        totalPages: Math.ceil((count || 0) / limit),
+        currentPage: page,
     };
-  } catch (error) {
-    console.error("Odoo Fetch Error:", error);
-    return { employees: [], products: [] };
+}
+
+/**
+ * Récupère la liste des boutiques pour le filtre dans l'annuaire des agents
+ */
+export async function getShops() {
+  const supabase = await createClient();
+  const { data } = await supabase.from("shops").select("id, name").order("name");
+  return data || [];
+}
+
+/**
+ * Crée ou met à jour un agent (upsert)
+ * @param employee 
+ * @returns 
+ * @throws Erreur si l'opération échoue
+ */
+export async function upsertEmployee(employee: InsertEmployee): Promise<Employee> {
+  const supabase = await createClient();
+  
+  const { data, error } = await supabase
+    .from("employees")
+    .upsert(employee)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Met à jour la validation d'un pointage
+ * @param id 
+ * @param data 
+ * @returns 
+ */
+export async function updateAttendanceValidation(
+  id: string, 
+  data: { 
+    validated_status?: AttendanceStatus, 
+    is_confirmed?: boolean, 
+    is_validated?: boolean,
+    confirmed_by?: string,
+    validated_by?: string
   }
+) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('attendances')
+    .update(data)
+    .eq('id', id);
+
+  if (error) throw error;
+  return { success: true };
+}
+
+export async function getMonthlyAttendance(month: string, year: string, shopId?: string) {
+  const supabase = await createClient();
+  
+  const startDate = `${year}-${month}-01`;
+  const endDate = new Date(parseInt(year), parseInt(month), 0).toISOString().split('T')[0];
+
+  // Construction de la requête sur la table attendances
+  let query = supabase
+    .from('attendances')
+    .select(`
+      *,
+      employees!inner (
+        id, 
+        name, 
+        matricule,
+        shop_id,
+        shops!inner (
+          id,
+          name
+        )
+      )
+    `)
+    .gte('date', startDate)
+    .lte('date', endDate)
+    .order("name", { ascending: true, foreignTable: "employees" });
+
+  // Filtrage par boutique si spécifié
+  if (shopId && shopId !== "all") {
+    query = query.eq('employees.shop_id', shopId);
+  }
+
+  const { data, error } = await query.order('date', { ascending: true });
+
+  if (error) {
+    console.error("Erreur récup attendances:", error);
+    return { attendances: [] };
+  }
+
+  const noSundays = (data || []).filter(att => new Date(att.date).getDay() !== 0);
+
+  return { attendances: noSundays };
 }

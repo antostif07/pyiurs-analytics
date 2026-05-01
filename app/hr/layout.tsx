@@ -1,40 +1,82 @@
-// app/hr/layout.tsx
-import { HRProvider } from "./_components/hr-context";
-import Sidebar from "./_components/Sidebar";
-import { Header } from "./_components/header";
-import { MobileOverlay } from "./_components/mobile-overlay";
+"use client";
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import AppSidebar from "@/components/new-ui/layout/app-sidebar"; // Ajuste tes imports absolus
+import ReportTopbar from "@/components/new-ui/layout/app-topbar";
+import { NAV_GROUPS } from "./config"; // Import de la config RH
 
-export const metadata = {
-  title: "Gestion RH | Entreprise Name",
-  description: "Portail de gestion des ressources humaines",
-};
+type Role = "Admin" | "Manager" | "Staff";
 
 export default function HRLayout({ children }: { children: React.ReactNode }) {
+  const [collapsed, setCollapsed] = useState(false);
+  const [dark, setDark] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  
+  // TODO: Récupérer le rôle via Supabase Auth
+  const role: Role = "Admin"; 
+
+  const handleToggleDark = () => {
+    setDark((d) => {
+      document.documentElement.classList.toggle("dark", !d);
+      return !d;
+    });
+  };
+
   return (
-    <HRProvider>
-      <div className="flex min-h-screen bg-slate-50/50 dark:bg-slate-950">
-        {/* Sidebar - La logique d'ouverture est gérée en interne via le hook */}
-        <Sidebar />
-
-        <MobileOverlay />
-
-        <div className="flex flex-1 flex-col min-w-0 lg:pl-64">
-          <Header />
-
-          <main className="flex-1 overflow-y-auto outline-none">
-            <div className="p-4 lg:p-8">
-              <div className="max-w-7xl mx-auto space-y-6">
-                {children}
-              </div>
-            </div>
-          </main>
-          
-          {/* Footer d'entreprise optionnel */}
-          <footer className="py-4 px-8 border-t border-slate-200 bg-white text-xs text-slate-500">
-            &copy; {new Date().getFullYear()} Entreprise - Module RH v1.2.0
-          </footer>
-        </div>
+    <div className="flex h-screen bg-background overflow-hidden">
+      {/* Desktop sidebar */}
+      <div className="hidden md:flex h-full">
+        <AppSidebar
+          mainPath="/hr" // <-- Modifié pour le module RH
+          groups={NAV_GROUPS}
+          role={role}
+          collapsed={collapsed}
+          onCollapse={setCollapsed}
+        />
       </div>
-    </HRProvider>
+
+      {/* Mobile sidebar drawer */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setMobileOpen(false)}
+              className="fixed inset-0 bg-black/40 z-40 md:hidden"
+            />
+            <motion.div
+              initial={{ x: -280 }}
+              animate={{ x: 0 }}
+              exit={{ x: -280 }}
+              transition={{ duration: 0.25, ease: "easeInOut" }}
+              className="fixed left-0 top-0 bottom-0 w-64 z-50 md:hidden"
+            >
+              <AppSidebar
+                groups={NAV_GROUPS}
+                mainPath="/hr" // <-- Modifié pour le module RH
+                role={role}
+                collapsed={false}
+                onCollapse={() => setMobileOpen(false)}
+              />
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Right side: topbar + content */}
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+        <ReportTopbar
+          dark={dark}
+          onToggleDark={handleToggleDark}
+          onMenuOpen={() => setMobileOpen(true)}
+        />
+        <main className="flex-1 overflow-y-auto bg-background">
+          {children}
+        </main>
+      </div>
+    </div>
   );
 }

@@ -190,3 +190,12 @@ export function transformToTableData(rows: DocumentRow[], cells: CellData[]): Ro
     };
   });
 }
+
+export const MONTHS = [
+  { val: "01", label: "Janvier" }, { val: "02", label: "Février" },
+  { val: "03", label: "Mars" }, { val: "04", label: "Avril" },
+  { val: "05", label: "Mai" }, { val: "06", label: "Juin" },
+  { val: "07", label: "Juillet" }, { val: "08", label: "Août" },
+  { val: "09", label: "Septembre" }, { val: "10", label: "Octobre" },
+  { val: "11", label: "Novembre" }, { val: "12", label: "Décembre" }
+];
