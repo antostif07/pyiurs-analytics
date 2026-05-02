@@ -82,3 +82,9 @@ export type POSCustomer = {
   zip: string;
   country_id: [number, string]; // Tuple of [id, name]
 };
+
+export type POSCategory = {
+  id: number;
+  name: string;
+  parent_id: [number, string] | null; // Tuple of [id, name] or null if no parent
+};

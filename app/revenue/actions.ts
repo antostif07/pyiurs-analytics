@@ -6,7 +6,7 @@ import {odooClient as odooJsonClient} from "@/lib/odoo/odoo-json2-client"
 import { createClient } from "@/lib/supabase/server";
 import { startOfMonth, endOfMonth, subMonths, format, getWeek, subDays, startOfWeek } from "date-fns";
 import { fr } from "date-fns/locale";
-import { POSOrder, POSOrderLine } from "../types/pos";
+import { POSCategory, POSOrder, POSOrderLine } from "../types/pos";
 
 function getMonthKey(odooMonthStr: string): string {
   const months: Record<string, string> = {
@@ -47,225 +47,516 @@ function ensureTrackerEntry(tracker: Map<string, any>, hsCode: string, name = "P
     return tracker.get(hsCode);
 }
 
+// export async function getRevenueDashboardData(month: string, year: string) {
+//     const supabase = await createClient();
+//     const now = new Date();
+    
+//     const selectedDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+    
+//     const mtdStart = format(startOfMonth(selectedDate), 'yyyy-MM-dd 00:00:00');
+//     const mtdEnd = format(endOfMonth(selectedDate), 'yyyy-MM-dd 23:59:59');
+//     const prevMtdStart = format(startOfMonth(subMonths(selectedDate, 1)), 'yyyy-MM-dd 00:00:00');
+//     const prevMtdEnd = format(endOfMonth(subMonths(selectedDate, 1)), 'yyyy-MM-dd 23:59:59');
+
+//     // Dates pour KPIs temps réel (Indépendantes du mois sélectionné pour les cartes du haut)
+//     const todayStr = format(now, 'yyyy-MM-dd');
+//     const yesterdayStr = format(subDays(now, 1), 'yyyy-MM-dd');
+//     const currentWeekStart = format(startOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd 00:00:00');
+
+//     // Logique temporelle pour Forecast
+//     const isCurrentMonth = month === format(now, 'MM') && year === format(now, 'yyyy');
+//     const totalDaysInMonth = endOfMonth(selectedDate).getDate();
+//     const daysPassed = isCurrentMonth ? now.getDate() : totalDaysInMonth;
+
+//     try {
+//         const [{ data: dbShops }, { data: targets }] = await Promise.all([
+//             supabase.from('shops').select('*').order('name'),
+//             supabase.from('sales_targets').select('*').eq('year', parseInt(year)).eq('month', parseInt(month))
+//         ]);
+
+//         if (!dbShops) return { shopPerformance: [], segmentPerformance: [] };
+
+//         // -- ORDERS --
+//         const currentOrders = await odooJsonClient.searchRead<POSOrder>("pos.order", {
+//             domain: [["date_order", ">=", mtdStart], ["date_order", "<=", mtdEnd], ["state", "in", ["paid", "done"]]],
+//             fields: ["config_id", "amount_total", "date_order"]
+//         })
+
+//         // Commandes M-1
+//         const previousOrders = await odooJsonClient.searchRead<POSOrder>("pos.order", {
+//             domain: [["date_order", ">=", prevMtdStart], ["date_order", "<=", prevMtdEnd], ["state", "in", ["paid", "done"]]],
+//             fields: ["config_id", "amount_total"]
+//         })
+
+//         // Commandes pour Today, Yesterday et Week (fenêtre glissante)
+//         const recentOrders = await odooJsonClient.searchRead<POSOrder>("pos.order", {
+//             domain: [["date_order", ">=", currentWeekStart < yesterdayStr ? currentWeekStart : yesterdayStr], ["state", "in", ["paid", "done"]]],
+//             fields: ["config_id", "amount_total", "date_order"]
+//         })
+
+//         // 2. RÉCUPÉRER LES LIGNES POUR LES SEGMENTS
+//         const currentLines = await odooJsonClient.searchRead<POSOrderLine>("pos.order.line", {
+//             domain: [["order_id", "in", currentOrders.map(o => o.id)]],
+//             fields: ["order_id", "price_unit", "qty", "product_id", "discount"]
+//         })
+//         const previousLines = await odooJsonClient.searchRead<POSOrderLine>("pos.order.line", {
+//             domain: [["order_id", "in", previousOrders.map(o => o.id)]],
+//             fields: ["order_id", "price_unit", "qty", "product_id", "discount"]
+//         });
+
+//         // 3. Recuperer les POS Catégories pour faire le lien boutique -> categories
+//         const posCategories = await odooJsonClient.searchRead<POSCategory>("pos.category", {
+//             domain: [],
+//             fields: ["id", "name"]
+//         });
+
+//         const allProdIds = [...new Set([...currentLines, ...previousLines].map(l => l.product_id[0]))];
+
+//         const productsInfo = await odooClient.searchRead("product.product", {
+//             domain: [["id", "in", allProdIds]],
+//             fields: ["x_studio_segment", "pos_categ_ids"]
+//         }) as any[];
+
+//         // -- MAPS --
+
+//         // Map orderId -> order
+//         const productsMap = new Map(productsInfo.map(p => [p.id, p]));
+//         const categoriesMap = new Map(posCategories.map(c => [c.id, c.name]));
+//         const currentOrderMap = new Map(currentOrders.map(o => [o.id, o]));
+//         const previousOrderMap = new Map(previousOrders.map(o => [o.id, o]));
+//         const recentOrderMap = new Map(recentOrders.map(o => [o.id, o]));
+
+//         // =========================
+//         // 🟢 SHOP HIERARCHY
+//         // =========================
+//         const shopHierarchy: any = {};
+//         const processLine = (line: any, order: any, type: 'mtd' | 'recent') => {
+//             const shop = dbShops.find(s => s.odoo_pos_ids?.includes(order.config_id?.[0]));
+//             if (!shop) return;
+
+//             const prod = productsMap.get(line.product_id[0]);
+//             const segment = prod?.x_studio_segment || "Autres";
+
+//             const categoryId = prod?.pos_categ_ids?.[0];
+//             const categoryName = categoriesMap.get(categoryId) || "Général";
+
+//             const amount = line.discount === 100 ? 0 : line.price_unit * line.qty;
+
+//             if (!shopHierarchy[shop.name]) {
+//                 shopHierarchy[shop.name] = {
+//                     mtd: 0,
+//                     today: 0,
+//                     yesterday: 0,
+//                     weekly: 0,
+//                     weeks: {},
+//                     subRows: {}
+//                 };
+//             }
+
+//             const shopNode = shopHierarchy[shop.name];
+//         }
+//         //     lines.forEach(l => {
+//         //         const order = orders.find(o => o.id === l.order_id[0]);
+//         //         if (!order) return;
+//         //         const shop = dbShops.find(s => s.odoo_pos_ids?.includes(order.config_id?.[0]));
+//         //         if (!shop) return;
+//         //         if (!shopHierarchy[shop.name]) shopHierarchy[shop.name] = { mtd: 0, mtdPrev: 0, weeks: {} };
+
+//         //         shopHierarchy[shop.name][field] += l.price_unit * l.qty;
+//         //         if (field === 'mtd') {
+//         //             const wNum = `W${getWeek(new Date(order.date_order), { weekStartsOn: 1 })}`;
+//         //             shopHierarchy[shop.name].weeks[wNum] = (shopHierarchy[shop.name].weeks[wNum] || 0) + (l.price_unit * l.qty);
+//         //         }
+//         //     });
+//         // }
+
+//         // shopAggregate(currentLines, currentOrders, 'mtd');
+//         // shopAggregate(previousLines, previousOrders, 'mtdPrev');
+
+//         // const shopPerformance = Object.entries(shopHierarchy).map(([shopName, shopData]: [string, any]) => {
+//         //     const shopTarget = targets?.find(t => t.category_tag === shopName)?.target_amount || 0;
+//         //     return {
+//         //         boutique: shopName,
+//         //         mtd: Math.round(shopData.mtd),
+//         //         mtdPrev: Math.round(shopData.mtdPrev),
+//         //         deltaMoM: shopData.mtdPrev > 0 ? Math.round(((shopData.mtd - shopData.mtdPrev) / shopData.mtdPrev) * 100) : 0,
+//         //         forecast: Math.round((shopData.mtd / daysPassed) * totalDaysInMonth),
+//         //         budgetMensuel: shopTarget,
+//         //         pctBudget: shopTarget > 0 ? Math.round((shopData.mtd / shopTarget) * 100) : 0,
+//         //         weeks: shopData.weeks
+//         //     };
+//         // }).sort((a, b) => b.mtd - a.mtd);
+
+//         const shopPerformance = dbShops.map(shop => {
+//             const posIds = shop.odoo_pos_ids || [];
+
+//             let mtd = 0;
+//             let mtdPrev = 0;
+//             let today = 0;
+//             let yesterday = 0;
+//             let weekly = 0;
+//             const weeks: Record<string, number> = {};
+
+//             // --- MTD + Weeks ---
+//             currentLines.forEach(line => {
+//                 const order = currentOrderMap.get(line.order_id[0]);
+//                 if (!order) return;
+//                 if (!posIds.includes(order.config_id?.[0])) return;
+
+//                 mtd += line.discount === 100 ? 0 : line.price_unit * line.qty;
+
+//                 const wNum = `W${getWeek(new Date(order.date_order), { weekStartsOn: 1 })}`;
+//                 weeks[wNum] = (weeks[wNum] || 0) + (line.discount === 100 ? 0 : line.price_unit * line.qty);
+//             });
+
+//             // --- MTD PREV ---
+//             previousLines.forEach(line => {
+//                 const order = previousOrderMap.get(line.order_id[0]);
+//                 if (!order) return;
+//                 if (!posIds.includes(order.config_id?.[0])) return;
+
+//                 mtdPrev += line.discount === 100 ? 0 : line.price_unit * line.qty;
+//             });
+
+//             // --- TODAY / YESTERDAY / WEEKLY ---
+//             currentLines.forEach(line => {
+//                 const order = recentOrderMap.get(line.order_id[0]);
+//                 if (!order) return;
+//                 if (!posIds.includes(order.config_id?.[0])) return;
+
+//                 if (order.date_order.includes(todayStr)) {
+//                     today += line.discount === 100 ? 0 : line.price_unit * line.qty;
+//                 }
+
+//                 if (order.date_order.includes(yesterdayStr)) {
+//                     yesterday += line.discount === 100 ? 0 : line.price_unit * line.qty;
+//                 }
+
+//                 if (order.date_order >= currentWeekStart) {
+//                     weekly += line.discount === 100 ? 0 : line.price_unit * line.qty;
+//                 }
+//             });
+
+//             const shopTarget = targets?.find(t => t.category_tag === shop.name)?.target_amount || 0;
+
+//             return {
+//                 boutique: shop.name,
+//                 today: Math.round(today),
+//                 yesterday: Math.round(yesterday),
+//                 weekly: Math.round(weekly),
+//                 mtd: Math.round(mtd),
+//                 mtdPrev: Math.round(mtdPrev),
+//                 deltaMoM: mtdPrev > 0 ? Math.round(((mtd - mtdPrev) / mtdPrev) * 100) : 0,
+//                 forecast: Math.round((mtd / daysPassed) * totalDaysInMonth),
+//                 budgetMensuel: shopTarget,
+//                 pctBudget: shopTarget > 0 ? Math.round((mtd / shopTarget) * 100) : 0,
+//                 weeks,
+//             };
+//         });
+
+//         // --- B. LOGIQUE PAR SEGMENT -> CATEGORIE ---
+//         const segmentHierarchy: any = {};
+//         const aggregate = (lines: any[], orders: any[], field: 'mtd' | 'mtdPrev') => {
+//             lines.forEach(l => {
+//                 const order = orders.find(o => o.id === l.order_id[0]);
+//                 if (!order) return;
+
+//                 const prod = productsInfo.find(p => p.id === l.product_id[0]);
+//                 const segment = prod?.x_studio_segment || "Autres";
+//                 const category = prod?.pos_categ_id?.[1] || "Général";
+//                 const shop = dbShops.find(s => s.odoo_pos_ids?.includes(order.config_id?.[0]));
+//                 const shopName = shop ? shop.name : "Inconnu";
+//                 const wNum = `W${getWeek(new Date(order.date_order || now), { weekStartsOn: 1 })}`;
+
+//                 if (!segmentHierarchy[segment]) segmentHierarchy[segment] = { mtd: 0, mtdPrev: 0, weeks: {}, subRows: {} };
+//                 if (!segmentHierarchy[segment].subRows[shopName]) segmentHierarchy[segment].subRows[shopName] = { mtd: 0, mtdPrev: 0, weeks: {} };
+
+//                 segmentHierarchy[segment][field] += l.discount === 100 ? 0 : l.price_unit * l.qty;
+//                 segmentHierarchy[segment].subRows[shopName][field] += l.discount === 100 ? 0 : l.price_unit * l.qty;
+
+//                 if (field === 'mtd') {
+//                     segmentHierarchy[segment].weeks[wNum] = (segmentHierarchy[segment].weeks[wNum] || 0) + (l.discount === 100 ? 0 : l.price_unit * l.qty);
+//                     segmentHierarchy[segment].subRows[shopName].weeks[wNum] = (segmentHierarchy[segment].subRows[shopName].weeks[wNum] || 0) + (l.discount === 100 ? 0 : l.price_unit * l.qty);
+//                 }
+//             });
+//         };
+
+//         aggregate(currentLines, currentOrders, 'mtd');
+//         aggregate(previousLines, previousOrders, 'mtdPrev');
+
+//         const segmentPerformance = Object.entries(segmentHierarchy).map(([segName, segData]: [string, any]) => ({
+//             boutique: segName,
+//             mtd: Math.round(segData.mtd),
+//             mtdPrev: Math.round(segData.mtdPrev),
+//             deltaMoM: segData.mtdPrev > 0 ? Math.round(((segData.mtd - segData.mtdPrev) / segData.mtdPrev) * 100) : 0,
+//             forecast: Math.round((segData.mtd / daysPassed) * totalDaysInMonth),
+//             weeks: segData.weeks,
+//             subRows: Object.entries(segData.subRows).map(([catName, catData]: [string, any]) => ({
+//                 boutique: catName,
+//                 mtd: Math.round(catData.mtd),
+//                 mtdPrev: Math.round(catData.mtdPrev),
+//                 deltaMoM: catData.mtdPrev > 0 ? Math.round(((catData.mtd - catData.mtdPrev) / catData.mtdPrev) * 100) : 0,
+//                 forecast: Math.round((catData.mtd / daysPassed) * totalDaysInMonth),
+//                 weeks: catData.weeks,
+//             })).sort((a, b) => b.mtd - a.mtd)
+//         })).sort((a, b) => b.mtd - a.mtd);
+
+//         return { shopPerformance, segmentPerformance };
+
+//     } catch (e) {
+//         console.error("Erreur Dashboard Revenue:", e);
+//         return { shopPerformance: [], segmentPerformance: [] };
+//     }
+// }
 export async function getRevenueDashboardData(month: string, year: string) {
     const supabase = await createClient();
     const now = new Date();
-    
-    // --- DÉFINITION DES PÉRIODES ---
+
     const selectedDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-    
+
     const mtdStart = format(startOfMonth(selectedDate), 'yyyy-MM-dd 00:00:00');
     const mtdEnd = format(endOfMonth(selectedDate), 'yyyy-MM-dd 23:59:59');
-    const prevMtdStart = format(startOfMonth(subMonths(selectedDate, 1)), 'yyyy-MM-dd 00:00:00');
-    const prevMtdEnd = format(endOfMonth(subMonths(selectedDate, 1)), 'yyyy-MM-dd 23:59:59');
 
-    // Dates pour KPIs temps réel (Indépendantes du mois sélectionné pour les cartes du haut)
+    const prevStart = format(startOfMonth(subMonths(selectedDate, 1)), 'yyyy-MM-dd 00:00:00');
+    const prevEnd = format(endOfMonth(subMonths(selectedDate, 1)), 'yyyy-MM-dd 23:59:59');
+
     const todayStr = format(now, 'yyyy-MM-dd');
     const yesterdayStr = format(subDays(now, 1), 'yyyy-MM-dd');
     const currentWeekStart = format(startOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd 00:00:00');
 
-    // Logique temporelle pour Forecast
     const isCurrentMonth = month === format(now, 'MM') && year === format(now, 'yyyy');
     const totalDaysInMonth = endOfMonth(selectedDate).getDate();
     const daysPassed = isCurrentMonth ? now.getDate() : totalDaysInMonth;
 
     try {
-        const [{ data: dbShops }, { data: targets }] = await Promise.all([
+        const [{ data: dbShops }] = await Promise.all([
             supabase.from('shops').select('*').order('name'),
-            supabase.from('sales_targets').select('*').eq('year', parseInt(year)).eq('month', parseInt(month))
         ]);
 
         if (!dbShops) return { shopPerformance: [], segmentPerformance: [] };
 
-        // 1. FETCH DATA ODOO (Ajout d'une requête pour le temps réel global)
-        // Commandes du mois sélectionné
+        // ---------------- ORDERS ----------------
         const currentOrders = await odooJsonClient.searchRead<POSOrder>("pos.order", {
             domain: [["date_order", ">=", mtdStart], ["date_order", "<=", mtdEnd], ["state", "in", ["paid", "done"]]],
-            fields: ["config_id", "amount_total", "date_order"]
-        })
+            fields: ["config_id", "date_order"]
+        });
 
-        // Commandes M-1
         const previousOrders = await odooJsonClient.searchRead<POSOrder>("pos.order", {
-            domain: [["date_order", ">=", prevMtdStart], ["date_order", "<=", prevMtdEnd], ["state", "in", ["paid", "done"]]],
-            fields: ["config_id", "amount_total"]
-        })
+            domain: [["date_order", ">=", prevStart], ["date_order", "<=", prevEnd], ["state", "in", ["paid", "done"]]],
+            fields: ["config_id", "date_order"]
+        });
 
-        // Commandes pour Today, Yesterday et Week (fenêtre glissante)
         const recentOrders = await odooJsonClient.searchRead<POSOrder>("pos.order", {
-            domain: [["date_order", ">=", currentWeekStart < yesterdayStr ? currentWeekStart : yesterdayStr], ["state", "in", ["paid", "done"]]],
-            fields: ["config_id", "amount_total", "date_order"]
-        })
+            domain: [["date_order", ">=", currentWeekStart], ["state", "in", ["paid", "done"]]],
+            fields: ["config_id", "date_order"]
+        });
 
-        // 2. RÉCUPÉRER LES LIGNES POUR LES SEGMENTS
+        // ---------------- LINES ----------------
         const currentLines = await odooJsonClient.searchRead<POSOrderLine>("pos.order.line", {
             domain: [["order_id", "in", currentOrders.map(o => o.id)]],
             fields: ["order_id", "price_unit", "qty", "product_id", "discount"]
-        })
+        });
+
         const previousLines = await odooJsonClient.searchRead<POSOrderLine>("pos.order.line", {
             domain: [["order_id", "in", previousOrders.map(o => o.id)]],
             fields: ["order_id", "price_unit", "qty", "product_id", "discount"]
         });
 
-        // Map orderId -> order
-        const currentOrderMap = new Map(currentOrders.map(o => [o.id, o]));
-        const previousOrderMap = new Map(previousOrders.map(o => [o.id, o]));
-        const recentOrderMap = new Map(recentOrders.map(o => [o.id, o]));
-        
+        const recentLines = await odooJsonClient.searchRead<POSOrderLine>("pos.order.line", {
+            domain: [["order_id", "in", recentOrders.map(o => o.id)]],
+            fields: ["order_id", "price_unit", "qty", "product_id", "discount"]
+        });
+
+        const posCategories = await odooJsonClient.searchRead("pos.category", {
+            domain: [],
+            fields: ["id", "name"]
+        });
+
         const allProdIds = [...new Set([...currentLines, ...previousLines].map(l => l.product_id[0]))];
+
         const productsInfo = await odooClient.searchRead("product.product", {
             domain: [["id", "in", allProdIds]],
             fields: ["x_studio_segment", "pos_categ_ids"]
         }) as any[];
-        
-        
-        // --- A. LOGIQUE PAR BOUTIQUE ---
+
+        // ---------------- MAPS ----------------
+        const productsMap = new Map(productsInfo.map(p => [p.id, p]));
+        const categoriesMap = new Map(posCategories.map((c: any) => [c.id, c.name]));
+        const currentOrderMap = new Map(currentOrders.map(o => [o.id, o]));
+        const previousOrderMap = new Map(previousOrders.map(o => [o.id, o]));
+        const recentOrderMap = new Map(recentOrders.map(o => [o.id, o]));
+
+        // =========================
+        // 🟢 SHOP HIERARCHY
+        // =========================
         const shopHierarchy: any = {};
-        // const shopAggregate = (lines: any[], orders: any[], field: 'mtd' | 'mtdPrev') => {
-        //     lines.forEach(l => {
-        //         const order = orders.find(o => o.id === l.order_id[0]);
-        //         if (!order) return;
-        //         const shop = dbShops.find(s => s.odoo_pos_ids?.includes(order.config_id?.[0]));
-        //         if (!shop) return;
-        //         if (!shopHierarchy[shop.name]) shopHierarchy[shop.name] = { mtd: 0, mtdPrev: 0, weeks: {} };
 
-        //         shopHierarchy[shop.name][field] += l.price_unit * l.qty;
-        //         if (field === 'mtd') {
-        //             const wNum = `W${getWeek(new Date(order.date_order), { weekStartsOn: 1 })}`;
-        //             shopHierarchy[shop.name].weeks[wNum] = (shopHierarchy[shop.name].weeks[wNum] || 0) + (l.price_unit * l.qty);
-        //         }
-        //     });
-        // }
-
-        // shopAggregate(currentLines, currentOrders, 'mtd');
-        // shopAggregate(previousLines, previousOrders, 'mtdPrev');
-
-        // const shopPerformance = Object.entries(shopHierarchy).map(([shopName, shopData]: [string, any]) => {
-        //     const shopTarget = targets?.find(t => t.category_tag === shopName)?.target_amount || 0;
-        //     return {
-        //         boutique: shopName,
-        //         mtd: Math.round(shopData.mtd),
-        //         mtdPrev: Math.round(shopData.mtdPrev),
-        //         deltaMoM: shopData.mtdPrev > 0 ? Math.round(((shopData.mtd - shopData.mtdPrev) / shopData.mtdPrev) * 100) : 0,
-        //         forecast: Math.round((shopData.mtd / daysPassed) * totalDaysInMonth),
-        //         budgetMensuel: shopTarget,
-        //         pctBudget: shopTarget > 0 ? Math.round((shopData.mtd / shopTarget) * 100) : 0,
-        //         weeks: shopData.weeks
-        //     };
-        // }).sort((a, b) => b.mtd - a.mtd);
-
-        const shopPerformance = dbShops.map(shop => {
-            const posIds = shop.odoo_pos_ids || [];
-
-            let mtd = 0;
-            let mtdPrev = 0;
-            let today = 0;
-            let yesterday = 0;
-            let weekly = 0;
-            const weeks: Record<string, number> = {};
-
-            // --- MTD + Weeks ---
-            currentLines.forEach(line => {
-                const order = currentOrderMap.get(line.order_id[0]);
-                if (!order) return;
-                if (!posIds.includes(order.config_id?.[0])) return;
-
-                mtd += line.discount === 100 ? 0 : line.price_unit * line.qty;
-
-                const wNum = `W${getWeek(new Date(order.date_order), { weekStartsOn: 1 })}`;
-                weeks[wNum] = (weeks[wNum] || 0) + (line.discount === 100 ? 0 : line.price_unit * line.qty);
-            });
-
-            // --- MTD PREV ---
-            previousLines.forEach(line => {
-                const order = previousOrderMap.get(line.order_id[0]);
-                if (!order) return;
-                if (!posIds.includes(order.config_id?.[0])) return;
-
-                mtdPrev += line.discount === 100 ? 0 : line.price_unit * line.qty;
-            });
-
-            // --- TODAY / YESTERDAY / WEEKLY ---
-            currentLines.forEach(line => {
-                const order = recentOrderMap.get(line.order_id[0]);
-                if (!order) return;
-                if (!posIds.includes(order.config_id?.[0])) return;
-
-                if (order.date_order.includes(todayStr)) {
-                    today += line.discount === 100 ? 0 : line.price_unit * line.qty;
-                }
-
-                if (order.date_order.includes(yesterdayStr)) {
-                    yesterday += line.discount === 100 ? 0 : line.price_unit * line.qty;
-                }
-
-                if (order.date_order >= currentWeekStart) {
-                    weekly += line.discount === 100 ? 0 : line.price_unit * line.qty;
-                }
-            });
-
-            const shopTarget = targets?.find(t => t.category_tag === shop.name)?.target_amount || 0;
-
-            return {
-                boutique: shop.name,
-                today: Math.round(today),
-                yesterday: Math.round(yesterday),
-                weekly: Math.round(weekly),
-                mtd: Math.round(mtd),
-                mtdPrev: Math.round(mtdPrev),
-                deltaMoM: mtdPrev > 0 ? Math.round(((mtd - mtdPrev) / mtdPrev) * 100) : 0,
-                forecast: Math.round((mtd / daysPassed) * totalDaysInMonth),
-                budgetMensuel: shopTarget,
-                pctBudget: shopTarget > 0 ? Math.round((mtd / shopTarget) * 100) : 0,
-                weeks,
-            };
-        });
-
-        // --- B. LOGIQUE PAR SEGMENT -> CATEGORIE ---
-        const segmentHierarchy: any = {};
-        const aggregate = (lines: any[], orders: any[], field: 'mtd' | 'mtdPrev') => {
-            lines.forEach(l => {
-                const order = orders.find(o => o.id === l.order_id[0]);
-                if (!order) return;
-
-                const prod = productsInfo.find(p => p.id === l.product_id[0]);
-                const segment = prod?.x_studio_segment || "Autres";
-                const category = prod?.pos_categ_id?.[1] || "Général";
-                const shop = dbShops.find(s => s.odoo_pos_ids?.includes(order.config_id?.[0]));
-                const shopName = shop ? shop.name : "Inconnu";
-                const wNum = `W${getWeek(new Date(order.date_order || now), { weekStartsOn: 1 })}`;
-
-                if (!segmentHierarchy[segment]) segmentHierarchy[segment] = { mtd: 0, mtdPrev: 0, weeks: {}, subRows: {} };
-                if (!segmentHierarchy[segment].subRows[shopName]) segmentHierarchy[segment].subRows[shopName] = { mtd: 0, mtdPrev: 0, weeks: {} };
-
-                segmentHierarchy[segment][field] += l.discount === 100 ? 0 : l.price_unit * l.qty;
-                segmentHierarchy[segment].subRows[shopName][field] += l.discount === 100 ? 0 : l.price_unit * l.qty;
-
-                if (field === 'mtd') {
-                    segmentHierarchy[segment].weeks[wNum] = (segmentHierarchy[segment].weeks[wNum] || 0) + (l.discount === 100 ? 0 : l.price_unit * l.qty);
-                    segmentHierarchy[segment].subRows[shopName].weeks[wNum] = (segmentHierarchy[segment].subRows[shopName].weeks[wNum] || 0) + (l.discount === 100 ? 0 : l.price_unit * l.qty);
-                }
-            });
+        const initShop = (name: string) => {
+            if (!shopHierarchy[name]) {
+                shopHierarchy[name] = {
+                    mtd: 0,
+                    mtdPrev: 0,
+                    today: 0,
+                    yesterday: 0,
+                    weekly: 0,
+                    weeks: {},
+                    subRows: {}
+                };
+            }
+            return shopHierarchy[name];
         };
 
-        aggregate(currentLines, currentOrders, 'mtd');
-        aggregate(previousLines, previousOrders, 'mtdPrev');
+        const process = (line: any, order: any, type: 'mtd' | 'prev' | 'recent') => {
+            const shop = dbShops.find(s => s.odoo_pos_ids?.includes(order.config_id?.[0]));
+            if (!shop) return;
 
-        const segmentPerformance = Object.entries(segmentHierarchy).map(([segName, segData]: [string, any]) => ({
-            boutique: segName,
-            mtd: Math.round(segData.mtd),
-            mtdPrev: Math.round(segData.mtdPrev),
-            deltaMoM: segData.mtdPrev > 0 ? Math.round(((segData.mtd - segData.mtdPrev) / segData.mtdPrev) * 100) : 0,
-            forecast: Math.round((segData.mtd / daysPassed) * totalDaysInMonth),
-            weeks: segData.weeks,
-            subRows: Object.entries(segData.subRows).map(([catName, catData]: [string, any]) => ({
+            const prod = productsMap.get(line.product_id[0]);
+            const segment = prod?.x_studio_segment || "Autres";
+
+            const categoryId = prod?.pos_categ_ids?.[0];
+            const categoryName = categoriesMap.get(categoryId) || "Général";
+
+            const amount = line.discount === 100 ? 0 : line.price_unit * line.qty;
+
+            const shopNode = initShop(shop.name);
+
+            if (!shopNode.subRows[segment]) {
+                shopNode.subRows[segment] = { mtd: 0, mtdPrev: 0, weeks: {}, subRows: {} };
+            }
+
+            const segNode = shopNode.subRows[segment];
+
+            if (!segNode.subRows[categoryName]) {
+                segNode.subRows[categoryName] = { mtd: 0, mtdPrev: 0, weeks: {} };
+            }
+
+            const catNode = segNode.subRows[categoryName];
+
+            if (type === 'mtd') {
+                shopNode.mtd += amount;
+                segNode.mtd += amount;
+                catNode.mtd += amount;
+
+                const wNum = `W${getWeek(new Date(order.date_order), { weekStartsOn: 1 })}`;
+
+                shopNode.weeks[wNum] = (shopNode.weeks[wNum] || 0) + amount;
+                segNode.weeks[wNum] = (segNode.weeks[wNum] || 0) + amount;
+                catNode.weeks[wNum] = (catNode.weeks[wNum] || 0) + amount;
+            }
+
+            if (type === 'prev') {
+                shopNode.mtdPrev += amount;
+                segNode.mtdPrev += amount;
+                catNode.mtdPrev += amount;
+            }
+
+            if (type === 'recent') {
+                if (order.date_order.includes(todayStr)) shopNode.today += amount;
+                if (order.date_order.includes(yesterdayStr)) shopNode.yesterday += amount;
+                if (order.date_order >= currentWeekStart) shopNode.weekly += amount;
+            }
+        };
+
+        currentLines.forEach(l => process(l, currentOrderMap.get(l.order_id[0]), 'mtd'));
+        previousLines.forEach(l => process(l, previousOrderMap.get(l.order_id[0]), 'prev'));
+        recentLines.forEach(l => process(l, recentOrderMap.get(l.order_id[0]), 'recent'));
+
+        const shopPerformance = Object.entries(shopHierarchy).map(([name, d]: any) => ({
+            boutique: name,
+            today: Math.round(d.today),
+            yesterday: Math.round(d.yesterday),
+            weekly: Math.round(d.weekly),
+            mtd: Math.round(d.mtd),
+            mtdPrev: Math.round(d.mtdPrev),
+            deltaMoM: d.mtdPrev > 0 ? Math.round(((d.mtd - d.mtdPrev) / d.mtdPrev) * 100) : 0,
+            weeks: d.weeks,
+            forecast: Math.round((d.mtd / daysPassed) * totalDaysInMonth),
+
+            subRows: Object.entries(d.subRows).map(([segName, seg]: any) => ({
+                boutique: segName,
+                mtd: Math.round(seg.mtd),
+                mtdPrev: Math.round(seg.mtdPrev),
+                deltaMoM: seg.mtdPrev > 0 ? Math.round(((seg.mtd - seg.mtdPrev) / seg.mtdPrev) * 100) : 0,
+                weeks: seg.weeks,
+                forecast: Math.round((seg.mtd / daysPassed) * totalDaysInMonth),
+
+                subRows: Object.entries(seg.subRows).map(([catName, cat]: any) => ({
+                    boutique: catName,
+                    mtd: Math.round(cat.mtd),
+                    mtdPrev: Math.round(cat.mtdPrev),
+                    deltaMoM: cat.mtdPrev > 0 ? Math.round(((cat.mtd - cat.mtdPrev) / cat.mtdPrev) * 100) : 0,
+                    weeks: cat.weeks,
+                    forecast: Math.round((cat.mtd / daysPassed) * totalDaysInMonth),
+                })),
+            })),
+            budgetMensuel: 0, // Placeholder, à remplacer par la cible réelle si besoin
+        }));
+
+        // =========================
+        // 🔵 SEGMENT → CATEGORY
+        // =========================
+        const segmentHierarchy: any = {};
+
+        const initSegment = (name: string) => {
+            if (!segmentHierarchy[name]) {
+                segmentHierarchy[name] = { mtd: 0, mtdPrev: 0, weeks: {}, subRows: {} };
+            }
+            return segmentHierarchy[name];
+        };
+
+        const processSeg = (line: any, order: any, type: 'mtd' | 'prev') => {
+            const prod = productsMap.get(line.product_id[0]);
+            const segment = prod?.x_studio_segment || "Autres";
+
+            const categoryId = prod?.pos_categ_ids?.[0];
+            const categoryName = categoriesMap.get(categoryId) || "Général";
+
+            const amount = line.discount === 100 ? 0 : line.price_unit * line.qty;
+
+            const segNode = initSegment(segment);
+
+            if (!segNode.subRows[categoryName]) {
+                segNode.subRows[categoryName] = { mtd: 0, mtdPrev: 0, weeks: {} };
+            }
+
+            const catNode = segNode.subRows[categoryName];
+
+            if (type === 'mtd') {
+                segNode.mtd += amount;
+                catNode.mtd += amount;
+
+                const wNum = `W${getWeek(new Date(order.date_order), { weekStartsOn: 1 })}`;
+
+                segNode.weeks[wNum] = (segNode.weeks[wNum] || 0) + amount;
+                catNode.weeks[wNum] = (catNode.weeks[wNum] || 0) + amount;
+            }
+
+            if (type === 'prev') {
+                segNode.mtdPrev += amount;
+                catNode.mtdPrev += amount;
+            }
+        };
+
+        currentLines.forEach(l => processSeg(l, currentOrderMap.get(l.order_id[0]), 'mtd'));
+        previousLines.forEach(l => processSeg(l, previousOrderMap.get(l.order_id[0]), 'prev'));
+
+        const segmentPerformance = Object.entries(segmentHierarchy).map(([name, d]: any) => ({
+            boutique: name,
+            mtd: Math.round(d.mtd),
+            mtdPrev: Math.round(d.mtdPrev),
+            deltaMoM: d.mtdPrev > 0 ? Math.round(((d.mtd - d.mtdPrev) / d.mtdPrev) * 100) : 0,
+            forecast: Math.round((d.mtd / daysPassed) * totalDaysInMonth),
+            weeks: d.weeks,
+
+            subRows: Object.entries(d.subRows).map(([catName, cat]: any) => ({
                 boutique: catName,
-                mtd: Math.round(catData.mtd),
-                mtdPrev: Math.round(catData.mtdPrev),
-                deltaMoM: catData.mtdPrev > 0 ? Math.round(((catData.mtd - catData.mtdPrev) / catData.mtdPrev) * 100) : 0,
-                forecast: Math.round((catData.mtd / daysPassed) * totalDaysInMonth),
-                weeks: catData.weeks,
-            })).sort((a, b) => b.mtd - a.mtd)
-        })).sort((a, b) => b.mtd - a.mtd);
+                mtd: Math.round(cat.mtd),
+                mtdPrev: Math.round(cat.mtdPrev),
+                deltaMoM: cat.mtdPrev > 0 ? Math.round(((cat.mtd - cat.mtdPrev) / cat.mtdPrev) * 100) : 0,
+                forecast: Math.round((cat.mtd / daysPassed) * totalDaysInMonth),
+                weeks: cat.weeks,
+            }))
+        }));
 
         return { shopPerformance, segmentPerformance };
 
@@ -600,4 +891,3 @@ export async function getFemmeSixMonthSales(month: string, year: string) {
         return { products: [], columns: [] };
     }
 }
-

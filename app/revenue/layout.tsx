@@ -78,7 +78,7 @@ export default function RevenueLayout({
                 onToggleDark={handleToggleDark}
                 onMenuOpen={() => setMobileOpen(true)}
               />
-              <main className="flex-1 overflow-y-auto bg-background">
+              <main className="flex-1 overflow-y-auto bg-background p-6 sm:p-8">
                 {children}
               </main>
             </div>
