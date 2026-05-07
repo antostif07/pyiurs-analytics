@@ -5,8 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import type { User, Session, SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import { Loader2 } from 'lucide-react';
-// ✅ PRO: Unique source de vérité (Single Source of Truth)
-import { AuthService, UserRole } from '@/lib/supabase/auth-service';
+import { AuthService } from '@/lib/supabase/auth-service';
 import { Profile } from '@/lib/supabase/types';
 
 // Typage strict du contexte

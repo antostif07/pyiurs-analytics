@@ -30,6 +30,7 @@ export default function AttendanceImportPage() {
   useEffect(() => {
     const fetchEmployees = async () => {
       const { data, error } = await supabase.from('employees').select('id, name, matricule').eq('is_active', true).order('name');
+      console.log(data);
       
       setDbEmployees(data || []);
     };

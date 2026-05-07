@@ -1,6 +1,5 @@
 import { getEmployees } from "../actions";
 import EmployeesClient from "./employees-client";
-import { Plus, Filter } from "lucide-react";
 
 export default async function EmployeesDirectoryPage() {
   // On charge uniquement la première page côté serveur pour le SEO/vitesse initiale

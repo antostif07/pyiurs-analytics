@@ -35,12 +35,6 @@ export const NAV_GROUPS: NavGroup[] = [
         path: "/finance",
         // badge: "Live", // Pour indiquer le temps réel
       },
-      // {
-      //   id: "finance-dashboard",
-      //   label: "Tableau de Bord Global",
-      //   icon: LayoutDashboard,
-      //   path: "/finance",
-      // },
     ],
   },
   {

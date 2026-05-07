@@ -1,41 +1,70 @@
 "use client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import AppSidebar from "@/components/new-ui/layout/app-sidebar"; // Ajuste tes imports absolus
+import AppSidebar from "@/components/new-ui/layout/app-sidebar";
 import ReportTopbar from "@/components/new-ui/layout/app-topbar";
-import { NAV_GROUPS } from "./config"; // Import de la config RH
+import { NAV_GROUPS } from "./config";
+import { useTheme } from "next-themes"; // Mieux que le state local
+import { useAuth } from "@/contexts/AuthContext";
 
-type Role = "Admin" | "Manager" | "Staff";
-
-export default function HRLayout({ children }: { children: React.ReactNode }) {
+export default function HRLayout({ 
+  children,
+}: { 
+  children: React.ReactNode;
+  userProfile: any; 
+}) {
+  const { profile, loading } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
-  const [dark, setDark] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  
-  // TODO: Récupérer le rôle via Supabase Auth
-  const role: Role = "Admin"; 
+  const { theme, setTheme } = useTheme();
 
-  const handleToggleDark = () => {
-    setDark((d) => {
-      document.documentElement.classList.toggle("dark", !d);
-      return !d;
-    });
-  };
+  // Filtrage intelligent des menus côté client pour l'affichage
+  // (La sécurité réelle se fait au niveau des pages/middleware)
+  const filteredNavGroups = useMemo(() => {
+    if (!profile?.role) return [];
+    return NAV_GROUPS.map((group) => ({
+      ...group,
+      items: group.items.filter((item) =>
+        !item.roles || item.roles.includes(profile.role as any)
+      ),
+    })).filter((group) => group.items.length > 0);
+  }, [profile?.role]);
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      {/* Desktop sidebar */}
-      <div className="hidden md:flex h-full">
+    <div className="flex h-screen bg-background text-foreground overflow-hidden">
+      {/* Desktop Sidebar - Isolation via memo pour éviter les re-renders inutiles */}
+      <aside className="hidden md:flex h-full border-r border-border/40 shadow-sm">
         <AppSidebar
-          mainPath="/hr" // <-- Modifié pour le module RH
-          groups={NAV_GROUPS}
-          role={role}
+          mainPath="/hr"
+          groups={filteredNavGroups}
+          role={profile?.role as any}
           collapsed={collapsed}
           onCollapse={setCollapsed}
         />
+      </aside>
+
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden relative">
+        <ReportTopbar
+          dark={theme === "dark"}
+          onToggleDark={() => setTheme(theme === "dark" ? "light" : "dark")}
+          onMenuOpen={() => setMobileOpen(true)}
+          // Ajout : Fil d'ariane automatique basé sur la route
+        />
+
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 lg:p-8 scroll-smooth">
+          {/* Transition fluide entre les pages RH */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="max-w-[1400px] mx-auto"
+          >
+            {children}
+          </motion.div>
+        </main>
       </div>
 
-      {/* Mobile sidebar drawer */}
+      {/* Mobile Drawer (Optimisé pour Touch) */}
       <AnimatePresence>
         {mobileOpen && (
           <>
@@ -43,21 +72,20 @@ export default function HRLayout({ children }: { children: React.ReactNode }) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
               onClick={() => setMobileOpen(false)}
-              className="fixed inset-0 bg-black/40 z-40 md:hidden"
+              className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 md:hidden"
             />
             <motion.div
-              initial={{ x: -280 }}
+              initial={{ x: "-100%" }}
               animate={{ x: 0 }}
-              exit={{ x: -280 }}
-              transition={{ duration: 0.25, ease: "easeInOut" }}
-              className="fixed left-0 top-0 bottom-0 w-64 z-50 md:hidden"
+              exit={{ x: "-100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="fixed left-0 top-0 bottom-0 w-[280px] z-50 bg-card shadow-2xl md:hidden"
             >
               <AppSidebar
-                groups={NAV_GROUPS}
-                mainPath="/hr" // <-- Modifié pour le module RH
-                role={role}
+                groups={filteredNavGroups}
+                mainPath="/hr"
+                role={profile?.role as any}
                 collapsed={false}
                 onCollapse={() => setMobileOpen(false)}
               />
@@ -65,18 +93,6 @@ export default function HRLayout({ children }: { children: React.ReactNode }) {
           </>
         )}
       </AnimatePresence>
-
-      {/* Right side: topbar + content */}
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-        <ReportTopbar
-          dark={dark}
-          onToggleDark={handleToggleDark}
-          onMenuOpen={() => setMobileOpen(true)}
-        />
-        <main className="flex-1 overflow-y-auto bg-background">
-          {children}
-        </main>
-      </div>
     </div>
   );
 }

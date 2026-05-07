@@ -16,7 +16,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils";
 import { SidebarItem } from "./app-sidebar-item";
 
-type Role = "Admin" | "Manager" | "Staff";
+type Role = "admin" | "manager" | "staff";
 
 type SidebarProps = {
   role: Role;
@@ -32,7 +32,7 @@ export type NavItem = {
   icon: LucideIcon;
   path: string;
   badge?: number;
-  roles?: ("Admin" | "Manager" | "Staff")[];
+  roles?: ("admin" | "manager" | "staff")[];
 };
 
 export type NavGroup = {

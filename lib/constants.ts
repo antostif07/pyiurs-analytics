@@ -196,7 +196,7 @@ export const MODULES_CONFIG: AppModule[] =[
     description: "Gestion des Clients", 
     icon: Users, 
     color: "bg-indigo-600", 
-    href: "/client-base", 
+    href: "/crm", 
     permissions:["admin", "manager", "user"],
     category: "crm" 
   },
