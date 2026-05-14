@@ -11,15 +11,12 @@ export default function HRLayout({
   children,
 }: { 
   children: React.ReactNode;
-  userProfile: any; 
 }) {
   const { profile, loading } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const { theme, setTheme } = useTheme();
 
-  // Filtrage intelligent des menus côté client pour l'affichage
-  // (La sécurité réelle se fait au niveau des pages/middleware)
   const filteredNavGroups = useMemo(() => {
     if (!profile?.role) return [];
     return NAV_GROUPS.map((group) => ({

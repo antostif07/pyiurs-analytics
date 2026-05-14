@@ -38,9 +38,9 @@ const StockBadgeCell = ({ value }: { value: number }) => (
 );
 
 // Fonction de filtre générique pour les plages de nombres (Range)
-const numberRangeFilter = (row: Row<ControlStockFemmeModel>, id: string, filterValue:[number, number]) => {
+const numberRangeFilter = (row: Row<ControlStockFemmeModel>, id: string, filterValue: [number, number]) => {
   const value = Number(row.getValue(id));
-  const[min, max] = filterValue ??[];
+  const [min, max] = filterValue ?? [];
   if (min !== undefined && value < min) return false;
   if (max !== undefined && value > max) return false;
   return true;
@@ -57,7 +57,7 @@ const multiSelectFilter = (row: Row<ControlStockFemmeModel>, id: string, filterV
 // 2. DÉFINITION DES COLONNES
 // ============================================================================
 
-export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] =[
+export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
   {
     accessorKey: "po_name",
     header: "PO",
@@ -136,7 +136,7 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] =[
     meta: { type: "number", filterVariant: "range", label: "Vendu" },
     filterFn: numberRangeFilter,
   },
-  
+
   // ✅ PRO: Les colonnes de stock utilisent maintenant TOUTES le même composant StockBadgeCell !
   {
     accessorKey: "qty_available",
@@ -210,7 +210,7 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] =[
     meta: { type: "number", filterVariant: "range", label: "Age" },
     filterFn: numberRangeFilter,
   },
-  
+
   // ✅ PRO: Optimisation de la colonne calculée "Perf"
   {
     id: "perf",

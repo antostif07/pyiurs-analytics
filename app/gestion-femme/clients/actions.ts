@@ -2,36 +2,66 @@
 
 import { POSOrder } from "@/app/types/pos";
 import { odooClient } from "@/lib/odoo/odoo-json2-client";
+import { parsePhoneNumberFromString } from "libphonenumber-js";
 
 /**
  * Normalise les numéros de téléphone pour le dédoublonnage (Format RDC)
  * Transforme "0891234567", "+243 891 234 567", "891234567" en "+243891234567"
  */
-function normalizePhone(phone: any): string | null {
-  if (!phone || typeof phone !== 'string') return null;
-
-  // 1. Enlever tout ce qui n'est pas un chiffre (espaces, parenthèses, tirets, plus)
-  let cleaned = phone.replace(/\D/g, '');
-
-  // 2. Cas "00243..." -> on enlève les deux premiers zéros pour avoir "243..."
-  if (cleaned.startsWith('00243')) {
-    cleaned = cleaned.substring(2);
-  }
-  // 3. Cas "08..." ou "09..." -> on remplace le 0 par 243
-  else if (cleaned.startsWith('0') && cleaned.length === 10) {
-    cleaned = '243' + cleaned.substring(1);
-  }
-  // 4. Cas "8..." ou "9..." (9 chiffres) -> on ajoute 243 devant
-  else if (cleaned.length === 9 && (cleaned.startsWith('8') || cleaned.startsWith('9'))) {
-    cleaned = '243' + cleaned;
+function normalizePhone(
+  phone: string,
+  defaultCountry: any = 'CD'
+): string | null {
+  if (!phone || typeof phone !== 'string') {
+    return null;
   }
 
-  // 5. Validation finale : Un numéro RDC valide fait 12 chiffres et commence par 243
-  if (cleaned.length === 12 && cleaned.startsWith('243')) {
-    return '+' + cleaned;
-  }
+  try {
+    // 1. Nettoyage
+    let cleaned = phone.trim();
 
-  return null;
+    // Supprimer tous les espaces
+    cleaned = cleaned.replace(/\s+/g, '');
+
+    // Convertir 00XXXXXXXX -> +XXXXXXXX
+    if (cleaned.startsWith('00')) {
+      cleaned = '+' + cleaned.substring(2);
+    }
+
+    /**
+     * 2. Tentative auto
+     *    fonctionne pour :
+     *    +243...
+     *    +33...
+     *    +1...
+     */
+    let phoneNumber = parsePhoneNumberFromString(cleaned);
+
+    /**
+     * 3. Si aucun indicatif détecté,
+     *    utiliser le pays par défaut
+     */
+    if (!phoneNumber) {
+      phoneNumber = parsePhoneNumberFromString(
+        cleaned,
+        defaultCountry
+      );
+    }
+
+    /**
+     * 4. Validation
+     */
+    if (!phoneNumber || !phoneNumber.isValid()) {
+      return null;
+    }
+
+    /**
+     * 5. Retour format E.164
+     */
+    return phoneNumber.number;
+  } catch {
+    return null;
+  }
 }
 
 function getCleanProductName(name: string): string {

@@ -204,8 +204,8 @@ export function VendeuseSalesDashboard({
   });
 
   const totalVentes = orderLines.reduce((acc: number, ol: POSOrderLine) => acc + (ol.price_unit * ol.qty), 0);
-  const totalCout = totalVentes * 0.485;
-  const totalCommission = totalCout * 0.12;
+  const totalCout = totalVentes * 0.52;
+  const totalCommission = totalVentes * 0.48 * 0.06;
 
   if (!profile) {
     return (

@@ -7,6 +7,7 @@ import {
   ColumnFiltersState,
   flexRender,
   getCoreRowModel,
+  getExpandedRowModel,
   getFacetedMinMaxValues,
   getFacetedRowModel,
   getFacetedUniqueValues,
@@ -57,7 +58,7 @@ declare module "@tanstack/react-table" {
   }
 }
 
-export default function DataTable<T>({tableData, cols}: {tableData: T[], cols: ColumnDef<T, unknown>[]}) {
+export default function DataTable<T>({ tableData, cols }: { tableData: T[], cols: ColumnDef<T, unknown>[] }) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [sorting, setSorting] = useState<SortingState>([])
   const pageSize = 10
@@ -68,7 +69,8 @@ export default function DataTable<T>({tableData, cols}: {tableData: T[], cols: C
 
   const table = useReactTable({
     data: tableData,
-    columns:cols,
+    columns: cols,
+    getExpandedRowModel: getExpandedRowModel(),
     state: {
       sorting,
       columnFilters,
@@ -132,116 +134,116 @@ export default function DataTable<T>({tableData, cols}: {tableData: T[], cols: C
       </div>
 
       <div className="[&>div]:h-140">
-        <Table 
-        className="table-fixed border-separate border-spacing-0 [&_td]:border-border [&_tfoot_td]:border-t [&_th]:border-b [&_th]:border-border [&_tr]:border-none [&_tr:not(:last-child)_td]:border-b"
-        style={{
-          width: table.getCenterTotalSize(),
-        }}>
-        <TableHeader className="sticky top-0 z-10 bg-background/90 backdrop-blur-xs">
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id} className="bg-muted/50">
-              {headerGroup.headers.map((header) => {
-                return (
-                  <TableHead
-                    key={header.id}
-                    className="relative h-10 border-t select-none last:[&>.cursor-col-resize]:opacity-0"
-                    aria-sort={
-                      header.column.getIsSorted() === "asc"
-                        ? "ascending"
-                        : header.column.getIsSorted() === "desc"
-                          ? "descending"
-                          : "none"
-                    }
-                    {...{
-                      colSpan: header.colSpan,
-                      style: {
-                        width: header.getSize(),
-                      },
-                    }}
-                  >
-                    {header.isPlaceholder ? null : (
-                      <div
-                        className={cn(
-                          header.column.getCanSort() &&
-                            "flex h-full cursor-pointer items-center justify-between gap-2 select-none"
-                        )}
-                        onClick={header.column.getToggleSortingHandler()}
-                        onKeyDown={(e) => {
-                          // Enhanced keyboard handling for sorting
-                          if (
+        <Table
+          className="table-fixed border-separate border-spacing-0 [&_td]:border-border [&_tfoot_td]:border-t [&_th]:border-b [&_th]:border-border [&_tr]:border-none [&_tr:not(:last-child)_td]:border-b"
+          style={{
+            width: table.getCenterTotalSize(),
+          }}>
+          <TableHeader className="sticky top-0 z-10 bg-background/90 backdrop-blur-xs">
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id} className="bg-muted/50">
+                {headerGroup.headers.map((header) => {
+                  return (
+                    <TableHead
+                      key={header.id}
+                      className="relative h-10 border-t select-none last:[&>.cursor-col-resize]:opacity-0"
+                      aria-sort={
+                        header.column.getIsSorted() === "asc"
+                          ? "ascending"
+                          : header.column.getIsSorted() === "desc"
+                            ? "descending"
+                            : "none"
+                      }
+                      {...{
+                        colSpan: header.colSpan,
+                        style: {
+                          width: header.getSize(),
+                        },
+                      }}
+                    >
+                      {header.isPlaceholder ? null : (
+                        <div
+                          className={cn(
                             header.column.getCanSort() &&
-                            (e.key === "Enter" || e.key === " ")
-                          ) {
-                            e.preventDefault()
-                            header.column.getToggleSortingHandler()?.(e)
-                          }
-                        }}
-                        tabIndex={header.column.getCanSort() ? 0 : undefined}
-                      >
-                        <span className="truncate">
-                          {flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
+                            "flex h-full cursor-pointer items-center justify-between gap-2 select-none"
                           )}
-                        </span>
-                        {{
-                          asc: (
-                            <ChevronUpIcon
-                              className="shrink-0 opacity-60"
-                              size={16}
-                              aria-hidden="true"
-                            />
-                          ),
-                          desc: (
-                            <ChevronDownIcon
-                              className="shrink-0 opacity-60"
-                              size={16}
-                              aria-hidden="true"
-                            />
-                          ),
-                        }[header.column.getIsSorted() as string] ?? null}
-                      </div>
-                    )}
-                    {header.column.getCanResize() && (
-                      <div
-                        {...{
-                          onDoubleClick: () => header.column.resetSize(),
-                          onMouseDown: header.getResizeHandler(),
-                          onTouchStart: header.getResizeHandler(),
-                          className:
-                            "absolute top-0 h-full w-4 cursor-col-resize user-select-none touch-none -right-2 z-10 flex justify-center before:absolute before:w-px before:inset-y-0 before:bg-border before:translate-x-px",
-                        }}
-                      />
-                    )}
-                  </TableHead>
-                )
-              })}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows?.length ? (
-            table.getRowModel().rows.map((row) => (
-              <TableRow
-                key={row.id}
-                data-state={row.getIsSelected() && "selected"}
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id} className="">
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
+                          onClick={header.column.getToggleSortingHandler()}
+                          onKeyDown={(e) => {
+                            // Enhanced keyboard handling for sorting
+                            if (
+                              header.column.getCanSort() &&
+                              (e.key === "Enter" || e.key === " ")
+                            ) {
+                              e.preventDefault()
+                              header.column.getToggleSortingHandler()?.(e)
+                            }
+                          }}
+                          tabIndex={header.column.getCanSort() ? 0 : undefined}
+                        >
+                          <span className="truncate">
+                            {flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                          </span>
+                          {{
+                            asc: (
+                              <ChevronUpIcon
+                                className="shrink-0 opacity-60"
+                                size={16}
+                                aria-hidden="true"
+                              />
+                            ),
+                            desc: (
+                              <ChevronDownIcon
+                                className="shrink-0 opacity-60"
+                                size={16}
+                                aria-hidden="true"
+                              />
+                            ),
+                          }[header.column.getIsSorted() as string] ?? null}
+                        </div>
+                      )}
+                      {header.column.getCanResize() && (
+                        <div
+                          {...{
+                            onDoubleClick: () => header.column.resetSize(),
+                            onMouseDown: header.getResizeHandler(),
+                            onTouchStart: header.getResizeHandler(),
+                            className:
+                              "absolute top-0 h-full w-4 cursor-col-resize user-select-none touch-none -right-2 z-10 flex justify-center before:absolute before:w-px before:inset-y-0 before:bg-border before:translate-x-px",
+                          }}
+                        />
+                      )}
+                    </TableHead>
+                  )
+                })}
               </TableRow>
-            ))
-          ) : (
-            <TableRow>
-              <TableCell colSpan={cols.length} className="h-24 text-center">
-              Aucun Résultat.
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {table.getRowModel().rows?.length ? (
+              table.getRowModel().rows.map((row) => (
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && "selected"}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id} className="">
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={cols.length} className="h-24 text-center">
+                  Aucun Résultat.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
       </div>
       <div className="flex items-center justify-between gap-3 max-sm:flex-col">
         {/* Page number information */}
@@ -352,7 +354,7 @@ export default function DataTable<T>({tableData, cols}: {tableData: T[], cols: C
 
 // function Filter({ column }: { column: Column<any, unknown> }) {
 //   const id = useId()
-  
+
 //   const columnFilterValue = column.getFilterValue()
 //   const { filterVariant } = column.columnDef.meta ?? {}
 
@@ -468,9 +470,9 @@ function Filter<TData>({ column }: { column: Column<TData, unknown> }) {
   // ⚠️ Si aucun filtre n’est défini dans la colonne, on n’affiche rien
 
   const columnHeader = column.columnDef.meta?.label ??
-  (typeof column.columnDef.header === "string"
-    ? column.columnDef.header
-    : column.id);
+    (typeof column.columnDef.header === "string"
+      ? column.columnDef.header
+      : column.id);
 
   // 🔢 Liste des valeurs uniques pour les filtres "select"
   const sortedUniqueValues = useMemo(() => {
@@ -544,13 +546,13 @@ function Filter<TData>({ column }: { column: Column<TData, unknown> }) {
 
   if (filterVariant === "multi-select") {
     return (
-        <Multiselect
-          label={columnHeader} 
-          options={sortedUniqueValues.map((s: string) => ({value: s, label: s}))} 
-          onChange={(selectedOptions: { value: string; label: string }[]) => {
-            const newValues = selectedOptions.map((opt) => opt.value);
-            column.setFilterValue(newValues); // 🟢 met à jour le filtre de la colonne
-          }} />
+      <Multiselect
+        label={columnHeader}
+        options={sortedUniqueValues.map((s: string) => ({ value: s, label: s }))}
+        onChange={(selectedOptions: { value: string; label: string }[]) => {
+          const newValues = selectedOptions.map((opt) => opt.value);
+          column.setFilterValue(newValues); // 🟢 met à jour le filtre de la colonne
+        }} />
     );
   }
 

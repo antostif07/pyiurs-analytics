@@ -149,7 +149,7 @@ export const CRM_NAV_GROUPS: NavGroup[] = [
         label: "Paramètres CRM",
         icon: Settings2,
         path: "/crm/settings",
-        roles: ["Admin"],
+        roles: ["admin"],
       },
     ],
   },

@@ -5,13 +5,13 @@ import AppSidebar from "../../components/new-ui/layout/app-sidebar";
 import ReportTopbar from "../../components/new-ui/layout/app-topbar";
 import { CRM_NAV_GROUPS } from "./config";
 
-type Role = "Admin" | "Manager" | "Staff";
+type Role = "admin" | "manager" | "staff";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [dark, setDark] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const role: Role = "Admin";
+  const role: Role = "admin";
 
   const handleToggleDark = () => {
     setDark((d) => {
@@ -27,10 +27,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <AppSidebar
           mainPath="/crm"
           groups={CRM_NAV_GROUPS}
-          role={role}
           collapsed={collapsed}
-          onCollapse={setCollapsed}
-        />
+          onCollapse={setCollapsed} role={"admin"}        />
       </div>
 
       {/* Mobile sidebar drawer */}

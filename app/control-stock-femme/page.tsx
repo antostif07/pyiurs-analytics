@@ -35,7 +35,7 @@ export interface ControlStockFemmeModel {
   stock_dc: number;
   stock_other: number;
   po_name: string;
-  posOrderLines?: ControlStockFemmeModel[] 
+  posOrderLines?: ControlStockFemmeModel[]
 }
 
 // const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -46,25 +46,25 @@ async function getStockQuantsForProducts(productIds: number[]): Promise<{ record
     // Diviser en lots plus petits si nécessaire pour éviter les limites de taille
     const BATCH_SIZE = 500;
     const batches = [];
-    
+
     for (let i = 0; i < productIds.length; i += BATCH_SIZE) {
       batches.push(productIds.slice(i, i + BATCH_SIZE));
     }
 
     const allResults = [];
-    
+
     for (const batch of batches) {
       const domain = JSON.stringify([
         ['product_id', 'in', batch],
-        ['location_id', 'not in', [5,4]],
+        ['location_id', 'not in', [5, 4]],
       ])
-      
+
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/stock.quant?fields=id,product_id,product_tmpl_id,location_id,quantity&domain=${domain}`,
-        { 
-          next: { 
+        {
+          next: {
             revalidate: 300
-          } 
+          }
         }
       );
 
@@ -73,35 +73,35 @@ async function getStockQuantsForProducts(productIds: number[]): Promise<{ record
       }
 
       const batchResults = await res.json();
-      
+
       allResults.push(...batchResults.records);
     }
-    return {success: true, records: allResults};
+    return { success: true, records: allResults };
 
   } catch (error) {
     console.error('❌ Erreur lors de la récupération des stocks quant:', error);
-    return {records: [], success: false};
+    return { records: [], success: false };
   }
 }
 
 async function getPurchaseOrders(startDate: string, endDate: string, partnerFilter?: string, orderNameFilter?: string) {
   let domain = `[["partner_id.name", "ilike", "P.FEM"], ["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"]]`;
-  
+
   // Ajouter les filtres optionnels
   if (partnerFilter) {
     domain = `[["partner_id", "ilike", "${partnerFilter}"], ["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"]]`;
   }
-  
+
   if (orderNameFilter) {
     domain = `[["name", "ilike", "${orderNameFilter}"], ["partner_id", "ilike", "P.FEM"], ["create_date", ">=", "${startDate}"], ["create_date", "<=", "${endDate}"]]`;
   }
 
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/purchase.order?fields=id,create_date,partner_id,name,partner_ref,partner_id&domain=${domain}`,
-    { 
-      next: { 
+    {
+      next: {
         revalidate: 300
-      } 
+      }
     }
   );
 
@@ -136,14 +136,14 @@ async function getProductsByIds(productIds: number[]) {
         ],
         fields: "id,name,list_price,categ_id,hs_code,product_variant_id,x_studio_many2one_field_21bvh,x_studio_many2one_field_QyelN,x_studio_many2one_field_Arl5D".split(',')
       })
-      
+
       allResults.push(...res);
     }
     return { records: allResults };
   } catch (e) {
     console.log(e);
   }
-  return { records: []}
+  return { records: [] }
 }
 
 async function getPurchaseOrderLinesByIds(purchaseOrderIds: number[]) {
@@ -152,13 +152,13 @@ async function getPurchaseOrderLinesByIds(purchaseOrderIds: number[]) {
   }
 
   const domain = `[["order_id", "in", [${purchaseOrderIds.join(',')}]]]`;
-  
+
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/purchase.order.line?fields=id,order_id,product_id,product_qty,qty_received,price_unit,write_date&domain=${domain}`,
-    { 
-      next: { 
+    {
+      next: {
         revalidate: 300
-      } 
+      }
     }
   );
 
@@ -178,7 +178,7 @@ async function transformToControlStockModel(
   stockQuants: StockQuant[]
 ): Promise<ControlStockFemmeModel[]> {
   const allProductIds = products.map((product: OdooProductTemplate) => product.product_variant_id ? product.product_variant_id[0] : 0);
-  
+
   // Créer une map des stocks par produit et par boutique
   const stockByProductAndBoutique = new Map<number, {
     P24: number;
@@ -208,7 +208,7 @@ async function transformToControlStockModel(
     const productId = quant.product_id[0];
     const locationName = quant.location_id[1];
     const quantity = quant.quantity;
-    
+
     const boutiqueCode = extractBoutiqueCode(locationName);
 
     const currentStock = stockByProductAndBoutique.get(productId) || {
@@ -240,17 +240,17 @@ async function transformToControlStockModel(
     }
 
     currentStock.total += quantity;
-    
+
     stockByProductAndBoutique.set(productId, currentStock);
   })
-  
+
   // Créer un map des produits par ID pour un accès rapide
   const productsMap = new Map<number, OdooProductTemplate>();
   products.forEach(product => {
     const pId = product.product_variant_id ? product.product_variant_id[0] : 0
     productsMap.set(pId, product);
   });
-  
+
   // Créer un map des ventes par product_id
   const salesByProductId = new Map<number, number>();
   posOrderLines.forEach((line: POSOrderLine) => {
@@ -289,15 +289,15 @@ async function transformToControlStockModel(
     let lastdate;
     const productId = line.product_id?.[0];
     if (!productId) return;
-    
+
     const product = productsMap.get(productId);
-    
+
     if (!product) return;
-    
-    if(line.qty_received > 0) {
+
+    if (line.qty_received > 0) {
       if (lastdate) {
         const old = isBefore(new Date(lastdate), new Date(line.write_date))
-        if(old) {
+        if (old) {
           age = formatTimeShort(lastdate)
         }
       } else {
@@ -311,12 +311,12 @@ async function transformToControlStockModel(
     const category = categ_id.split("/").pop()?.trim() ?? "";
     const price = product.list_price;
     const imageUrl = `http://${process.env.NEXT_PUBLIC_IMAGES_DIR ?? "images.bybkm.fr"}/${hsCode}_${product.x_studio_many2one_field_Arl5D![1]}.jpg`;
-    
+
     const stock = stockByProductAndBoutique.get(productId)
-    
+
     if (!linesByHsCode.has(groupKey)) {
       const po = line.order_id ? purchaseOrders.find(p => p.id === line.order_id[0]) : null;
-      const po_name = po ? `${po.partner_id[1].split("-")[1]} - ${po.partner_ref}`: "Aucune Reference"
+      const po_name = po ? `${po.partner_id[1].split("-")[1]} - ${po.partner_ref}` : "Aucune Reference"
       linesByHsCode.set(groupKey, {
         lines: [],
         productNames: new Set<string>(),
@@ -333,34 +333,34 @@ async function transformToControlStockModel(
 
     const hsCodeGroup = linesByHsCode.get(groupKey)!;
     hsCodeGroup.lines.push(line);
-    
+
     // Ajouter les informations du produit
     if (product.name) {
       hsCodeGroup.productNames.add(product.name);
     }
-    
+
     const brand = product.x_studio_many2one_field_21bvh?.[1];
     const size = product.x_studio_many2one_field_QyelN?.[1];
     if (brand) {
       hsCodeGroup.brands.add(brand);
     }
-    
+
     // if (color) {
     //   hsCodeGroup.colors.add(color);
     // }
-    if(size) {
+    if (size) {
       hsCodeGroup.colors.add(size)
     }
 
     // Ajouter le stock
-    if(stock) {
+    if (stock) {
       hsCodeGroup.stock.push(stock)
     }
   });
 
   // Transformer les données groupées par hs_code
   const result: ControlStockFemmeModel[] = [];
-  
+
   linesByHsCode.forEach((group, key) => {
     // Calculer les quantités totales pour ce hs_code
     const product_qty = group.lines.reduce((sum, line) => sum + (line.product_qty || 0), 0);
@@ -382,13 +382,13 @@ async function transformToControlStockModel(
     // Gérer les marques et couleurs multiples
     const brands = Array.from(group.brands);
     const sizes = Array.from(group.colors)
-    
-    const brand = brands.length > 0 
+
+    const brand = brands.length > 0
       ? `${brands[0]}${brands.length > 1 ? `, +${brands.length - 1}` : ''}`
       : 'Autres';
-    
+
     const size = sizes.length > 0 ? sizes.toString() : ""
-      
+
     result.push({
       name: `${group.category} ${color} - ${hsCode} (${group.price})`,
       brand,
@@ -450,18 +450,18 @@ async function getPOSOrderLines(productIds: number[]) {
         ],
         fields: "id,qty,product_id".split(',')
       })
-      
+
       allResults.push(...res);
     }
     return { records: allResults };
   } catch (e) {
     console.log(e);
   }
-  return { records: []}
+  return { records: [] }
 }
 
 async function getData(
-  start_date?: string, 
+  start_date?: string,
   end_date?: string,
   partnerFilter?: string,
   orderNameFilter?: string
@@ -475,7 +475,7 @@ async function getData(
   let startDate;
   let endDate;
 
-  if(!start_date || !end_date) {
+  if (!start_date || !end_date) {
     const today = new Date();
     const currentMonthStart = startOfMonth(today);
     const currentMonthEnd = endOfMonth(today);
@@ -518,14 +518,14 @@ async function getData(
 
   // 8. Transformer les données en ControlStockFemmeModel
   const allData: ControlStockFemmeModel[] =
-  await transformToControlStockModel(
-    purchaseOrders.records,
-    purchaseOrderLines.records,
-    products.records,
-    posOrderLines.records,
-    stockQuants
-  );
-  
+    await transformToControlStockModel(
+      purchaseOrders.records,
+      purchaseOrderLines.records,
+      products.records,
+      posOrderLines.records,
+      stockQuants
+    );
+
 
   // 8. Extraire les marques, couleurs, partenaires et noms de commande
   const brandsSet = new Set<string>();
@@ -585,11 +585,11 @@ export default async function ControlStockFemmePage({ searchParams }: PageProps)
   const endDate = params.end_date;
   const selectedPartner = params.partner; // Nouveau
   const selectedPurchaseOrder = params.purchase_order;
-  
-  const {data,brands, colors, partners, orderNames} = await getData(startDate, endDate,selectedPartner, selectedPurchaseOrder);
-  
+
+  const { data, brands, colors, partners, orderNames } = await getData(startDate, endDate, selectedPartner, selectedPurchaseOrder);
+
   // const stockLocations = await getStockLocations();
-  
+
   // const { data: allData, brands, colors } = await getControlStockData();
 
   // Filtrer les données
@@ -653,7 +653,7 @@ export default async function ControlStockFemmePage({ searchParams }: PageProps)
     const stockLabels = {
       'out_of_stock': 'Rupture',
       'critical': 'Critique',
-      'low': 'Faible', 
+      'low': 'Faible',
       'good': 'Bon',
       'over_5': '> 5',
       'over_10': '> 10',
@@ -672,25 +672,25 @@ export default async function ControlStockFemmePage({ searchParams }: PageProps)
         <div className="container mx-auto px-6 py-8">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center space-x-4">
-                <Link 
-                  href="/"
-                  className="inline-flex items-center px-4 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors duration-200"
-                >
-                  ← Retour
-                </Link>
+              <Link
+                href="/"
+                className="inline-flex items-center px-4 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors duration-200"
+              >
+                ← Retour
+              </Link>
 
-                <div className="flex items-center space-x-3">
-                  <div className="px-2">
-                    <h1 className="text-2xl lg:text-3xl font-bold bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent truncate">
-                  Control Stock Femme
-                </h1>
-                <p className="text-gray-600 dark:text-gray-300 mt-1 text-sm truncate">
-                  {activeFilters.length > 0 ? `Filtres: ${activeFilters.join(' • ')}` : 'Tous les produits'}
-                </p>
-                  </div>
+              <div className="flex items-center space-x-3">
+                <div className="px-2">
+                  <h1 className="text-2xl lg:text-3xl font-bold bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent truncate">
+                    Control Stock Femme
+                  </h1>
+                  <p className="text-gray-600 dark:text-gray-300 mt-1 text-sm truncate">
+                    {activeFilters.length > 0 ? `Filtres: ${activeFilters.join(' • ')}` : 'Tous les produits'}
+                  </p>
                 </div>
+              </div>
             </div>
-            
+
             {/* Stats principales compactes */}
             <div className="flex gap-3 mt-4 lg:mt-0">
               <div className="text-center">
@@ -714,8 +714,8 @@ export default async function ControlStockFemmePage({ searchParams }: PageProps)
       <div className="container mx-auto px-4 py-6">
         {/* Filtres compacts */}
         <div className="mb-6">
-          <CompactFilters 
-            brands={brands} 
+          <CompactFilters
+            brands={brands}
             colors={colors}
             partners={partners} // Nouveau
             orderNames={orderNames} // Nouveau
@@ -750,8 +750,8 @@ export default async function ControlStockFemmePage({ searchParams }: PageProps)
             <div className="p-4">
               {/* <DataTable columns={controlStockBeautyColumns} data={filteredData} /> */}
               <Datatable
-              tableData={filteredData} 
-              cols={controlStockBeautyColumns}
+                tableData={filteredData}
+                cols={controlStockBeautyColumns}
               />
             </div>
           </Suspense>
@@ -759,7 +759,7 @@ export default async function ControlStockFemmePage({ searchParams }: PageProps)
           {/* Table Footer */}
           <div className="px-4 py-3 border-t border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-700/50">
             <p className="text-xs text-gray-600 dark:text-gray-400">
-              {filteredData.length} produits • MAJ: {new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'})}
+              {filteredData.length} produits • MAJ: {new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
             </p>
           </div>
         </div>

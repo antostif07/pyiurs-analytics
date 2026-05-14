@@ -1,4 +1,3 @@
-// app/finance/revenue/layout.tsx
 'use client';
 
 import { useState } from "react";
@@ -29,7 +28,7 @@ export default function RevenueLayout({
     <div className="flex h-screen bg-background overflow-hidden">
       <div className="hidden md:flex h-full">
         <AppSidebar
-          role={"Admin"}
+          role={"admin"}
           collapsed={collapsed}
           onCollapse={setCollapsed}
           groups={NAV_GROUPS}
@@ -61,7 +60,7 @@ export default function RevenueLayout({
               <AppSidebar
                 groups={NAV_GROUPS}
                 mainPath="/revenue"
-                role={"Admin"}
+                role={"admin"}
                 collapsed={false}
                 onCollapse={() => setMobileOpen(false)}
               />
