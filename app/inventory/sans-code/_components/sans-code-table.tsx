@@ -27,6 +27,7 @@ export default function SansCodeTable() {
       setLoading(false);
     }
     load();
+    
   }, [from, to]);
 
   // Groupement hiérarchique : POS > Date

@@ -34,8 +34,12 @@ export async function getSansCodeSales({ from, to }: FetchParams) {
       ["order_id", "in", orderIds],
       ["product_id.barcode", "in", ["SCBTY", "SCVF142"]],
     ],
-    fields: ["order_id", "qty", "price_subtotal_incl"],
+    fields: ["order_id", "qty", "price_subtotal_incl", "note"],
+    // fields: []
   });
+
+  // console.log(lines[0]);
+  
 
   const orderMap = new Map(orders.map((o) => [o.id, o]));
   const invoiceMap = new Map();
@@ -43,6 +47,7 @@ export async function getSansCodeSales({ from, to }: FetchParams) {
   for (const line of lines) {
     // ✅ ON GARDE UNIQUEMENT LES VENTES (PAS LES RETOURS)
     if (line.qty <= 0) continue;
+    const note: Array<{text: string}> = JSON.parse(line.note || "[]");
 
     const orderId = line.order_id[0];
     const order = orderMap.get(orderId);
@@ -53,7 +58,7 @@ export async function getSansCodeSales({ from, to }: FetchParams) {
         id: orderId.toString(),
         posConfig: order.config_id?.[1] || "N/A",
         date: order.date_order.split(" ")[0],
-        invoiceRef: order.pos_reference,
+        invoiceRef: order.pos_reference + ' ' + (note[0]?.text || ""),
         clientName: order.partner_id
           ? order.partner_id[1]
           : "Client de passage",
