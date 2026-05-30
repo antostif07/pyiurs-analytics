@@ -6,7 +6,7 @@ import {odooClient as odooJsonClient} from "@/lib/odoo/odoo-json2-client"
 import { createClient } from "@/lib/supabase/server";
 import { startOfMonth, endOfMonth, subMonths, format, getWeek, subDays, startOfWeek } from "date-fns";
 import { fr } from "date-fns/locale";
-import { POSCategory, POSOrder, POSOrderLine } from "../types/pos";
+import { POSOrder, POSOrderLine } from "../types/pos";
 
 function getMonthKey(odooMonthStr: string): string {
   const months: Record<string, string> = {
@@ -308,6 +308,7 @@ function ensureTrackerEntry(tracker: Map<string, any>, hsCode: string, name = "P
 //         return { shopPerformance: [], segmentPerformance: [] };
 //     }
 // }
+
 export async function getRevenueDashboardData(month: string, year: string) {
     const supabase = await createClient();
     const now = new Date();

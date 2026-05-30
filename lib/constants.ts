@@ -1,4 +1,4 @@
-import { TrendingUp, Package, Database, PieChart, Heart, PiggyBank, ShieldCheck, Users, Wallet, FileSpreadsheet, MonitorPlay, Clock, PictureInPicture, Banknote } from "lucide-react"
+import { TrendingUp, Package, Database, PieChart, Heart, PiggyBank, ShieldCheck, Users, Wallet, FileSpreadsheet, MonitorPlay, Clock, PictureInPicture, Banknote, ShoppingBag } from "lucide-react"
 
 export interface Denomination {
   currency: 'USD' | 'CDF'
@@ -56,6 +56,8 @@ export type ModuleCategory =
   | "operations"
   | "admin"
   | "hr"
+  | "purchasing"
+
 
 export const MODULES_CONFIG: AppModule[] =[
   {
@@ -89,6 +91,18 @@ export const MODULES_CONFIG: AppModule[] =[
     permissions: ["admin", "manager", "financier"],
     isNew: true, // Pour marquer le nouveau module
     order: 0
+  },
+  {
+    id: "purchases",
+    name: "Achats",
+    description: "Suivez et gérez vos bons de commande, vos relations fournisseurs et optimisez vos dépenses d'approvisionnement.",
+    href: "/purchases",
+    icon: ShoppingBag, // À importer de lucide-react (ou ShoppingCart, Receipt)
+    color: "bg-blue-600", // Couleur distincte des autres modules (violet, gris, émeraude)
+    category: "purchasing", // Nouvelle catégorie ou à adapter selon vos filtres existants
+    permissions: ["admin", "manager", "financier"], // Rôles autorisés, à adapter à vos besoins
+    isNew: true,
+    order: 1
   },
   {
     id: "catalog", 

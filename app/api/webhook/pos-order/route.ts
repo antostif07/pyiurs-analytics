@@ -6,6 +6,7 @@ import { after, NextRequest, NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
 import { parseOdooFrenchDate } from "../utils";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { m } from "framer-motion";
 
 const CONFIG = {
     LOW_STOCK_THRESHOLD: 12,
@@ -178,12 +179,9 @@ async function processOrderBackgroundJob(body: any) {
     try {
         console.log(`[BACKGROUND_JOB] Démarrage du traitement pour la commande: ${orderId}`);
 
-        // 1. Appels Odoo Parallélisés
-        const [posConfigData, partnerData, productLines] = await Promise.all([
-            getPOSConfig(config_id),
-            getPartner(partner_id),
-            getPOSOrderLines(orderId)
-        ]);
+        const posConfigData = await getPOSConfig(config_id);
+        const partnerData = await getPartner(partner_id);
+        const productLines = await getPOSOrderLines(orderId)
 
         const partner = partnerData?.records?.[0];
         const posConfig = posConfigData?.records?.[0];

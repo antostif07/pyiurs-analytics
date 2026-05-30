@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import AppSidebar from "@/components/new-ui/layout/app-sidebar";
-import { NAV_GROUPS } from "./config";
+import { NAV_GROUPS } from "./config"; // Ce fichier contiendra la navigation spécifique aux achats
 import { AnimatePresence, motion } from "framer-motion";
 import AppTopbar from "@/components/new-ui/layout/app-topbar";
 
-export default function RevenueLayout({
+export default function PurchasesLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -24,13 +24,14 @@ export default function RevenueLayout({
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
+      {/* Desktop sidebar */}
       <div className="hidden md:flex h-full">
         <AppSidebar
-          role={"admin"}
+          role={"admin"} // Vous pourrez dynamiser ce rôle selon votre système d'authentification
           collapsed={collapsed}
           onCollapse={setCollapsed}
           groups={NAV_GROUPS}
-          mainPath={"/revenue"}        
+          mainPath={"/purchases"}        
         />
       </div>
 
@@ -57,7 +58,7 @@ export default function RevenueLayout({
             >
               <AppSidebar
                 groups={NAV_GROUPS}
-                mainPath="/revenue"
+                mainPath="/purchases"
                 role={"admin"}
                 collapsed={false}
                 onCollapse={() => setMobileOpen(false)}
@@ -67,18 +68,17 @@ export default function RevenueLayout({
         )}
       </AnimatePresence>
         
-
       {/* Right side: topbar + content */}
-            <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-              <AppTopbar
-                dark={dark}
-                onToggleDark={handleToggleDark}
-                onMenuOpen={() => setMobileOpen(true)}
-              />
-              <main className="flex-1 overflow-y-auto bg-background p-6 sm:p-8">
-                {children}
-              </main>
-            </div>
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+        <AppTopbar
+          dark={dark}
+          onToggleDark={handleToggleDark}
+          onMenuOpen={() => setMobileOpen(true)}
+        />
+        <main className="flex-1 overflow-y-auto bg-background p-6 sm:p-8">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

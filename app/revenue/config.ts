@@ -2,19 +2,7 @@ import { NavGroup } from "@/components/new-ui/layout/app-sidebar";
 import {
   Banknote,
   Wallet,
-  ArrowDownRight,
-  Receipt,
-  FileText,
   TrendingUp,
-  PieChart,
-  Scale,
-  History,
-  Settings2,
-  PiggyBank,
-  MonitorPlay,
-  Calculator,
-  LibraryBig,
-  CreditCard,
   Building2,
 } from "lucide-react";
 
