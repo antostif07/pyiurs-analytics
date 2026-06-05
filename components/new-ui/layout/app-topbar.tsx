@@ -87,6 +87,8 @@ export default function AppTopbar({ dark, onToggleDark, onMenuOpen }: TopbarProp
   const supabase = createClient();
   const { data: user, isLoading: userLoading } = useUser();
 
+  console.log("user", user);
+
   const [notifOpen, setNotifOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
@@ -239,7 +241,7 @@ export default function AppTopbar({ dark, onToggleDark, onMenuOpen }: TopbarProp
       </button>
 
       <div className="h-4 w-[1px] bg-border mx-1 hidden sm:block" />
-      
+
       {/* Profile */}
       <div className="relative">
         <button
@@ -256,7 +258,7 @@ export default function AppTopbar({ dark, onToggleDark, onMenuOpen }: TopbarProp
               {user?.profile?.full_name?.substring(0, 2).toUpperCase() || "U"}
             </div>
           )}
-          
+
           <div className="hidden md:block text-left pr-1">
             {userLoading ? (
               <div className="space-y-1">
@@ -306,7 +308,7 @@ export default function AppTopbar({ dark, onToggleDark, onMenuOpen }: TopbarProp
               </div>
 
               <div className="p-1.5 border-t border-border bg-muted/10">
-                <button 
+                <button
                   onClick={handleSignOut}
                   className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
                 >
