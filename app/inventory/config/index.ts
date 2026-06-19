@@ -2,6 +2,8 @@ import { NavGroup } from "@/components/new-ui/layout/app-sidebar";
 import {
   LayoutDashboard,
   FileText,
+  ShoppingBag,
+  BarChart3,
 } from "lucide-react";
 
 export const NAV_GROUPS: NavGroup[] = [
@@ -20,6 +22,24 @@ export const NAV_GROUPS: NavGroup[] = [
         label: "Suivi Produits Sans-Code",
         icon: FileText,
         path: "/inventory/sans-code",
+      }
+    ],
+  },
+  {
+    id: "purchases",
+    title: "Purchases",
+    items: [
+      {
+        id: "purchases-overview",
+        label: "Purchases Overview",
+        icon: ShoppingBag,
+        path: "/inventory/purchases",
+      },
+      {
+        id: "purchases-analytics",
+        label: "Analytiques BI",
+        icon: BarChart3,
+        path: "/inventory/purchases/analytics",
       }
     ],
   },
