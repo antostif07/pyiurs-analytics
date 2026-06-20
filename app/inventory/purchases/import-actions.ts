@@ -4,6 +4,61 @@
 import { odooClient } from "@/lib/odoo/odoo-json2-client";
 import { OdooPurchaseOrderOption } from "./_components/purchase-order-selector";
 
+export interface OdooOption {
+    id: number;
+    name: string;
+}
+
+/**
+ * Récupère les Bons de Commande d'Odoo dont le nom contient "LOG"
+ */
+export async function getOdooLogPurchaseOrders(): Promise<OdooOption[]> {
+    try {
+        const orders = await odooClient.searchRead<{ id: number; name: string }>("purchase.order", {
+            domain: [["name", "ilike", "LOG"]], // Filtre insensible à la casse
+            fields: ["id", "name"],
+            order: "name desc",
+        });
+        return orders;
+    } catch (error) {
+        console.error("Erreur getOdooLogPurchaseOrders :", error);
+        return [];
+    }
+}
+
+/**
+ * Récupère toutes les catégories d'articles Odoo
+ */
+export async function getOdooProductCategories(): Promise<OdooOption[]> {
+    try {
+        const categories = await odooClient.searchRead<any>("product.category", {
+            fields: ["id", "complete_name"], // Utilisation de complete_name pour correspondre au format d'autofill
+            order: "complete_name asc",
+        });
+        // On mappe complete_name sur l'attribut name pour le sélecteur
+        return categories.map(c => ({ id: c.id, name: c.complete_name }));
+    } catch (error) {
+        console.error("Erreur getOdooProductCategories :", error);
+        return [];
+    }
+}
+
+/**
+ * Récupère toutes les catégories de points de vente (PdV) Odoo
+ */
+export async function getOdooPosCategories(): Promise<OdooOption[]> {
+    try {
+        const categories = await odooClient.searchRead<{ id: number; name: string }>("pos.category", {
+            fields: ["id", "name"],
+            order: "name asc",
+        });
+        return categories;
+    } catch (error) {
+        console.error("Erreur getOdooPosCategories :", error);
+        return [];
+    }
+}
+
 /**
  * Récupère les bons de commande d'Odoo et résout leurs IDs externes (XML IDs)
  */

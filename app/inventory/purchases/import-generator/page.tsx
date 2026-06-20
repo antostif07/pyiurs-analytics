@@ -17,11 +17,17 @@ import {
     DownloadCloud,
     CalendarDays,
     Tag,
-    DollarSign
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import PurchaseOrderSelector, { OdooPurchaseOrderOption } from "../_components/purchase-order-selector";
-import { getLastProductByHsCode, getOdooPurchaseOrdersForImport } from "../import-actions";
+import {
+    getLastProductByHsCode,
+    getOdooPurchaseOrdersForImport,
+    getOdooLogPurchaseOrders,
+    getOdooProductCategories,
+    getOdooPosCategories,
+    OdooOption
+} from "../import-actions";
 
 interface ProductLine {
     id: string;
@@ -45,10 +51,25 @@ interface ProductLine {
     date_expiration: string;
 }
 
+// Fonction utilitaire pour calculer le numéro de semaine ISO
+function getWeekNumber(dateStr: string): string {
+    const d = new Date(dateStr);
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + 4 - (d.getDay() || 7));
+    const yearStart = new Date(d.getFullYear(), 0, 1);
+    const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+    return String(weekNo).padStart(2, "0");
+}
+
 export default function PurchaseImportGeneratorPage() {
     const [purchaseOrders, setPurchaseOrders] = useState<OdooPurchaseOrderOption[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
+
+    // Listes d'options dynamiques Odoo
+    const [logPurchaseOrders, setLogPurchaseOrders] = useState<OdooOption[]>([]);
+    const [odooProductCategories, setOdooProductCategories] = useState<OdooOption[]>([]);
+    const [odooPosCategories, setOdooPosCategories] = useState<OdooOption[]>([]);
 
     const [selectedPoId, setSelectedPoId] = useState<number | null>(null);
     const [selectedPo, setSelectedPo] = useState<OdooPurchaseOrderOption | null>(null);
@@ -85,15 +106,24 @@ export default function PurchaseImportGeneratorPage() {
     const [autoFilling, setAutoFilling] = useState<boolean>(false);
     const [autoFillSuccess, setAutoFillSuccess] = useState<boolean | null>(null);
 
+    // Chargement parallèle des options Odoo au montage
     useEffect(() => {
         async function loadOdooOrders() {
             try {
                 setLoading(true);
-                const data = await getOdooPurchaseOrdersForImport();
-                setPurchaseOrders(data);
+                const [poData, logPoData, prodCatData, posCatData] = await Promise.all([
+                    getOdooPurchaseOrdersForImport(),
+                    getOdooLogPurchaseOrders(),
+                    getOdooProductCategories(),
+                    getOdooPosCategories()
+                ]);
+                setPurchaseOrders(poData);
+                setLogPurchaseOrders(logPoData);
+                setOdooProductCategories(prodCatData);
+                setOdooPosCategories(posCatData);
             } catch (err) {
                 console.error("Erreur :", err);
-                setError("Impossible de récupérer les commandes Odoo.");
+                setError("Impossible de récupérer les structures de données Odoo.");
             } finally {
                 setLoading(false);
             }
@@ -111,33 +141,40 @@ export default function PurchaseImportGeneratorPage() {
 
             // Appel de l'action serveur d'Odoo
             const matchedProduct = await getLastProductByHsCode(codeHs.trim());
+            const poClean = selectedPo?.name.replace(/^P/, "")
+            const yearLastTwo = dateChargement.split("-")[0].slice(-2);
+            const weekStr = getWeekNumber(dateChargement);
+
+            const codeRemise = `${selectedPo?.supplierName.split("-")[1].trim()}${poClean}${yearLastTwo}${weekStr}`
 
             if (matchedProduct) {
-                // Préremplissage automatique des variables d'état du formulaire
-                setNom(matchedProduct.nom);
+                const desc = departement === "Beauty" ? matchedProduct.description : `${codeRemise} - ${matchedProduct.famille} ${matchedProduct.couleur} - ${codeHs}`
+                const productName = departement === "Beauty" ? matchedProduct.nom : `${desc} ${matchedProduct.taille}`
+                setNom(productName);
                 setCategorie(matchedProduct.categorie);
                 setPrix(matchedProduct.prix);
                 setPu(matchedProduct.pu);
-                setDescription(matchedProduct.description);
+                setDescription(desc);
                 setMarque(matchedProduct.marque);
                 setFamille(matchedProduct.famille);
                 setCouleur(matchedProduct.couleur);
                 setTaille(matchedProduct.taille);
-                setCategorieArticle(matchedProduct.categorie_article);
-                setCategoriePdv(matchedProduct.categorie_pdv);
+
+                // Préremplissage avec fallbacks propres
+                setCategorieArticle(matchedProduct.categorie_article || "");
+                setCategoriePdv(matchedProduct.categorie_pdv || "");
                 setCaa(matchedProduct.caa);
                 setCodeFournisseur(matchedProduct.code_fournisseur);
 
                 setAutoFillSuccess(true);
             } else {
-                setAutoFillSuccess(false); // Aucun produit trouvé, saisie manuelle requise
+                setAutoFillSuccess(false);
             }
         } catch (err) {
             console.error("Erreur de préremplissage :", err);
             setAutoFillSuccess(false);
         } finally {
             setAutoFilling(false);
-            // On efface l'indicateur visuel après 3 secondes
             setTimeout(() => setAutoFillSuccess(null), 3000);
         }
     };
@@ -221,12 +258,48 @@ export default function PurchaseImportGeneratorPage() {
             // Boucle pour sérialiser chaque unité physique de produit
             for (let i = 0; i < product.quantity; i++) {
 
-                // Calculs financiers unitaire
+                // Calculs financiers de base
                 const pDollar = Number((product.pu * 1.2).toFixed(2));
                 const cout = Number((product.pu * product.caa).toFixed(2));
                 const marge = Number((product.prix - cout).toFixed(2));
-                const barcode = `${selectedPo.name}${formattedDate}${globalCounter}`;
-                const formattedProductName = `${product.nom}[${barcode}]`;
+
+                // --- ALGORITHME DE FORMULATION DES CHAMPS ---
+                let barcode = `${selectedPo.name}${formattedDate}${globalCounter}`;
+                let formattedProductName = `${product.nom} [${barcode}]`;
+                let descValue = product.description;
+                let remiseValue = product.code_remise;
+
+                if (departement === "Femme" || departement === "Enfant") {
+                    // 1. Code fournisseur (ex: "P.FEM - BSP" -> "BSP")
+                    const supplierCode = selectedPo.supplierName.includes("-")
+                        ? selectedPo.supplierName.split("-")[1].trim()
+                        : selectedPo.supplierName.trim();
+
+                    // 2. PO sans la lettre "P" (ex: "P0422" -> "0422")
+                    const poClean = selectedPo.name.replace(/^P/, "");
+
+                    // 3. Année et Semaine de chargement
+                    const yearLastTwo = dateChargement.split("-")[0].slice(-2);
+                    const weekStr = getWeekNumber(dateChargement);
+
+                    // 4. Base Code & Code Remise
+                    const baseCode = `${supplierCode}${poClean}${yearLastTwo}${weekStr}`;
+                    remiseValue = baseCode;
+
+                    // 5. Code-barres spécifique sérialisé (ex: P04221202605251)
+                    barcode = `${selectedPo.name}${formattedDate.substring(1)}${globalCounter}`;
+
+                    // 6. Extraction du dernier élément de catégorie après split /
+                    const lastCatElement = product.categorie_article.includes("/")
+                        ? product.categorie_article.split("/").pop()?.trim()
+                        : product.categorie_article.trim();
+
+                    // 7. Description formatée
+                    descValue = `${baseCode} - ${lastCatElement} ${product.couleur} - ${product.code_hs}`;
+
+                    // 8. Nom de produit unitaire
+                    formattedProductName = `${descValue} - ${product.taille} [${barcode}]`;
+                }
 
                 // 1. FEUILLE : PRODUITS (Ligne unitaire)
                 productsSheetData.push({
@@ -242,7 +315,7 @@ export default function PurchaseImportGeneratorPage() {
                     "Couleur": product.couleur,
                     "Code HS": product.code_hs,
                     "Taille": product.taille,
-                    "Qte": product.quantity, // Quantité globale d'origine
+                    "Qte": product.quantity, // Quantité globale
                     "PU": product.pu,
                     "P$": pDollar,
                     "CAA": product.caa,
@@ -253,14 +326,14 @@ export default function PurchaseImportGeneratorPage() {
                     "Nom": formattedProductName,
                     "Catégorie d'article": product.categorie_article,
                     "Catégorie PdV": product.categorie_pdv,
-                    "Description": product.description,
+                    "Description": descValue,
                     "Politique de contrôle": "On ordered quantities",
                     "Type d'article": "Goods",
                     "Disponible dans le Pdv": 1,
                     "Peut être vendu": 1,
                     "Description achat": selectedPo.name,
                     "Description pour les réceptions": polog,
-                    "Code remise": product.code_remise,
+                    "Code remise": remiseValue,
                     "Code Fournisseur": product.code_fournisseur,
                     "Description du prélèvement": selectedPo.supplierRef || "",
                     "Hs+": product.hs_plus,
@@ -315,7 +388,7 @@ export default function PurchaseImportGeneratorPage() {
 
             <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
 
-                {/* Formulaire (7/12) */}
+                {/* Formulaire */}
                 <div className="xl:col-span-7 space-y-6">
 
                     {/* Sélection du PO */}
@@ -347,9 +420,19 @@ export default function PurchaseImportGeneratorPage() {
                                 </h2>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                {/* POLOG (PO contenant LOG) */}
                                 <div className="space-y-1">
-                                    <label className="text-[9px] font-bold uppercase text-slate-400">POLOG</label>
-                                    <input type="text" value={polog} onChange={(e) => setPolog(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium outline-none h-10" />
+                                    <label className="text-[9px] font-bold uppercase text-slate-400">POLOG (PO contenant LOG)</label>
+                                    <select
+                                        value={polog}
+                                        onChange={(e) => setPolog(e.target.value)}
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-semibold outline-none h-10 cursor-pointer"
+                                    >
+                                        <option value="">Sélectionner un PO LOG...</option>
+                                        {logPurchaseOrders.map((po) => (
+                                            <option key={po.id} value={po.name}>{po.name}</option>
+                                        ))}
+                                    </select>
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-[9px] font-bold uppercase text-slate-400">Date de Chargement</label>
@@ -377,15 +460,14 @@ export default function PurchaseImportGeneratorPage() {
                                 </h2>
                             </div>
 
-                            {/* SECTION A: Identification générale */}
+                            {/* SECTION A: Saisie brute */}
                             <div className="space-y-4">
-                                <h3 className="text-[9px] font-black text-indigo-500 uppercase">1. Identification & Quantités</h3>
+                                <h3 className="text-[9px] font-black text-indigo-500 uppercase">1. Saisie Code HS & Quantités</h3>
                                 <div className="sm:col-span-7 space-y-2">
                                     <div className="flex justify-between items-center">
                                         <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
                                             Code HS / Code Douanier
                                         </label>
-                                        {/* Indicateur de recherche Odoo */}
                                         {autoFilling && (
                                             <span className="text-[8px] font-black uppercase text-indigo-500 animate-pulse">
                                                 Recherche Odoo...
@@ -408,7 +490,7 @@ export default function PurchaseImportGeneratorPage() {
                                         placeholder="Ex: 3304.99.00 (Cosmétiques)"
                                         value={codeHs}
                                         onChange={(e) => setCodeHs(e.target.value)}
-                                        onBlur={handleHsCodeBlur} // Déclencheur onBlur lors de la perte de focus
+                                        onBlur={handleHsCodeBlur}
                                         className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-xs font-medium outline-none text-slate-800 dark:text-slate-200 focus:ring-1 focus:ring-indigo-500 h-10 transition-all"
                                     />
                                 </div>
@@ -424,7 +506,7 @@ export default function PurchaseImportGeneratorPage() {
                                 </div>
                             </div>
 
-                            {/* SECTION B: Attributs & Logistique */}
+                            {/* SECTION B: Caractéristiques et Dimensions */}
                             <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-900">
                                 <h3 className="text-[9px] font-black text-indigo-500 uppercase">2. Caractéristiques & Typologie</h3>
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -448,14 +530,37 @@ export default function PurchaseImportGeneratorPage() {
                                         <label className="text-[9px] font-bold uppercase text-slate-400">Taille</label>
                                         <input type="text" value={taille} onChange={(e) => setTaille(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
                                     </div>
+
+                                    {/* CATEGORIE D'ARTICLE SELECT */}
                                     <div className="space-y-1">
                                         <label className="text-[9px] font-bold uppercase text-slate-400">Catégorie Article</label>
-                                        <input type="text" value={categorieArticle} onChange={(e) => setCategorieArticle(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
+                                        <select
+                                            value={categorieArticle}
+                                            onChange={(e) => setCategorieArticle(e.target.value)}
+                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-semibold h-9 outline-none cursor-pointer"
+                                        >
+                                            <option value="">Sélectionner une catégorie...</option>
+                                            {odooProductCategories.map((cat) => (
+                                                <option key={cat.id} value={cat.name}>{cat.name}</option>
+                                            ))}
+                                        </select>
                                     </div>
+
+                                    {/* CATEGORIE PDV SELECT */}
                                     <div className="space-y-1">
                                         <label className="text-[9px] font-bold uppercase text-slate-400">Catégorie PdV</label>
-                                        <input type="text" value={categoriePdv} onChange={(e) => setCategoriePdv(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
+                                        <select
+                                            value={categoriePdv}
+                                            onChange={(e) => setCategoriePdv(e.target.value)}
+                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-semibold h-9 outline-none cursor-pointer"
+                                        >
+                                            <option value="">Sélectionner une catégorie PdV...</option>
+                                            {odooPosCategories.map((cat) => (
+                                                <option key={cat.id} value={cat.name}>{cat.name}</option>
+                                            ))}
+                                        </select>
                                     </div>
+
                                     <div className="space-y-1">
                                         <label className="text-[9px] font-bold uppercase text-slate-400">Date Expiration</label>
                                         <input type="text" placeholder="Ex: 2026-12" value={dateExpiration} onChange={(e) => setDateExpiration(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
@@ -467,7 +572,7 @@ export default function PurchaseImportGeneratorPage() {
                                 </div>
                             </div>
 
-                            {/* SECTION C: Prix, Codes & Formules */}
+                            {/* SECTION C: Tarification, Taxes & Codes */}
                             <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-900">
                                 <h3 className="text-[9px] font-black text-indigo-500 uppercase">3. Tarification, Codes & Remises</h3>
                                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
@@ -561,7 +666,7 @@ export default function PurchaseImportGeneratorPage() {
                     )}
                 </div>
 
-                {/* Panneau de Synthèse Métadonnées Odoo (5/12) */}
+                {/* Panneau de Synthèse Métadonnées Odoo */}
                 <div className="xl:col-span-5 space-y-6">
                     <div className="bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-4">
                         <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-4">
