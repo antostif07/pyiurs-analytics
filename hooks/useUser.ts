@@ -7,21 +7,34 @@ export function useUser() {
   return useQuery({
     queryKey: ["auth-user"],
     queryFn: async () => {
-      const { data: { user }, error } = await supabase.auth.getUser();
-      if (error || !user) throw error;
+      // Attendre la session
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-      console.log(user);
+      if (!session?.user) {
+        return null;
+      }
 
+      const user = session.user;
 
-      // Optionnel : Récupérer des données extra depuis une table 'profiles'
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("*")
         .eq("id", user.id)
         .single();
 
-      return { ...user, profile };
+      if (profileError) {
+        console.error(profileError);
+      }
+
+      return {
+        ...user,
+        profile,
+      };
     },
-    staleTime: 1000 * 60 * 10, // Cache de 10 minutes
+
+    staleTime: 1000 * 60 * 10,
+    retry: false,
   });
 }

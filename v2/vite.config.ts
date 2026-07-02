@@ -10,8 +10,9 @@ import { nitro } from 'nitro/vite'
 export default defineConfig({
   resolve: {
     tsconfigPaths: true,
+    dedupe: ['react', 'react-dom'],
   },
-
+  envDir: import.meta.dirname,
   plugins: [
     devtools(),
     nitro({

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import * as XLSX from 'xlsx';
 import {
     Upload, Save, Loader2, UserCheck, CheckCircle2, FileSpreadsheet, Info
@@ -13,10 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { formatExcelTime, getInitialStatus } from '../utils';
 import { ATTENDANCE_LABELS, AttendanceStatus } from '@/lib/supabase/types';
 import { toast } from 'sonner';
+import { saveAttendancesAction } from '../actions';
 
 export default function AttendanceImportPage({ employees }: { employees: any[] }) {
-    const supabase = createClient();
-
     const [selectedMonth, setSelectedMonth] = useState(String(new Date().getMonth() + 1).padStart(2, '0'));
     const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()));
     const [parsedData, setParsedData] = useState<any[]>([]);
@@ -68,69 +66,84 @@ export default function AttendanceImportPage({ employees }: { employees: any[] }
     };
 
     const saveAttendances = async () => {
+        if (isSaving) return;
+
         if (Object.keys(mappings).length === 0) {
             toast.error("Action impossible", {
-                description: "Veuillez lier au moins un agent avant de sauvegarder."
+                description: "Veuillez lier au moins un agent avant de sauvegarder.",
             });
             return;
         }
 
         setIsSaving(true);
+
+        console.group("========== IMPORT ATTENDANCES ==========");
+        console.time("Import total");
+
         try {
             const toInsert: any[] = [];
 
-            parsedData.forEach(pEmp => {
-                const empId = mappings[pEmp.nameFromFile];
-                if (empId && Array.isArray(pEmp.days)) { // sécurise l'accès à days
-                    pEmp.days.forEach((dayData: any) => {
-                        const date = `${selectedYear}-${selectedMonth}-${String(dayData.day).padStart(2, '0')}`;
-                        toInsert.push({
-                            employee_id: empId,
-                            date,
-                            check_in: dayData.time || null,
-                            status: dayData.status,
-                            is_late: dayData.time ? dayData.time > "09:01" : false,
-                        });
-                    });
+            parsedData.forEach((employee) => {
+                const employeeId = mappings[employee.nameFromFile];
+
+                if (!employeeId) {
+                    console.warn(
+                        `Employé ignoré (non lié) : ${employee.nameFromFile}`
+                    );
+                    return;
                 }
+
+                employee.days.forEach((day: any) => {
+                    toInsert.push({
+                        employee_id: employeeId,
+                        date: `${selectedYear}-${selectedMonth}-${String(
+                            day.day
+                        ).padStart(2, "0")}`,
+                        check_in: day.time || null,
+                        status: day.status,
+                        is_late: day.time ? day.time > "09:01" : false,
+                    });
+                });
             });
 
-            console.log(toInsert);
-
+            console.log("Nombre total de lignes :", toInsert.length);
 
             if (toInsert.length === 0) {
-                toast.warning("Aucune donnée", { description: "Aucun pointage n'a été trouvé." });
+                toast.warning("Aucune donnée", {
+                    description: "Aucun pointage trouvé.",
+                });
                 return;
             }
 
-            const result = await supabase
-                .from('attendances')
-                .upsert(toInsert, {
-                    onConflict: 'employee_id,date',
-                    ignoreDuplicates: false,
+            /////////////////////////////////////////////////////////
+            // IMPORT PAR BATCH
+            /////////////////////////////////////////////////////////
+
+            const result = await saveAttendancesAction(toInsert);
+
+            if (!result.success) {
+                toast.error("Erreur", {
+                    description: result.message,
                 });
 
-            console.log(result);
-
-            if (result.error) {
-                toast.error("Erreur de sauvegarde", {
-                    description: result.error.message || "Une erreur est survenue lors de l'insertion."
-                });
-            } else {
-                toast.success("Importation réussie", {
-                    description: `Succès ! ${toInsert.length} pointages enregistrés.`,
-                });
-                setParsedData([]);
-                setMappings({});
+                return;
             }
-        } catch (err) {
-            // Capture toute exception imprévue
-            console.error("Erreur inattendue lors de la sauvegarde :", err);
-            toast.error("Erreur inattendue", {
-                description: "Une erreur est survenue, consulte la console."
+
+            toast.success("Import terminé", {
+                description: `${result.imported} pointages enregistrés.`,
+            });
+
+            setParsedData([]);
+            setMappings({});
+        } catch (error: any) {
+            console.error("Erreur globale :", error);
+
+            toast.error("Erreur pendant l'import", {
+                description: error.message,
             });
         } finally {
-            // Garantit que le loading s'arrête dans tous les cas
+            console.groupEnd();
+
             setIsSaving(false);
         }
     };

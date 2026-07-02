@@ -19,7 +19,6 @@ import {
 import { usePathname, useRouter } from "next/navigation";
 import { NAV_GROUPS } from "../../../app/inventory/config";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useUser } from "@/hooks/useUser";
 import { createClient } from "@/lib/supabase/client";
