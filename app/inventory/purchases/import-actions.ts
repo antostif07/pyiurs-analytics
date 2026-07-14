@@ -16,7 +16,7 @@ export async function getOdooLogPurchaseOrders(): Promise<OdooOption[]> {
     try {
         const orders = await odooClient.searchRead<{ id: number; name: string }>("purchase.order", {
             domain: [["name", "ilike", "LOG"]], // Filtre insensible à la casse
-            fields: ["id", "name"],
+            fields: ["id", "name", "partner_id"],
             order: "name desc",
         });
         return orders;

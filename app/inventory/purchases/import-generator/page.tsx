@@ -28,6 +28,8 @@ import {
     getOdooPosCategories,
     OdooOption
 } from "../import-actions";
+import NormalSelector from "../_components/normal-selector";
+import { format } from "date-fns";
 
 interface ProductLine {
     id: string;
@@ -116,10 +118,12 @@ export default function PurchaseImportGeneratorPage() {
                     getOdooLogPurchaseOrders(),
                     getOdooProductCategories(),
                     getOdooPosCategories()
-                ]);
+                ])
+
+                const reallyProdCatData = prodCatData.filter((cat) => cat.name.split("/").length < 4)
                 setPurchaseOrders(poData);
                 setLogPurchaseOrders(logPoData);
-                setOdooProductCategories(prodCatData);
+                setOdooProductCategories(reallyProdCatData);
                 setOdooPosCategories(posCatData);
             } catch (err) {
                 console.error("Erreur :", err);
@@ -152,7 +156,7 @@ export default function PurchaseImportGeneratorPage() {
                 const productName = departement === "Beauty" ? matchedProduct.nom : `${desc} ${matchedProduct.taille}`
                 setNom(productName);
                 setCategorie(matchedProduct.categorie);
-                setPrix(matchedProduct.prix);
+                setPrix(matchedProduct.prix * 1.25 - 10);
                 setPu(matchedProduct.pu);
                 setDescription(desc);
                 setMarque(matchedProduct.marque);
@@ -259,9 +263,9 @@ export default function PurchaseImportGeneratorPage() {
             for (let i = 0; i < product.quantity; i++) {
 
                 // Calculs financiers de base
-                const pDollar = Number((product.pu * 1.2).toFixed(2));
-                const cout = Number((product.pu * product.caa).toFixed(2));
-                const marge = Number((product.prix - cout).toFixed(2));
+                const pDollar = Number((pu * 1.2).toFixed(2));
+                const cout = Number((pu * caa).toFixed(2));
+                const marge = Number((prix - cout).toFixed(2));
 
                 // --- ALGORITHME DE FORMULATION DES CHAMPS ---
                 let barcode = `${selectedPo.name}${formattedDate}${globalCounter}`;
@@ -316,11 +320,11 @@ export default function PurchaseImportGeneratorPage() {
                     "Code HS": product.code_hs,
                     "Taille": product.taille,
                     "Qte": product.quantity, // Quantité globale
-                    "PU": product.pu,
+                    "PU": pu,
                     "P$": pDollar,
-                    "CAA": product.caa,
+                    "CAA": caa,
                     "Cout": cout,
-                    "Prix": product.prix,
+                    "Prix": (prix + 10) / 1.25,
                     "Marge": marge,
                     "ID Externe": barcode,
                     "Nom": formattedProductName,
@@ -366,7 +370,7 @@ export default function PurchaseImportGeneratorPage() {
         XLSX.utils.book_append_sheet(wb, wsOrders, "Commandes");
 
         // Génération du fichier final
-        const fileName = `import_odoo_${selectedPo.name.toLowerCase()}_${formattedDate}.xlsx`;
+        const fileName = `${formattedDate} - ${polog} - ${selectedPo.name} - ${selectedPo.supplierName.split(' - ')[1]}${selectedPo.supplierRef}.xlsx`;
         XLSX.writeFile(wb, fileName);
     };
 
@@ -430,7 +434,8 @@ export default function PurchaseImportGeneratorPage() {
                                     >
                                         <option value="">Sélectionner un PO LOG...</option>
                                         {logPurchaseOrders.map((po) => (
-                                            <option key={po.id} value={po.name}>{po.name}</option>
+                                            // @ts-ignore
+                                            <option key={po.id} value={po.name}>{po.name} ({po.partner_id[1]})</option>
                                         ))}
                                     </select>
                                 </div>
@@ -534,7 +539,12 @@ export default function PurchaseImportGeneratorPage() {
                                     {/* CATEGORIE D'ARTICLE SELECT */}
                                     <div className="space-y-1">
                                         <label className="text-[9px] font-bold uppercase text-slate-400">Catégorie Article</label>
-                                        <select
+                                        <NormalSelector
+                                            data={odooProductCategories}
+                                            selected={categorieArticle}
+                                            onSelect={(value) => setCategorieArticle(value.name)}
+                                        />
+                                        {/* <select
                                             value={categorieArticle}
                                             onChange={(e) => setCategorieArticle(e.target.value)}
                                             className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-semibold h-9 outline-none cursor-pointer"
@@ -543,7 +553,7 @@ export default function PurchaseImportGeneratorPage() {
                                             {odooProductCategories.map((cat) => (
                                                 <option key={cat.id} value={cat.name}>{cat.name}</option>
                                             ))}
-                                        </select>
+                                        </select> */}
                                     </div>
 
                                     {/* CATEGORIE PDV SELECT */}

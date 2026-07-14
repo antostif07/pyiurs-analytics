@@ -11,28 +11,27 @@ import { useRouter } from "next/navigation";
 import { useState, useEffect, useMemo } from "react";
 
 export default function Home() {
-  const[darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  
+
   const { user, profile, loading, signOut } = useAuth();
   const router = useRouter();
-  
-  // Sécurité : Redirection si non connecté
+
   useEffect(() => {
     if (!loading && !user) {
       router.push('/login');
     }
-  },[user, loading, router]);
+  }, [user, loading, router]);
 
   const filteredModules = useMemo(() => {
-    if (!profile?.role) return[];
+    if (!profile?.role) return [];
 
     return MODULES_CONFIG.filter((module) => {
       const hasAccess = module.permissions.length === 0 || module.permissions.includes(profile.role as UserRole);
-      const matchesSearch = 
+      const matchesSearch =
         module.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         module.description.toLowerCase().includes(searchQuery.toLowerCase());
-      
+
       return hasAccess && matchesSearch;
     });
   }, [searchQuery, profile?.role]);
@@ -49,16 +48,16 @@ export default function Home() {
 
   return (
     <div className={`${darkMode ? "dark" : ""} min-h-screen bg-slate-50 dark:bg-slate-900 transition-colors`}>
-      
-      <DashboardHeader 
-        user={user} 
-        profile={profile} 
-        darkMode={darkMode} 
-        onToggleDarkMode={() => setDarkMode(!darkMode)} 
-        onSignOut={handleSignOut} 
+
+      <DashboardHeader
+        user={user}
+        profile={profile}
+        darkMode={darkMode}
+        onToggleDarkMode={() => setDarkMode(!darkMode)}
+        onSignOut={handleSignOut}
       />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-        
+
         {/* Section Accueil & Barre de recherche */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>

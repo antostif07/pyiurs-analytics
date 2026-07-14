@@ -7,6 +7,7 @@ import { ExpandableDataTable } from "./data-table";
 import { fetchAndProcessStockData, } from "./services";
 import { Legend } from "./components/legend";
 import { LevelCard } from "./components/level-card";
+import { ExportExcelButton } from "./components/export-excel-button";
 
 export const dynamic = 'force-dynamic';
 
@@ -25,11 +26,9 @@ export default async function ControlStockBeautyPage({ searchParams }: PageProps
   const selectedColor = params.color;
   const selectedCategory = params.category; // Ajouté
   const selectedStock = params.stock;
-  
-  // Récupération des données (on suppose que le service retourne maintenant 'categories')
+
   const { data: allData, brands, colors, categories } = await fetchAndProcessStockData();
 
-  // --- Logique de Filtrage ---
   let filteredData = allData;
 
   if (selectedBrand && selectedBrand !== 'all') {
@@ -75,7 +74,7 @@ export default async function ControlStockBeautyPage({ searchParams }: PageProps
     if (selectedBrand && selectedBrand !== 'all') dataForCategories = dataForCategories.filter(item => item.brand === selectedBrand);
     if (selectedColor && selectedColor !== 'all') dataForCategories = dataForCategories.filter(item => item.color === selectedColor);
 
-    return { 
+    return {
       filteredBrands: [...new Set(dataForBrands.map(item => item.brand))].sort(),
       filteredColors: [...new Set(dataForColors.map(item => item.color))].sort(),
       filteredCategories: [...new Set(dataForCategories.map(item => item.category))].sort()
@@ -101,7 +100,7 @@ export default async function ControlStockBeautyPage({ searchParams }: PageProps
   if (selectedBrand && selectedBrand !== 'all') activeFilters.push(selectedBrand);
   if (selectedColor && selectedColor !== 'all') activeFilters.push(selectedColor);
   if (selectedStock && selectedStock !== 'all') activeFilters.push(selectedStock);
-  
+
   return (
     <main className="min-h-screen bg-slate-50 dark:bg-slate-900">
       {/* Header */}
@@ -109,7 +108,7 @@ export default async function ControlStockBeautyPage({ searchParams }: PageProps
         <div className="container mx-auto px-6 py-6">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
             <div className="flex-1 flex min-w-0">
-              <Link 
+              <Link
                 href="/"
                 className="inline-flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors duration-200"
               >
@@ -124,7 +123,7 @@ export default async function ControlStockBeautyPage({ searchParams }: PageProps
                 </p>
               </div>
             </div>
-            
+
             <div className="flex gap-6 mt-4 lg:mt-0">
               <StatBadge label="Produits" value={totalProducts} colorClass="text-blue-600 dark:text-blue-400" />
               <StatBadge label="Dispo" value={totalAvailable} colorClass="text-green-600 dark:text-green-400" />
@@ -137,8 +136,8 @@ export default async function ControlStockBeautyPage({ searchParams }: PageProps
       {/* Main Content */}
       <div className="container mx-auto px-4 py-6">
         <div className="mb-6">
-          <CompactFilters 
-            brands={brands} 
+          <CompactFilters
+            brands={brands}
             colors={colors}
             categories={categories} // Ajouté
             selectedBrand={selectedBrand}
@@ -159,6 +158,7 @@ export default async function ControlStockBeautyPage({ searchParams }: PageProps
             <h2 className="text-base font-semibold text-gray-900 dark:text-white">
               Inventaire des Produits
             </h2>
+            <ExportExcelButton data={filteredData} />
           </div>
 
           <Suspense fallback={<TableSkeleton />}>
