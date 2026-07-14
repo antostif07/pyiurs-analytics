@@ -274,15 +274,12 @@ export default function PurchaseImportGeneratorPage() {
                 let remiseValue = product.code_remise;
 
                 if (departement === "Femme" || departement === "Enfant") {
-                    // 1. Code fournisseur (ex: "P.FEM - BSP" -> "BSP")
                     const supplierCode = selectedPo.supplierName.includes("-")
                         ? selectedPo.supplierName.split("-")[1].trim()
                         : selectedPo.supplierName.trim();
 
-                    // 2. PO sans la lettre "P" (ex: "P0422" -> "0422")
                     const poClean = selectedPo.name.replace(/^P/, "");
 
-                    // 3. Année et Semaine de chargement
                     const yearLastTwo = dateChargement.split("-")[0].slice(-2);
                     const weekStr = getWeekNumber(dateChargement);
 
