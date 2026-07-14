@@ -20,6 +20,7 @@ export function getRouter() {
     routeTree,
     context: {
       queryClient,
+      auth: undefined,
     },
   })
 
