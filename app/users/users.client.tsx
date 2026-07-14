@@ -9,13 +9,14 @@ import { POSConfig } from "../types/pos";
 import { CreateUserModal } from "./components/create-user-modal";
 import { ResCompany } from "../types/odoo";
 import { EditUserModal } from "./components/edit-user-modal";
+import { UserRole } from "@/lib/constants";
 
 
 export interface EnhancedUser {
   id: string;
   email: string;
   full_name: string;
-  role: 'admin' | 'user' | 'manager' | 'financier' | 'sales' | 'logistic';
+  role: UserRole;
   assigned_shops: string[];
   assigned_companies: number[];
   shop_access_type: 'all' | 'specific';
@@ -51,7 +52,7 @@ export default function UsersClient({
 
   const handleFilterChange = (updates: { search?: string; role?: string }) => {
     const params = new URLSearchParams(searchParams.toString());
-    
+
     Object.entries(updates).forEach(([key, value]) => {
       if (value === undefined || value === '') {
         params.delete(key);
@@ -59,7 +60,7 @@ export default function UsersClient({
         params.set(key, value);
       }
     });
-    
+
     router.push(`?${params.toString()}`, { scroll: false });
   };
 
@@ -84,7 +85,7 @@ export default function UsersClient({
     }
   };
 
-  const getRoleDisplayName = (role: string) => {
+  const getRoleDisplayName = (role: UserRole) => {
     switch (role) {
       case 'admin':
         return 'Administrateur';
@@ -92,6 +93,8 @@ export default function UsersClient({
         return 'Manager';
       case 'financier':
         return 'Financier';
+      case 'inventory-manager':
+        return "Gestionnaire de Stock"
       default:
         return 'Utilisateur';
     }
@@ -116,7 +119,7 @@ export default function UsersClient({
         <div className="container mx-auto px-6 py-8">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center space-x-4">
-              <Link 
+              <Link
                 href="/"
                 className="inline-flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors duration-200"
               >
@@ -134,7 +137,7 @@ export default function UsersClient({
                 Créez et gérez les accès utilisateurs de votre organisation
               </p>
             </div>
-            
+
             <div className="mt-4 lg:mt-0">
               <div className="bg-white dark:bg-slate-700 rounded-xl p-4 border border-gray-200 dark:border-slate-600">
                 <p className="text-sm text-gray-600 dark:text-gray-400">Utilisateurs actifs</p>
@@ -170,7 +173,7 @@ export default function UsersClient({
                 </div>
 
                 {/* Filtre par rôle */}
-                <select 
+                <select
                   value={roleFilter || 'all'}
                   onChange={(e) => handleRoleFilter(e.target.value)}
                   className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white min-w-32"
@@ -179,6 +182,7 @@ export default function UsersClient({
                   <option value="admin">Administrateurs</option>
                   <option value="manager">Managers</option>
                   <option value="financier">Financiers</option>
+                  <option value="inventory-manager">Gestionnaire Stock</option>
                   <option value="user">Utilisateurs</option>
                 </select>
               </div>
@@ -232,7 +236,7 @@ export default function UsersClient({
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-slate-700">
                   {users.map((user) => (
-                    <tr 
+                    <tr
                       key={user.id}
                       className="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors duration-150 group"
                     >
@@ -304,7 +308,7 @@ export default function UsersClient({
                     {search ? "Aucun utilisateur trouvé" : "Aucun utilisateur"}
                   </h3>
                   <p className="text-gray-600 dark:text-gray-300 max-w-md mx-auto">
-                    {search 
+                    {search
                       ? "Aucun utilisateur ne correspond à votre recherche."
                       : "Commencez par créer votre premier utilisateur."
                     }

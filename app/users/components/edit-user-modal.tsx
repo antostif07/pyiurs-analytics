@@ -6,6 +6,7 @@ import { X } from 'lucide-react'
 import { ResCompany } from '@/app/types/odoo'
 import { POSConfig } from '@/app/types/pos'
 import { EnhancedUser } from '../users.client'
+import { UserRole } from '@/lib/constants'
 
 interface EditUserModalProps {
   user: EnhancedUser
@@ -19,7 +20,7 @@ interface EditUserModalProps {
 interface UserFormData {
   email: string
   full_name: string
-  role: 'admin' | 'user' | 'manager' | 'financier' | 'sales' | 'logistic'
+  role: UserRole
   shop_access_type: 'all' | 'specific'
   assigned_shops: string[]
   assigned_companies: number[]
@@ -78,7 +79,7 @@ export function EditUserModal({ user, isOpen, onClose, onUserUpdated, shops, com
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!validateForm()) {
       return
     }
@@ -100,11 +101,11 @@ export function EditUserModal({ user, isOpen, onClose, onUserUpdated, shops, com
       }
 
       const updatedUser = await response.json()
-      
+
       setErrors({})
       onUserUpdated()
       onClose()
-      
+
     } catch (error) {
       console.error('Erreur modification utilisateur:', error)
       setErrors({ submit: error instanceof Error ? error.message : 'Une erreur est survenue' })
@@ -203,11 +204,10 @@ export function EditUserModal({ user, isOpen, onClose, onUserUpdated, shops, com
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  errors.email 
-                    ? 'border-red-500 dark:border-red-400' 
-                    : 'border-gray-300 dark:border-gray-600 dark:bg-slate-700'
-                }`}
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.email
+                  ? 'border-red-500 dark:border-red-400'
+                  : 'border-gray-300 dark:border-gray-600 dark:bg-slate-700'
+                  }`}
                 placeholder="email@exemple.com"
               />
               {errors.email && (
@@ -223,11 +223,10 @@ export function EditUserModal({ user, isOpen, onClose, onUserUpdated, shops, com
                 type="text"
                 value={formData.full_name}
                 onChange={(e) => setFormData(prev => ({ ...prev, full_name: e.target.value }))}
-                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  errors.full_name 
-                    ? 'border-red-500 dark:border-red-400' 
-                    : 'border-gray-300 dark:border-gray-600 dark:bg-slate-700'
-                }`}
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.full_name
+                  ? 'border-red-500 dark:border-red-400'
+                  : 'border-gray-300 dark:border-gray-600 dark:bg-slate-700'
+                  }`}
                 placeholder="John Doe"
               />
               {errors.full_name && (
@@ -244,8 +243,8 @@ export function EditUserModal({ user, isOpen, onClose, onUserUpdated, shops, com
               </label>
               <select
                 value={formData.role}
-                onChange={(e) => setFormData(prev => ({ 
-                  ...prev, 
+                onChange={(e) => setFormData(prev => ({
+                  ...prev,
                   role: e.target.value as 'admin' | 'user' | 'manager' | 'financier'
                 }))}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-700"
@@ -255,7 +254,7 @@ export function EditUserModal({ user, isOpen, onClose, onUserUpdated, shops, com
                 <option value="financier">Financier</option>
                 <option value="admin">Administrateur</option>
                 <option value="sales">Vendeur</option>
-                <option value="logistic">Logistique</option>
+                <option value="inventory-manager">Gestionnaire de Stock</option>
               </select>
             </div>
 
@@ -265,8 +264,8 @@ export function EditUserModal({ user, isOpen, onClose, onUserUpdated, shops, com
               </label>
               <select
                 value={formData.shop_access_type}
-                onChange={(e) => setFormData(prev => ({ 
-                  ...prev, 
+                onChange={(e) => setFormData(prev => ({
+                  ...prev,
                   shop_access_type: e.target.value as 'all' | 'specific'
                 }))}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-700"
