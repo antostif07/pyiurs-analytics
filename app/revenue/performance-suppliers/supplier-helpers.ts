@@ -22,6 +22,8 @@ export interface SupplierMonthlyPerformance {
     supplierId: string;
     supplierName: string;
     currentStockQty: number;
-    totalRevenue: number;
-    monthlySales: Record<string, number>;
+    totalRevenue: number;         // Ventes $ (Prix de vente)
+    totalPurchaseCost: number;    // ✅ Achats $ (Prix de revient)
+    monthlySales: Record<string, number>;        // Ventes mensuelles
+    monthlyPurchaseCost: Record<string, number>; // ✅ Coût d'achat mensuel
 }
