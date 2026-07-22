@@ -1,23 +1,10 @@
-// app/finance/revenue/actions.ts
-'use server'
+'use server';
 
-import { odooClient, OdooDomainCondition } from "@/lib/odoo/xmlrpc";
-import {odooClient as odooJsonClient} from "@/lib/odoo/odoo-json2-client"
+import { odooClient as odooJsonClient } from "@/lib/odoo/odoo-json2-client";
 import { createClient } from "@/lib/supabase/server";
 import { startOfMonth, endOfMonth, subMonths, format, getWeek, subDays, startOfWeek } from "date-fns";
 import { fr } from "date-fns/locale";
 import { POSOrder, POSOrderLine } from "../types/pos";
-
-function getMonthKey(odooMonthStr: string): string {
-  const months: Record<string, string> = {
-    'janv': '01', 'févr': '02', 'mars': '03', 'avr': '04', 'mai': '05', 'juin': '06',
-    'juil': '07', 'août': '08', 'sept': '09', 'oct': '10', 'nov': '11', 'déc': '12'
-  };
-  const parts = odooMonthStr.toLowerCase().split(' '); // ["févr.", "2026"]
-  const monthPart = parts[0].replace('.', '');
-  const year = parts[1];
-  return `${year}-${months[monthPart] || '01'}`;
-}
 
 function chunkArray<T>(array: T[], size: number): T[][] {
     const result: T[][] = [];
@@ -38,282 +25,24 @@ function ensureTrackerEntry(tracker: Map<string, any>, hsCode: string, name = "P
         });
     } else {
         const entry = tracker.get(hsCode);
-
         if (!entry.monthlySales) entry.monthlySales = {};
         if (!entry.monthlyStockOpening) entry.monthlyStockOpening = {};
         if (!entry.currentStock) entry.currentStock = 0;
     }
-
     return tracker.get(hsCode);
 }
 
-// export async function getRevenueDashboardData(month: string, year: string) {
-//     const supabase = await createClient();
-//     const now = new Date();
-    
-//     const selectedDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-    
-//     const mtdStart = format(startOfMonth(selectedDate), 'yyyy-MM-dd 00:00:00');
-//     const mtdEnd = format(endOfMonth(selectedDate), 'yyyy-MM-dd 23:59:59');
-//     const prevMtdStart = format(startOfMonth(subMonths(selectedDate, 1)), 'yyyy-MM-dd 00:00:00');
-//     const prevMtdEnd = format(endOfMonth(subMonths(selectedDate, 1)), 'yyyy-MM-dd 23:59:59');
-
-//     // Dates pour KPIs temps réel (Indépendantes du mois sélectionné pour les cartes du haut)
-//     const todayStr = format(now, 'yyyy-MM-dd');
-//     const yesterdayStr = format(subDays(now, 1), 'yyyy-MM-dd');
-//     const currentWeekStart = format(startOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd 00:00:00');
-
-//     // Logique temporelle pour Forecast
-//     const isCurrentMonth = month === format(now, 'MM') && year === format(now, 'yyyy');
-//     const totalDaysInMonth = endOfMonth(selectedDate).getDate();
-//     const daysPassed = isCurrentMonth ? now.getDate() : totalDaysInMonth;
-
-//     try {
-//         const [{ data: dbShops }, { data: targets }] = await Promise.all([
-//             supabase.from('shops').select('*').order('name'),
-//             supabase.from('sales_targets').select('*').eq('year', parseInt(year)).eq('month', parseInt(month))
-//         ]);
-
-//         if (!dbShops) return { shopPerformance: [], segmentPerformance: [] };
-
-//         // -- ORDERS --
-//         const currentOrders = await odooJsonClient.searchRead<POSOrder>("pos.order", {
-//             domain: [["date_order", ">=", mtdStart], ["date_order", "<=", mtdEnd], ["state", "in", ["paid", "done"]]],
-//             fields: ["config_id", "amount_total", "date_order"]
-//         })
-
-//         // Commandes M-1
-//         const previousOrders = await odooJsonClient.searchRead<POSOrder>("pos.order", {
-//             domain: [["date_order", ">=", prevMtdStart], ["date_order", "<=", prevMtdEnd], ["state", "in", ["paid", "done"]]],
-//             fields: ["config_id", "amount_total"]
-//         })
-
-//         // Commandes pour Today, Yesterday et Week (fenêtre glissante)
-//         const recentOrders = await odooJsonClient.searchRead<POSOrder>("pos.order", {
-//             domain: [["date_order", ">=", currentWeekStart < yesterdayStr ? currentWeekStart : yesterdayStr], ["state", "in", ["paid", "done"]]],
-//             fields: ["config_id", "amount_total", "date_order"]
-//         })
-
-//         // 2. RÉCUPÉRER LES LIGNES POUR LES SEGMENTS
-//         const currentLines = await odooJsonClient.searchRead<POSOrderLine>("pos.order.line", {
-//             domain: [["order_id", "in", currentOrders.map(o => o.id)]],
-//             fields: ["order_id", "price_unit", "qty", "product_id", "discount"]
-//         })
-//         const previousLines = await odooJsonClient.searchRead<POSOrderLine>("pos.order.line", {
-//             domain: [["order_id", "in", previousOrders.map(o => o.id)]],
-//             fields: ["order_id", "price_unit", "qty", "product_id", "discount"]
-//         });
-
-//         // 3. Recuperer les POS Catégories pour faire le lien boutique -> categories
-//         const posCategories = await odooJsonClient.searchRead<POSCategory>("pos.category", {
-//             domain: [],
-//             fields: ["id", "name"]
-//         });
-
-//         const allProdIds = [...new Set([...currentLines, ...previousLines].map(l => l.product_id[0]))];
-
-//         const productsInfo = await odooClient.searchRead("product.product", {
-//             domain: [["id", "in", allProdIds]],
-//             fields: ["x_studio_segment", "pos_categ_ids"]
-//         }) as any[];
-
-//         // -- MAPS --
-
-//         // Map orderId -> order
-//         const productsMap = new Map(productsInfo.map(p => [p.id, p]));
-//         const categoriesMap = new Map(posCategories.map(c => [c.id, c.name]));
-//         const currentOrderMap = new Map(currentOrders.map(o => [o.id, o]));
-//         const previousOrderMap = new Map(previousOrders.map(o => [o.id, o]));
-//         const recentOrderMap = new Map(recentOrders.map(o => [o.id, o]));
-
-//         // =========================
-//         // 🟢 SHOP HIERARCHY
-//         // =========================
-//         const shopHierarchy: any = {};
-//         const processLine = (line: any, order: any, type: 'mtd' | 'recent') => {
-//             const shop = dbShops.find(s => s.odoo_pos_ids?.includes(order.config_id?.[0]));
-//             if (!shop) return;
-
-//             const prod = productsMap.get(line.product_id[0]);
-//             const segment = prod?.x_studio_segment || "Autres";
-
-//             const categoryId = prod?.pos_categ_ids?.[0];
-//             const categoryName = categoriesMap.get(categoryId) || "Général";
-
-//             const amount = line.discount === 100 ? 0 : line.price_unit * line.qty;
-
-//             if (!shopHierarchy[shop.name]) {
-//                 shopHierarchy[shop.name] = {
-//                     mtd: 0,
-//                     today: 0,
-//                     yesterday: 0,
-//                     weekly: 0,
-//                     weeks: {},
-//                     subRows: {}
-//                 };
-//             }
-
-//             const shopNode = shopHierarchy[shop.name];
-//         }
-//         //     lines.forEach(l => {
-//         //         const order = orders.find(o => o.id === l.order_id[0]);
-//         //         if (!order) return;
-//         //         const shop = dbShops.find(s => s.odoo_pos_ids?.includes(order.config_id?.[0]));
-//         //         if (!shop) return;
-//         //         if (!shopHierarchy[shop.name]) shopHierarchy[shop.name] = { mtd: 0, mtdPrev: 0, weeks: {} };
-
-//         //         shopHierarchy[shop.name][field] += l.price_unit * l.qty;
-//         //         if (field === 'mtd') {
-//         //             const wNum = `W${getWeek(new Date(order.date_order), { weekStartsOn: 1 })}`;
-//         //             shopHierarchy[shop.name].weeks[wNum] = (shopHierarchy[shop.name].weeks[wNum] || 0) + (l.price_unit * l.qty);
-//         //         }
-//         //     });
-//         // }
-
-//         // shopAggregate(currentLines, currentOrders, 'mtd');
-//         // shopAggregate(previousLines, previousOrders, 'mtdPrev');
-
-//         // const shopPerformance = Object.entries(shopHierarchy).map(([shopName, shopData]: [string, any]) => {
-//         //     const shopTarget = targets?.find(t => t.category_tag === shopName)?.target_amount || 0;
-//         //     return {
-//         //         boutique: shopName,
-//         //         mtd: Math.round(shopData.mtd),
-//         //         mtdPrev: Math.round(shopData.mtdPrev),
-//         //         deltaMoM: shopData.mtdPrev > 0 ? Math.round(((shopData.mtd - shopData.mtdPrev) / shopData.mtdPrev) * 100) : 0,
-//         //         forecast: Math.round((shopData.mtd / daysPassed) * totalDaysInMonth),
-//         //         budgetMensuel: shopTarget,
-//         //         pctBudget: shopTarget > 0 ? Math.round((shopData.mtd / shopTarget) * 100) : 0,
-//         //         weeks: shopData.weeks
-//         //     };
-//         // }).sort((a, b) => b.mtd - a.mtd);
-
-//         const shopPerformance = dbShops.map(shop => {
-//             const posIds = shop.odoo_pos_ids || [];
-
-//             let mtd = 0;
-//             let mtdPrev = 0;
-//             let today = 0;
-//             let yesterday = 0;
-//             let weekly = 0;
-//             const weeks: Record<string, number> = {};
-
-//             // --- MTD + Weeks ---
-//             currentLines.forEach(line => {
-//                 const order = currentOrderMap.get(line.order_id[0]);
-//                 if (!order) return;
-//                 if (!posIds.includes(order.config_id?.[0])) return;
-
-//                 mtd += line.discount === 100 ? 0 : line.price_unit * line.qty;
-
-//                 const wNum = `W${getWeek(new Date(order.date_order), { weekStartsOn: 1 })}`;
-//                 weeks[wNum] = (weeks[wNum] || 0) + (line.discount === 100 ? 0 : line.price_unit * line.qty);
-//             });
-
-//             // --- MTD PREV ---
-//             previousLines.forEach(line => {
-//                 const order = previousOrderMap.get(line.order_id[0]);
-//                 if (!order) return;
-//                 if (!posIds.includes(order.config_id?.[0])) return;
-
-//                 mtdPrev += line.discount === 100 ? 0 : line.price_unit * line.qty;
-//             });
-
-//             // --- TODAY / YESTERDAY / WEEKLY ---
-//             currentLines.forEach(line => {
-//                 const order = recentOrderMap.get(line.order_id[0]);
-//                 if (!order) return;
-//                 if (!posIds.includes(order.config_id?.[0])) return;
-
-//                 if (order.date_order.includes(todayStr)) {
-//                     today += line.discount === 100 ? 0 : line.price_unit * line.qty;
-//                 }
-
-//                 if (order.date_order.includes(yesterdayStr)) {
-//                     yesterday += line.discount === 100 ? 0 : line.price_unit * line.qty;
-//                 }
-
-//                 if (order.date_order >= currentWeekStart) {
-//                     weekly += line.discount === 100 ? 0 : line.price_unit * line.qty;
-//                 }
-//             });
-
-//             const shopTarget = targets?.find(t => t.category_tag === shop.name)?.target_amount || 0;
-
-//             return {
-//                 boutique: shop.name,
-//                 today: Math.round(today),
-//                 yesterday: Math.round(yesterday),
-//                 weekly: Math.round(weekly),
-//                 mtd: Math.round(mtd),
-//                 mtdPrev: Math.round(mtdPrev),
-//                 deltaMoM: mtdPrev > 0 ? Math.round(((mtd - mtdPrev) / mtdPrev) * 100) : 0,
-//                 forecast: Math.round((mtd / daysPassed) * totalDaysInMonth),
-//                 budgetMensuel: shopTarget,
-//                 pctBudget: shopTarget > 0 ? Math.round((mtd / shopTarget) * 100) : 0,
-//                 weeks,
-//             };
-//         });
-
-//         // --- B. LOGIQUE PAR SEGMENT -> CATEGORIE ---
-//         const segmentHierarchy: any = {};
-//         const aggregate = (lines: any[], orders: any[], field: 'mtd' | 'mtdPrev') => {
-//             lines.forEach(l => {
-//                 const order = orders.find(o => o.id === l.order_id[0]);
-//                 if (!order) return;
-
-//                 const prod = productsInfo.find(p => p.id === l.product_id[0]);
-//                 const segment = prod?.x_studio_segment || "Autres";
-//                 const category = prod?.pos_categ_id?.[1] || "Général";
-//                 const shop = dbShops.find(s => s.odoo_pos_ids?.includes(order.config_id?.[0]));
-//                 const shopName = shop ? shop.name : "Inconnu";
-//                 const wNum = `W${getWeek(new Date(order.date_order || now), { weekStartsOn: 1 })}`;
-
-//                 if (!segmentHierarchy[segment]) segmentHierarchy[segment] = { mtd: 0, mtdPrev: 0, weeks: {}, subRows: {} };
-//                 if (!segmentHierarchy[segment].subRows[shopName]) segmentHierarchy[segment].subRows[shopName] = { mtd: 0, mtdPrev: 0, weeks: {} };
-
-//                 segmentHierarchy[segment][field] += l.discount === 100 ? 0 : l.price_unit * l.qty;
-//                 segmentHierarchy[segment].subRows[shopName][field] += l.discount === 100 ? 0 : l.price_unit * l.qty;
-
-//                 if (field === 'mtd') {
-//                     segmentHierarchy[segment].weeks[wNum] = (segmentHierarchy[segment].weeks[wNum] || 0) + (l.discount === 100 ? 0 : l.price_unit * l.qty);
-//                     segmentHierarchy[segment].subRows[shopName].weeks[wNum] = (segmentHierarchy[segment].subRows[shopName].weeks[wNum] || 0) + (l.discount === 100 ? 0 : l.price_unit * l.qty);
-//                 }
-//             });
-//         };
-
-//         aggregate(currentLines, currentOrders, 'mtd');
-//         aggregate(previousLines, previousOrders, 'mtdPrev');
-
-//         const segmentPerformance = Object.entries(segmentHierarchy).map(([segName, segData]: [string, any]) => ({
-//             boutique: segName,
-//             mtd: Math.round(segData.mtd),
-//             mtdPrev: Math.round(segData.mtdPrev),
-//             deltaMoM: segData.mtdPrev > 0 ? Math.round(((segData.mtd - segData.mtdPrev) / segData.mtdPrev) * 100) : 0,
-//             forecast: Math.round((segData.mtd / daysPassed) * totalDaysInMonth),
-//             weeks: segData.weeks,
-//             subRows: Object.entries(segData.subRows).map(([catName, catData]: [string, any]) => ({
-//                 boutique: catName,
-//                 mtd: Math.round(catData.mtd),
-//                 mtdPrev: Math.round(catData.mtdPrev),
-//                 deltaMoM: catData.mtdPrev > 0 ? Math.round(((catData.mtd - catData.mtdPrev) / catData.mtdPrev) * 100) : 0,
-//                 forecast: Math.round((catData.mtd / daysPassed) * totalDaysInMonth),
-//                 weeks: catData.weeks,
-//             })).sort((a, b) => b.mtd - a.mtd)
-//         })).sort((a, b) => b.mtd - a.mtd);
-
-//         return { shopPerformance, segmentPerformance };
-
-//     } catch (e) {
-//         console.error("Erreur Dashboard Revenue:", e);
-//         return { shopPerformance: [], segmentPerformance: [] };
-//     }
-// }
-
+/**
+ * Action Principale : Récupère l'ensemble des données financières du Dashboard
+ * à partir de l'API JSON-2 Odoo 19 et croise avec les budgets Supabase.
+ */
 export async function getRevenueDashboardData(month: string, year: string) {
     const supabase = await createClient();
     const now = new Date();
 
-    const selectedDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+    const selectedMonthInt = parseInt(month, 10);
+    const selectedYearInt = parseInt(year, 10);
+    const selectedDate = new Date(selectedYearInt, selectedMonthInt - 1, 1);
 
     const mtdStart = format(startOfMonth(selectedDate), 'yyyy-MM-dd 00:00:00');
     const mtdEnd = format(endOfMonth(selectedDate), 'yyyy-MM-dd 23:59:59');
@@ -327,96 +56,107 @@ export async function getRevenueDashboardData(month: string, year: string) {
 
     const isCurrentMonth = month === format(now, 'MM') && year === format(now, 'yyyy');
     const totalDaysInMonth = endOfMonth(selectedDate).getDate();
-    const daysPassed = isCurrentMonth ? now.getDate() : totalDaysInMonth;
+    const daysPassed = isCurrentMonth ? Math.max(now.getDate(), 1) : totalDaysInMonth;
 
     try {
-        const [{ data: dbShops }] = await Promise.all([
+        // 1. RÉCUPÉRATION SIMULTANÉE DES BOUTIQUES ET DES BUDGETS SUPABASE
+        const [{ data: dbShops }, { data: dbBudgets }] = await Promise.all([
             supabase.from('shops').select('*').order('name'),
+            supabase.from('revenue_budgets')
+                .select('*')
+                .eq('month', selectedMonthInt)
+                .eq('year', selectedYearInt)
         ]);
 
         if (!dbShops) return { shopPerformance: [], segmentPerformance: [] };
 
-        // ---------------- ORDERS ----------------
-        const currentOrders = await odooJsonClient.searchRead<POSOrder>("pos.order", {
-            domain: [["date_order", ">=", mtdStart], ["date_order", "<=", mtdEnd], ["state", "in", ["paid", "done"]]],
-            fields: ["config_id", "date_order"]
-        });
+        // 2. RÉCUPÉRATION DES COMMANDES VIA ODOO JSON-2 CLIENT
+        const [currentOrders, previousOrders, recentOrders] = await Promise.all([
+            odooJsonClient.searchRead<POSOrder>("pos.order", {
+                domain: [["date_order", ">=", mtdStart], ["date_order", "<=", mtdEnd], ["state", "in", ["paid", "done"]]],
+                fields: ["config_id", "date_order"]
+            }),
+            odooJsonClient.searchRead<POSOrder>("pos.order", {
+                domain: [["date_order", ">=", prevStart], ["date_order", "<=", prevEnd], ["state", "in", ["paid", "done"]]],
+                fields: ["config_id", "date_order"]
+            }),
+            odooJsonClient.searchRead<POSOrder>("pos.order", {
+                domain: [["date_order", ">=", currentWeekStart], ["state", "in", ["paid", "done"]]],
+                fields: ["config_id", "date_order"]
+            })
+        ]);
 
-        const previousOrders = await odooJsonClient.searchRead<POSOrder>("pos.order", {
-            domain: [["date_order", ">=", prevStart], ["date_order", "<=", prevEnd], ["state", "in", ["paid", "done"]]],
-            fields: ["config_id", "date_order"]
-        });
+        // 3. RÉCUPÉRATION DES LIGNES DE COMMANDES VIA ODOO JSON-2 CLIENT
+        const currentOrderIds = currentOrders.map(o => o.id);
+        const previousOrderIds = previousOrders.map(o => o.id);
+        const recentOrderIds = recentOrders.map(o => o.id);
 
-        const recentOrders = await odooJsonClient.searchRead<POSOrder>("pos.order", {
-            domain: [["date_order", ">=", currentWeekStart], ["state", "in", ["paid", "done"]]],
-            fields: ["config_id", "date_order"]
-        });
+        const [currentLines, previousLines, recentLines, posCategories] = await Promise.all([
+            currentOrderIds.length > 0
+                ? odooJsonClient.searchRead<POSOrderLine>("pos.order.line", {
+                    domain: [["order_id", "in", currentOrderIds]],
+                    fields: ["order_id", "price_unit", "qty", "product_id", "discount"]
+                })
+                : Promise.resolve([]),
+            previousOrderIds.length > 0
+                ? odooJsonClient.searchRead<POSOrderLine>("pos.order.line", {
+                    domain: [["order_id", "in", previousOrderIds]],
+                    fields: ["order_id", "price_unit", "qty", "product_id", "discount"]
+                })
+                : Promise.resolve([]),
+            recentOrderIds.length > 0
+                ? odooJsonClient.searchRead<POSOrderLine>("pos.order.line", {
+                    domain: [["order_id", "in", recentOrderIds]],
+                    fields: ["order_id", "price_unit", "qty", "product_id", "discount"]
+                })
+                : Promise.resolve([]),
+            odooJsonClient.searchRead<{ id: number; name: string }>("pos.category", {
+                domain: [],
+                fields: ["id", "name"]
+            })
+        ]);
 
-        // ---------------- LINES ----------------
-        const currentLines = await odooJsonClient.searchRead<POSOrderLine>("pos.order.line", {
-            domain: [["order_id", "in", currentOrders.map(o => o.id)]],
-            fields: ["order_id", "price_unit", "qty", "product_id", "discount"]
-        });
-
-        const previousLines = await odooJsonClient.searchRead<POSOrderLine>("pos.order.line", {
-            domain: [["order_id", "in", previousOrders.map(o => o.id)]],
-            fields: ["order_id", "price_unit", "qty", "product_id", "discount"]
-        });
-
-        const recentLines = await odooJsonClient.searchRead<POSOrderLine>("pos.order.line", {
-            domain: [["order_id", "in", recentOrders.map(o => o.id)]],
-            fields: ["order_id", "price_unit", "qty", "product_id", "discount"]
-        });
-
-        const posCategories = await odooJsonClient.searchRead("pos.category", {
-            domain: [],
-            fields: ["id", "name"]
-        });
-
+        // 4. RÉCUPÉRATION DES INFORMATIONS PRODUITS (SEGMENTS & CATÉGORIES)
         const allProdIds = [...new Set([...currentLines, ...previousLines].map(l => l.product_id[0]))];
 
-        const productsInfo = await odooClient.searchRead("product.product", {
-            domain: [["id", "in", allProdIds]],
-            fields: ["x_studio_segment", "pos_categ_ids"]
-        }) as any[];
+        const productsInfo = allProdIds.length > 0
+            ? await odooJsonClient.searchRead<any>("product.product", {
+                domain: [["id", "in", allProdIds]],
+                fields: ["x_studio_segment", "pos_categ_ids"]
+            })
+            : [];
 
-        // ---------------- MAPS ----------------
+        // 5. INDEXATION EN CARTES DE MÉMOIRE (MAPS)
         const productsMap = new Map(productsInfo.map(p => [p.id, p]));
-        const categoriesMap = new Map(posCategories.map((c: any) => [c.id, c.name]));
+        const categoriesMap = new Map(posCategories.map(c => [c.id, c.name]));
         const currentOrderMap = new Map(currentOrders.map(o => [o.id, o]));
         const previousOrderMap = new Map(previousOrders.map(o => [o.id, o]));
         const recentOrderMap = new Map(recentOrders.map(o => [o.id, o]));
 
-        // =========================
-        // 🟢 SHOP HIERARCHY
-        // =========================
-        const shopHierarchy: any = {};
+        // ==========================================
+        // 🟢 STRUCTURATION PAR BOUTIQUE (SHOPS)
+        // ==========================================
+        const shopHierarchy: Record<string, any> = {};
 
         const initShop = (name: string) => {
             if (!shopHierarchy[name]) {
                 shopHierarchy[name] = {
-                    mtd: 0,
-                    mtdPrev: 0,
-                    today: 0,
-                    yesterday: 0,
-                    weekly: 0,
-                    weeks: {},
-                    subRows: {}
+                    mtd: 0, mtdPrev: 0, today: 0, yesterday: 0, weekly: 0,
+                    weeks: {}, subRows: {}
                 };
             }
             return shopHierarchy[name];
         };
 
-        const process = (line: any, order: any, type: 'mtd' | 'prev' | 'recent') => {
+        const processLine = (line: any, order: any, type: 'mtd' | 'prev' | 'recent') => {
+            if (!order) return;
             const shop = dbShops.find(s => s.odoo_pos_ids?.includes(order.config_id?.[0]));
             if (!shop) return;
 
             const prod = productsMap.get(line.product_id[0]);
             const segment = prod?.x_studio_segment || "Autres";
-
             const categoryId = prod?.pos_categ_ids?.[0];
             const categoryName = categoriesMap.get(categoryId) || "Général";
-
             const amount = line.discount === 100 ? 0 : line.price_unit * line.qty;
 
             const shopNode = initShop(shop.name);
@@ -424,13 +164,11 @@ export async function getRevenueDashboardData(month: string, year: string) {
             if (!shopNode.subRows[segment]) {
                 shopNode.subRows[segment] = { mtd: 0, mtdPrev: 0, weeks: {}, subRows: {} };
             }
-
             const segNode = shopNode.subRows[segment];
 
             if (!segNode.subRows[categoryName]) {
                 segNode.subRows[categoryName] = { mtd: 0, mtdPrev: 0, weeks: {} };
             }
-
             const catNode = segNode.subRows[categoryName];
 
             if (type === 'mtd') {
@@ -439,7 +177,6 @@ export async function getRevenueDashboardData(month: string, year: string) {
                 catNode.mtd += amount;
 
                 const wNum = `W${getWeek(new Date(order.date_order), { weekStartsOn: 1 })}`;
-
                 shopNode.weeks[wNum] = (shopNode.weeks[wNum] || 0) + amount;
                 segNode.weeks[wNum] = (segNode.weeks[wNum] || 0) + amount;
                 catNode.weeks[wNum] = (catNode.weeks[wNum] || 0) + amount;
@@ -458,45 +195,53 @@ export async function getRevenueDashboardData(month: string, year: string) {
             }
         };
 
-        currentLines.forEach(l => process(l, currentOrderMap.get(l.order_id[0]), 'mtd'));
-        previousLines.forEach(l => process(l, previousOrderMap.get(l.order_id[0]), 'prev'));
-        recentLines.forEach(l => process(l, recentOrderMap.get(l.order_id[0]), 'recent'));
+        currentLines.forEach(l => processLine(l, currentOrderMap.get(l.order_id[0]), 'mtd'));
+        previousLines.forEach(l => processLine(l, previousOrderMap.get(l.order_id[0]), 'prev'));
+        recentLines.forEach(l => processLine(l, recentOrderMap.get(l.order_id[0]), 'recent'));
 
-        const shopPerformance = Object.entries(shopHierarchy).map(([name, d]: any) => ({
-            boutique: name,
-            today: Math.round(d.today),
-            yesterday: Math.round(d.yesterday),
-            weekly: Math.round(d.weekly),
-            mtd: Math.round(d.mtd),
-            mtdPrev: Math.round(d.mtdPrev),
-            deltaMoM: d.mtdPrev > 0 ? Math.round(((d.mtd - d.mtdPrev) / d.mtdPrev) * 100) : 0,
-            weeks: d.weeks,
-            forecast: Math.round((d.mtd / daysPassed) * totalDaysInMonth),
+        // Bâtir le résultat final pour les boutiques
+        const shopPerformance = Object.entries(shopHierarchy).map(([name, d]: [string, any]) => {
+            const dbShop = dbShops.find(s => s.name === name);
+            // Récupération du budget spécifique à cette boutique dans Supabase
+            const budgetObj = dbBudgets?.find(b => b.shop_id === dbShop?.id && !b.segment);
+            const budgetMensuel = budgetObj ? Number(budgetObj.target_amount) : 0;
 
-            subRows: Object.entries(d.subRows).map(([segName, seg]: any) => ({
-                boutique: segName,
-                mtd: Math.round(seg.mtd),
-                mtdPrev: Math.round(seg.mtdPrev),
-                deltaMoM: seg.mtdPrev > 0 ? Math.round(((seg.mtd - seg.mtdPrev) / seg.mtdPrev) * 100) : 0,
-                weeks: seg.weeks,
-                forecast: Math.round((seg.mtd / daysPassed) * totalDaysInMonth),
+            return {
+                boutique: name,
+                today: Math.round(d.today),
+                yesterday: Math.round(d.yesterday),
+                weekly: Math.round(d.weekly),
+                mtd: Math.round(d.mtd),
+                mtdPrev: Math.round(d.mtdPrev),
+                deltaMoM: d.mtdPrev > 0 ? Math.round(((d.mtd - d.mtdPrev) / d.mtdPrev) * 100) : 0,
+                weeks: d.weeks,
+                forecast: Math.round((d.mtd / daysPassed) * totalDaysInMonth),
+                budgetMensuel, // ✅ Raccordé à la base de données Supabase
 
-                subRows: Object.entries(seg.subRows).map(([catName, cat]: any) => ({
-                    boutique: catName,
-                    mtd: Math.round(cat.mtd),
-                    mtdPrev: Math.round(cat.mtdPrev),
-                    deltaMoM: cat.mtdPrev > 0 ? Math.round(((cat.mtd - cat.mtdPrev) / cat.mtdPrev) * 100) : 0,
-                    weeks: cat.weeks,
-                    forecast: Math.round((cat.mtd / daysPassed) * totalDaysInMonth),
+                subRows: Object.entries(d.subRows).map(([segName, seg]: [string, any]) => ({
+                    boutique: segName,
+                    mtd: Math.round(seg.mtd),
+                    mtdPrev: Math.round(seg.mtdPrev),
+                    deltaMoM: seg.mtdPrev > 0 ? Math.round(((seg.mtd - seg.mtdPrev) / seg.mtdPrev) * 100) : 0,
+                    weeks: seg.weeks,
+                    forecast: Math.round((seg.mtd / daysPassed) * totalDaysInMonth),
+
+                    subRows: Object.entries(seg.subRows).map(([catName, cat]: [string, any]) => ({
+                        boutique: catName,
+                        mtd: Math.round(cat.mtd),
+                        mtdPrev: Math.round(cat.mtdPrev),
+                        deltaMoM: cat.mtdPrev > 0 ? Math.round(((cat.mtd - cat.mtdPrev) / cat.mtdPrev) * 100) : 0,
+                        weeks: cat.weeks,
+                        forecast: Math.round((cat.mtd / daysPassed) * totalDaysInMonth),
+                    })),
                 })),
-            })),
-            budgetMensuel: 0, // Placeholder, à remplacer par la cible réelle si besoin
-        }));
+            };
+        });
 
-        // =========================
-        // 🔵 SEGMENT → CATEGORY
-        // =========================
-        const segmentHierarchy: any = {};
+        // ==========================================
+        // 🔵 STRUCTURATION PAR SEGMENT (FEMME, ENFANT, BEAUTÉ)
+        // ==========================================
+        const segmentHierarchy: Record<string, any> = {};
 
         const initSegment = (name: string) => {
             if (!segmentHierarchy[name]) {
@@ -506,12 +251,11 @@ export async function getRevenueDashboardData(month: string, year: string) {
         };
 
         const processSeg = (line: any, order: any, type: 'mtd' | 'prev') => {
+            if (!order) return;
             const prod = productsMap.get(line.product_id[0]);
             const segment = prod?.x_studio_segment || "Autres";
-
             const categoryId = prod?.pos_categ_ids?.[0];
             const categoryName = categoriesMap.get(categoryId) || "Général";
-
             const amount = line.discount === 100 ? 0 : line.price_unit * line.qty;
 
             const segNode = initSegment(segment);
@@ -519,7 +263,6 @@ export async function getRevenueDashboardData(month: string, year: string) {
             if (!segNode.subRows[categoryName]) {
                 segNode.subRows[categoryName] = { mtd: 0, mtdPrev: 0, weeks: {} };
             }
-
             const catNode = segNode.subRows[categoryName];
 
             if (type === 'mtd') {
@@ -527,7 +270,6 @@ export async function getRevenueDashboardData(month: string, year: string) {
                 catNode.mtd += amount;
 
                 const wNum = `W${getWeek(new Date(order.date_order), { weekStartsOn: 1 })}`;
-
                 segNode.weeks[wNum] = (segNode.weeks[wNum] || 0) + amount;
                 catNode.weeks[wNum] = (catNode.weeks[wNum] || 0) + amount;
             }
@@ -541,61 +283,73 @@ export async function getRevenueDashboardData(month: string, year: string) {
         currentLines.forEach(l => processSeg(l, currentOrderMap.get(l.order_id[0]), 'mtd'));
         previousLines.forEach(l => processSeg(l, previousOrderMap.get(l.order_id[0]), 'prev'));
 
-        const segmentPerformance = Object.entries(segmentHierarchy).map(([name, d]: any) => ({
-            boutique: name,
-            mtd: Math.round(d.mtd),
-            mtdPrev: Math.round(d.mtdPrev),
-            deltaMoM: d.mtdPrev > 0 ? Math.round(((d.mtd - d.mtdPrev) / d.mtdPrev) * 100) : 0,
-            forecast: Math.round((d.mtd / daysPassed) * totalDaysInMonth),
-            weeks: d.weeks,
+        const segmentPerformance = Object.entries(segmentHierarchy).map(([name, d]: [string, any]) => {
+            // Récupération du budget spécifique à ce segment dans Supabase
+            const budgetObj = dbBudgets?.find(b => b.segment === name && !b.shop_id);
+            const budgetMensuel = budgetObj ? Number(budgetObj.target_amount) : 0;
 
-            subRows: Object.entries(d.subRows).map(([catName, cat]: any) => ({
-                boutique: catName,
-                mtd: Math.round(cat.mtd),
-                mtdPrev: Math.round(cat.mtdPrev),
-                deltaMoM: cat.mtdPrev > 0 ? Math.round(((cat.mtd - cat.mtdPrev) / cat.mtdPrev) * 100) : 0,
-                forecast: Math.round((cat.mtd / daysPassed) * totalDaysInMonth),
-                weeks: cat.weeks,
-            }))
-        }));
+            return {
+                boutique: name,
+                mtd: Math.round(d.mtd),
+                mtdPrev: Math.round(d.mtdPrev),
+                deltaMoM: d.mtdPrev > 0 ? Math.round(((d.mtd - d.mtdPrev) / d.mtdPrev) * 100) : 0,
+                forecast: Math.round((d.mtd / daysPassed) * totalDaysInMonth),
+                weeks: d.weeks,
+                budgetMensuel, // ✅ Raccordé à Supabase
+
+                subRows: Object.entries(d.subRows).map(([catName, cat]: [string, any]) => ({
+                    boutique: catName,
+                    mtd: Math.round(cat.mtd),
+                    mtdPrev: Math.round(cat.mtdPrev),
+                    deltaMoM: cat.mtdPrev > 0 ? Math.round(((cat.mtd - cat.mtdPrev) / cat.mtdPrev) * 100) : 0,
+                    forecast: Math.round((cat.mtd / daysPassed) * totalDaysInMonth),
+                    weeks: cat.weeks,
+                }))
+            };
+        });
 
         return { shopPerformance, segmentPerformance };
 
     } catch (e) {
-        console.error("Erreur Dashboard Revenue:", e);
+        console.error("[ACTIONS_ERROR] Erreur getRevenueDashboardData:", e);
         return { shopPerformance: [], segmentPerformance: [] };
     }
 }
 
+/**
+ * Action : Ventes du segment Beauté par Produit (Converti 100% Odoo JSON-2)
+ */
 export async function getBeautySalesByProduct(month: string, year: string) {
-    const selectedDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+    const selectedMonthInt = parseInt(month, 10);
+    const selectedYearInt = parseInt(year, 10);
+    const selectedDate = new Date(selectedYearInt, selectedMonthInt - 1, 1);
+
     const startDate = format(startOfMonth(selectedDate), 'yyyy-MM-dd 00:00:00');
     const endDate = format(endOfMonth(selectedDate), 'yyyy-MM-dd 23:59:59');
 
     try {
-        // 1. Récupérer les ventes PoS filtrées sur le segment Beauty
-        // On utilise read_group pour que Odoo fasse le calcul de somme
-        const salesRaw = await odooClient.execute("pos.order.line", "read_group", [
-            [
+        // 1. Agrégation Odoo via readGroup JSON-2
+        const salesRaw = await odooJsonClient.readGroup<any>("pos.order.line", {
+            domain: [
                 ["product_id.x_studio_segment", "=", "Beauty"],
                 ["order_id.state", "in", ["paid", "done", "invoiced"]],
                 ["create_date", ">=", startDate],
                 ["create_date", "<=", endDate]
             ],
-            ["qty", "price_unit"], // Champs à sommer
-            ["product_id"]                  // On groupe par produit
-        ]) as any[];
+            fields: ["qty", "price_unit"],
+            groupby: ["product_id"]
+        });
 
-        if (!salesRaw) return [];
+        if (!salesRaw || salesRaw.length === 0) return [];
 
-        // 2. Récupérer les HS Codes et Noms propres pour ces produits
+        // 2. Recherche des détails produits
         const productIds = salesRaw.map(s => s.product_id[0]);
-        const productsInfo = await odooClient.searchRead("product.product", {
+        const productsInfo = await odooJsonClient.searchRead<any>("product.product", {
             domain: [["id", "in", productIds]],
             fields: ["name", "hs_code"]
-        }) as any[];
+        });
 
-        // 3. Aggrégation finale par HS_CODE (pour fusionner les variantes)
+        // 3. Consolidation par HS_CODE
         const consolidated = new Map<string, any>();
 
         salesRaw.forEach(sale => {
@@ -619,31 +373,38 @@ export async function getBeautySalesByProduct(month: string, year: string) {
             entry.totalRevenue += sale.discount === 100 ? 0 : sale.price_unit * sale.qty;
         });
 
-        // Convertir en tableau et trier par plus grosses ventes
         return Array.from(consolidated.values()).sort((a, b) => b.totalRevenue - a.totalRevenue);
 
     } catch (error) {
-        console.error("Erreur récup ventes beauty:", error);
+        console.error("[ACTIONS_ERROR] Erreur getBeautySalesByProduct:", error);
         return [];
     }
 }
 
-export async function getBeautySixMonthSales(month: string, year: string, filters: { q?: string, color?: string, category?: string, partner?: string }) {
-    const selectedDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-    
-    // 1. Générer les 6 derniers mois pour les filtres et les colonnes
+/**
+ * Action : Ventes du segment Beauté sur 6 Mois roulants (Converti 100% Odoo JSON-2)
+ */
+export async function getBeautySixMonthSales(
+    month: string,
+    year: string,
+    filters: { q?: string; color?: string; category?: string; partner?: string }
+) {
+    const selectedMonthInt = parseInt(month, 10);
+    const selectedYearInt = parseInt(year, 10);
+    const selectedDate = new Date(selectedYearInt, selectedMonthInt - 1, 1);
+
     const monthRange = Array.from({ length: 6 }, (_, i) => subMonths(selectedDate, i)).reverse();
     const startDate = format(startOfMonth(monthRange[0]), 'yyyy-MM-dd 00:00:00');
     const endDate = format(endOfMonth(selectedDate), 'yyyy-MM-dd 23:59:59');
 
-    let salesDomain = [
+    const salesDomain: any[] = [
         ["product_id.x_studio_segment", "=", "Beauty"],
         ["order_id.state", "in", ["paid", "done", "invoiced"]],
         ["create_date", ">=", startDate],
         ["create_date", "<=", endDate]
-    ]
-    let productsDomain: OdooDomainCondition[] = [["x_studio_segment", "=", "Beauty"]];
-    let stockDomain: OdooDomainCondition[] = [["product_id.x_studio_segment", "=", "Beauty"], ["location_id.usage", "=", "internal"]];
+    ];
+    const productsDomain: any[] = [["x_studio_segment", "=", "Beauty"]];
+    const stockDomain: any[] = [["product_id.x_studio_segment", "=", "Beauty"], ["location_id.usage", "=", "internal"]];
 
     if (filters.q) {
         salesDomain.push(["product_id.name", "ilike", filters.q]);
@@ -653,79 +414,66 @@ export async function getBeautySixMonthSales(month: string, year: string, filter
     try {
         let allProducts: any[] = [];
         let offset = 0;
-        let productIds: number[] = [];
+        const productIds: number[] = [];
+
         while (true) {
-            const chunk = await odooClient.searchRead("product.product", {
+            const chunk = await odooJsonClient.searchRead<any>("product.product", {
                 domain: productsDomain,
                 fields: ["hs_code", "name", "x_studio_many2one_field_Arl5D"],
-                limit: 20000, offset
-            }) as any[];
+                limit: 1000,
+                offset
+            });
+
             allProducts = [...allProducts, ...chunk];
             const ids = chunk.map(p => p.id);
             productIds.push(...ids);
-            if (chunk.length < 20000) break;
-            offset += 20000;
+
+            if (chunk.length < 1000) break;
+            offset += 1000;
         }
 
-        const productMap = new Map();
         const idToHs = new Map<number, string>();
-
         allProducts.forEach(p => {
-            const hs = p.hs_code || "SANS-HS";
-            idToHs.set(p.id, hs);
-            if (!productMap.has(hs)) {
-                const color = (Array.isArray(p.x_studio_many2one_field_Arl5D) ? p.x_studio_many2one_field_Arl5D[1] : (p.x_studio_many2one_field_Arl5D || "")).replace(/\s+/g, '_');
-                productMap.set(hs, {
-                    hs_code: hs, name: p.name.split('[')[0].trim(), color,
-                    currentStock: 0, monthlyData: {}
-                });
-
-                // Initialiser les 6 mois à zéro
-                monthRange.forEach(m => {
-                    productMap.get(hs).monthlyData[format(m, 'yyyy-MM')] = { sales: 0, openingStock: 0 };
-                })
-            }
+            idToHs.set(p.id, p.hs_code || "SANS-HS");
         });
-        
-        // 2. Récupérer les ventes groupées par Produit ET par Mois
-        const salesRaw = await odooClient.execute("pos.order.line", "read_group", [
-            salesDomain,
-            ["price_unit", "qty", "product_id"],
-            ["product_id", "create_date:month"], // Double groupement
-        ], { lazy: false }) as any[];
 
-        let allStockResults: any[] = [];
-        const productChunks = chunkArray(productIds, 1000);
+        // Agrégations Odoo JSON-2 en parallèle
+        const salesRaw = await odooJsonClient.readGroup<any>("pos.order.line", {
+            domain: salesDomain,
+            fields: ["price_unit", "qty", "product_id"],
+            groupby: ["product_id", "create_date:month"],
+            lazy: false
+        });
+
+        const productChunks = chunkArray(productIds, 500);
+        const allStockResults: any[] = [];
+        const allStockMoves: any[] = [];
 
         for (const idsChunk of productChunks) {
-            const stockRaw = await odooClient.execute("stock.quant", "read_group", [
-                [
-                    ...stockDomain,
-                    ["product_id", "in", idsChunk]
-                ],
-                ["quantity"],
-                ["product_id"]
-            ]) as any[];
+            if (idsChunk.length === 0) continue;
+
+            const [stockRaw, stockMoves] = await Promise.all([
+                odooJsonClient.readGroup<any>("stock.quant", {
+                    domain: [...stockDomain, ["product_id", "in", idsChunk]],
+                    fields: ["quantity"],
+                    groupby: ["product_id"]
+                }),
+                odooJsonClient.readGroup<any>("stock.move", {
+                    domain: [
+                        ["product_id", "in", idsChunk],
+                        ["state", "=", "done"],
+                        ["picking_code", "in", ["outgoing", "incoming"]]
+                    ],
+                    fields: ["product_uom_qty"],
+                    groupby: ["product_id", "date:month", "picking_code"],
+                    lazy: false
+                })
+            ]);
 
             allStockResults.push(...stockRaw);
-        }
-
-        let allStockMoves: any[] = [];
-        for (const idsChunk of productChunks) {
-            const stockMoves = await odooClient.execute("stock.move", "read_group", [
-                [
-                    ["product_id", "in", idsChunk],
-                    ["state", "=", "done"],
-                    ["picking_code", "in", ["outgoing", "incoming"]],
-                ],
-                ["product_uom_qty"],
-                ["product_id", "date:month", "picking_code",]
-            ], { lazy: false }) as any[];
-
             allStockMoves.push(...stockMoves);
         }
 
-        // 4. Consolidation par HS_CODE
         const tracker = new Map<string, any>();
 
         salesRaw.forEach(sale => {
@@ -734,15 +482,10 @@ export async function getBeautySixMonthSales(month: string, year: string, filter
 
             const hsCode = pInfo.hs_code || "SANS-HS";
             const cleanName = pInfo.name.split('[')[0].trim();
-            
-            // Transformer "Février 2026" d'Odoo en "2026-02" pour matcher nos monthKeys
-            // Note: Odoo renvoie le libellé localisé, on extrait souvent via une logique simple
-            // Pour plus de sécurité, on peut aussi parser ou utiliser un autre champ
-            const odooMonth = sale['create_date:month']; // ex: "février 2026"
+            const odooMonth = sale['create_date:month'];
 
             const entry = ensureTrackerEntry(tracker, hsCode, cleanName);
-            // On cherche quel mois correspond dans notre range
-            const monthMatch = monthRange.find(m => 
+            const monthMatch = monthRange.find(m =>
                 odooMonth.toLowerCase().includes(format(m, 'MMMM', { locale: fr }).toLowerCase())
             );
 
@@ -763,22 +506,12 @@ export async function getBeautySixMonthSales(month: string, year: string, filter
             if (!productId) return;
 
             const hsCode = idToHs.get(productId) || "SANS-HS";
-
             const entry = ensureTrackerEntry(tracker, hsCode);
-
             const odooMonth = move['date:month'];
-            
             if (!odooMonth) return;
 
-            const key = format(odooMonth, 'yyyy-MM');
-
-            if (!entry.monthlyStockOpening) {
-                entry.monthlyStockOpening = {};
-            }
-
-            if (!entry.monthlyStockOpening[key]) {
-                entry.monthlyStockOpening[key] = 0;
-            }
+            const key = format(new Date(odooMonth), 'yyyy-MM');
+            if (!entry.monthlyStockOpening[key]) entry.monthlyStockOpening[key] = 0;
 
             if (move.picking_code === 'outgoing') {
                 entry.monthlyStockOpening[key] += move.product_uom_qty;
@@ -786,7 +519,7 @@ export async function getBeautySixMonthSales(month: string, year: string, filter
                 entry.monthlyStockOpening[key] -= move.product_uom_qty;
             }
         });
-        
+
         return {
             clients: Array.from(tracker.values()),
             columns: monthRange.map(d => ({
@@ -796,47 +529,56 @@ export async function getBeautySixMonthSales(month: string, year: string, filter
         };
 
     } catch (error) {
-        console.error(error);
+        console.error("[ACTIONS_ERROR] Erreur getBeautySixMonthSales:", error);
         return { clients: [], columns: [] };
     }
 }
 
+/**
+ * Action : Ventes du segment Femme sur 6 Mois roulants (Converti 100% Odoo JSON-2)
+ */
 export async function getFemmeSixMonthSales(month: string, year: string) {
-    const selectedDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+    const selectedMonthInt = parseInt(month, 10);
+    const selectedYearInt = parseInt(year, 10);
+    const selectedDate = new Date(selectedYearInt, selectedMonthInt - 1, 1);
+
     const monthRange = Array.from({ length: 6 }, (_, i) => subMonths(selectedDate, i)).reverse();
     const startDate = format(startOfMonth(monthRange[0]), 'yyyy-MM-dd 00:00:00');
     const endDate = format(endOfMonth(selectedDate), 'yyyy-MM-dd 23:59:59');
 
     try {
-        // 1. Récupérer les ventes PoS
-        const salesRaw = await odooClient.execute("pos.order.line", "read_group", [
-            [
+        const salesRaw = await odooJsonClient.readGroup<any>("pos.order.line", {
+            domain: [
                 ["product_id.x_studio_segment", "=", "Femme"],
                 ["order_id.state", "in", ["paid", "done", "invoiced"]],
                 ["create_date", ">=", startDate],
                 ["create_date", "<=", endDate]
             ],
-            ["price_unit", "qty", "product_id"],
-            ["product_id", "create_date:month"],
-        ], { lazy: false }) as any[];
+            fields: ["price_unit", "qty", "product_id"],
+            groupby: ["product_id", "create_date:month"],
+            lazy: false
+        });
 
-        // 2. Récupérer les détails techniques des produits
         const productIds = [...new Set(salesRaw.map(s => s.product_id[0]))];
-        const productsInfo = await odooClient.searchRead("product.product", {
-            domain: [["id", "in", productIds]],
-            fields: ["name", "hs_code", "x_studio_many2one_field_Arl5D"] 
-        }) as any[];
 
-        // 3. NOUVEAU : Récupérer le stock actuel (stock.quant)
-        // On récupère le stock de tous les produits trouvés dans les ventes
-        const stockRaw = await odooClient.execute("stock.quant", "read_group", [
-            [
-                ["product_id", "in", productIds],
-                ["location_id.usage", "=", "internal"]
-            ],
-            ["quantity", "product_id"],
-            ["product_id"]
-        ]) as any[];
+        if (productIds.length === 0) {
+            return { products: [], columns: [] };
+        }
+
+        const [productsInfo, stockRaw] = await Promise.all([
+            odooJsonClient.searchRead<any>("product.product", {
+                domain: [["id", "in", productIds]],
+                fields: ["name", "hs_code", "x_studio_many2one_field_Arl5D"]
+            }),
+            odooJsonClient.readGroup<any>("stock.quant", {
+                domain: [
+                    ["product_id", "in", productIds],
+                    ["location_id.usage", "=", "internal"]
+                ],
+                fields: ["quantity", "product_id"],
+                groupby: ["product_id"]
+            })
+        ]);
 
         const tracker = new Map<string, any>();
 
@@ -852,8 +594,6 @@ export async function getFemmeSixMonthSales(month: string, year: string) {
             const odooMonth = sale['create_date:month'];
 
             if (!tracker.has(hsCode)) {
-                // On récupère le stock pour tous les produits ayant ce HS Code
-                // On filtre productsInfo pour avoir tous les IDs Odoo liés à ce HS Code
                 const idsForThisHS = productsInfo.filter(p => p.hs_code === hsCode).map(p => p.id);
                 const currentStock = stockRaw
                     .filter(s => idsForThisHS.includes(s.product_id[0]))
@@ -869,7 +609,7 @@ export async function getFemmeSixMonthSales(month: string, year: string) {
             }
 
             const entry = tracker.get(hsCode);
-            const monthMatch = monthRange.find(m => 
+            const monthMatch = monthRange.find(m =>
                 odooMonth.toLowerCase().includes(format(m, 'MMMM', { locale: fr }).toLowerCase())
             );
 
@@ -888,7 +628,7 @@ export async function getFemmeSixMonthSales(month: string, year: string) {
         };
 
     } catch (error) {
-        console.error(error);
+        console.error("[ACTIONS_ERROR] Erreur getFemmeSixMonthSales:", error);
         return { products: [], columns: [] };
     }
 }
