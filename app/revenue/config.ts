@@ -4,55 +4,104 @@ import {
   Wallet,
   TrendingUp,
   Building2,
+  ShoppingBag,
+  Sparkles,
+  Baby,
+  Layers,
+  Users,
+  Store,
 } from "lucide-react";
 
 export const NAV_GROUPS: NavGroup[] = [
   {
     id: "overview",
-    title: "Principale",
+    title: "Synthèse Globale",
     items: [
       {
         id: "dashboard",
-        label: "Vue d\'ensemble",
+        label: "Vue d'ensemble",
         icon: Banknote,
         path: "/revenue",
-        // badge: "Live", // Pour indiquer le temps réel
+        roles: ["admin", "manager", "financier"], // Restreint aux profils stratégiques
       },
       {
         id: "arpu",
         label: "ARPU & Segments",
         icon: Wallet,
         path: "/revenue/arpu",
+      },
+      {
+        id: "retail-kpis",
+        label: "Panier Moyen & KPIs",
+        icon: ShoppingBag,
+        path: "/revenue/kpis",
+        roles: ["admin", "manager", "financier"],
       }
     ],
   },
   {
-    id: "revenue-analysis",
-    title: "Analyse des Revenus",
+    id: "segment-analysis",
+    title: "Analyse par Segment",
     items: [
       {
-        id: "trend-beauty",
-        label: "Performance Beauty",
-        icon: TrendingUp,
-        path: "/revenue/performance-beauty",
-      },
-      {
-        id: "trend-femme",
+        id: "performance-femme",
         label: "Performance Femme",
-        icon: TrendingUp,
+        icon: Layers, // Évoque la superposition de vêtements / prêt-à-porter
         path: "/revenue/performance-femme",
+        roles: ["admin", "manager", "financier", "user"], // Accessible aux vendeurs concernés
       },
       {
-        id: "trend-polog",
+        id: "performance-enfant",
+        label: "Performance Enfant",
+        icon: Baby, // ✅ NOUVEAU : Alignement sur votre segment Mode Kids
+        path: "/revenue/performance-enfant",
+        roles: ["admin", "manager", "financier", "user"],
+      },
+      {
+        id: "performance-beauty",
+        label: "Performance Beauté",
+        icon: Sparkles, // Évoque l'esthétique et le soin cosmétique
+        path: "/revenue/performance-beauty",
+        roles: ["admin", "manager", "financier", "user"],
+      },
+      {
+        id: "performance-polog",
         label: "Performance POLOG",
         icon: TrendingUp,
         path: "/revenue/performance-polog"
       },
+    ],
+  },
+  {
+    id: "channels-staff",
+    title: "Boutiques & Équipes",
+    items: [
       {
-        id: "trend-suppliers",
-        label: "Performance Fournisseurs",
-        icon: Building2, 
+        id: "performance-stores",
+        label: "Ventes par Boutique",
+        icon: Store,
+        path: "/revenue/performance-stores",
+        roles: ["admin", "manager", "financier"],
+      },
+      {
+        id: "performance-associates",
+        label: "Ventes par Conseiller",
+        icon: Users, // Évoque l'équipe de vente en boutique
+        path: "/revenue/performance-associates",
+        roles: ["admin", "manager", "financier"], // Strictement pour le calcul des commissions
+      }
+    ],
+  },
+  {
+    id: "partners",
+    title: "Analyse Partenaires",
+    items: [
+      {
+        id: "performance-suppliers",
+        label: "Rentabilité Fournisseurs",
+        icon: Building2,
         path: "/revenue/performance-suppliers",
+        roles: ["admin", "manager", "financier"],
       }
     ],
   },

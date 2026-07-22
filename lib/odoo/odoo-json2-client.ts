@@ -1,6 +1,4 @@
-// odoo-json2-client.ts
-
-export type OdooDomain = Array<[string, string, unknown]|string>;
+export type OdooDomain = Array<[string, string, unknown] | string>;
 
 interface SearchReadParams {
   domain?: OdooDomain;
@@ -9,15 +7,6 @@ interface SearchReadParams {
   offset?: number;
   order?: string;
   context?: Record<string, unknown>;
-}
-
-interface OdooResponse<T> {
-  result?: T;
-  error?: {
-    name: string;
-    message: string;
-    arguments: unknown[];
-  };
 }
 
 interface ReadGroupParams {
@@ -31,52 +20,84 @@ interface ReadGroupParams {
   context?: Record<string, unknown>;
 }
 
+interface OdooErrorResponse {
+  error?: string;
+  error_description?: string;
+  message?: string;
+}
+
 const ODOO_URL = process.env.ODOO_URL ?? "https://pyiurs.odoo.com";
 const ODOO_DB = process.env.ODOO_DB ?? "pyiurs";
 const ODOO_API_KEY = process.env.ODOO_API_KEY ?? "";
+const ODOO_DEFAULT_LANG = process.env.ODOO_LANG ?? "fr_FR"; // Prise en compte de la langue française
 
 if (!ODOO_API_KEY) {
-  throw new Error("ODOO_API_KEY manquant");
+  throw new Error("ODOO_API_KEY manquant dans les variables d'environnement.");
 }
 
+/**
+ * Fonction interne d'appel réseau avec gestion de timeout et d'extraction d'erreurs d'Odoo 19
+ */
 async function odooFetch<T>(
   model: string,
   method: string,
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
+  timeoutMs = 15000 // Timeout défensif de 15 secondes pour l'usage en boutique
 ): Promise<T> {
-  const response = await fetch(
-    `${ODOO_URL}/json/2/${model}/${method}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Odoo-Database": ODOO_DB,
-        Authorization: `Bearer ${ODOO_API_KEY}`,
-      },
-      body: JSON.stringify(body),
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(
+      `${ODOO_URL}/json/2/${model}/${method}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          "X-Odoo-Database": ODOO_DB,
+          Authorization: `Bearer ${ODOO_API_KEY}`,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      }
+    );
+
+    clearTimeout(timeoutId);
+
+    // Extraction propre des codes erreurs HTTP d'Odoo 19 JSON-2
+    if (!response.ok) {
+      let errorMessage = "Erreur inconnue";
+      try {
+        const errorJson = (await response.json()) as OdooErrorResponse;
+        errorMessage = errorJson.error_description || errorJson.message || errorJson.error || "Erreur de format de données";
+      } catch {
+        errorMessage = await response.text();
+      }
+      throw new Error(`Odoo API Error [HTTP ${response.status}]: ${errorMessage}`);
     }
-  );
 
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`HTTP ${response.status} - ${text}`);
-  }
-
-    const data = (await response.json()) as OdooResponse<T>;
-
+    // L'API JSON-2 d'Odoo renvoie le résultat brut directement (non encapsulé dans un objet 'result')
+    const data = await response.json();
     return data as T;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`Odoo API Error: La requête a expiré après ${timeoutMs}ms (Timeout).`);
+    }
+    throw error;
+  }
 }
 
 export const odooClient = {
   /**
-   * search_read typé générique
+   * search_read : Recherche et lecture d'enregistrements
    */
   async searchRead<T>(
     model: string,
     params: SearchReadParams = {}
   ): Promise<T[]> {
     return odooFetch<T[]>(model, "search_read", {
-      context: { lang: "en_US" },
+      context: { lang: ODOO_DEFAULT_LANG, ...(params.context ?? {}) },
       domain: params.domain ?? [],
       fields: params.fields ?? [],
       limit: params.limit,
@@ -86,7 +107,7 @@ export const odooClient = {
   },
 
   /**
-   * search_count
+   * search_count : Compte le nombre d'enregistrements correspondant au domaine
    */
   async searchCount(
     model: string,
@@ -96,17 +117,21 @@ export const odooClient = {
   },
 
   /**
-   * create
+   * create : Création d'enregistrements via l'argument officiel 'vals_list'
+   * @param valsList Tableau d'objets contenant les champs à initialiser
+   * @returns Tableau des identifiants créés
    */
-  async create<T extends Record<string, unknown>>(
+  async create(
     model: string,
-    values: T
-  ): Promise<number> {
-    return odooFetch<number>(model, "create", values);
+    valsList: Record<string, unknown>[]
+  ): Promise<number[]> {
+    return odooFetch<number[]>(model, "create", {
+      vals_list: valsList,
+    });
   },
 
   /**
-   * write
+   * write : Modification d'un ou plusieurs enregistrements via l'argument officiel 'vals'
    */
   async write<T extends Record<string, unknown>>(
     model: string,
@@ -115,19 +140,19 @@ export const odooClient = {
   ): Promise<boolean> {
     return odooFetch<boolean>(model, "write", {
       ids,
-      values,
+      vals: values, // ✅ CORRIGÉ : Utilisation de la clé d'argument nommée 'vals' attendue par l'ORM d'Odoo
     });
   },
 
   /**
-   * read_group (agrégations)
+   * read_group : Agrégations de données Odoo (très utile pour la BI et les KPIs)
    */
   async readGroup<T>(
     model: string,
     params: ReadGroupParams = {}
   ): Promise<T[]> {
     return odooFetch<T[]>(model, "read_group", {
-      context: { lang: "en_US", ...(params.context ?? {}) },
+      context: { lang: ODOO_DEFAULT_LANG, ...(params.context ?? {}) },
       domain: params.domain ?? [],
       fields: params.fields ?? [],
       groupby: params.groupby ?? [],

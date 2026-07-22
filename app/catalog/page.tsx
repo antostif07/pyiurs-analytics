@@ -4,19 +4,20 @@ import CatalogGridClient from "./components/catalog-grid-client";
 import CatalogSkeleton from "./components/catalog-skeleton";
 import { getFemmeCatalog, getFemmeInternalCategories, getFemmePosCategories } from "./services";
 
+export const dynamic = "force-dynamic";
+
 interface PageProps {
   searchParams: Promise<{ [key: string]: string | undefined }>;
 }
 
 async function ProductGridFetcher({ searchParams, defaultPosCategoryId }: { searchParams: any, defaultPosCategoryId: number }) {
-  
+
   const activePosCategoryId = searchParams.posCategory ? parseInt(searchParams.posCategory) : defaultPosCategoryId;
-  // ✅ NOUVEAU: Conversion du CategoryId en nombre
   const activeCategoryId = searchParams.categoryId ? parseInt(searchParams.categoryId) : undefined;
 
   const data = await getFemmeCatalog({
     posCategoryId: activePosCategoryId,
-    categoryId: activeCategoryId, // ✅ On envoie à Odoo
+    categoryId: activeCategoryId,
     query: searchParams.query,
     color: searchParams.color,
     size: searchParams.size,
@@ -46,10 +47,10 @@ export default async function CatalogPage({ searchParams }: PageProps) {
       </div>
 
       {/* ✅ On passe les 2 listes au composant client */}
-      <CatalogFilters 
-        posCategories={posCategories} 
+      <CatalogFilters
+        posCategories={posCategories}
         productCategories={productCategories}
-        activePosCategoryId={activePosCategoryId.toString()} 
+        activePosCategoryId={activePosCategoryId.toString()}
       />
 
       <Suspense key={JSON.stringify(params)} fallback={<CatalogSkeleton />}>

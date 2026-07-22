@@ -1,126 +1,187 @@
+import { LoginInput, loginSchema } from "@/lib/validations/auth";
 import { AlertCircle, Eye, EyeOff, Loader2, Mail, Lock } from "lucide-react";
 import { useState } from "react";
+import { z } from "zod";
 
 interface LoginFormProps {
-  onSubmit: (e: React.FormEvent, email: string, pass: string) => Promise<void>;
+  onSubmit: (email: string, pass: string) => Promise<void>;
   isLoading: boolean;
   error: string | null;
 }
 
-/**
- * Composant : Formulaire de connexion isolé
- */
 export const LoginForm = ({ onSubmit, isLoading, error }: LoginFormProps) => {
-  const[email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const[showPassword, setShowPassword] = useState(false);
+  // ✅ 1. Un seul état pour toutes les données du formulaire
+  const [formData, setFormData] = useState<LoginInput>({
+    email: '',
+    password: ''
+  });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    onSubmit(e, email, password);
+  // État visuel de l'UI (Masquage/Affichage mot de passe)
+  const [showPassword, setShowPassword] = useState(false);
+
+  // État de validation
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof LoginInput, string>>>({});
+
+  // ✅ 2. Une seule fonction générique pour gérer tous les changements de saisie
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+
+    // Mise à jour de la donnée correspondante au "name" de l'input
+    setFormData((prev) => ({
+      ...prev,
+      [name]: name === 'email' ? value.trim() : value // Nettoyage de l'email à la volée
+    }));
+
+    // Effacement de l'erreur de validation du champ en cours de saisie
+    if (fieldErrors[name as keyof LoginInput]) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        [name]: undefined
+      }));
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFieldErrors({});
+
+    try {
+      // Validation globale du schéma Zod
+      loginSchema.parse(formData);
+
+      // Transmission des données validées
+      await onSubmit(formData.email, formData.password);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        const errors: Partial<Record<keyof LoginInput, string>> = {};
+        err.issues.forEach((issue) => {
+          const path = issue.path[0] as keyof LoginInput;
+          if (path) {
+            errors[path] = issue.message;
+          }
+        });
+        setFieldErrors(errors);
+      }
+    }
   };
 
   return (
-    <div className="bg-white dark:bg-slate-800 py-8 px-4 sm:rounded-2xl sm:px-10 shadow-xl border border-slate-100 dark:border-slate-700 w-full max-w-md">
-      
-      {/* En-tête du formulaire */}
-      <div className="mb-8 text-center">
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+    <div className="bg-card text-card-foreground py-8 px-6 sm:rounded-2xl sm:px-10 shadow-lg border border-border w-full max-w-md">
+
+      <div className="mb-6 text-center">
+        <h2 className="text-xl font-semibold tracking-tight">
           Bon retour parmi nous
         </h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
-          Entrez vos identifiants pour accéder à votre espace
+        <p className="text-xs text-muted-foreground mt-1.5 font-light">
+          Entrez vos identifiants professionnels pour accéder aux données
         </p>
       </div>
 
-      <form className="space-y-6" onSubmit={handleSubmit} noValidate>
-        
-        {/* Bannière d'erreur stylisée */}
+      <form className="space-y-5" onSubmit={handleSubmit} noValidate>
+
         {error && (
-          <div className="bg-red-50 dark:bg-red-900/30 border-l-4 border-red-500 p-4 rounded-md flex items-start" role="alert">
-            <AlertCircle className="h-5 w-5 text-red-500 dark:text-red-400 mr-3 shrink-0 mt-0.5" />
-            <p className="text-sm text-red-700 dark:text-red-300 font-medium">
+          <div
+            className="bg-destructive/10 border-l-2 border-destructive p-3 rounded-md flex items-start"
+            role="alert"
+          >
+            <AlertCircle className="h-4 w-4 text-destructive mr-2.5 shrink-0 mt-0.5" />
+            <p className="text-xs text-destructive font-medium leading-relaxed">
               {error}
             </p>
           </div>
         )}
-        
-        <div className="space-y-5">
-          {/* Input Email */}
+
+        <div className="space-y-4">
+          {/* Champ Email */}
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+            <label htmlFor="email" className="block text-xs font-medium text-foreground/80 mb-1.5">
               Adresse email
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Mail className="h-5 w-5 text-slate-400" aria-hidden="true" />
+                <Mail className="h-4 w-4 text-muted-foreground/60" aria-hidden="true" />
               </div>
               <input
                 id="email"
-                name="email"
+                name="email" // Doit correspondre exactement à la clé dans formData
                 type="email"
                 autoComplete="email"
                 required
                 disabled={isLoading}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="block w-full pl-10 pr-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                value={formData.email}
+                onChange={handleChange} // ✅ Gestionnaire générique
+                className={`block w-full pl-9 pr-3 py-2.5 border rounded-xl bg-muted/20 text-foreground placeholder-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed ${fieldErrors.email ? 'border-destructive' : 'border-input'
+                  }`}
                 placeholder="votre@email.com"
               />
             </div>
+            {fieldErrors.email && (
+              <p className="mt-1.5 text-xs text-destructive font-medium flex items-center animate-pulse">
+                <AlertCircle className="h-3 w-3 mr-1" />
+                {fieldErrors.email}
+              </p>
+            )}
           </div>
-          
-          {/* Input Mot de passe avec Toggle */}
+
+          {/* Champ Mot de passe */}
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+            <label htmlFor="password" className="block text-xs font-medium text-foreground/80 mb-1.5">
               Mot de passe
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Lock className="h-5 w-5 text-slate-400" aria-hidden="true" />
+                <Lock className="h-4 w-4 text-muted-foreground/60" aria-hidden="true" />
               </div>
               <input
                 id="password"
-                name="password"
+                name="password" // Doit correspondre exactement à la clé dans formData
                 type={showPassword ? "text" : "password"}
                 autoComplete="current-password"
                 required
                 disabled={isLoading}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="block w-full pl-10 pr-10 py-2.5 border border-slate-300 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                value={formData.password}
+                onChange={handleChange} // ✅ Gestionnaire générique
+                className={`block w-full pl-9 pr-10 py-2.5 border rounded-xl bg-muted/20 text-foreground placeholder-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed ${fieldErrors.password ? 'border-destructive' : 'border-input'
+                  }`}
                 placeholder="••••••••"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 disabled={isLoading}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 focus:outline-none disabled:opacity-50"
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground/60 hover:text-foreground focus:outline-none disabled:opacity-50"
                 aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
               >
                 {showPassword ? (
-                  <EyeOff className="h-5 w-5" aria-hidden="true" />
+                  <EyeOff className="h-4 w-4" aria-hidden="true" />
                 ) : (
-                  <Eye className="h-5 w-5" aria-hidden="true" />
+                  <Eye className="h-4 w-4" aria-hidden="true" />
                 )}
               </button>
             </div>
+            {fieldErrors.password && (
+              <p className="mt-1.5 text-xs text-destructive font-medium flex items-center animate-pulse">
+                <AlertCircle className="h-3 w-3 mr-1" />
+                {fieldErrors.password}
+              </p>
+            )}
           </div>
         </div>
 
         {/* Bouton de soumission */}
-        <div>
+        <div className="pt-2">
           <button
             type="submit"
-            disabled={isLoading || !email || !password}
-            className="w-full flex justify-center items-center py-2.5 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-slate-800 disabled:bg-blue-400 dark:disabled:bg-blue-800 disabled:cursor-not-allowed transition-colors"
+            disabled={isLoading}
+            className="w-full h-11 flex justify-center items-center rounded-xl text-sm font-medium text-primary-foreground bg-primary hover:opacity-90 active:scale-[0.98] focus:outline-none disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed disabled:transform-none transition-all"
           >
             {isLoading ? (
               <>
-                <Loader2 className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" />
-                Connexion en cours...
+                <Loader2 className="animate-spin -ml-1 mr-2 h-4 w-4 text-primary-foreground" />
+                Validation de la session...
               </>
             ) : (
-              'Se connecter'
+              'Accéder à la plateforme'
             )}
           </button>
         </div>

@@ -1,6 +1,7 @@
 "use client";
+
 import { useState } from "react";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Star } from "lucide-react";
@@ -28,38 +29,51 @@ export function SidebarItem({
 }: SidebarItemProps) {
   const [hovered, setHovered] = useState(false);
 
-  // Le bouton principal réutilisé pour les deux modes
-  const renderButton = () => (
-    <motion.button
-      onClick={() => onNavigate(item.path)}
+  const handleNavigation = () => {
+    onNavigate(item.path);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      handleNavigation();
+    }
+  };
+
+  const renderItemContent = () => (
+    <motion.div
+      role="button"
+      tabIndex={0}
+      onClick={handleNavigation}
+      onKeyDown={handleKeyDown}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       whileTap={{ scale: 0.98 }}
       className={cn(
-        "group relative flex items-center gap-2.5 rounded-lg cursor-pointer transition-all duration-200 text-left",
-        collapsed 
-          ? "h-10 w-10 justify-center mx-auto" // Mode réduit : Carré centré
-          : "px-3 py-2 mx-2 w-[calc(100%-16px)]", // Mode étendu
+        "group relative flex items-center gap-2.5 rounded-lg cursor-pointer transition-all duration-200 text-left outline-none",
+        collapsed
+          ? "h-10 w-10 justify-center mx-auto"
+          : "px-3 py-2 mx-2 w-[calc(100%-16px)]",
         active
           ? "bg-primary/10 text-primary font-semibold shadow-sm ring-1 ring-primary/20"
-          : "text-sidebar-foreground hover:bg-sidebar-accent/60"
+          : "text-sidebar-foreground hover:bg-sidebar-accent/60 focus-visible:bg-sidebar-accent/60"
       )}
     >
-      {/* Indicateur Actif (Pillule à gauche en étendu, fond complet en réduit) */}
+      {/* Indicateur d'activité */}
       {active && (
         <motion.div
           layoutId="active-pill"
           className={cn(
             "absolute bg-primary rounded-full",
-            collapsed 
-              ? "inset-0 bg-primary/10 -z-10" // En réduit, c'est un fond subtil
-              : "left-0 top-2 bottom-2 w-1"   // En étendu, c'est une barre à gauche
+            collapsed
+              ? "inset-0 bg-primary/10 -z-10"
+              : "left-0 top-2 bottom-2 w-1"
           )}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
         />
       )}
 
-      {/* Icône avec animation de scale au survol */}
+      {/* Icône */}
       <item.icon
         className={cn(
           "w-4 h-4 shrink-0 transition-transform duration-200",
@@ -67,7 +81,7 @@ export function SidebarItem({
         )}
       />
 
-      {/* Contenu visible uniquement en mode étendu */}
+      {/* Contenu textuel visible uniquement en mode étendu */}
       {!collapsed && (
         <>
           <span className="flex-1 text-xs truncate tracking-wide">
@@ -75,56 +89,66 @@ export function SidebarItem({
           </span>
 
           {item.badge !== undefined && (
-            <Badge className="h-4 min-w-4 px-1 text-[9px] bg-primary text-primary-foreground font-bold border-none">
+            <Badge className="h-4 min-w-4 px-1 text-[9px] bg-primary text-primary-foreground font-bold border-none shrink-0">
               {item.badge}
             </Badge>
           )}
 
-          {showFavToggle && (hovered || isFav) && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+          {/* 
+            ✅ CORRECTIF MAJEUR : L'élément est TOUJOURS présent dans le DOM.
+            L'opacité et les interactions (pointer-events) sont gérées dynamiquement.
+            Cela empêche tout décalage du texte ou saut de mise en page.
+          */}
+          {showFavToggle && (
+            <motion.button
+              type="button"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{
+                opacity: (hovered || isFav) ? 1 : 0,
+                scale: (hovered || isFav) ? 1 : 0.8,
+                pointerEvents: (hovered || isFav) ? "auto" : "none" // Évite les clics accidentels sur l'étoile invisible
+              }}
+              transition={{ duration: 0.15 }}
               onClick={(e) => {
-                e.stopPropagation();
+                e.stopPropagation(); // Empêche de déclencher la navigation lors du clic sur l'étoile
                 onToggleFav(item.id);
               }}
-              className="p-0.5 rounded-md hover:bg-primary/20 transition-colors"
+              className="p-1 rounded-md hover:bg-primary/20 text-muted-foreground hover:text-foreground transition-colors outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer shrink-0 ml-auto"
+              aria-label={isFav ? "Retirer des favoris" : "Ajouter aux favoris"}
             >
               <Star
                 className={cn(
-                  "w-3 h-3",
-                  isFav ? "fill-amber-400 text-amber-400" : "text-muted-foreground"
+                  "w-3 h-3 transition-transform active:scale-125",
+                  isFav ? "fill-amber-400 text-amber-400" : "text-muted-foreground/60"
                 )}
               />
-            </motion.div>
+            </motion.button>
           )}
         </>
       )}
 
-      {/* Point de notification rouge en mode réduit */}
+      {/* Point de notification en mode réduit */}
       {collapsed && item.badge !== undefined && (
-        <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-primary border-2 border-sidebar shadow-sm" />
+        <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-primary border-2 border-sidebar shadow-sm animate-pulse" />
       )}
-    </motion.button>
+    </motion.div>
   );
 
   if (collapsed) {
     return (
       <div className="py-1 flex justify-center w-full">
-        <TooltipProvider delayDuration={0}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              {renderButton()}
-            </TooltipTrigger>
-            <TooltipContent side="right" sideOffset={10} className="font-medium text-xs">
-              {item.label}
-              {item.badge && <span className="ml-2 opacity-70">({item.badge})</span>}
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            {renderItemContent()}
+          </TooltipTrigger>
+          <TooltipContent side="right" sideOffset={10} className="font-medium text-xs bg-popover text-foreground border border-border shadow-md">
+            {item.label}
+            {item.badge && <span className="ml-2 opacity-70">({item.badge})</span>}
+          </TooltipContent>
+        </Tooltip>
       </div>
     );
   }
 
-  return <div className="py-0.5">{renderButton()}</div>;
+  return <div className="py-0.5">{renderItemContent()}</div>;
 }

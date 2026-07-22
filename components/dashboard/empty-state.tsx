@@ -1,16 +1,21 @@
 import { Search } from "lucide-react";
 
-export const EmptyState = ({ searchQuery, onClear }: { searchQuery: string; onClear: () => void }) => (
-  <div className="text-center py-16 px-4 bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 border-dashed">
-    <Search className="mx-auto h-12 w-12 text-slate-300 dark:text-slate-600 mb-4" />
-    <h3 className="text-lg font-medium text-slate-900 dark:text-white mb-1">Aucun résultat trouvé</h3>
-    <p className="text-slate-500">
-      {searchQuery ? `Aucun module ne correspond à "${searchQuery}".` : "Vous n'avez accès à aucun module."}
+interface EmptyStateProps {
+  searchQuery: string;
+  onClear: () => void;
+}
+
+export const EmptyState = ({ searchQuery, onClear }: EmptyStateProps) => (
+  <div className="text-center py-16 px-4 bg-card rounded-3xl border border-border border-dashed transition-all duration-150">
+    <Search className="mx-auto h-10 w-10 text-muted-foreground/40 mb-4 stroke-[1.5]" />
+    <h3 className="text-md font-semibold tracking-tight mb-1">Aucun résultat trouvé</h3>
+    <p className="text-xs text-muted-foreground font-light">
+      {searchQuery ? `Aucun module opérationnel ne correspond à "${searchQuery}".` : "Vous ne disposez d'aucun accès affecté."}
     </p>
     {searchQuery && (
-      <button 
+      <button
         onClick={onClear}
-        className="mt-6 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+        className="mt-6 h-10 inline-flex items-center justify-center px-4 rounded-xl text-xs font-medium text-primary-foreground bg-primary hover:opacity-90 active:scale-[0.98] transition-all cursor-pointer"
       >
         Effacer la recherche
       </button>

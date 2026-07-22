@@ -1,8 +1,6 @@
-// app/inventory/purchases/import-generator/page.tsx
-
 'use client';
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useReducer } from "react";
 import Link from "next/link";
 import {
     ArrowLeft,
@@ -53,6 +51,75 @@ interface ProductLine {
     date_expiration: string;
 }
 
+// 1. Définition de la structure de l'état du formulaire produit
+interface ProductFormState {
+    nom: string;
+    codeHs: string;
+    quantity: number;
+    pu: number;
+    caa: number;
+    prix: number;
+    marque: string;
+    categorie: string;
+    famille: string;
+    couleur: string;
+    taille: string;
+    categorieArticle: string;
+    categoriePdv: string;
+    description: string;
+    codeRemise: string;
+    codeFournisseur: string;
+    hsPlus: string;
+    dateExpiration: string;
+}
+
+// État initial propre
+const INITIAL_PRODUCT_FORM: ProductFormState = {
+    nom: "",
+    codeHs: "",
+    quantity: 1,
+    pu: 0,
+    caa: 1.0,
+    prix: 0,
+    marque: "",
+    categorie: "",
+    famille: "",
+    couleur: "",
+    taille: "",
+    categorieArticle: "",
+    categoriePdv: "",
+    description: "",
+    codeRemise: "",
+    codeFournisseur: "",
+    hsPlus: "",
+    dateExpiration: "",
+};
+
+// Actions du Reducer
+type ProductFormAction =
+    | { type: "UPDATE_FIELD"; field: keyof ProductFormState; value: any }
+    | { type: "SET_FIELDS"; fields: Partial<ProductFormState> }
+    | { type: "RESET_FORM" };
+
+function productFormReducer(state: ProductFormState, action: ProductFormAction): ProductFormState {
+    switch (action.type) {
+        case "UPDATE_FIELD":
+            return {
+                ...state,
+                [action.field]: action.value,
+            };
+        case "SET_FIELDS":
+            return {
+                ...state,
+                ...action.fields,
+            };
+        case "RESET_FORM":
+            return INITIAL_PRODUCT_FORM;
+        default:
+            return state;
+    }
+}
+
 // Fonction utilitaire pour calculer le numéro de semaine ISO
 function getWeekNumber(dateStr: string): string {
     const d = new Date(dateStr);
@@ -81,28 +148,11 @@ export default function PurchaseImportGeneratorPage() {
     const [dateChargement, setDateChargement] = useState<string>("");
     const [departement, setDepartement] = useState<string>("Beauty");
 
-    // Liste des produits
+    // Liste des produits finalisés
     const [products, setProducts] = useState<ProductLine[]>([]);
 
-    // États de saisie individuels du produit
-    const [nom, setNom] = useState("");
-    const [codeHs, setCodeHs] = useState("");
-    const [quantity, setQuantity] = useState<number>(1);
-    const [pu, setPu] = useState<number>(0);
-    const [caa, setCaa] = useState<number>(1.0);
-    const [prix, setPrix] = useState<number>(0);
-    const [marque, setMarque] = useState("");
-    const [categorie, setCategorie] = useState("");
-    const [famille, setFamille] = useState("");
-    const [couleur, setCouleur] = useState("");
-    const [taille, setTaille] = useState("");
-    const [categorieArticle, setCategorieArticle] = useState("");
-    const [categoriePdv, setCategoriePdv] = useState("");
-    const [description, setDescription] = useState("");
-    const [codeRemise, setCodeRemise] = useState("");
-    const [codeFournisseur, setCodeFournisseur] = useState("");
-    const [hsPlus, setHsPlus] = useState("");
-    const [dateExpiration, setDateExpiration] = useState("");
+    // 2. Gestion unifiée de l'état du formulaire de produit
+    const [form, dispatch] = useReducer(productFormReducer, INITIAL_PRODUCT_FORM);
 
     // États d'autocomplétion
     const [autoFilling, setAutoFilling] = useState<boolean>(false);
@@ -137,14 +187,14 @@ export default function PurchaseImportGeneratorPage() {
 
     // Fonction déclenchée lors de la perte de focus du Code HS
     const handleHsCodeBlur = async () => {
-        if (!codeHs.trim()) return;
+        if (!form.codeHs.trim()) return;
 
         try {
             setAutoFilling(true);
             setAutoFillSuccess(null);
 
             // Appel de l'action serveur d'Odoo
-            const matchedProduct = await getLastProductByHsCode(codeHs.trim());
+            const matchedProduct = await getLastProductByHsCode(form.codeHs.trim());
             const poClean = selectedPo?.name.replace(/^P/, "")
             const yearLastTwo = dateChargement.split("-")[0].slice(-2);
             const weekStr = getWeekNumber(dateChargement);
@@ -152,23 +202,27 @@ export default function PurchaseImportGeneratorPage() {
             const codeRemise = `${selectedPo?.supplierName.split("-")[1].trim()}${poClean}${yearLastTwo}${weekStr}`
 
             if (matchedProduct) {
-                const desc = departement === "Beauty" ? matchedProduct.description : `${codeRemise} - ${matchedProduct.famille} ${matchedProduct.couleur} - ${codeHs}`
+                const desc = departement === "Beauty" ? matchedProduct.description : `${codeRemise} - ${matchedProduct.famille} ${matchedProduct.couleur} - ${form.codeHs}`
                 const productName = departement === "Beauty" ? matchedProduct.nom : `${desc} ${matchedProduct.taille}`
-                setNom(productName);
-                setCategorie(matchedProduct.categorie);
-                setPrix(matchedProduct.prix * 1.25 - 10);
-                setPu(matchedProduct.pu);
-                setDescription(desc);
-                setMarque(matchedProduct.marque);
-                setFamille(matchedProduct.famille);
-                setCouleur(matchedProduct.couleur);
-                setTaille(matchedProduct.taille);
 
-                // Préremplissage avec fallbacks propres
-                setCategorieArticle(matchedProduct.categorie_article || "");
-                setCategoriePdv(matchedProduct.categorie_pdv || "");
-                setCaa(matchedProduct.caa);
-                setCodeFournisseur(matchedProduct.code_fournisseur);
+                dispatch({
+                    type: "SET_FIELDS",
+                    fields: {
+                        nom: productName,
+                        categorie: matchedProduct.categorie || "",
+                        prix: matchedProduct.prix * 1.25 - 10,
+                        pu: matchedProduct.pu || 0,
+                        description: desc,
+                        marque: matchedProduct.marque || "",
+                        famille: matchedProduct.famille || "",
+                        couleur: matchedProduct.couleur || "",
+                        taille: matchedProduct.taille || "",
+                        categorieArticle: matchedProduct.categorie_article || "",
+                        categoriePdv: matchedProduct.categorie_pdv || "",
+                        caa: matchedProduct.caa || 1.0,
+                        codeFournisseur: matchedProduct.code_fournisseur || ""
+                    }
+                });
 
                 setAutoFillSuccess(true);
             } else {
@@ -196,51 +250,34 @@ export default function PurchaseImportGeneratorPage() {
 
     const handleAddProduct = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!codeHs.trim() || quantity <= 0) return;
+        if (!form.codeHs.trim() || form.quantity <= 0) return;
 
         const newLine: ProductLine = {
             id: Math.random().toString(36).substr(2, 9),
-            nom,
-            code_hs: codeHs.trim(),
-            quantity,
-            pu,
-            caa,
-            prix,
-            marque,
-            categorie,
-            famille,
-            couleur,
-            taille,
-            categorie_article: categorieArticle,
-            categorie_pdv: categoriePdv,
-            description,
-            code_remise: codeRemise,
-            code_fournisseur: codeFournisseur,
-            hs_plus: hsPlus,
-            date_expiration: dateExpiration
+            nom: form.nom,
+            code_hs: form.codeHs.trim(),
+            quantity: form.quantity,
+            pu: form.pu,
+            caa: form.caa,
+            prix: form.prix,
+            marque: form.marque,
+            categorie: form.categorie,
+            famille: form.famille,
+            couleur: form.couleur,
+            taille: form.taille,
+            categorie_article: form.categorieArticle,
+            categorie_pdv: form.categoriePdv,
+            description: form.description,
+            code_remise: form.codeRemise,
+            code_fournisseur: form.codeFournisseur,
+            hs_plus: form.hsPlus,
+            date_expiration: form.dateExpiration
         };
 
         setProducts([...products, newLine]);
 
-        // Réinitialisation des états
-        setNom("");
-        setCodeHs("");
-        setQuantity(1);
-        setPu(0);
-        setCaa(1.0);
-        setPrix(0);
-        setMarque("");
-        setCategorie("");
-        setFamille("");
-        setCouleur("");
-        setTaille("");
-        setCategorieArticle("");
-        setCategoriePdv("");
-        setDescription("");
-        setCodeRemise("");
-        setCodeFournisseur("");
-        setHsPlus("");
-        setDateExpiration("");
+        // Une seule action pour réinitialiser tout le formulaire produit
+        dispatch({ type: "RESET_FORM" });
     };
 
     const handleRemoveProduct = (id: string) => {
@@ -262,10 +299,10 @@ export default function PurchaseImportGeneratorPage() {
             // Boucle pour sérialiser chaque unité physique de produit
             for (let i = 0; i < product.quantity; i++) {
 
-                // Calculs financiers de base
-                const pDollar = Number((pu * 1.2).toFixed(2));
-                const cout = Number((pu * caa).toFixed(2));
-                const marge = Number((prix - cout).toFixed(2));
+                // Calculs financiers basés sur l'élément de la liste (et non sur l'état d'édition actuel)
+                const pDollar = Number((product.pu * 1.2).toFixed(2));
+                const cout = Number((product.pu * product.caa).toFixed(2));
+                const marge = Number((product.prix - cout).toFixed(2));
 
                 // --- ALGORITHME DE FORMULATION DES CHAMPS ---
                 let barcode = `${selectedPo.name}${formattedDate}${globalCounter}`;
@@ -317,11 +354,11 @@ export default function PurchaseImportGeneratorPage() {
                     "Code HS": product.code_hs,
                     "Taille": product.taille,
                     "Qte": product.quantity, // Quantité globale
-                    "PU": pu,
+                    "PU": product.pu,
                     "P$": pDollar,
-                    "CAA": caa,
+                    "CAA": product.caa,
                     "Cout": cout,
-                    "Prix": (prix + 10) / 1.25,
+                    "Prix": (product.prix + 10) / 1.25,
                     "Marge": marge,
                     "ID Externe": barcode,
                     "Nom": formattedProductName,
@@ -490,8 +527,8 @@ export default function PurchaseImportGeneratorPage() {
                                         type="text"
                                         required
                                         placeholder="Ex: 3304.99.00 (Cosmétiques)"
-                                        value={codeHs}
-                                        onChange={(e) => setCodeHs(e.target.value)}
+                                        value={form.codeHs}
+                                        onChange={(e) => dispatch({ type: "UPDATE_FIELD", field: "codeHs", value: e.target.value })}
                                         onBlur={handleHsCodeBlur}
                                         className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-xs font-medium outline-none text-slate-800 dark:text-slate-200 focus:ring-1 focus:ring-indigo-500 h-10 transition-all"
                                     />
@@ -499,11 +536,11 @@ export default function PurchaseImportGeneratorPage() {
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                     <div className="space-y-1">
                                         <label className="text-[9px] font-bold uppercase text-slate-400">Nom du Produit</label>
-                                        <input type="text" required value={nom} onChange={(e) => setNom(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
+                                        <input type="text" required value={form.nom} onChange={(e) => dispatch({ type: "UPDATE_FIELD", field: "nom", value: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
                                     </div>
                                     <div className="space-y-1">
                                         <label className="text-[9px] font-bold uppercase text-slate-400">Quantité physique</label>
-                                        <input type="number" required min={1} value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
+                                        <input type="number" required min={1} value={form.quantity} onChange={(e) => dispatch({ type: "UPDATE_FIELD", field: "quantity", value: Number(e.target.value) })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
                                     </div>
                                 </div>
                             </div>
@@ -514,23 +551,23 @@ export default function PurchaseImportGeneratorPage() {
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                                     <div className="space-y-1">
                                         <label className="text-[9px] font-bold uppercase text-slate-400">Marque</label>
-                                        <input type="text" value={marque} onChange={(e) => setMarque(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
+                                        <input type="text" value={form.marque} onChange={(e) => dispatch({ type: "UPDATE_FIELD", field: "marque", value: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
                                     </div>
                                     <div className="space-y-1">
                                         <label className="text-[9px] font-bold uppercase text-slate-400">Catégorie</label>
-                                        <input type="text" value={categorie} onChange={(e) => setCategorie(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
+                                        <input type="text" value={form.categorie} onChange={(e) => dispatch({ type: "UPDATE_FIELD", field: "categorie", value: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
                                     </div>
                                     <div className="space-y-1">
                                         <label className="text-[9px] font-bold uppercase text-slate-400">Famille</label>
-                                        <input type="text" value={famille} onChange={(e) => setFamille(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
+                                        <input type="text" value={form.famille} onChange={(e) => dispatch({ type: "UPDATE_FIELD", field: "famille", value: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
                                     </div>
                                     <div className="space-y-1">
                                         <label className="text-[9px] font-bold uppercase text-slate-400">Couleur</label>
-                                        <input type="text" value={couleur} onChange={(e) => setCouleur(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
+                                        <input type="text" value={form.couleur} onChange={(e) => dispatch({ type: "UPDATE_FIELD", field: "couleur", value: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
                                     </div>
                                     <div className="space-y-1">
                                         <label className="text-[9px] font-bold uppercase text-slate-400">Taille</label>
-                                        <input type="text" value={taille} onChange={(e) => setTaille(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
+                                        <input type="text" value={form.taille} onChange={(e) => dispatch({ type: "UPDATE_FIELD", field: "taille", value: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
                                     </div>
 
                                     {/* CATEGORIE D'ARTICLE SELECT */}
@@ -538,27 +575,17 @@ export default function PurchaseImportGeneratorPage() {
                                         <label className="text-[9px] font-bold uppercase text-slate-400">Catégorie Article</label>
                                         <NormalSelector
                                             data={odooProductCategories}
-                                            selected={categorieArticle}
-                                            onSelect={(value) => setCategorieArticle(value.name)}
+                                            selected={form.categorieArticle}
+                                            onSelect={(value) => dispatch({ type: "UPDATE_FIELD", field: "categorieArticle", value: value.name })}
                                         />
-                                        {/* <select
-                                            value={categorieArticle}
-                                            onChange={(e) => setCategorieArticle(e.target.value)}
-                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-semibold h-9 outline-none cursor-pointer"
-                                        >
-                                            <option value="">Sélectionner une catégorie...</option>
-                                            {odooProductCategories.map((cat) => (
-                                                <option key={cat.id} value={cat.name}>{cat.name}</option>
-                                            ))}
-                                        </select> */}
                                     </div>
 
                                     {/* CATEGORIE PDV SELECT */}
                                     <div className="space-y-1">
                                         <label className="text-[9px] font-bold uppercase text-slate-400">Catégorie PdV</label>
                                         <select
-                                            value={categoriePdv}
-                                            onChange={(e) => setCategoriePdv(e.target.value)}
+                                            value={form.categoriePdv}
+                                            onChange={(e) => dispatch({ type: "UPDATE_FIELD", field: "categoriePdv", value: e.target.value })}
                                             className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-semibold h-9 outline-none cursor-pointer"
                                         >
                                             <option value="">Sélectionner une catégorie PdV...</option>
@@ -570,12 +597,12 @@ export default function PurchaseImportGeneratorPage() {
 
                                     <div className="space-y-1">
                                         <label className="text-[9px] font-bold uppercase text-slate-400">Date Expiration</label>
-                                        <input type="text" placeholder="Ex: 2026-12" value={dateExpiration} onChange={(e) => setDateExpiration(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
+                                        <input type="text" placeholder="Ex: 2026-12" value={form.dateExpiration} onChange={(e) => dispatch({ type: "UPDATE_FIELD", field: "dateExpiration", value: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
                                     </div>
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-[9px] font-bold uppercase text-slate-400">Description</label>
-                                    <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
+                                    <input type="text" value={form.description} onChange={(e) => dispatch({ type: "UPDATE_FIELD", field: "description", value: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
                                 </div>
                             </div>
 
@@ -585,27 +612,27 @@ export default function PurchaseImportGeneratorPage() {
                                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
                                     <div className="space-y-1">
                                         <label className="text-[9px] font-bold uppercase text-slate-400">Prix d'Achat (PU)</label>
-                                        <input type="number" step="0.01" value={pu} onChange={(e) => setPu(Number(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
+                                        <input type="number" step="0.01" value={form.pu} onChange={(e) => dispatch({ type: "UPDATE_FIELD", field: "pu", value: Number(e.target.value) })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
                                     </div>
                                     <div className="space-y-1">
                                         <label className="text-[9px] font-bold uppercase text-slate-400">Coeff (CAA)</label>
-                                        <input type="number" step="0.01" value={caa} onChange={(e) => setCaa(Number(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
+                                        <input type="number" step="0.01" value={form.caa} onChange={(e) => dispatch({ type: "UPDATE_FIELD", field: "caa", value: Number(e.target.value) })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
                                     </div>
                                     <div className="space-y-1">
                                         <label className="text-[9px] font-bold uppercase text-slate-400">Prix de vente public</label>
-                                        <input type="number" step="0.01" value={prix} onChange={(e) => setPrix(Number(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
+                                        <input type="number" step="0.01" value={form.prix} onChange={(e) => dispatch({ type: "UPDATE_FIELD", field: "prix", value: Number(e.target.value) })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
                                     </div>
                                     <div className="space-y-1">
                                         <label className="text-[9px] font-bold uppercase text-slate-400">Code Remise</label>
-                                        <input type="text" value={codeRemise} onChange={(e) => setCodeRemise(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
+                                        <input type="text" value={form.codeRemise} onChange={(e) => dispatch({ type: "UPDATE_FIELD", field: "codeRemise", value: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
                                     </div>
                                     <div className="space-y-1">
                                         <label className="text-[9px] font-bold uppercase text-slate-400">Code Fournisseur</label>
-                                        <input type="text" value={codeFournisseur} onChange={(e) => setCodeFournisseur(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
+                                        <input type="text" value={form.codeFournisseur} onChange={(e) => dispatch({ type: "UPDATE_FIELD", field: "codeFournisseur", value: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
                                     </div>
                                     <div className="space-y-1">
                                         <label className="text-[9px] font-bold uppercase text-slate-400">HS +</label>
-                                        <input type="text" value={hsPlus} onChange={(e) => setHsPlus(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
+                                        <input type="text" value={form.hsPlus} onChange={(e) => dispatch({ type: "UPDATE_FIELD", field: "hsPlus", value: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs font-medium h-9 outline-none" />
                                     </div>
                                 </div>
                             </div>

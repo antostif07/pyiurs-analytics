@@ -11,20 +11,20 @@ export async function getDashboardStats() {
     const now = new Date();
     // Odoo stocke souvent en UTC, on ajuste la date locale pour le filtre String
     const todayStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
-    
+
     // Début de semaine
-    const day = now.getDay() || 7; 
-    if(day !== 1) now.setHours(-24 * (day - 1)); 
+    const day = now.getDay() || 7;
+    if (day !== 1) now.setHours(-24 * (day - 1));
     const startOfWeekStr = now.toISOString().split('T')[0];
 
     // --- REQUÊTE 1 : CA DU JOUR (POS) ---
     const dailyOrders: any = await odooClient.searchRead('pos.order', {
       domain:
-      [
-        ['date_order', '>=', todayStr], 
-        ['state', 'in', ['paid', 'done', 'invoiced']] // États valides du POS
-      ],
-      fields: ['amount_total'] 
+        [
+          ['date_order', '>=', todayStr],
+          ['state', 'in', ['paid', 'done', 'invoiced']] // États valides du POS
+        ],
+      fields: ['amount_total']
     });
 
     const dailyRevenue = dailyOrders.reduce((sum: number, order: any) => sum + order.amount_total, 0);
@@ -32,16 +32,16 @@ export async function getDashboardStats() {
     // --- REQUÊTE 2 : CA SEMAINE (POS) ---
     const weeklyOrders: any = await odooClient.searchRead('pos.order', {
       domain: [
-        ['date_order', '>=', startOfWeekStr], 
+        ['date_order', '>=', startOfWeekStr],
         ['state', 'in', ['paid', 'done', 'invoiced']]
       ],
       fields: ['amount_total']
     });
-    
+
     const weeklyRevenue = weeklyOrders.reduce((sum: number, order: any) => sum + order.amount_total, 0);
 
     // --- REQUÊTE 3 : STOCK FAIBLE (Reste inchangé, c'est le produit) ---
-    const lowStockIds: any = await odooClient.searchRead('product.product',{
+    const lowStockIds: any = await odooClient.searchRead('product.product', {
       domain: [
         ['type', '=', 'product'],
         ['qty_available', '<', 3],
@@ -54,11 +54,11 @@ export async function getDashboardStats() {
     twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
     const dateDormantStr = twoMonthsAgo.toISOString().split('T')[0];
 
-    const dormantStockCount: any = await odooClient.searchRead('product.product',{
+    const dormantStockCount: any = await odooClient.searchRead('product.product', {
       domain: [
-            ['create_date', '<', dateDormantStr],
-            ['qty_available', '>', 0]
-        ]
+        ['create_date', '<', dateDormantStr],
+        ['qty_available', '>', 0]
+      ]
     });
 
     return {
@@ -127,7 +127,7 @@ export async function getTopProducts() {
       const isBeauty = catName.toLowerCase().includes('beauty');
 
       const targetStats = isBeauty ? beautyStats : fashionStats;
-      
+
       if (!targetStats[groupKey]) {
         const rawName = productInfo?.name || 'Produit Inconnu';
         const cleanName = rawName.split('[')[0].trim();
@@ -137,30 +137,30 @@ export async function getTopProducts() {
         let imageUrl = '/placeholder.png'; // Fallback local si besoin
 
         if (hsCode) {
-            if (isBeauty) {
-                // Logique Beauty : hsCode_.jpg
-                imageUrl = `http://pyiurs.com/images/images/${hsCode}_.jpg`;
+          if (isBeauty) {
+            // Logique Beauty : hsCode_.jpg
+            imageUrl = `http://pyiurs.com/images/images/${hsCode}_.jpg`;
+          } else {
+            // Logique Fashion : hsCode_Couleur.jpg
+            // Le champ couleur est un tableau [ID, "Nom"] (Many2One)
+            const colorField = productInfo?.x_studio_many2one_field_Arl5D;
+            const colorName = Array.isArray(colorField) ? colorField[1] : '';
+
+            if (colorName) {
+              imageUrl = `http://pyiurs.com/images/images/${hsCode}_${colorName}.jpg`;
             } else {
-                // Logique Fashion : hsCode_Couleur.jpg
-                // Le champ couleur est un tableau [ID, "Nom"] (Many2One)
-                const colorField = productInfo?.x_studio_many2one_field_Arl5D;
-                const colorName = Array.isArray(colorField) ? colorField[1] : '';
-                
-                if (colorName) {
-                    imageUrl = `http://pyiurs.com/images/images/${hsCode}_${colorName}.jpg`;
-                } else {
-                    // Si pas de couleur, on tente le format beauty par défaut
-                    imageUrl = `http://pyiurs.com/images/images/${hsCode}_.jpg`;
-                }
+              // Si pas de couleur, on tente le format beauty par défaut
+              imageUrl = `http://pyiurs.com/images/images/${hsCode}_.jpg`;
             }
+          }
         }
 
-        targetStats[groupKey] = { 
-          name: cleanName, 
+        targetStats[groupKey] = {
+          name: cleanName,
           ref: hsCode || 'Sans Ref',
           imageUrl: imageUrl, // <-- On stocke l'URL
-          qty: 0, 
-          total: 0 
+          qty: 0,
+          total: 0
         };
       }
 
@@ -234,7 +234,7 @@ export async function addTaskFull(formData: FormData) {
   const title = formData.get('title') as string;
   const dateStr = formData.get('date') as string; // YYYY-MM-DD
   const type = formData.get('type') as string; // 'promo', 'shoot', 'video'...
-  
+
   if (!title || !dateStr) return;
 
   const { error } = await supabase.from('tasks').insert({
@@ -316,7 +316,7 @@ export async function getActiveCampaigns() {
     .select('*')
     .eq('status', 'active')
     .order('created_at', { ascending: false });
-    
+
   return data || [];
 }
 
@@ -361,7 +361,7 @@ export async function getDormantStock() {
       const now = new Date();
       // Différence en mois
       const diffMonths = (now.getFullYear() - created.getFullYear()) * 12 + (now.getMonth() - created.getMonth());
-      
+
       // Règle : 2 mois = -10%, 3 mois = -20%, max -50%
       let discount = 0;
       if (diffMonths >= 2) discount = 10;
@@ -410,12 +410,12 @@ export async function getCRMClients() {
   try {
     const clients: any = await odooClient.searchRead('res.partner', {
       domain: [
-        ['customer_rank', '>', 0], // C'est un client
+        ['customer_rank', '>', 0],
         ['mobile', '!=', false],    // Il a un numéro de portable
         ['email', '!=', false]      // (Optionnel) Il a un email
       ],
       fields: ['id', 'name', 'mobile', 'email', 'total_invoiced', 'sale_order_count', 'create_date'],
-      limit: 50, 
+      limit: 50,
       order: 'total_invoiced desc'
     });
 
@@ -444,16 +444,16 @@ function formatWhatsAppLink(phone: string) {
   if (!phone) return '';
   // 1. On garde que les chiffres
   let clean = phone.replace(/[^\d+]/g, '');
-  
+
   // 2. Gestion basique de l'indicatif (Exemple pour le Sénégal ou l'international)
   // Si le numéro commence par '00', on remplace par '+'
   if (clean.startsWith('00')) clean = '+' + clean.substring(2);
-  
+
   // Si pas de '+' au début et pas d'indicatif pays (ex: commence par 77, 78...), on ajoute l'indicatif (ex: 221)
   // A ADAPTER SELON TON PAYS PRINCIPAL
   if (!clean.startsWith('+')) {
-      // Hypothèse : Si < 9 chiffres, c'est peut-être un numéro local sans indicatif
-      clean = '243' + clean;
+    // Hypothèse : Si < 9 chiffres, c'est peut-être un numéro local sans indicatif
+    clean = '243' + clean;
   }
 
   // Pour le lien wa.me, on enlève le '+' final
@@ -542,7 +542,7 @@ export async function stopPromo(id: string) {
 export async function createCustomPromo(formData: FormData) {
   const name = formData.get('name') as string;
   const discount = Number(formData.get('discount'));
-  
+
   // On récupère TOUTES les valeurs des inputs nommés "hs_codes"
   const hsCodes = formData.getAll('hs_codes') as string[];
 
@@ -628,54 +628,54 @@ export async function getPromoCandidates() {
 }
 
 export async function getCampaignDetails(campaignId: string) {
-    // A. Récup campagne Supabase
-    const { data: campaign } = await supabase
-        .from('active_promos')
-        .select('*')
-        .eq('id', campaignId)
-        .single();
-    
-    if(!campaign) return null;
+  // A. Récup campagne Supabase
+  const { data: campaign } = await supabase
+    .from('active_promos')
+    .select('*')
+    .eq('id', campaignId)
+    .single();
 
-    // B. Récup produits Odoo correspondants
-    const products: any = await odooClient.searchRead('product.template', {
-      domain: [['id', 'in', campaign.product_ids]],
-      fields: ['name', 'hs_code', 'qty_available', 'standard_price', 'list_price', 'barcode', 'categ_id', 'x_studio_many2one_field_Arl5D']
-    });
+  if (!campaign) return null;
 
-    // C. Calcul des prix et génération image
-    const details = products.map((p: any) => {
-        // --- LOGIQUE IMAGE ---
-        const code = p.hs_code ? p.hs_code.trim() : '';
-        const catName = Array.isArray(p.categ_id) ? p.categ_id[1] : '';
-        const isBeauty = catName.toLowerCase().includes('beauty');
-        
-        let imageUrl = '';
-        if (code) {
-             if (isBeauty) {
-                 imageUrl = `http://pyiurs.com/images/images/${code}_.jpg`;
-             } else {
-                 const colorName = Array.isArray(p.x_studio_many2one_field_Arl5D) ? p.x_studio_many2one_field_Arl5D[1] : '';
-                 // Si couleur présente: CODE_Couleur.jpg, sinon CODE_.jpg
-                 imageUrl = colorName 
-                    ? `http://pyiurs.com/images/images/${code}_${colorName}.jpg` 
-                    : `http://pyiurs.com/images/images/${code}_.jpg`;
-             }
-        }
+  // B. Récup produits Odoo correspondants
+  const products: any = await odooClient.searchRead('product.template', {
+    domain: [['id', 'in', campaign.product_ids]],
+    fields: ['name', 'hs_code', 'qty_available', 'standard_price', 'list_price', 'barcode', 'categ_id', 'x_studio_many2one_field_Arl5D']
+  });
 
-        const cost = p.list_price || 0; 
-        const shopPrice = cost * 1.25; // RÈGLE : BASE + 25%
-        const discountAmount = cost * (campaign.discount_percent / 100);
-        const promoPrice = cost - discountAmount;
+  // C. Calcul des prix et génération image
+  const details = products.map((p: any) => {
+    // --- LOGIQUE IMAGE ---
+    const code = p.hs_code ? p.hs_code.trim() : '';
+    const catName = Array.isArray(p.categ_id) ? p.categ_id[1] : '';
+    const isBeauty = catName.toLowerCase().includes('beauty');
 
-        return {
-            ...p,
-            image_url: imageUrl, // Champ ajouté
-            shop_price: shopPrice,
-            promo_price: promoPrice,
-            discount: campaign.discount_percent
-        };
-    });
+    let imageUrl = '';
+    if (code) {
+      if (isBeauty) {
+        imageUrl = `http://pyiurs.com/images/images/${code}_.jpg`;
+      } else {
+        const colorName = Array.isArray(p.x_studio_many2one_field_Arl5D) ? p.x_studio_many2one_field_Arl5D[1] : '';
+        // Si couleur présente: CODE_Couleur.jpg, sinon CODE_.jpg
+        imageUrl = colorName
+          ? `http://pyiurs.com/images/images/${code}_${colorName}.jpg`
+          : `http://pyiurs.com/images/images/${code}_.jpg`;
+      }
+    }
 
-    return { campaign, details };
+    const cost = p.list_price || 0;
+    const shopPrice = cost * 1.25; // RÈGLE : BASE + 25%
+    const discountAmount = cost * (campaign.discount_percent / 100);
+    const promoPrice = cost - discountAmount;
+
+    return {
+      ...p,
+      image_url: imageUrl, // Champ ajouté
+      shop_price: shopPrice,
+      promo_price: promoPrice,
+      discount: campaign.discount_percent
+    };
+  });
+
+  return { campaign, details };
 }

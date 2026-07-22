@@ -1,14 +1,13 @@
 'use client';
 
-import React, { createContext, ReactNode, useContext, useEffect, useMemo, useState, useCallback } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import React, { createContext, ReactNode, useContext, useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import type { User, Session, SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import { Loader2 } from 'lucide-react';
 import { AuthService } from '@/lib/supabase/auth-service';
 import { Profile } from '@/lib/supabase/types';
 
-// Typage strict du contexte
 interface AuthContextType {
   user: User | null;
   session: Session | null;
@@ -27,111 +26,145 @@ interface AuthProviderProps {
   serverProfile?: Partial<Profile> | null;
 }
 
-export function AuthProvider({ 
-  children, 
-  serverUser = null, 
-  serverProfile = null 
+export function AuthProvider({
+  children,
+  serverUser = null,
+  serverProfile = null
 }: AuthProviderProps) {
-  
-  const supabase = useMemo(() => createClient(),[]);
+
+  const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const pathname = usePathname();
-  
-  // États initiaux basés sur les données du serveur (Zéro flickering)
+  const searchParams = useSearchParams();
+
+  const hasHydrated = useRef(false);
+
   const [user, setUser] = useState<User | null>(serverUser);
   const [profile, setProfile] = useState<Partial<Profile> | null>(serverProfile);
   const [session, setSession] = useState<Session | null>(null);
-  
-  // Si le serveur a fourni l'utilisateur, on n'est pas en chargement !
-  const[loading, setLoading] = useState(!serverUser);
+  const [loading, setLoading] = useState(!serverUser);
 
-  // ✅ PRO: Memoization pour éviter de recréer la fonction à chaque rendu
+  // ✅ SOLUTION DU STALE CLOSURE : Utilisation d'un Ref pour stocker le profil actif
+  const profileRef = useRef<Partial<Profile> | null>(serverProfile);
+
+  // Synchronisation systématique du Ref avec l'état React de profil
+  useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
+
+  // Récupération du profil
   const fetchUserProfile = useCallback(async (userId: string) => {
-    // Utilisation de notre service métier au lieu de réécrire la requête Supabase
-    const fetchedProfile = await AuthService.getProfile(supabase, userId);
-    setProfile(fetchedProfile);
-    return fetchedProfile;
+    try {
+      const fetchedProfile = await AuthService.getProfile(supabase, userId);
+      setProfile(fetchedProfile);
+      return fetchedProfile;
+    } catch (error) {
+      console.error('[AUTH_CONTEXT_ERROR] Erreur récupération profil:', error);
+      return null;
+    }
   }, [supabase]);
 
-  // Fonction de connexion côté client
+  // Connexion
   const signIn = async (email: string, password: string) => {
     try {
+      setLoading(true);
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-      if (error) return { error };
+      if (error) {
+        setLoading(false);
+        return { error };
+      }
 
       setUser(data.user);
       setSession(data.session);
       await fetchUserProfile(data.user.id);
+      setLoading(false);
 
-      // ✅ PRO: router.replace évite d'encombrer l'historique "Précédent" du navigateur
-      router.replace('/'); 
-      
+      const redirectTo = searchParams?.get('next') || '/';
+      router.replace(redirectTo);
+
       return { error: null };
     } catch (error) {
-      console.error('[AUTH_CONTEXT] Erreur signIn:', error);
+      console.error('[AUTH_CONTEXT_ERROR] Erreur critique signIn:', error);
+      setLoading(false);
       return { error: error instanceof Error ? error : new Error('Erreur inattendue') };
     }
   };
 
+  // Déconnexion
   const signOut = async () => {
-    setLoading(true);
-    await supabase.auth.signOut();
-    setUser(null);
-    setProfile(null);
-    setSession(null);
-    router.replace('/login');
-    setLoading(false);
+    try {
+      setLoading(true);
+      await supabase.auth.signOut();
+      setUser(null);
+      setProfile(null);
+      setSession(null);
+      router.replace('/login');
+    } catch (error) {
+      console.error('[AUTH_CONTEXT_ERROR] Erreur lors du signOut:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // ✅ PRO: Redirection client-side allégée. 
-  // La VRAIE sécurité sera dans le middleware.ts. Ceci n'est qu'un fallback UX.
+  // Redirections automatiques UX Client (Secours du Middleware.ts)
   useEffect(() => {
     if (loading) return;
 
     const isAuthRoute = pathname === '/login' || pathname === '/auth';
 
     if (user && isAuthRoute) {
-      router.replace('/');
+      const redirectTo = searchParams?.get('next') || '/';
+      router.replace(redirectTo);
     } else if (!user && !isAuthRoute) {
-      // Pas de useSearchParams ici pour ne pas casser le SSR Next.js
-      router.replace('/login');
+      const query = pathname !== '/' ? `?next=${encodeURIComponent(pathname + (searchParams?.toString() ? '?' + searchParams.toString() : ''))}` : '';
+      router.replace(`/login${query}`);
     }
-  }, [user, loading, pathname, router]);
+  }, [user, loading, pathname, router, searchParams]);
 
-  // Écoute des événements de session (changement d'onglet, expiration du token...)
+  // Écouteur global réactif unique
   useEffect(() => {
-    // Récupération de la session initiale pour le token
-    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
-      setSession(currentSession);
-      if (currentSession?.user && !serverProfile) {
-        fetchUserProfile(currentSession.user.id).finally(() => setLoading(false));
-      } else {
-        setLoading(false);
-      }
-    });
-
-    // Écouteur global
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-      console.info(`[AUTH_STATE_CHANGE] Événement: ${event}`);
-      
-      setSession(currentSession);
-      setUser(currentSession?.user ?? null);
+      console.info(`[AUTH_EVENT] Événement réactif: ${event}`);
 
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        if (currentSession?.user) {
-          await fetchUserProfile(currentSession.user.id);
+      setSession(currentSession);
+      const sessionUser = currentSession?.user ?? null;
+      setUser(sessionUser);
+
+      if (sessionUser) {
+        // ✅ STRATÉGIE LUXE : On vérifie via notre 'profileRef' si l'utilisateur en mémoire a changé.
+        // Si c'est le même utilisateur (ex: simple rafraîchissement de jeton au retour d'onglet),
+        // on ne touche à rien, on n'affiche aucun loader et on n'exécute aucune requête SQL inutile vers Supabase.
+        const isNewUser = !profileRef.current || profileRef.current.id !== sessionUser.id;
+
+        if (isNewUser) {
+          setLoading(true);
+          if (serverProfile && serverProfile.id === sessionUser.id && !hasHydrated.current) {
+            setProfile(serverProfile);
+          } else {
+            await fetchUserProfile(sessionUser.id);
+          }
+          setLoading(false);
+        } else {
+          // L'utilisateur est identique, on s'assure juste que le loader reste inactif
+          setLoading(false);
         }
-      } else if (event === 'SIGNED_OUT') {
+      } else {
         setProfile(null);
-        router.replace('/login');
+        setLoading(false);
+
+        if (event === 'SIGNED_OUT') {
+          router.replace('/login');
+        }
       }
+
+      hasHydrated.current = true;
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  },[supabase, serverProfile, fetchUserProfile, router]);
+  }, [supabase, serverProfile, fetchUserProfile, router]);
 
   const value = useMemo(() => ({
     user,
@@ -141,16 +174,17 @@ export function AuthProvider({
     supabase,
     signIn,
     signOut
-  }),[user, session, profile, loading, supabase]);
+  }), [user, session, profile, loading, supabase]);
 
-  // Écran de chargement unifié
   if (loading && !serverUser) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center">
-        <Loader2 className="animate-spin h-10 w-10 text-blue-600 mb-4" />
-        <p className="text-slate-500 text-sm font-medium animate-pulse">
-          Authentification...
-        </p>
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center transition-colors duration-150">
+        <div className="flex flex-col items-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary stroke-[1.5]" />
+          <p className="text-muted-foreground text-xs font-light tracking-widest uppercase animate-pulse">
+            Vérification de l'accès
+          </p>
+        </div>
       </div>
     );
   }
@@ -158,7 +192,6 @@ export function AuthProvider({
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-// Hooks personnalisés
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (context === undefined) {
@@ -167,21 +200,19 @@ export const useAuth = (): AuthContextType => {
   return context;
 };
 
-// ✅ PRO: Code réutilisé depuis l'AuthService (DRY)
 export const useShopAccess = () => {
   const { profile } = useAuth();
 
   return {
     hasAccessToShop: (shopId: string) => AuthService.hasShopAccess(profile, shopId),
     getUserShops: () => AuthService.getUserShops(profile),
-    
-    // Logiques spécifiques conservées
+
     hasAccessToCompany: (companyId: string): boolean => {
       if (!profile) return false;
       if (profile.role === 'admin' || profile.shop_access_type === 'all') return true;
       return (profile.assigned_companies as string[])?.includes(companyId) || (profile.assigned_companies as string[])?.includes('all');
     },
-    
+
     isUserRestricted: profile ? profile.shop_access_type === 'specific' : true
   };
 };
