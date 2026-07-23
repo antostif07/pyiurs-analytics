@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +12,7 @@ import {
     DialogTrigger,
     DialogDescription
 } from "@/components/ui/dialog";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Pencil, Loader2 } from "lucide-react";
 import { upsertBudgetAction } from "./budget-actions";
 import { toast } from "sonner";
 
@@ -20,6 +20,15 @@ interface BudgetFormDialogProps {
     currentMonth: number;
     currentYear: number;
     shops: { id: string; name: string }[];
+    initialData?: {
+        id: string;
+        month: number;
+        year: number;
+        shop_id: string;
+        segment: "Femme" | "Enfant" | "Beauty" | "Autres";
+        target_amount: number;
+    };
+    trigger?: React.ReactNode;
 }
 
 const MONTHS_LIST = [
@@ -37,16 +46,37 @@ const MONTHS_LIST = [
     { value: 12, label: "Décembre" },
 ];
 
-export function BudgetFormDialog({ currentMonth, currentYear, shops }: BudgetFormDialogProps) {
+export function BudgetFormDialog({
+    currentMonth,
+    currentYear,
+    shops,
+    initialData,
+    trigger
+}: BudgetFormDialogProps) {
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
 
-    // ✅ Choix dynamique du Mois et de l'Année pour les prévisions futures
-    const [selectedMonth, setSelectedMonth] = useState<number>(currentMonth);
-    const [selectedYear, setSelectedYear] = useState<number>(currentYear);
-    const [shopId, setShopId] = useState<string>(shops[0]?.id || "");
-    const [segment, setSegment] = useState<"Femme" | "Enfant" | "Beauty" | "Autres">("Femme");
-    const [targetAmount, setTargetAmount] = useState<string>("");
+    const [selectedMonth, setSelectedMonth] = useState<number>(initialData?.month || currentMonth);
+    const [selectedYear, setSelectedYear] = useState<number>(initialData?.year || currentYear);
+    const [shopId, setShopId] = useState<string>(initialData?.shop_id || shops[0]?.id || "");
+    const [segment, setSegment] = useState<"Femme" | "Enfant" | "Beauty" | "Autres">(
+        initialData?.segment || "Femme"
+    );
+    const [targetAmount, setTargetAmount] = useState<string>(
+        initialData ? String(initialData.target_amount) : ""
+    );
+
+    useEffect(() => {
+        if (initialData) {
+            setSelectedMonth(initialData.month);
+            setSelectedYear(initialData.year);
+            setShopId(initialData.shop_id);
+            setSegment(initialData.segment);
+            setTargetAmount(String(initialData.target_amount));
+        }
+    }, [initialData]);
+
+    const isEditing = !!initialData?.id;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -65,6 +95,7 @@ export function BudgetFormDialog({ currentMonth, currentYear, shops }: BudgetFor
         setLoading(true);
 
         const result = await upsertBudgetAction({
+            id: initialData?.id,
             month: selectedMonth,
             year: selectedYear,
             shopId,
@@ -75,8 +106,8 @@ export function BudgetFormDialog({ currentMonth, currentYear, shops }: BudgetFor
         setLoading(false);
 
         if (result.success) {
-            toast.success("Budget mensuel enregistré avec succès.");
-            setTargetAmount("");
+            toast.success(isEditing ? "Budget mis à jour." : "Budget créé avec succès.");
+            if (!isEditing) setTargetAmount("");
             setOpen(false);
         } else {
             toast.error(result.error || "Échec de l'enregistrement du budget.");
@@ -86,14 +117,20 @@ export function BudgetFormDialog({ currentMonth, currentYear, shops }: BudgetFor
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button className="h-9 px-4 rounded-xl text-xs font-semibold bg-primary text-primary-foreground hover:opacity-90 gap-1.5 cursor-pointer">
-                    <Plus className="w-4 h-4" /> Configurer un Budget
-                </Button>
+                {trigger ? (
+                    trigger
+                ) : (
+                    <Button className="h-9 px-4 rounded-xl text-xs font-semibold bg-primary text-primary-foreground hover:opacity-90 gap-1.5 cursor-pointer">
+                        <Plus className="w-4 h-4" /> Configurer un Budget
+                    </Button>
+                )}
             </DialogTrigger>
 
             <DialogContent className="sm:max-w-md bg-card border-border text-card-foreground rounded-2xl">
                 <DialogHeader>
-                    <DialogTitle className="text-lg font-bold">Allocation de Budget Mensuel</DialogTitle>
+                    <DialogTitle className="text-lg font-bold">
+                        {isEditing ? "Modifier le Budget" : "Allocation de Budget Mensuel"}
+                    </DialogTitle>
                     <DialogDescription className="text-xs text-muted-foreground font-light">
                         Définissez l'objectif financier USD par boutique et par segment.
                     </DialogDescription>
@@ -101,7 +138,6 @@ export function BudgetFormDialog({ currentMonth, currentYear, shops }: BudgetFor
 
                 <form onSubmit={handleSubmit} className="space-y-4 pt-2">
 
-                    {/* ✅ Sélecteur de Mois et d'Année (Pour planifier les mois futurs) */}
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                             <Label className="text-xs font-semibold">Mois Cible</Label>
@@ -134,7 +170,6 @@ export function BudgetFormDialog({ currentMonth, currentYear, shops }: BudgetFor
                         </div>
                     </div>
 
-                    {/* Sélection de la Boutique Physique */}
                     <div className="space-y-1.5">
                         <Label className="text-xs font-semibold">Boutique Physique</Label>
                         <select
@@ -150,7 +185,6 @@ export function BudgetFormDialog({ currentMonth, currentYear, shops }: BudgetFor
                         </select>
                     </div>
 
-                    {/* Sélection du Segment Produit */}
                     <div className="space-y-1.5">
                         <Label className="text-xs font-semibold">Segment Produit</Label>
                         <select
@@ -165,7 +199,6 @@ export function BudgetFormDialog({ currentMonth, currentYear, shops }: BudgetFor
                         </select>
                     </div>
 
-                    {/* Saisie du Montant Cible */}
                     <div className="space-y-1.5">
                         <Label className="text-xs font-semibold">Montant Cible ($ USD)</Label>
                         <div className="relative">
@@ -201,7 +234,7 @@ export function BudgetFormDialog({ currentMonth, currentYear, shops }: BudgetFor
                                     Enregistrement...
                                 </>
                             ) : (
-                                "Enregistrer le budget"
+                                isEditing ? "Mettre à jour" : "Enregistrer le budget"
                             )}
                         </Button>
                     </div>

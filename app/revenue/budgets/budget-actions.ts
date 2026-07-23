@@ -7,6 +7,9 @@ import { Database } from "@/lib/supabase/database.types";
 
 export type RevenueBudgetInsert = Database["public"]["Tables"]["revenue_budgets"]["Insert"];
 
+/**
+ * Récupère les budgets configurés pour un mois et une année spécifiques
+ */
 export async function getBudgetsData(month: number, year: number) {
     const supabase = await createClient();
 
@@ -29,6 +32,9 @@ export async function getBudgetsData(month: number, year: number) {
     };
 }
 
+/**
+ * Enregistre (Création ou Mise à jour) un budget mensuel
+ */
 export async function upsertBudgetAction(input: BudgetInput) {
     try {
         const validated = budgetSchema.parse(input);
@@ -37,28 +43,48 @@ export async function upsertBudgetAction(input: BudgetInput) {
         const user = await supabase.auth.getUser();
         const userId = user.data.user?.id || null;
 
-        const payload: RevenueBudgetInsert = {
-            ...(validated.id ? { id: validated.id } : {}),
-            month: validated.month,
-            year: validated.year,
-            shop_id: validated.shopId,
-            segment: validated.segment,
-            target_amount: validated.targetAmount,
-            created_by: userId,
-            updated_at: new Date().toISOString(),
-        };
+        // ✅ 1. MODE ÉDITION : Si un ID existe, on fait un UPDATE direct par PKEY
+        if (validated.id) {
+            const { error } = await supabase
+                .from("revenue_budgets")
+                .update({
+                    month: validated.month,
+                    year: validated.year,
+                    shop_id: validated.shopId,
+                    segment: validated.segment,
+                    target_amount: validated.targetAmount,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq("id", validated.id);
 
-        // ✅ Match exact avec la contrainte SQL UNIQUE (shop_id, segment, month, year)
-        const { error } = await supabase
-            .from("revenue_budgets")
-            .upsert(payload, {
-                onConflict: "shop_id,segment,month,year"
-            });
+            if (error) {
+                throw new Error(`Erreur lors de la mise à jour: ${error.message}`);
+            }
+        }
+        // ✅ 2. MODE CRÉATION : Si aucun ID n'est fourni, on fait un UPSERT sur la clé composée
+        else {
+            const payload: RevenueBudgetInsert = {
+                month: validated.month,
+                year: validated.year,
+                shop_id: validated.shopId,
+                segment: validated.segment,
+                target_amount: validated.targetAmount,
+                created_by: userId,
+                updated_at: new Date().toISOString(),
+            };
 
-        if (error) {
-            throw new Error(`Erreur d'enregistrement Supabase: ${error.message}`);
+            const { error } = await supabase
+                .from("revenue_budgets")
+                .upsert(payload, {
+                    onConflict: "shop_id,segment,month,year"
+                });
+
+            if (error) {
+                throw new Error(`Erreur lors de la création: ${error.message}`);
+            }
         }
 
+        // Revalidation des caches Next.js
         revalidatePath("/revenue");
         revalidatePath("/revenue/budgets");
 
@@ -68,6 +94,9 @@ export async function upsertBudgetAction(input: BudgetInput) {
     }
 }
 
+/**
+ * Supprime un budget configuré par son ID
+ */
 export async function deleteBudgetAction(id: string) {
     try {
         const supabase = await createClient();

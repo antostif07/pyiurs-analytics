@@ -97,7 +97,13 @@ export default async function BudgetManagementPage({ searchParams }: PageProps) 
                 <h2 className="text-xs font-bold uppercase tracking-wider text-foreground">
                     Budgets Alloués — {monthStr}/{yearStr}
                 </h2>
-                <BudgetTable budgets={budgets} daysInMonth={daysInMonth} />
+                <BudgetTable
+                    budgets={budgets}
+                    shops={shops}
+                    daysInMonth={daysInMonth}
+                    currentMonth={monthInt}
+                    currentYear={yearInt}
+                />
             </div>
 
         </div>
