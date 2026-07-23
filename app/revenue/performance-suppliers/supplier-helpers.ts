@@ -22,8 +22,21 @@ export interface SupplierMonthlyPerformance {
     supplierId: string;
     supplierName: string;
     currentStockQty: number;
-    totalRevenue: number;         // Ventes $ (Prix de vente)
-    totalPurchaseCost: number;    // ✅ Achats $ (Prix de revient)
-    monthlySales: Record<string, number>;        // Ventes mensuelles
-    monthlyPurchaseCost: Record<string, number>; // ✅ Coût d'achat mensuel
+
+    // Totaux 6 Mois
+    totalPurchases: number;     // Achats réels $ (purchase.order)
+    totalSales: number;         // Ventes POS $ (pos.order.line)
+    totalCost: number;          // Coût des ventes $ (standard_price * qty)
+    totalMarginPercent: number; // Marge %
+
+    // Totaux 3 Mois
+    purchases3M: number;
+    sales3M: number;
+    cost3M: number;
+    marginPercent3M: number;
+
+    // Clés mensuelles ("yyyy-MM")
+    monthlyPurchases: Record<string, number>;
+    monthlySales: Record<string, number>;
+    monthlyCost: Record<string, number>;
 }

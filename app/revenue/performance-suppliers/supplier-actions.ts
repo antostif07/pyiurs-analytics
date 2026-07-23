@@ -23,34 +23,44 @@ export async function getSupplierPerformanceData(
     const endDate = format(endOfMonth(selectedDate), 'yyyy-MM-dd 23:59:59');
 
     try {
-        // 1. Récupération des lignes de vente POS
-        const salesLines = await odooJsonClient.searchRead<any>("pos.order.line", {
-            domain: [
-                ["order_id.state", "in", ["paid", "done", "invoiced"]],
-                ["create_date", ">=", startDate],
-                ["create_date", "<=", endDate]
-            ],
-            fields: ["product_id", "qty", "price_subtotal_incl", "create_date"]
-        });
+        // 1. RÉCUPÉRATION SIMULTANÉE : VENTES POS + ACHATS FOURNISSEURS (Odoo JSON-2)
+        const [salesLines, purchaseLines] = await Promise.all([
+            odooJsonClient.searchRead<any>("pos.order.line", {
+                domain: [
+                    ["order_id.state", "in", ["paid", "done", "invoiced"]],
+                    ["create_date", ">=", startDate],
+                    ["create_date", "<=", endDate]
+                ],
+                fields: ["product_id", "qty", "price_subtotal_incl", "create_date"]
+            }),
+            odooJsonClient.searchRead<any>("purchase.order.line", {
+                domain: [
+                    ["order_id.state", "in", ["purchase", "done"]],
+                    ["date_approve", ">=", startDate],
+                    ["date_approve", "<=", endDate]
+                ],
+                fields: ["product_id", "partner_id", "price_subtotal", "date_approve", "create_date"]
+            })
+        ]);
 
-        if (!salesLines || salesLines.length === 0) {
+        const productIds = [...new Set([
+            ...salesLines.map((l: any) => l.product_id[0]),
+            ...purchaseLines.map((p: any) => p.product_id ? p.product_id[0] : null).filter(Boolean)
+        ])];
+
+        if (productIds.length === 0) {
             return { suppliers: [], columns: [] };
         }
 
-        const productIds = [...new Set(salesLines.map((l: any) => l.product_id[0]))];
-
-        // 2. Lecture des produits Odoo avec leur PRIX DE REVIENT (standard_price)
+        // 2. LECTURE DES PRODUITS ET DE LEURS FOURNISSEURS (seller_ids)
         const products = await odooJsonClient.searchRead<any>("product.product", {
             domain: [["id", "in", productIds]],
-            fields: ["id", "name", "seller_ids", "standard_price"] // ✅ Ajout de standard_price
+            fields: ["id", "name", "seller_ids", "standard_price"]
         });
 
         const productCostMap = new Map<number, number>();
-        products.forEach((p: any) => {
-            productCostMap.set(p.id, p.standard_price || 0);
-        });
+        products.forEach((p: any) => productCostMap.set(p.id, p.standard_price || 0));
 
-        // 3. Fournisseurs
         const allSellerInfoIds = products.flatMap((p: any) => p.seller_ids || []);
         const supplierInfos = allSellerInfoIds.length > 0
             ? await odooJsonClient.searchRead<any>("product.supplierinfo", {
@@ -84,7 +94,7 @@ export async function getSupplierPerformanceData(
             productToSupplierMap.set(p.id, assignedSupplier);
         });
 
-        // 4. Stock
+        // 3. STOCK ACTUEL EN BOUTIQUE
         const stockQuants = await odooJsonClient.searchRead<any>("stock.quant", {
             domain: [
                 ["product_id", "in", productIds],
@@ -99,57 +109,101 @@ export async function getSupplierPerformanceData(
             productStockMap.set(pid, (productStockMap.get(pid) || 0) + q.quantity);
         });
 
-        // 5. Agrégation Ventes + Coûts d'Achat
+        // 4. AGREGATION DES DONNÉES PAR FOURNISSEUR
         const supplierTracker = new Map<string, SupplierMonthlyPerformance>();
 
-        salesLines.forEach((line: any) => {
-            const productId = line.product_id[0];
+        const getOrCreateTracker = (id: string, name: string) => {
+            const key = `${id}|${name}`;
+            if (!supplierTracker.has(key)) {
+                supplierTracker.set(key, {
+                    supplierId: id,
+                    supplierName: name,
+                    currentStockQty: 0,
+                    totalPurchases: 0,
+                    totalSales: 0,
+                    totalCost: 0,
+                    totalMarginPercent: 0,
+                    purchases3M: 0,
+                    sales3M: 0,
+                    cost3M: 0,
+                    marginPercent3M: 0,
+                    monthlyPurchases: {},
+                    monthlySales: {},
+                    monthlyCost: {},
+                });
+            }
+            return supplierTracker.get(key)!;
+        };
+
+        // A. Traitement des ACHATS (purchase.order.line)
+        purchaseLines.forEach((pLine: any) => {
+            const partner = pLine.partner_id;
+            if (!partner || !Array.isArray(partner)) return;
+
+            const supplierName = partner[1];
+            if (!isExternalSupplier(supplierName)) return; // Filtre les sociétés internes PB - *
+
+            const supplierId = String(partner[0]);
+            const entry = getOrCreateTracker(supplierId, supplierName);
+
+            const dateStr = pLine.date_approve || pLine.create_date;
+            const monthKey = format(new Date(dateStr), "yyyy-MM");
+            const purchaseAmount = pLine.price_subtotal || 0;
+
+            entry.totalPurchases += purchaseAmount;
+            entry.monthlyPurchases[monthKey] = (entry.monthlyPurchases[monthKey] || 0) + purchaseAmount;
+        });
+
+        // B. Traitement des VENTES POS (pos.order.line)
+        salesLines.forEach((sLine: any) => {
+            const productId = sLine.product_id[0];
             const supplier = productToSupplierMap.get(productId) || { id: "unknown", name: "Fournisseur Non Spécifié" };
 
             if (!isExternalSupplier(supplier.name) && supplier.id !== "unknown") return;
 
-            const key = `${supplier.id}|${supplier.name}`;
-            const monthKey = format(new Date(line.create_date), "yyyy-MM");
+            const entry = getOrCreateTracker(supplier.id, supplier.name);
+            const monthKey = format(new Date(sLine.create_date), "yyyy-MM");
 
-            const salesAmount = line.price_subtotal_incl || 0;
+            const salesAmount = sLine.price_subtotal_incl || 0;
             const unitCost = productCostMap.get(productId) || 0;
-            const totalCostAmount = unitCost * (line.qty || 0); // ✅ Calcul du coût total d'achat
+            const costAmount = unitCost * (sLine.qty || 0);
 
-            if (!supplierTracker.has(key)) {
-                supplierTracker.set(key, {
-                    supplierId: supplier.id,
-                    supplierName: supplier.name,
-                    currentStockQty: 0,
-                    totalRevenue: 0,
-                    totalPurchaseCost: 0,
-                    monthlySales: {},
-                    monthlyPurchaseCost: {},
-                });
-            }
-
-            const entry = supplierTracker.get(key)!;
-            entry.totalRevenue += salesAmount;
-            entry.totalPurchaseCost += totalCostAmount;
+            entry.totalSales += salesAmount;
+            entry.totalCost += costAmount;
 
             entry.monthlySales[monthKey] = (entry.monthlySales[monthKey] || 0) + salesAmount;
-            entry.monthlyPurchaseCost[monthKey] = (entry.monthlyPurchaseCost[monthKey] || 0) + totalCostAmount;
+            entry.monthlyCost[monthKey] = (entry.monthlyCost[monthKey] || 0) + costAmount;
         });
 
-        // Injection du stock actuel
+        // C. Injection du stock physique actuel
         productStockMap.forEach((qty, pid) => {
             const supplier = productToSupplierMap.get(pid);
             if (supplier && isExternalSupplier(supplier.name)) {
-                const key = `${supplier.id}|${supplier.name}`;
-                const entry = supplierTracker.get(key);
-                if (entry) {
-                    entry.currentStockQty += Math.round(qty);
-                }
+                const entry = getOrCreateTracker(supplier.id, supplier.name);
+                entry.currentStockQty += Math.round(qty);
             }
         });
 
-        const suppliersList = Array.from(supplierTracker.values()).sort(
-            (a, b) => b.totalRevenue - a.totalRevenue
-        );
+        // D. Calcul des Totaux 3M et Marges %
+        const last3Keys = monthRange.slice(-3).map(d => format(d, "yyyy-MM"));
+
+        const suppliersList = Array.from(supplierTracker.values()).map((entry) => {
+            // Calcul 3M
+            entry.purchases3M = last3Keys.reduce((sum, k) => sum + (entry.monthlyPurchases[k] || 0), 0);
+            entry.sales3M = last3Keys.reduce((sum, k) => sum + (entry.monthlySales[k] || 0), 0);
+            entry.cost3M = last3Keys.reduce((sum, k) => sum + (entry.monthlyCost[k] || 0), 0);
+
+            // Marges %
+            entry.totalMarginPercent = entry.totalSales > 0
+                ? Math.round(((entry.totalSales - entry.totalCost) / entry.totalSales) * 100)
+                : 0;
+
+            entry.marginPercent3M = entry.sales3M > 0
+                ? Math.round(((entry.sales3M - entry.cost3M) / entry.sales3M) * 100)
+                : 0;
+
+            return entry;
+        }).sort((a, b) => b.totalSales - a.totalSales);
 
         const columns = monthRange.map((d) => ({
             key: format(d, "yyyy-MM"),
@@ -159,7 +213,7 @@ export async function getSupplierPerformanceData(
         return { suppliers: suppliersList, columns };
 
     } catch (error) {
-        console.error("[SUPPLIER_ACTIONS_ERROR] Erreur calcul ventes fournisseurs:", error);
+        console.error("[SUPPLIER_ACTIONS_ERROR] Erreur lors de l'extraction fournisseurs:", error);
         return { suppliers: [], columns: [] };
     }
 }
