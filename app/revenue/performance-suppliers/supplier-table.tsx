@@ -30,7 +30,6 @@ import {
     ArrowDown,
     ChevronLeft,
     ChevronRight,
-    Info
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -52,31 +51,30 @@ export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
         { id: "totalSales", desc: true },
     ]);
 
-    // ✅ Configuration de la pagination TanStack Table
     const [pagination, setPagination] = useState({
         pageIndex: 0,
         pageSize: 10,
     });
 
     const tableColumns = useMemo<ColumnDef<SupplierMonthlyPerformance>[]>(() => {
-        // 1. Fournisseur
+        // 1. Nom Fournisseur
         const supplierCol: ColumnDef<SupplierMonthlyPerformance> = {
             id: "supplierName",
             accessorKey: "supplierName",
             header: "Fournisseur / Marque",
             cell: ({ row }) => (
-                <div className="flex items-center gap-2.5 font-medium">
+                <div className="flex items-center gap-2 font-medium">
                     <span className="text-[10px] text-muted-foreground/50 font-mono w-4 shrink-0 text-right">
                         {row.index + 1}.
                     </span>
-                    <span className="truncate max-w-[180px] font-semibold text-xs text-foreground" title={row.original.supplierName}>
+                    <span className="truncate max-w-[170px] sm:max-w-[220px] font-semibold text-xs text-foreground" title={row.original.supplierName}>
                         {row.original.supplierName}
                     </span>
                 </div>
             ),
         };
 
-        // 2. Stock
+        // 2. Stock Actuel
         const stockCol: ColumnDef<SupplierMonthlyPerformance> = {
             id: "currentStockQty",
             accessorKey: "currentStockQty",
@@ -89,48 +87,7 @@ export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
             ),
         };
 
-        // 3. Colonnes mensuelles (Achat, Vente, Coût, Marge %)
-        const monthCols: ColumnDef<SupplierMonthlyPerformance>[] = columns.map((col) => ({
-            id: col.key,
-            accessorFn: (row) => row.monthlySales[col.key] || 0,
-            header: col.label,
-            cell: ({ row }) => {
-                const sales = row.original.monthlySales[col.key] || 0;
-                const purchases = row.original.monthlyPurchases[col.key] || 0;
-                const cost = row.original.monthlyCost[col.key] || 0;
-
-                const margin = sales > 0 ? Math.round(((sales - cost) / sales) * 100) : 0;
-
-                if (sales === 0 && purchases === 0) {
-                    return <span className="text-muted-foreground/30 font-mono text-xs">—</span>;
-                }
-
-                return (
-                    <div className="flex flex-col items-end gap-0.5 text-right font-mono">
-                        {/* Ligne Vente POS + Marge % */}
-                        <div className="flex items-center gap-1">
-                            <span className="text-foreground font-bold text-xs">{formatUSD(sales)}</span>
-                            {sales > 0 && (
-                                <span className={cn(
-                                    "text-[9px] font-bold px-1 rounded",
-                                    margin >= 30 ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600"
-                                )}>
-                                    {margin}%
-                                </span>
-                            )}
-                        </div>
-                        {/* Subline Achats & Coût des Ventes */}
-                        <div className="flex items-center gap-1 text-[9px] text-muted-foreground/70 font-light">
-                            <span>Ach: <strong className="text-foreground/80">{formatUSD(purchases)}</strong></span>
-                            <span>•</span>
-                            <span>Coût: {formatUSD(cost)}</span>
-                        </div>
-                    </div>
-                );
-            },
-        }));
-
-        // 4. Total 3 mois
+        // 3. Total 3 Mois
         const total3MCol: ColumnDef<SupplierMonthlyPerformance> = {
             id: "sales3M",
             accessorKey: "sales3M",
@@ -146,7 +103,7 @@ export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
                         <div className="flex items-center gap-1">
                             <span className="font-bold text-foreground text-xs">{formatUSD(sales)}</span>
                             {sales > 0 && (
-                                <span className="text-[9px] font-bold px-1 rounded bg-primary/10 text-primary">
+                                <span className="text-[9px] font-bold px-1 rounded bg-muted text-foreground">
                                     {margin}%
                                 </span>
                             )}
@@ -161,7 +118,7 @@ export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
             },
         };
 
-        // 5. CA Total 6M (Extrême droite)
+        // 4. CA Total 6 Mois
         const total6MCol: ColumnDef<SupplierMonthlyPerformance> = {
             id: "totalSales",
             accessorKey: "totalSales",
@@ -190,7 +147,45 @@ export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
             },
         };
 
-        return [supplierCol, stockCol, ...monthCols, total3MCol, total6MCol];
+        // 5. Colonnes des Mois Individuels
+        const monthCols: ColumnDef<SupplierMonthlyPerformance>[] = columns.map((col) => ({
+            id: col.key,
+            accessorFn: (row) => row.monthlySales[col.key] || 0,
+            header: col.label,
+            cell: ({ row }) => {
+                const sales = row.original.monthlySales[col.key] || 0;
+                const purchases = row.original.monthlyPurchases[col.key] || 0;
+                const cost = row.original.monthlyCost[col.key] || 0;
+                const margin = sales > 0 ? Math.round(((sales - cost) / sales) * 100) : 0;
+
+                if (sales === 0 && purchases === 0) {
+                    return <span className="text-muted-foreground/30 font-mono text-xs">—</span>;
+                }
+
+                return (
+                    <div className="flex flex-col items-end gap-0.5 text-right font-mono">
+                        <div className="flex items-center gap-1">
+                            <span className="text-foreground font-bold text-xs">{formatUSD(sales)}</span>
+                            {sales > 0 && (
+                                <span className={cn(
+                                    "text-[9px] font-bold px-1 rounded",
+                                    margin >= 30 ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600"
+                                )}>
+                                    {margin}%
+                                </span>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-1 text-[9px] text-muted-foreground/70 font-light">
+                            <span>Ach: <strong className="text-foreground/80">{formatUSD(purchases)}</strong></span>
+                            <span>•</span>
+                            <span>Coût: {formatUSD(cost)}</span>
+                        </div>
+                    </div>
+                );
+            },
+        }));
+
+        return [supplierCol, stockCol, total3MCol, total6MCol, ...monthCols];
     }, [columns]);
 
     const table = useReactTable({
@@ -218,14 +213,18 @@ export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
     const totalPurchasesAll = suppliers.reduce((sum, s) => sum + s.totalPurchases, 0);
     const totalCostAll = suppliers.reduce((sum, s) => sum + s.totalCost, 0);
     const totalStockAll = suppliers.reduce((sum, s) => sum + s.currentStockQty, 0);
+
+    const totalSales3MAll = suppliers.reduce((s, x) => s + x.sales3M, 0);
+    const totalPurchases3MAll = suppliers.reduce((s, x) => s + x.purchases3M, 0);
+
     const globalMarginPercent = totalSalesAll > 0
         ? Math.round(((totalSalesAll - totalCostAll) / totalSalesAll) * 100)
         : 0;
 
     return (
-        <div className="w-full bg-card text-card-foreground border border-border rounded-2xl shadow-sm overflow-hidden transition-colors duration-150 space-y-0">
+        <div className="w-full bg-card text-card-foreground border border-border rounded-2xl shadow-sm overflow-hidden transition-colors duration-150">
 
-            {/* 1. Mini Bandeau Légende & Informations */}
+            {/* 1. Mini Bandeau de Synthèse */}
             <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-3 bg-muted/20 border-b border-border/80 text-xs">
                 <div className="flex items-center gap-2">
                     <Building2 className="w-4 h-4 text-primary" />
@@ -237,38 +236,38 @@ export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
                     </Badge>
                 </div>
 
-                {/* Légende explicative */}
                 <div className="flex items-center gap-4 text-[10px] text-muted-foreground font-light">
-                    <span className="flex items-center gap-1">
-                        <span className="w-2 h-2 rounded-full bg-foreground" /> Ventes POS ($)
-                    </span>
-                    <span className="flex items-center gap-1">
-                        <span className="w-2 h-2 rounded-full bg-primary" /> Achats Bons de Commande ($)
-                    </span>
-                    <span className="flex items-center gap-1">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500" /> Marge Brute %
-                    </span>
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-foreground" /> Ventes POS</span>
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary" /> Achats Bons de Commande</span>
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" /> Marge Brute %</span>
                 </div>
             </div>
 
-            {/* 2. Composant de Tableau Shadcn UI */}
-            <div className="overflow-x-auto scrollbar-thin">
+            {/* 2. Zone Défilante avec En-têtes & Première Colonne FIGÉS */}
+            <div className="max-h-[65vh] overflow-auto scrollbar-thin relative">
                 <Table className="w-full text-left text-xs border-collapse">
-                    <TableHeader className="bg-muted/40 border-b border-border">
+                    <TableHeader>
                         {table.getHeaderGroups().map((headerGroup) => (
-                            <TableRow key={headerGroup.id} className="hover:bg-transparent">
+                            <TableRow key={headerGroup.id} className="hover:bg-transparent border-none">
                                 {headerGroup.headers.map((header) => {
                                     const isSorted = header.column.getIsSorted();
                                     const canSort = header.column.getCanSort();
+                                    const isFirstCol = header.id === "supplierName";
                                     const isTotal6MCol = header.id === "totalSales";
                                     const isTotal3MCol = header.id === "sales3M";
 
                                     return (
                                         <TableHead
                                             key={header.id}
-                                            className={`py-3 px-4 uppercase text-[9px] tracking-widest font-bold select-none ${header.id === "supplierName" ? "text-left min-w-[200px]" : "text-right min-w-[130px]"
-                                                } ${isTotal3MCol ? "bg-muted/30 border-l border-border/40" : ""} ${isTotal6MCol ? "bg-primary/5 text-primary border-l border-border/40 font-black" : ""
-                                                }`}
+                                            className={cn(
+                                                // ✅ STICKY TOP-0 appliqué directement sur chaque cellule de titre TH
+                                                "sticky top-0 h-11 py-3 px-4 uppercase text-[9px] tracking-widest font-bold select-none bg-muted/95 backdrop-blur-md border-b border-border",
+                                                isFirstCol
+                                                    ? "left-0 z-30 text-left min-w-[200px] border-r border-border shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]"
+                                                    : "z-20 text-right min-w-[130px]",
+                                                isTotal3MCol && "bg-muted border-l border-border/40",
+                                                isTotal6MCol && "bg-primary/15 text-primary border-l border-border/40 font-black"
+                                            )}
                                         >
                                             {canSort ? (
                                                 <button
@@ -276,7 +275,7 @@ export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
                                                     onClick={header.column.getToggleSortingHandler()}
                                                     className={cn(
                                                         "inline-flex items-center gap-1 hover:text-foreground transition-colors cursor-pointer group outline-none",
-                                                        header.id !== "supplierName" && "justify-end w-full"
+                                                        !isFirstCol && "justify-end w-full"
                                                     )}
                                                 >
                                                     <span>{flexRender(header.column.columnDef.header, header.getContext())}</span>
@@ -302,6 +301,7 @@ export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
                         {table.getRowModel().rows.map((row) => (
                             <TableRow key={row.id} className="hover:bg-muted/30 transition-colors">
                                 {row.getVisibleCells().map((cell) => {
+                                    const isFirstCol = cell.column.id === "supplierName";
                                     const isTotal6MCol = cell.column.id === "totalSales";
                                     const isTotal3MCol = cell.column.id === "sales3M";
 
@@ -310,7 +310,9 @@ export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
                                             key={cell.id}
                                             className={cn(
                                                 "py-2.5 px-4",
-                                                cell.column.id === "supplierName" ? "text-left" : "text-right",
+                                                isFirstCol
+                                                    ? "sticky left-0 z-10 bg-card group-hover:bg-muted/40 transition-colors text-left border-r border-border shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)]"
+                                                    : "text-right",
                                                 isTotal3MCol && "bg-muted/20 border-l border-border/40",
                                                 isTotal6MCol && "bg-primary/5 border-l border-border/40"
                                             )}
@@ -323,15 +325,34 @@ export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
                         ))}
                     </TableBody>
 
-                    {/* Pied de tableau (Total Général) */}
-                    <TableFooter className="bg-muted/50 font-bold border-t-2 border-border">
-                        <TableRow className="hover:bg-transparent">
-                            <TableCell className="py-3.5 px-4 uppercase text-[10px] font-bold text-foreground">
+                    {/* Pied de tableau (Total Général Figé en bas) */}
+                    <TableFooter className="sticky bottom-0 z-20 bg-muted/95 backdrop-blur-md font-bold border-t-2 border-border">
+                        <TableRow className="hover:bg-transparent border-none">
+                            <TableCell className="sticky left-0 z-30 bg-muted/95 py-3.5 px-4 uppercase text-[10px] font-bold text-foreground border-r border-border shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                                 Total Consolidation ({suppliers.length})
                             </TableCell>
 
                             <TableCell className="py-3.5 px-4 text-right font-mono text-muted-foreground">
                                 {totalStockAll.toLocaleString("fr-FR")}
+                            </TableCell>
+
+                            {/* Total 3M */}
+                            <TableCell className="py-3.5 px-4 text-right font-mono bg-muted/40 border-l border-border/60">
+                                <div className="flex flex-col items-end gap-0.5">
+                                    <span className="text-foreground font-bold text-xs">{formatUSD(totalSales3MAll)}</span>
+                                    <span className="text-[9px] text-muted-foreground font-light">Ach: {formatUSD(totalPurchases3MAll)}</span>
+                                </div>
+                            </TableCell>
+
+                            {/* CA Total 6M */}
+                            <TableCell className="py-3.5 px-4 text-right font-mono bg-primary/10 border-l border-border/60">
+                                <div className="flex flex-col items-end gap-0.5">
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-primary font-black text-xs">{formatUSD(totalSalesAll)}</span>
+                                        <span className="text-[9px] bg-primary text-primary-foreground font-bold px-1 rounded">{globalMarginPercent}%</span>
+                                    </div>
+                                    <span className="text-[9px] text-primary/80 font-medium">Ach: {formatUSD(totalPurchasesAll)}</span>
+                                </div>
                             </TableCell>
 
                             {/* Totaux mensuels */}
@@ -353,35 +374,12 @@ export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
                                     </TableCell>
                                 );
                             })}
-
-                            {/* Total 3M */}
-                            <TableCell className="py-3.5 px-4 text-right font-mono bg-muted/40 border-l border-border/60">
-                                <div className="flex flex-col items-end gap-0.5">
-                                    <span className="text-foreground font-bold text-xs">
-                                        {formatUSD(suppliers.reduce((s, x) => s + x.sales3M, 0))}
-                                    </span>
-                                    <span className="text-[9px] text-muted-foreground font-light">
-                                        Ach: {formatUSD(suppliers.reduce((s, x) => s + x.purchases3M, 0))}
-                                    </span>
-                                </div>
-                            </TableCell>
-
-                            {/* CA Total 6M (Extrême droite) */}
-                            <TableCell className="py-3.5 px-4 text-right font-mono bg-primary/10 border-l border-border/60">
-                                <div className="flex flex-col items-end gap-0.5">
-                                    <div className="flex items-center gap-1">
-                                        <span className="text-primary font-black text-xs">{formatUSD(totalSalesAll)}</span>
-                                        <span className="text-[9px] bg-primary text-primary-foreground font-bold px-1 rounded">{globalMarginPercent}%</span>
-                                    </div>
-                                    <span className="text-[9px] text-primary/80 font-medium">Ach: {formatUSD(totalPurchasesAll)}</span>
-                                </div>
-                            </TableCell>
                         </TableRow>
                     </TableFooter>
                 </Table>
             </div>
 
-            {/* 3. Bandeau de Pagination Shadcn UI */}
+            {/* 3. Pagination */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-5 py-3 bg-muted/20 border-t border-border/80">
                 <div className="text-xs text-muted-foreground font-light">
                     Affichage de{" "}
@@ -399,11 +397,10 @@ export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
                 </div>
 
                 <div className="flex items-center gap-2">
-                    {/* Sélection du nombre de lignes par page */}
                     <select
                         value={table.getState().pagination.pageSize}
                         onChange={(e) => table.setPageSize(Number(e.target.value))}
-                        className="bg-card border border-border rounded-lg px-2.5 py-1 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary"
+                        className="bg-card border border-border rounded-lg px-2.5 py-1 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary cursor-pointer"
                     >
                         {[10, 25, 50, 100].map((pageSize) => (
                             <option key={pageSize} value={pageSize}>
@@ -412,13 +409,12 @@ export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
                         ))}
                     </select>
 
-                    {/* Boutons Suivant / Précédent */}
                     <Button
                         variant="outline"
                         size="sm"
                         onClick={() => table.previousPage()}
                         disabled={!table.getCanPreviousPage()}
-                        className="h-8 w-8 p-0"
+                        className="h-8 w-8 p-0 cursor-pointer"
                     >
                         <ChevronLeft className="h-4 w-4" />
                     </Button>
@@ -432,7 +428,7 @@ export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
                         size="sm"
                         onClick={() => table.nextPage()}
                         disabled={!table.getCanNextPage()}
-                        className="h-8 w-8 p-0"
+                        className="h-8 w-8 p-0 cursor-pointer"
                     >
                         <ChevronRight className="h-4 w-4" />
                     </Button>
