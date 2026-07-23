@@ -10,6 +10,7 @@ import {
   Layers,
   Users,
   Store,
+  Target,
 } from "lucide-react";
 
 export const NAV_GROUPS: NavGroup[] = [
@@ -30,11 +31,18 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: Wallet,
         path: "/revenue/arpu",
       },
+      // {
+      //   id: "retail-kpis",
+      //   label: "Panier Moyen & KPIs",
+      //   icon: ShoppingBag,
+      //   path: "/revenue/kpis",
+      //   roles: ["admin", "manager", "financier"],
+      // },
       {
-        id: "retail-kpis",
-        label: "Panier Moyen & KPIs",
-        icon: ShoppingBag,
-        path: "/revenue/kpis",
+        id: "budgets-management",
+        label: "Gestion des Budgets",
+        icon: Target,
+        path: "/revenue/budgets",
         roles: ["admin", "manager", "financier"],
       }
     ],

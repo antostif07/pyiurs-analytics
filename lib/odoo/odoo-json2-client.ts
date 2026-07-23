@@ -29,20 +29,20 @@ interface OdooErrorResponse {
 const ODOO_URL = process.env.ODOO_URL ?? "https://pyiurs.odoo.com";
 const ODOO_DB = process.env.ODOO_DB ?? "pyiurs";
 const ODOO_API_KEY = process.env.ODOO_API_KEY ?? "";
-const ODOO_DEFAULT_LANG = process.env.ODOO_LANG ?? "fr_FR"; // Prise en compte de la langue française
+const ODOO_DEFAULT_LANG = process.env.ODOO_LANG ?? "fr_FR";
 
 if (!ODOO_API_KEY) {
   throw new Error("ODOO_API_KEY manquant dans les variables d'environnement.");
 }
 
 /**
- * Fonction interne d'appel réseau avec gestion de timeout et d'extraction d'erreurs d'Odoo 19
+ * Fonction interne d'appel réseau sécurisée avec gestion de timeout et lecture unique de flux
  */
 async function odooFetch<T>(
   model: string,
   method: string,
   body: Record<string, unknown>,
-  timeoutMs = 15000 // Timeout défensif de 15 secondes pour l'usage en boutique
+  timeoutMs = 15000
 ): Promise<T> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -64,19 +64,24 @@ async function odooFetch<T>(
 
     clearTimeout(timeoutId);
 
-    // Extraction propre des codes erreurs HTTP d'Odoo 19 JSON-2
+    // ✅ EXTRACTION SÉCURISÉE : L'erreur HTTP est lue UNE SEULE FOIS comme texte
     if (!response.ok) {
-      let errorMessage = "Erreur inconnue";
+      const rawText = await response.text(); // Flux consommé une seule fois
+      let errorMessage = rawText;
+
       try {
-        const errorJson = (await response.json()) as OdooErrorResponse;
-        errorMessage = errorJson.error_description || errorJson.message || errorJson.error || "Erreur de format de données";
+        // Tentative de parsing du texte brut en JSON
+        const errorJson = JSON.parse(rawText) as OdooErrorResponse;
+        errorMessage = errorJson.error_description || errorJson.message || errorJson.error || rawText;
       } catch {
-        errorMessage = await response.text();
+        // Si la réponse n'était pas du JSON (ex: HTML 500 Nginx), on conserve le texte brut
+        errorMessage = rawText || `Erreur HTTP ${response.status}`;
       }
+
       throw new Error(`Odoo API Error [HTTP ${response.status}]: ${errorMessage}`);
     }
 
-    // L'API JSON-2 d'Odoo renvoie le résultat brut directement (non encapsulé dans un objet 'result')
+    // Succès : Lecture du JSON
     const data = await response.json();
     return data as T;
   } catch (error) {
@@ -89,9 +94,6 @@ async function odooFetch<T>(
 }
 
 export const odooClient = {
-  /**
-   * search_read : Recherche et lecture d'enregistrements
-   */
   async searchRead<T>(
     model: string,
     params: SearchReadParams = {}
@@ -106,9 +108,6 @@ export const odooClient = {
     });
   },
 
-  /**
-   * search_count : Compte le nombre d'enregistrements correspondant au domaine
-   */
   async searchCount(
     model: string,
     domain: OdooDomain = []
@@ -116,11 +115,6 @@ export const odooClient = {
     return odooFetch<number>(model, "search_count", { domain });
   },
 
-  /**
-   * create : Création d'enregistrements via l'argument officiel 'vals_list'
-   * @param valsList Tableau d'objets contenant les champs à initialiser
-   * @returns Tableau des identifiants créés
-   */
   async create(
     model: string,
     valsList: Record<string, unknown>[]
@@ -130,9 +124,6 @@ export const odooClient = {
     });
   },
 
-  /**
-   * write : Modification d'un ou plusieurs enregistrements via l'argument officiel 'vals'
-   */
   async write<T extends Record<string, unknown>>(
     model: string,
     ids: number[],
@@ -140,13 +131,10 @@ export const odooClient = {
   ): Promise<boolean> {
     return odooFetch<boolean>(model, "write", {
       ids,
-      vals: values, // ✅ CORRIGÉ : Utilisation de la clé d'argument nommée 'vals' attendue par l'ORM d'Odoo
+      vals: values,
     });
   },
 
-  /**
-   * read_group : Agrégations de données Odoo (très utile pour la BI et les KPIs)
-   */
   async readGroup<T>(
     model: string,
     params: ReadGroupParams = {}
