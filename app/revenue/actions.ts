@@ -143,23 +143,24 @@ export async function getRevenueDashboardData(month: string, year: string) {
         });
 
         // 4. RÉCUPÉRATION DES LIGNES DE VENTES POS
-        const [currentLines, previousLines, recentLines, posCategories] = await Promise.all([
-            odooJsonClient.searchRead<any>("pos.order.line", {
-                domain: [
-                    ["order_id.state", "in", ["paid", "done", "invoiced"]],
-                    ["order_id.date_order", ">=", mtdStart],
-                    ["order_id.date_order", "<=", mtdEnd]
-                ],
-                fields: ["order_id", "price_unit", "qty", "product_id", "discount", "create_date"]
-            }),
-            odooJsonClient.searchRead<any>("pos.order.line", {
-                domain: [
-                    ["order_id.state", "in", ["paid", "done", "invoiced"]],
-                    ["order_id.date_order", ">=", prevStart],
-                    ["order_id.date_order", "<=", prevEnd]
-                ],
-                fields: ["order_id", "price_unit", "qty", "product_id", "discount", "create_date"]
-            }),
+        const currentLines = await odooJsonClient.searchRead<any>("pos.order.line", {
+            domain: [
+                ["order_id.state", "in", ["paid", "done", "invoiced"]],
+                ["order_id.date_order", ">=", mtdStart],
+                ["order_id.date_order", "<=", mtdEnd]
+            ],
+            fields: ["order_id", "price_unit", "qty", "product_id", "discount", "create_date"]
+        })
+
+        const previousLines = await odooJsonClient.searchRead<any>("pos.order.line", {
+            domain: [
+                ["order_id.state", "in", ["paid", "done", "invoiced"]],
+                ["order_id.date_order", ">=", prevStart],
+                ["order_id.date_order", "<=", prevEnd]
+            ],
+            fields: ["order_id", "price_unit", "qty", "product_id", "discount", "create_date"]
+        })
+        const [recentLines, posCategories] = await Promise.all([
             odooJsonClient.searchRead<any>("pos.order.line", {
                 domain: [
                     ["order_id.state", "in", ["paid", "done", "invoiced"]],

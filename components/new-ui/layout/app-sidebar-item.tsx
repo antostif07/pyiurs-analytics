@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation"; // ✅ Récupération du chemin courant
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
-import { Star } from "lucide-react";
+import { Star, Loader2 } from "lucide-react"; // ✅ Ajout de Loader2
 import { cn } from "@/lib/utils";
 import { NavItem } from "./app-sidebar";
 
@@ -28,24 +30,23 @@ export function SidebarItem({
   showFavToggle = true,
 }: SidebarItemProps) {
   const [hovered, setHovered] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false); // ✅ État de navigation instantanée
+  const pathname = usePathname();
 
-  const handleNavigation = () => {
-    onNavigate(item.path);
-  };
+  // Dès que l'URL change (la nouvelle page est chargée), on stoppe le micro-spinner
+  useEffect(() => {
+    setIsNavigating(false);
+  }, [pathname]);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      handleNavigation();
+  const handleLinkClick = () => {
+    if (!active) {
+      setIsNavigating(true); // ✅ Déclenche immédiatement le spinner au clic
     }
+    onNavigate(item.path);
   };
 
   const renderItemContent = () => (
     <motion.div
-      role="button"
-      tabIndex={0}
-      onClick={handleNavigation}
-      onKeyDown={handleKeyDown}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       whileTap={{ scale: 0.98 }}
@@ -73,15 +74,19 @@ export function SidebarItem({
         />
       )}
 
-      {/* Icône */}
-      <item.icon
-        className={cn(
-          "w-4 h-4 shrink-0 transition-transform duration-200",
-          active ? "text-primary scale-110" : "text-muted-foreground group-hover:scale-110 group-hover:text-sidebar-foreground"
-        )}
-      />
+      {/* ✅ Icône avec bascule instantanée en Spinner de chargement si cliqué */}
+      {isNavigating ? (
+        <Loader2 className="w-4 h-4 shrink-0 animate-spin text-primary stroke-[2]" />
+      ) : (
+        <item.icon
+          className={cn(
+            "w-4 h-4 shrink-0 transition-transform duration-200",
+            active ? "text-primary scale-110" : "text-muted-foreground group-hover:scale-110 group-hover:text-sidebar-foreground"
+          )}
+        />
+      )}
 
-      {/* Contenu textuel visible uniquement en mode étendu */}
+      {/* Contenu textuel */}
       {!collapsed && (
         <>
           <span className="flex-1 text-xs truncate tracking-wide">
@@ -94,11 +99,7 @@ export function SidebarItem({
             </Badge>
           )}
 
-          {/* 
-            ✅ CORRECTIF MAJEUR : L'élément est TOUJOURS présent dans le DOM.
-            L'opacité et les interactions (pointer-events) sont gérées dynamiquement.
-            Cela empêche tout décalage du texte ou saut de mise en page.
-          */}
+          {/* Bouton Favori */}
           {showFavToggle && (
             <motion.button
               type="button"
@@ -106,14 +107,15 @@ export function SidebarItem({
               animate={{
                 opacity: (hovered || isFav) ? 1 : 0,
                 scale: (hovered || isFav) ? 1 : 0.8,
-                pointerEvents: (hovered || isFav) ? "auto" : "none" // Évite les clics accidentels sur l'étoile invisible
+                pointerEvents: (hovered || isFav) ? "auto" : "none"
               }}
               transition={{ duration: 0.15 }}
               onClick={(e) => {
-                e.stopPropagation(); // Empêche de déclencher la navigation lors du clic sur l'étoile
+                e.preventDefault();
+                e.stopPropagation();
                 onToggleFav(item.id);
               }}
-              className="p-1 rounded-md hover:bg-primary/20 text-muted-foreground hover:text-foreground transition-colors outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer shrink-0 ml-auto"
+              className="p-1 rounded-md hover:bg-primary/20 text-muted-foreground hover:text-foreground transition-colors outline-none cursor-pointer shrink-0 ml-auto"
               aria-label={isFav ? "Retirer des favoris" : "Ajouter aux favoris"}
             >
               <Star
@@ -134,21 +136,27 @@ export function SidebarItem({
     </motion.div>
   );
 
-  if (collapsed) {
-    return (
-      <div className="py-1 flex justify-center w-full">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            {renderItemContent()}
-          </TooltipTrigger>
-          <TooltipContent side="right" sideOffset={10} className="font-medium text-xs bg-popover text-foreground border border-border shadow-md">
-            {item.label}
-            {item.badge && <span className="ml-2 opacity-70">({item.badge})</span>}
-          </TooltipContent>
-        </Tooltip>
-      </div>
-    );
-  }
-
-  return <div className="py-0.5">{renderItemContent()}</div>;
+  return (
+    <div className="py-0.5">
+      <Link
+        href={item.path}
+        onClick={handleLinkClick}
+        className="block w-full outline-none"
+      >
+        {collapsed ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              {renderItemContent()}
+            </TooltipTrigger>
+            <TooltipContent side="right" sideOffset={10} className="font-medium text-xs bg-popover text-foreground border border-border shadow-md">
+              {item.label}
+              {item.badge && <span className="ml-2 opacity-70">({item.badge})</span>}
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          renderItemContent()
+        )}
+      </Link>
+    </div>
+  );
 }

@@ -27,7 +27,6 @@ export default function RevenueLayout({
   return (
     <div className="flex h-screen bg-background overflow-hidden transition-colors duration-150">
 
-      {/* Sidebar Bureau */}
       <div className="hidden md:flex h-full">
         <AppSidebar
           role={userRole} // ✅ Injecté dynamiquement

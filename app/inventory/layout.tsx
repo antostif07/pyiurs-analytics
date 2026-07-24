@@ -1,43 +1,45 @@
 "use client";
+
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import ReportSidebar from "../../components/new-ui/layout/app-sidebar";
-import ReportTopbar from "../../components/new-ui/layout/app-topbar";
+import AppSidebar from "@/components/new-ui/layout/app-sidebar";
+import AppTopbar from "@/components/new-ui/layout/app-topbar";
 import { NAV_GROUPS } from "./config";
+import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "next-themes";
+import { UserRole } from "@/lib/constants";
 
-type Role = "admin" | "manager" | "staff";
-
-export default function Layout({ children }: { children: React.ReactNode }) {
+export default function PurchasesLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
-  const [dark, setDark] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const role: Role = "admin";
 
-  const handleToggleDark = () => {
-    setDark((d) => {
-      document.documentElement.classList.toggle("dark", !d);
-      return !d;
-    });
-  };
+  // ✅ 1. Gestion du Thème Global via next-themes
+  const { theme, setTheme } = useTheme();
+  const isDarkMode = theme === "dark";
+  const handleToggleDark = () => setTheme(isDarkMode ? "light" : "dark");
+
+  // ✅ 2. Récupération Dynamique du Rôle Utilisateur Réel
+  const { profile } = useAuth();
+  const userRole = (profile?.role as UserRole) ?? "user";
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      {/* Desktop sidebar */}
+    <div className="flex h-screen bg-background overflow-hidden transition-colors duration-150">
+
+      {/* Sidebar Bureau */}
       <div className="hidden md:flex h-full">
-        <ReportSidebar
-          mainPath="/inventory"
+        <AppSidebar
+          mainPath="/purchases" // ✅ CORRIGÉ : Route du module Achats
           groups={NAV_GROUPS}
-          role={role}
+          role={userRole}       // ✅ CORRIGÉ : Rôle dynamique
           collapsed={collapsed}
           onCollapse={setCollapsed}
         />
       </div>
 
-      {/* Mobile sidebar drawer */}
+      {/* Sidebar Mobile (Tiroir Drawer) */}
       <AnimatePresence>
         {mobileOpen && (
           <>
-            {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -46,7 +48,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               onClick={() => setMobileOpen(false)}
               className="fixed inset-0 bg-black/40 z-40 md:hidden"
             />
-            {/* Drawer */}
             <motion.div
               initial={{ x: -280 }}
               animate={{ x: 0 }}
@@ -54,10 +55,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               transition={{ duration: 0.25, ease: "easeInOut" }}
               className="fixed left-0 top-0 bottom-0 w-64 z-50 md:hidden"
             >
-              <ReportSidebar
+              <AppSidebar
                 groups={NAV_GROUPS}
-                mainPath="/inventory"
-                role={role}
+                mainPath="/purchases" // ✅ CORRIGÉ : Route du module Achats
+                role={userRole}       // ✅ CORRIGÉ : Rôle dynamique
                 collapsed={false}
                 onCollapse={() => setMobileOpen(false)}
               />
@@ -66,14 +67,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         )}
       </AnimatePresence>
 
-      {/* Right side: topbar + content */}
+      {/* Zone de contenu principale */}
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-        <ReportTopbar
-          dark={dark}
+        <AppTopbar
+          dark={isDarkMode}
           onToggleDark={handleToggleDark}
           onMenuOpen={() => setMobileOpen(true)}
+          groups={NAV_GROUPS}
         />
-        <main className="flex-1 overflow-y-auto bg-background">
+        <main className="flex-1 overflow-y-auto bg-background p-6 sm:p-8">
           {children}
         </main>
       </div>
