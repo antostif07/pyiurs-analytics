@@ -7,9 +7,6 @@ import { Database } from "@/lib/supabase/database.types";
 
 export type RevenueBudgetInsert = Database["public"]["Tables"]["revenue_budgets"]["Insert"];
 
-/**
- * Récupère les budgets configurés pour un mois et une année spécifiques
- */
 export async function getBudgetsData(month: number, year: number) {
     const supabase = await createClient();
 
@@ -33,7 +30,7 @@ export async function getBudgetsData(month: number, year: number) {
 }
 
 /**
- * Enregistre (Création ou Mise à jour) un budget mensuel
+ * Enregistre (Création ou Édition) un budget mensuel avec résolution intelligente de doublons
  */
 export async function upsertBudgetAction(input: BudgetInput) {
     try {
@@ -43,45 +40,68 @@ export async function upsertBudgetAction(input: BudgetInput) {
         const user = await supabase.auth.getUser();
         const userId = user.data.user?.id || null;
 
-        // ✅ 1. MODE ÉDITION : Si un ID existe, on fait un UPDATE direct par PKEY
-        if (validated.id) {
-            const { error } = await supabase
+        // ✅ 1. Détection : Recherche si un enregistrement existe déjà pour cette combinaison exacte
+        const { data: existingRecord } = await supabase
+            .from("revenue_budgets")
+            .select("id")
+            .eq("shop_id", validated.shopId)
+            .eq("segment", validated.segment)
+            .eq("month", validated.month)
+            .eq("year", validated.year)
+            .maybeSingle();
+
+        // SCÉNARIO A : La combinaison (Shop + Segment + Mois + Année) existe DÉJÀ en base
+        if (existingRecord) {
+            // On met simplement à jour le montant cible de l'enregistrement existant
+            const { error: updateError } = await supabase
                 .from("revenue_budgets")
                 .update({
-                    month: validated.month,
-                    year: validated.year,
+                    target_amount: validated.targetAmount,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq("id", existingRecord.id);
+
+            if (updateError) throw new Error(updateError.message);
+
+            // Si l'utilisateur modifiait une autre ligne (validated.id) et l'a déplacée vers une combinaison déjà existante,
+            // on supprime l'ancienne ligne pour éviter de laisser un orphelin
+            if (validated.id && validated.id !== existingRecord.id) {
+                await supabase.from("revenue_budgets").delete().eq("id", validated.id);
+            }
+        }
+        // SCÉNARIO B : Modification d'une ligne existante sans conflit de combinaison
+        else if (validated.id) {
+            const { error: updateError } = await supabase
+                .from("revenue_budgets")
+                .update({
                     shop_id: validated.shopId,
                     segment: validated.segment,
+                    month: validated.month,
+                    year: validated.year,
                     target_amount: validated.targetAmount,
                     updated_at: new Date().toISOString(),
                 })
                 .eq("id", validated.id);
 
-            if (error) {
-                throw new Error(`Erreur lors de la mise à jour: ${error.message}`);
-            }
+            if (updateError) throw new Error(updateError.message);
         }
-        // ✅ 2. MODE CRÉATION : Si aucun ID n'est fourni, on fait un UPSERT sur la clé composée
+        // SCÉNARIO C : Création pure d'un tout nouveau budget
         else {
             const payload: RevenueBudgetInsert = {
-                month: validated.month,
-                year: validated.year,
                 shop_id: validated.shopId,
                 segment: validated.segment,
+                month: validated.month,
+                year: validated.year,
                 target_amount: validated.targetAmount,
                 created_by: userId,
                 updated_at: new Date().toISOString(),
             };
 
-            const { error } = await supabase
+            const { error: insertError } = await supabase
                 .from("revenue_budgets")
-                .upsert(payload, {
-                    onConflict: "shop_id,segment,month,year"
-                });
+                .insert(payload);
 
-            if (error) {
-                throw new Error(`Erreur lors de la création: ${error.message}`);
-            }
+            if (insertError) throw new Error(insertError.message);
         }
 
         // Revalidation des caches Next.js
@@ -94,9 +114,6 @@ export async function upsertBudgetAction(input: BudgetInput) {
     }
 }
 
-/**
- * Supprime un budget configuré par son ID
- */
 export async function deleteBudgetAction(id: string) {
     try {
         const supabase = await createClient();

@@ -117,28 +117,56 @@ export default async function RevenueOverviewPage({ searchParams }: PageProps) {
         </div>
 
         {/* Synthèse de Projection Pace */}
-        <div className="flex items-center gap-3 bg-card border border-border rounded-2xl p-3 shadow-xs">
-          <div className="p-2 rounded-xl bg-primary/10 text-primary">
-            <TrendingUp className="w-4 h-4 stroke-[2]" />
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
-              Projection Fin de Mois (Pace)
-            </span>
-            <div className="flex items-baseline gap-2 font-mono">
-              <span className="text-sm font-bold text-foreground">
-                ${pace.runRateForecast.toLocaleString("en-US")}
-              </span>
+        <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-4 border-b border-border pb-6">
+
+          {/* Titre & Taux de Réalisation */}
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground uppercase">
+                Suivi des Revenus <span className="text-primary font-black">Global</span>
+              </h1>
               {totals.budget > 0 && (
-                <span className={`text-[10px] font-bold ${pace.runRateForecast >= totals.budget ? "text-emerald-600" : "text-amber-600"
-                  }`}>
-                  ({Math.round((pace.runRateForecast / totals.budget) * 100)}% Cible)
-                </span>
+                <Badge className="bg-primary/10 text-primary border border-primary/20 text-[10px] font-mono font-bold">
+                  {pace.budgetRealizationPercent}% du Budget
+                </Badge>
               )}
             </div>
+            <p className="text-xs text-muted-foreground font-light mt-1">
+              Consolidation financière du mois {month}/{year} ({pace.daysPassed}/{pace.daysInSelectedMonth} jours écoulés)
+            </p>
           </div>
-          <div className="pl-2 border-l border-border">
-            <RevenueDateFilter />
+
+          {/* ✅ DÉCOUPLAGE RESPONSIVE : Empilé sur Mobile (flex-col), en ligne sur Bureau (sm:flex-row) */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
+
+            {/* Carte de Projection Fin de Mois (Pace) */}
+            <div className="flex items-center gap-3 bg-card border border-border rounded-2xl p-2.5 shadow-xs shrink-0">
+              <div className="p-2 rounded-xl bg-primary/10 text-primary shrink-0">
+                <TrendingUp className="w-4 h-4 stroke-[2]" />
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-semibold truncate">
+                  Projection Fin de Mois (Pace)
+                </span>
+                <div className="flex items-baseline gap-1.5 font-mono">
+                  <span className="text-xs font-bold text-foreground">
+                    ${pace.runRateForecast.toLocaleString("en-US")}
+                  </span>
+                  {totals.budget > 0 && (
+                    <span className={`text-[9px] font-bold ${pace.runRateForecast >= totals.budget ? "text-emerald-600" : "text-amber-600"
+                      }`}>
+                      ({Math.round((pace.runRateForecast / totals.budget) * 100)}% Cible)
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Filtre de Date */}
+            <div className="shrink-0 flex justify-end">
+              <RevenueDateFilter />
+            </div>
+
           </div>
         </div>
       </div>

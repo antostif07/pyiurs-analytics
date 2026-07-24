@@ -1,36 +1,45 @@
-'use client'
+'use client';
 
 import React, { useMemo, useState } from 'react';
-import { 
-  useReactTable, 
-  getCoreRowModel, 
+import {
+  useReactTable,
+  getCoreRowModel,
   getExpandedRowModel,
   getSortedRowModel,
-  flexRender, 
+  flexRender,
   createColumnHelper,
   SortingState,
-  ExpandedState,
+  ExpandedState
 } from '@tanstack/react-table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableFooter,
+  TableHead,
+  TableHeader,
+  TableRow
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown, ArrowUpDown, ChevronRight, ChevronDown } from 'lucide-react';
-
-// --- 1. DÉFINITION DES TYPES ---
+import { cn } from "@/lib/utils";
 
 export interface PerformanceData {
   boutique: string;
-  deltaWoW?: number;
+  today?: number;
+  yesterday?: number;
+  weekly?: number;
   mtd: number;
   mtdPrev: number;
   deltaMoM?: number;
-  forecast?: number;
-  pctBudget?: number;
+  deltaWoW?: number;
   deltaYoY?: number;
-  subRows?: PerformanceData[]; // Structure récursive
+  forecast?: number;
+  budgetMensuel?: number;
+  subRows?: PerformanceData[];
 }
 
-// Typage strict du helper
 const columnHelper = createColumnHelper<PerformanceData>();
-
-// --- 2. UTILITAIRES ---
 
 const formatCurrency = (val: number | undefined) => {
   if (val === undefined || val === null) return '—';
@@ -46,8 +55,6 @@ const formatPercentage = (val: number | undefined) => {
   return `${val > 0 ? '+' : ''}${val}%`;
 };
 
-// --- 3. COMPOSANT ---
-
 interface AdvancedPerformanceTableProps {
   data: PerformanceData[];
 }
@@ -57,161 +64,198 @@ export function AdvancedPerformanceTable({ data }: AdvancedPerformanceTableProps
   const [expanded, setExpanded] = useState<ExpandedState>({});
 
   const columns = useMemo(() => [
-    // --- BOUTIQUE (Hierarchie) ---
-    columnHelper.accessor('boutique', { 
+    // 1. Boutique / Segment / Catégorie
+    columnHelper.accessor('boutique', {
       header: ({ column }) => (
-        <button 
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} 
-          className="flex items-center gap-1 uppercase hover:text-emerald-400 transition-colors font-bold text-[10px]"
+        <button
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="flex items-center gap-1 uppercase hover:text-foreground transition-colors font-bold text-[8px] tracking-widest outline-none"
         >
-          Boutique / Segment <ArrowUpDown size={10} className={column.getIsSorted() ? "opacity-100" : "opacity-30"}/>
+          <span>Entité </span>
+          <ArrowUpDown size={9} className={column.getIsSorted() ? "text-primary opacity-100" : "opacity-30"} />
         </button>
       ),
-      cell: ({ row, getValue }) => (
-        <div 
-          style={{ paddingLeft: `${row.depth * 1.5}rem` }} 
-          className={`flex items-center gap-2 ${row.depth === 0 ? "font-black uppercase italic text-slate-900" : "text-slate-500 font-medium text-[10px]"}`}
-        >
-          {row.getCanExpand() ? (
-            <button 
-              onClick={(e) => { e.stopPropagation(); row.toggleExpanded(); }} 
-              className="cursor-pointer hover:bg-slate-200 rounded p-0.5 transition-colors focus:outline-none focus:ring-1 focus:ring-emerald-500"
-              aria-label={row.getIsExpanded() ? "Réduire" : "Développer"}
-            >
-              {row.getIsExpanded() 
-                ? <ChevronDown size={14} className="text-emerald-600" /> 
-                : <ChevronRight size={14} className="text-slate-400" />
-              }
-            </button>
-          ) : (
-             // Spacer pour alignement si pas d'enfant mais profondeur > 0
-             row.depth > 0 && <span className="w-4.5" />
-          )}
-          
-          {/* Ligne visuelle pour la hiérarchie */}
-          {!row.getCanExpand() && row.depth > 0 && <span className="w-4 h-px bg-slate-200 mr-1" />}
-          
-          <span className="truncate" title={getValue()}>{getValue()}</span>
-        </div>
-      )
+      cell: ({ row, getValue }) => {
+        const depth = row.depth;
+
+        return (
+          <div style={{ paddingLeft: `${depth * 1}rem` }} className="flex items-center gap-1.5">
+            {row.getCanExpand() ? (
+              <button
+                onClick={(e) => { e.stopPropagation(); row.toggleExpanded(); }}
+                className="cursor-pointer hover:bg-accent rounded p-0.5 transition-colors focus:outline-none"
+              >
+                {row.getIsExpanded()
+                  ? <ChevronDown size={12} className="text-primary font-bold" />
+                  : <ChevronRight size={12} className="text-muted-foreground/60" />
+                }
+              </button>
+            ) : (
+              depth > 0 && <span className="w-3" />
+            )}
+
+            {!row.getCanExpand() && depth > 0 && (
+              <span className="w-2 h-px bg-border shrink-0 mr-0.5" />
+            )}
+
+            <span className={cn(
+              "truncate font-sans",
+              depth === 0 && "font-bold text-[11px] text-foreground uppercase tracking-tight",
+              depth === 1 && "font-semibold text-[10px] text-foreground/90",
+              depth === 2 && "font-normal text-[9px] text-muted-foreground"
+            )} title={getValue()}>
+              {getValue()}
+            </span>
+          </div>
+        );
+      }
     }),
 
-    // --- DELTA WoW ---
-    columnHelper.accessor('deltaWoW', { 
+    // 2. Delta WoW
+    columnHelper.accessor('deltaWoW', {
       header: ({ column }) => (
-        <button onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="flex items-center gap-1 uppercase hover:text-emerald-400 transition-colors font-bold text-[10px]">
-          Δ WoW <ArrowUpDown size={10} className={column.getIsSorted() ? "opacity-100" : "opacity-30"}/>
+        <button
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="flex items-center justify-end gap-1 uppercase hover:text-foreground transition-colors font-bold text-[8px] tracking-widest w-full outline-none"
+        >
+          <span>Δ WoW</span>
+          <ArrowUpDown size={9} className={column.getIsSorted() ? "text-primary opacity-100" : "opacity-30"} />
         </button>
       ),
       cell: info => {
         const val = info.getValue();
-        if (val === undefined || val === 0) return <span className="text-slate-300 text-[10px]">—</span>;
-        return <span className={`font-bold text-[10px] ${val > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>{formatPercentage(val)}</span> 
+        if (val === undefined || val === 0) return <span className="text-muted-foreground/30 font-mono text-[9px]">—</span>;
+        return (
+          <span className={cn("font-bold font-mono text-[10px]", val > 0 ? 'text-emerald-600' : 'text-rose-600')}>
+            {formatPercentage(val)}
+          </span>
+        );
       }
     }),
 
-    // --- MTD (Month to Date) ---
-    columnHelper.accessor('mtd', { 
+    // 3. MTD
+    columnHelper.accessor('mtd', {
       header: ({ column }) => (
-        <button onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="flex items-center gap-1 uppercase hover:text-emerald-400 transition-colors font-bold text-[10px]">
-          MTD <ArrowUpDown size={10} className={column.getIsSorted() ? "opacity-100" : "opacity-30"}/>
+        <button
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="flex items-center justify-end gap-1 uppercase hover:text-foreground transition-colors font-bold text-[8px] tracking-widest w-full outline-none"
+        >
+          <span>Vente MTD</span>
+          <ArrowUpDown size={9} className={column.getIsSorted() ? "text-primary opacity-100" : "opacity-30"} />
         </button>
       ),
-      cell: info => <span className={`font-black tabular-nums ${info.row.depth === 0 ? 'text-slate-900 text-xs' : 'text-slate-600 text-[10px]'}`}>{formatCurrency(info.getValue())}</span> 
+      cell: info => (
+        <span className={cn("font-bold font-mono text-[10px]", info.row.depth === 0 ? 'text-foreground' : 'text-foreground/80 font-medium')}>
+          {formatCurrency(info.getValue())}
+        </span>
+      )
     }),
 
-    // --- MTD PREV ---
-    columnHelper.accessor('mtdPrev', { 
-        header: ({ column }) => (
-          <button onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="flex items-center gap-1 uppercase hover:text-emerald-400 transition-colors font-bold text-[10px]">
-            MTD-1 <ArrowUpDown size={10} className={column.getIsSorted() ? "opacity-100" : "opacity-30"}/>
-          </button>
-        ),
-        cell: info => <span className="text-slate-400 tabular-nums text-[10px] font-medium">{formatCurrency(info.getValue())}</span> 
-    }),
-
-    // --- DELTA MoM ---
-    columnHelper.accessor('deltaMoM', { 
+    // 4. MTD Prev
+    columnHelper.accessor('mtdPrev', {
       header: ({ column }) => (
-        <button onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="flex items-center gap-1 uppercase hover:text-emerald-400 transition-colors font-bold text-[10px]">
-          Δ MoM <ArrowUpDown size={10} className={column.getIsSorted() ? "opacity-100" : "opacity-30"}/>
+        <button
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="flex items-center justify-end gap-1 uppercase hover:text-foreground transition-colors font-bold text-[8px] tracking-widest w-full outline-none"
+        >
+          <span>MTD-1</span>
+          <ArrowUpDown size={9} className={column.getIsSorted() ? "text-primary opacity-100" : "opacity-30"} />
+        </button>
+      ),
+      cell: info => (
+        <span className="text-muted-foreground/70 font-mono text-[10px] font-light">
+          {formatCurrency(info.getValue())}
+        </span>
+      )
+    }),
+
+    // 5. Delta MoM
+    columnHelper.accessor('deltaMoM', {
+      header: ({ column }) => (
+        <button
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="flex items-center justify-end gap-1 uppercase hover:text-foreground transition-colors font-bold text-[8px] tracking-widest w-full outline-none"
+        >
+          <span>Δ MoM</span>
+          <ArrowUpDown size={9} className={column.getIsSorted() ? "text-primary opacity-100" : "opacity-30"} />
         </button>
       ),
       cell: info => {
         const val = info.getValue() ?? 0;
         return (
-          <div className={`flex items-center gap-1 font-bold px-1.5 py-0.5 rounded w-fit text-[10px] ${val < 0 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
-            {val < 0 ? <TrendingDown size={10} /> : <TrendingUp size={10} />}
-            {Math.abs(val)}%
+          <div className={cn(
+            "flex items-center gap-0.5 font-bold font-mono px-1 py-0.2 rounded text-[9px] ml-auto w-fit",
+            val < 0 ? 'bg-rose-500/10 text-rose-600' : 'bg-emerald-500/10 text-emerald-600'
+          )}>
+            {val < 0 ? <TrendingDown size={9} /> : <TrendingUp size={9} />}
+            {val > 0 ? '+' : ''}{val}%
           </div>
-        )
+        );
       }
     }),
 
-    // --- FORECAST ---
-    columnHelper.accessor('forecast', { 
-        header: 'Forecast', 
-        cell: info => (
-            <span className={`font-bold tabular-nums ${info.row.depth === 0 ? 'text-blue-600 text-[11px]' : 'text-blue-400/70 italic text-[10px]'}`}>
-            {formatCurrency(info.getValue())}
-            </span>
-        )
+    // 6. Forecast Pace
+    columnHelper.accessor('forecast', {
+      header: 'Forecast',
+      cell: info => (
+        <span className={cn("font-bold font-mono text-[10px]", info.row.depth === 0 ? 'text-primary' : 'text-muted-foreground')}>
+          {formatCurrency(info.getValue())}
+        </span>
+      )
     }),
 
-    // --- % BUDGET ---
-    columnHelper.accessor('pctBudget', { 
-      header: '% BU', 
-      cell: info => {
-        const val = info.getValue() ?? 0;
-        // Affichage uniquement pour les parents ou si pertinent
-        if (info.row.depth > 0 && val === 0) return <span className="text-slate-300 text-[9px]">—</span>;
+    // 7. Budget & % Realisation
+    columnHelper.accessor('budgetMensuel', {
+      header: 'Budget & Real.',
+      cell: ({ row }) => {
+        const mtd = row.original.mtd || 0;
+        const budget = row.original.budgetMensuel || 0;
+        const pct = budget > 0 ? Math.round((mtd / budget) * 100) : 0;
+
+        if (budget === 0) return <span className="text-muted-foreground/30 font-mono text-[9px]">—</span>;
 
         return (
-          <div className="w-20 bg-slate-100 h-3.5 rounded-full relative overflow-hidden border border-slate-200">
-            <div 
-              className={`h-full transition-all duration-500 ${val >= 100 ? 'bg-emerald-500' : 'bg-emerald-400'}`} 
-              style={{ width: `${Math.min(Math.max(val, 0), 100)}%` }} 
-            />
-            <span className="absolute inset-0 flex items-center justify-center font-black text-[8px] text-slate-700 z-10 mix-blend-multiply">
-                {val}%
-            </span>
+          <div className="flex flex-col items-end gap-0.5">
+            <div className="flex items-center gap-1 font-mono text-[10px]">
+              <span className="text-muted-foreground/70 text-[9px]">Cible: {formatCurrency(budget)}</span>
+              <Badge className={cn(
+                "text-[7px] font-bold h-3 px-1 border-none font-mono",
+                pct >= 100 ? "bg-emerald-500 text-white" : pct >= 75 ? "bg-primary text-primary-foreground" : "bg-rose-500 text-white"
+              )}>
+                {pct}%
+              </Badge>
+            </div>
+            <div className="w-20 bg-muted h-1 rounded-full overflow-hidden border border-border/40">
+              <div
+                className={cn("h-full transition-all duration-300", pct >= 100 ? "bg-emerald-500" : pct >= 75 ? "bg-primary" : "bg-rose-500")}
+                style={{ width: `${Math.min(Math.max(pct, 0), 100)}%` }}
+              />
+            </div>
           </div>
-        )
+        );
       }
-    }),
-
-    // --- DELTA YoY ---
-    columnHelper.accessor('deltaYoY', { 
-      header: 'Δ YoY', 
-      cell: info => info.row.depth === 0 
-        ? <span className="font-black text-emerald-600 italic text-[10px]">{(info.getValue() ?? 0) > 0 ? '+' : ''}{info.getValue() ?? 0}%</span> 
-        : null 
     }),
   ], []);
 
-  // CALCUL DES TOTAUX SÉCURISÉ
   const totals = useMemo(() => {
-    // Initialisation
-    let mtd = 0, mtdPrev = 0, forecast = 0;
+    let mtd = 0, mtdPrev = 0, forecast = 0, budget = 0;
 
-    // Calcul uniquement sur les données racines pour éviter les doubles comptages (si les enfants sont inclus dans data flat, ajuster la logique)
     data.forEach(curr => {
-        mtd += curr.mtd || 0;
-        mtdPrev += curr.mtdPrev || 0;
-        forecast += curr.forecast || 0;
+      mtd += curr.mtd || 0;
+      mtdPrev += curr.mtdPrev || 0;
+      forecast += curr.forecast || 0;
+      budget += curr.budgetMensuel || 0;
     });
-    
-    // Calcul sécurisé du pourcentage (évite division par zéro)
-    const deltaMoM = mtdPrev > 0 
-        ? Math.round(((mtd - mtdPrev) / mtdPrev) * 100) 
-        : 0;
-    
-    return { mtd, mtdPrev, forecast, deltaMoM };
+
+    const deltaMoM = mtdPrev > 0 ? Math.round(((mtd - mtdPrev) / mtdPrev) * 100) : 0;
+    const pctBudget = budget > 0 ? Math.round((mtd / budget) * 100) : 0;
+
+    return { mtd, mtdPrev, forecast, budget, deltaMoM, pctBudget };
   }, [data]);
 
-  const table = useReactTable({ 
-    data, 
-    columns, 
+  const table = useReactTable({
+    data,
+    columns,
     state: { sorting, expanded },
     onSortingChange: setSorting,
     onExpandedChange: setExpanded,
@@ -221,80 +265,69 @@ export function AdvancedPerformanceTable({ data }: AdvancedPerformanceTableProps
     getExpandedRowModel: getExpandedRowModel(),
   });
 
-  // --- RENDER ---
-  
   if (!data || data.length === 0) {
-      return <div className="p-6 text-center text-slate-400 bg-white border border-slate-200 rounded-xl text-sm italic">Aucune donnée de performance disponible.</div>;
+    return <div className="p-6 text-center text-muted-foreground bg-card border border-border rounded-xl text-xs italic">Aucune donnée.</div>;
   }
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm flex flex-col">
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-[11px] border-collapse min-w-200">
-          <thead className="bg-slate-900 text-slate-200">
+    <div className="bg-card text-card-foreground rounded-xl border border-border overflow-hidden shadow-xs flex flex-col transition-colors">
+      <div className="overflow-x-auto scrollbar-thin">
+        <Table className="w-full text-left text-[10px] border-collapse">
+          <TableHeader className="bg-muted/40 border-b border-border text-muted-foreground">
             {table.getHeaderGroups().map(hg => (
-              <tr key={hg.id}>
+              <TableRow key={hg.id} className="hover:bg-transparent border-none">
                 {hg.headers.map(header => (
-                  <th key={header.id} className="px-3 py-3 font-bold uppercase tracking-widest border-r border-slate-700 last:border-none whitespace-nowrap">
-                    {header.isPlaceholder 
-                        ? null 
-                        : flexRender(header.column.columnDef.header, header.getContext())}
-                  </th>
+                  <TableHead key={header.id} className="px-2.5 py-2 font-bold uppercase tracking-wider text-[8px] border-r border-border/40 last:border-none select-none h-8">
+                    {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                  </TableHead>
                 ))}
-              </tr>
+              </TableRow>
             ))}
-          </thead>
-          <tbody className="divide-y divide-slate-100">
+          </TableHeader>
+
+          <TableBody className="divide-y divide-border/40">
             {table.getRowModel().rows.map(row => (
-              <tr 
-                  key={row.id} 
-                  className={`transition-colors ${row.depth > 0 ? 'bg-slate-50/40 italic' : 'hover:bg-slate-50 font-bold'}`}
+              <TableRow
+                key={row.id}
+                className={cn(
+                  "transition-colors h-7",
+                  row.depth === 0 && "hover:bg-muted/40 bg-card font-semibold",
+                  row.depth === 1 && "bg-muted/10 hover:bg-muted/20 italic",
+                  row.depth === 2 && "bg-muted/20 hover:bg-muted/30"
+                )}
               >
                 {row.getVisibleCells().map(cell => (
-                  <td key={cell.id} className="px-3 py-2 border-r border-slate-50 last:border-none font-medium whitespace-nowrap align-middle">
+                  <TableCell key={cell.id} className="px-2.5 py-1.5 border-r border-border/30 last:border-none align-middle">
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
+                  </TableCell>
                 ))}
-              </tr>
+              </TableRow>
             ))}
-          </tbody>
+          </TableBody>
 
-          {/* FOOTER TOTAL */}
-          <tfoot className="bg-slate-50 border-t-2 border-slate-200 font-black text-slate-900 shadow-inner">
-            <tr>
-              <td className="px-3 py-3 border-r border-slate-200 uppercase tracking-tighter text-[10px]">TOTAL RÉSEAU</td>
-              
-              {/* Delta WoW (placeholder) */}
-              <td className="px-3 py-3 border-r border-slate-200 text-center text-slate-300">—</td>
-              
-              {/* MTD */}
-              <td className="px-3 py-3 border-r border-slate-200 font-black text-sm text-slate-800">
-                {formatCurrency(totals.mtd)}
-              </td>
-              
-              {/* MTD Prev */}
-              <td className="px-3 py-3 border-r border-slate-200 text-slate-400 font-bold text-[11px]">
-                {formatCurrency(totals.mtdPrev)}
-              </td>
-              
-              {/* Delta MoM */}
-              <td className="px-3 py-3 border-r border-slate-200">
-                <div className={`flex items-center justify-center gap-1 w-fit px-2 py-0.5 rounded text-[10px] ${totals.deltaMoM < 0 ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
+          <TableFooter className="bg-muted/60 border-t-2 border-border font-bold text-foreground">
+            <TableRow className="hover:bg-transparent border-none h-8">
+              <TableCell className="px-2.5 py-2 border-r border-border/40 uppercase tracking-wider text-[9px] font-extrabold">Total Consolidation</TableCell>
+              <TableCell className="px-2.5 py-2 border-r border-border/40 text-right text-muted-foreground/30 font-mono">—</TableCell>
+              <TableCell className="px-2.5 py-2 border-r border-border/40 text-right font-mono font-bold text-[10px] text-foreground">{formatCurrency(totals.mtd)}</TableCell>
+              <TableCell className="px-2.5 py-2 border-r border-border/40 text-right font-mono text-[10px] text-muted-foreground font-medium">{formatCurrency(totals.mtdPrev)}</TableCell>
+              <TableCell className="px-2.5 py-2 border-r border-border/40 text-right font-mono">
+                <div className={cn("flex items-center justify-end gap-0.5 w-fit px-1 py-0.2 rounded text-[9px] ml-auto font-bold", totals.deltaMoM < 0 ? 'bg-rose-500/10 text-rose-600' : 'bg-emerald-500/10 text-emerald-600')}>
                   {totals.deltaMoM > 0 ? '+' : ''}{totals.deltaMoM}%
                 </div>
-              </td>
-              
-              {/* Forecast */}
-              <td className="px-3 py-3 border-r border-slate-200 text-blue-700 font-black text-[11px]">
-                {formatCurrency(totals.forecast)}
-              </td>
-              
-              {/* % Budget & YoY (placeholders) */}
-              <td className="px-3 py-3 border-r border-slate-200 text-center text-slate-300">—</td>
-              <td className="px-3 py-3 text-center text-slate-300">—</td>
-            </tr>
-          </tfoot>
-        </table>
+              </TableCell>
+              <TableCell className="px-2.5 py-2 border-r border-border/40 text-right font-mono text-primary font-bold text-[10px]">{formatCurrency(totals.forecast)}</TableCell>
+              <TableCell className="px-2.5 py-2 text-right font-mono">
+                {totals.budget > 0 ? (
+                  <div className="flex items-center justify-end gap-1">
+                    <span className="text-[9px] text-muted-foreground">Cible: {formatCurrency(totals.budget)}</span>
+                    <Badge className="text-[8px] bg-primary text-primary-foreground font-bold px-1 h-3">{totals.pctBudget}%</Badge>
+                  </div>
+                ) : <span className="text-muted-foreground/30 font-mono">—</span>}
+              </TableCell>
+            </TableRow>
+          </TableFooter>
+        </Table>
       </div>
     </div>
   );
