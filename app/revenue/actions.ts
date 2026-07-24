@@ -109,31 +109,31 @@ export async function getRevenueDashboardData(month: string, year: string) {
         }
 
         // 3. RÉCUPÉRATION DES COMMANDES POS POUR LA MAP DE CAISSES
-        const [currentOrders, previousOrders, recentOrders] = await Promise.all([
-            odooJsonClient.searchRead<any>("pos.order", {
-                domain: [
-                    ["state", "in", ["paid", "done", "invoiced"]],
-                    ["date_order", ">=", mtdStart],
-                    ["date_order", "<=", mtdEnd]
-                ],
-                fields: ["id", "config_id", "date_order"]
-            }),
-            odooJsonClient.searchRead<any>("pos.order", {
-                domain: [
-                    ["state", "in", ["paid", "done", "invoiced"]],
-                    ["date_order", ">=", prevStart],
-                    ["date_order", "<=", prevEnd]
-                ],
-                fields: ["id", "config_id", "date_order"]
-            }),
-            odooJsonClient.searchRead<any>("pos.order", {
-                domain: [
-                    ["state", "in", ["paid", "done", "invoiced"]],
-                    ["date_order", ">=", currentWeekStart]
-                ],
-                fields: ["id", "config_id", "date_order"]
-            })
-        ]);
+        const currentOrders = await odooJsonClient.searchRead<any>("pos.order", {
+            domain: [
+                ["state", "in", ["paid", "done", "invoiced"]],
+                ["date_order", ">=", mtdStart],
+                ["date_order", "<=", mtdEnd]
+            ],
+            fields: ["id", "config_id", "date_order"]
+        })
+
+        const previousOrders = await odooJsonClient.searchRead<any>("pos.order", {
+            domain: [
+                ["state", "in", ["paid", "done", "invoiced"]],
+                ["date_order", ">=", prevStart],
+                ["date_order", "<=", prevEnd]
+            ],
+            fields: ["id", "config_id", "date_order"]
+        })
+
+        const recentOrders = await odooJsonClient.searchRead<any>("pos.order", {
+            domain: [
+                ["state", "in", ["paid", "done", "invoiced"]],
+                ["date_order", ">=", currentWeekStart]
+            ],
+            fields: ["id", "config_id", "date_order"]
+        })
 
         const orderToConfigMap = new Map<number, number>();
         [...currentOrders, ...previousOrders, ...recentOrders].forEach((order: any) => {
