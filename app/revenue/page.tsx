@@ -6,7 +6,7 @@ import { RevenueKPICard } from "@/components/revenue/revenue-kpi-card";
 import { WeeklyRevenueTable } from "@/components/revenue/weekly-revenue-table";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
-import { AlertTriangle, TrendingUp } from "lucide-react";
+import { AlertTriangle, ShieldAlert, TrendingUp } from "lucide-react";
 import {
   computeTableMetrics,
   calculateTotals,
@@ -35,10 +35,11 @@ export default async function RevenueOverviewPage({ searchParams }: PageProps) {
   const month = params.month || format(now, "MM");
   const year = params.year || format(now, "yyyy");
 
-  // ✅ CORRIGÉ : Typage dynamique du retour de la Server Action pour éviter le type 'never[]'
+  // Typage dynamique du retour de la Server Action
   let data: Awaited<ReturnType<typeof getRevenueDashboardData>> = {
     shopPerformance: [],
-    segmentPerformance: []
+    segmentPerformance: [],
+    isAccessDenied: false
   };
 
   let fetchError = false;
@@ -48,6 +49,22 @@ export default async function RevenueOverviewPage({ searchParams }: PageProps) {
   } catch (error) {
     console.error("[REVENUE_PAGE_ERROR] Erreur de chargement Odoo/Supabase:", error);
     fetchError = true;
+  }
+
+  if (data.isAccessDenied) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center p-8 text-center bg-card border border-border rounded-2xl shadow-xs my-8">
+        <div className="p-3.5 rounded-full bg-destructive/10 text-destructive mb-4">
+          <ShieldAlert className="w-8 h-8 stroke-[1.5]" />
+        </div>
+        <h2 className="text-lg font-bold text-foreground uppercase tracking-tight">
+          Accès Restreint
+        </h2>
+        <p className="text-xs text-muted-foreground font-light max-w-md mt-1.5 leading-relaxed">
+          Votre rôle d'utilisateur ne vous autorise pas à consulter le tableau de suivi financier des revenus. Veuillez contacter votre administrateur si vous devez obtenir un accès.
+        </p>
+      </div>
+    );
   }
 
   // Calculs financiers isolés
@@ -98,10 +115,12 @@ export default async function RevenueOverviewPage({ searchParams }: PageProps) {
         </div>
       )}
 
-      {/* En-tête de page avec Run-Rate Pace */}
+      {/* ✅ 1. EN-TÊTE RESPONSIVE NETTOYÉ (Sans doublon) */}
       <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-4 border-b border-border pb-6">
+
+        {/* Titre & Taux de Réalisation */}
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground uppercase">
               Suivi des Revenus <span className="text-primary font-black">Global</span>
             </h1>
@@ -116,69 +135,48 @@ export default async function RevenueOverviewPage({ searchParams }: PageProps) {
           </p>
         </div>
 
-        {/* Synthèse de Projection Pace */}
-        <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-4 border-b border-border pb-6">
+        {/* Bloc Actions : Projection Pace & Filtre de Dates */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
 
-          {/* Titre & Taux de Réalisation */}
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground uppercase">
-                Suivi des Revenus <span className="text-primary font-black">Global</span>
-              </h1>
-              {totals.budget > 0 && (
-                <Badge className="bg-primary/10 text-primary border border-primary/20 text-[10px] font-mono font-bold">
-                  {pace.budgetRealizationPercent}% du Budget
-                </Badge>
-              )}
+          {/* Carte de Projection Fin de Mois (Pace) */}
+          <div className="flex items-center gap-3 bg-card border border-border rounded-2xl p-2.5 shadow-xs shrink-0">
+            <div className="p-2 rounded-xl bg-primary/10 text-primary shrink-0">
+              <TrendingUp className="w-4 h-4 stroke-[2]" />
             </div>
-            <p className="text-xs text-muted-foreground font-light mt-1">
-              Consolidation financière du mois {month}/{year} ({pace.daysPassed}/{pace.daysInSelectedMonth} jours écoulés)
-            </p>
-          </div>
-
-          {/* ✅ DÉCOUPLAGE RESPONSIVE : Empilé sur Mobile (flex-col), en ligne sur Bureau (sm:flex-row) */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
-
-            {/* Carte de Projection Fin de Mois (Pace) */}
-            <div className="flex items-center gap-3 bg-card border border-border rounded-2xl p-2.5 shadow-xs shrink-0">
-              <div className="p-2 rounded-xl bg-primary/10 text-primary shrink-0">
-                <TrendingUp className="w-4 h-4 stroke-[2]" />
-              </div>
-              <div className="flex flex-col min-w-0">
-                <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-semibold truncate">
-                  Projection Fin de Mois (Pace)
+            <div className="flex flex-col min-w-0">
+              <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-semibold truncate">
+                Projection Fin de Mois (Pace)
+              </span>
+              <div className="flex items-baseline gap-1.5 font-mono">
+                <span className="text-xs font-bold text-foreground">
+                  ${pace.runRateForecast.toLocaleString("en-US")}
                 </span>
-                <div className="flex items-baseline gap-1.5 font-mono">
-                  <span className="text-xs font-bold text-foreground">
-                    ${pace.runRateForecast.toLocaleString("en-US")}
+                {totals.budget > 0 && (
+                  <span className={`text-[9px] font-bold ${pace.runRateForecast >= totals.budget ? "text-emerald-600" : "text-amber-600"
+                    }`}>
+                    ({Math.round((pace.runRateForecast / totals.budget) * 100)}% Cible)
                   </span>
-                  {totals.budget > 0 && (
-                    <span className={`text-[9px] font-bold ${pace.runRateForecast >= totals.budget ? "text-emerald-600" : "text-amber-600"
-                      }`}>
-                      ({Math.round((pace.runRateForecast / totals.budget) * 100)}% Cible)
-                    </span>
-                  )}
-                </div>
+                )}
               </div>
             </div>
-
-            {/* Filtre de Date */}
-            <div className="shrink-0 flex justify-end">
-              <RevenueDateFilter />
-            </div>
-
           </div>
+
+          {/* Filtre de Date */}
+          <div className="shrink-0 flex justify-end">
+            <RevenueDateFilter />
+          </div>
+
         </div>
       </div>
 
-      {/* Cartes KPIs */}
+      {/* 2. CARTES KPIS */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {kpiCards.map((kpi, idx) => (
           <RevenueKPICard key={idx} {...kpi} />
         ))}
       </div>
 
-      {/* Section Boutiques */}
+      {/* 3. SECTION A : PERFORMANCE PAR BOUTIQUE */}
       <div className="space-y-4">
         <div className="flex items-center justify-between border-b border-border/60 pb-2">
           <div className="flex items-center gap-2">
@@ -204,7 +202,7 @@ export default async function RevenueOverviewPage({ searchParams }: PageProps) {
         </div>
       </div>
 
-      {/* Section Segments */}
+      {/* 4. SECTION B : PERFORMANCE PAR SEGMENT (FEMME, ENFANT, BEAUTÉ) */}
       <div className="space-y-4 pt-4">
         <div className="flex items-center justify-between border-b border-border/60 pb-2">
           <div className="flex items-center gap-2">

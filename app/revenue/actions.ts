@@ -1,7 +1,8 @@
 'use server';
 
 import { odooClient as odooJsonClient } from "@/lib/odoo/odoo-json2-client";
-import { createClient } from "@/lib/supabase/server";
+import { AuthService } from "@/lib/supabase/auth-service";
+import { createClient, getServerAuth } from "@/lib/supabase/server";
 import { startOfMonth, endOfMonth, subMonths, format, getWeek, subDays, startOfWeek, getDaysInMonth } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -35,30 +36,39 @@ export async function getRevenueDashboardData(month: string, year: string) {
     const supabase = await createClient();
     const now = new Date();
 
+    const { user, profile } = await getServerAuth();
+
+    if (!user || !profile) {
+        return { shopPerformance: [], segmentPerformance: [], isAccessDenied: true };
+    }
+
+    const role = profile.role;
+
+    // ✅ RÈGLE RBAC 1 : Bloquer totalement l'accès aux profil 'inventory-manager' et 'user' non autorisés
+    if (role === 'inventory-manager' || role === 'user') {
+        return { shopPerformance: [], segmentPerformance: [], isAccessDenied: true };
+    }
+
     const selectedMonthInt = parseInt(month, 10);
     const selectedYearInt = parseInt(year, 10);
     const selectedDate = new Date(selectedYearInt, selectedMonthInt - 1, 1);
 
-    // Plages de dates MTD (Month-To-Date)
     const mtdStart = format(startOfMonth(selectedDate), 'yyyy-MM-dd 00:00:00');
     const mtdEnd = format(endOfMonth(selectedDate), 'yyyy-MM-dd 23:59:59');
 
-    // Plages de dates M-1 (Mois précédent)
     const prevStart = format(startOfMonth(subMonths(selectedDate, 1)), 'yyyy-MM-dd 00:00:00');
     const prevEnd = format(endOfMonth(subMonths(selectedDate, 1)), 'yyyy-MM-dd 23:59:59');
 
-    // Dates pour la semaine courante, aujourd'hui et hier
     const todayStr = format(now, 'yyyy-MM-dd');
     const yesterdayStr = format(subDays(now, 1), 'yyyy-MM-dd');
     const currentWeekStart = format(startOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd 00:00:00');
 
-    // Calcul du nombre réel de jours dans le mois
     const totalDaysInMonth = getDaysInMonth(selectedDate);
     const isCurrentMonth = month === format(now, 'MM') && year === format(now, 'yyyy');
     const daysPassed = isCurrentMonth ? Math.max(now.getDate(), 1) : totalDaysInMonth;
 
     try {
-        // 1. RÉCUPÉRATION SIMULTANÉE DES BOUTIQUES ET DES BUDGETS SUPABASE
+        // 2. RÉCUPÉRATION DES BOUTIQUES ET DES BUDGETS
         const [{ data: dbShops }, { data: dbBudgets }] = await Promise.all([
             supabase.from('shops').select('*').order('name'),
             supabase.from('revenue_budgets')
@@ -68,10 +78,37 @@ export async function getRevenueDashboardData(month: string, year: string) {
         ]);
 
         if (!dbShops || dbShops.length === 0) {
-            return { shopPerformance: [], segmentPerformance: [] };
+            return { shopPerformance: [], segmentPerformance: [], isAccessDenied: false };
         }
 
-        // 2. RÉCUPÉRATION DES COMMANDES POS POUR CONSTRUIRE LA MAP DE CAISSES (config_id)
+        let allowedShops = dbShops;
+
+        if (role === 'manager' && profile.shop_access_type === 'specific') {
+            const assignedShops = AuthService.getUserShops(profile); // Renvoie string[] (ex: ['1'])
+
+            if (!assignedShops.includes("all")) {
+                allowedShops = dbShops.filter(s => {
+                    const shopPosIds: number[] = s.odoo_pos_ids || [];
+
+                    // 1. Conversion de chaque posId en String pour match avec assignedShops
+                    const hasMatchingPosId = shopPosIds.some((posId: number) =>
+                        assignedShops.includes(String(posId))
+                    );
+
+                    // 2. Sécurité fallback (UUID ou Nom)
+                    const hasMatchingIdOrName = assignedShops.includes(s.id) || assignedShops.includes(s.name);
+
+                    return hasMatchingPosId || hasMatchingIdOrName;
+                });
+            }
+        }
+
+        // Si le manager n'a aucune boutique correspondante attribuée
+        if (allowedShops.length === 0) {
+            return { shopPerformance: [], segmentPerformance: [], isAccessDenied: false };
+        }
+
+        // 3. RÉCUPÉRATION DES COMMANDES POS POUR LA MAP DE CAISSES
         const [currentOrders, previousOrders, recentOrders] = await Promise.all([
             odooJsonClient.searchRead<any>("pos.order", {
                 domain: [
@@ -98,7 +135,6 @@ export async function getRevenueDashboardData(month: string, year: string) {
             })
         ]);
 
-        // ✅ CORRECTION CLÉ : Map d'association orderId -> configId (Terminal POS)
         const orderToConfigMap = new Map<number, number>();
         [...currentOrders, ...previousOrders, ...recentOrders].forEach((order: any) => {
             if (order.config_id && Array.isArray(order.config_id)) {
@@ -106,7 +142,7 @@ export async function getRevenueDashboardData(month: string, year: string) {
             }
         });
 
-        // 3. RÉCUPÉRATION DES LIGNES DE VENTES POS (Odoo JSON-2 API)
+        // 4. RÉCUPÉRATION DES LIGNES DE VENTES POS
         const [currentLines, previousLines, recentLines, posCategories] = await Promise.all([
             odooJsonClient.searchRead<any>("pos.order.line", {
                 domain: [
@@ -137,7 +173,6 @@ export async function getRevenueDashboardData(month: string, year: string) {
             })
         ]);
 
-        // 4. RÉCUPÉRATION ET INDEXATION DES PRODUITS (SEGMENTS & CATÉGORIES)
         const allProdIds = [...new Set([...currentLines, ...previousLines].map((l: any) => l.product_id[0]))];
 
         const productsInfo = allProdIds.length > 0
@@ -151,7 +186,7 @@ export async function getRevenueDashboardData(month: string, year: string) {
         const categoriesMap = new Map(posCategories.map(c => [c.id, c.name]));
 
         // ==========================================
-        // 🟢 5. STRUCTURATION PAR BOUTIQUE (SHOPS)
+        // 🟢 STRUCTURATION PAR BOUTIQUE (Filtrée RBAC)
         // ==========================================
         const shopHierarchy: Record<string, any> = {};
 
@@ -167,13 +202,12 @@ export async function getRevenueDashboardData(month: string, year: string) {
 
         const processLine = (line: any, type: 'mtd' | 'prev' | 'recent') => {
             const orderId = Array.isArray(line.order_id) ? line.order_id[0] : line.order_id;
-
-            // ✅ Résolution exacte du terminal de caisse via orderToConfigMap
             const configId = orderToConfigMap.get(orderId);
             if (!configId) return;
 
-            const shop = dbShops.find(s => s.odoo_pos_ids?.includes(configId));
-            if (!shop) return;
+            // ✅ RESTRICTION STRICTE : On vérifie si la commande appartient à une boutique autorisée
+            const shop = allowedShops.find(s => s.odoo_pos_ids?.includes(configId));
+            if (!shop) return; // Si la boutique n'est pas attribuée au Manager, on ignore la ligne
 
             const prod = productsMap.get(line.product_id[0]);
             const segment = prod?.x_studio_segment || "Autres";
@@ -223,11 +257,9 @@ export async function getRevenueDashboardData(month: string, year: string) {
         previousLines.forEach((l: any) => processLine(l, 'prev'));
         recentLines.forEach((l: any) => processLine(l, 'recent'));
 
-        // Résultat final pour les boutiques
+        // Bâtir les données de boutiques filtrées
         const shopPerformance = Object.entries(shopHierarchy).map(([name, d]: [string, any]) => {
-            const dbShop = dbShops.find(s => s.name === name);
-
-            // ✅ Somme de tous les budgets créés pour cette boutique spécifique
+            const dbShop = allowedShops.find(s => s.name === name);
             const shopBudgets = dbBudgets?.filter(b => b.shop_id === dbShop?.id) || [];
             const totalShopBudget = shopBudgets.reduce((sum, b) => sum + Number(b.target_amount || 0), 0);
 
@@ -241,10 +273,9 @@ export async function getRevenueDashboardData(month: string, year: string) {
                 deltaMoM: d.mtdPrev > 0 ? Math.round(((d.mtd - d.mtdPrev) / d.mtdPrev) * 100) : 0,
                 weeks: d.weeks,
                 forecast: Math.round((d.mtd / daysPassed) * totalDaysInMonth),
-                budgetMensuel: totalShopBudget, // ✅ Somme des segments de la boutique
+                budgetMensuel: totalShopBudget,
 
                 subRows: Object.entries(d.subRows).map(([segName, seg]: [string, any]) => {
-                    // Budget exact de la boutique X pour le segment Y
                     const segBudgetObj = shopBudgets.find(b => b.segment === segName);
                     const segBudget = segBudgetObj ? Number(segBudgetObj.target_amount) : 0;
 
@@ -272,7 +303,7 @@ export async function getRevenueDashboardData(month: string, year: string) {
         });
 
         // ==========================================
-        // 🔵 6. STRUCTURATION PAR SEGMENT (FEMME, ENFANT, BEAUTÉ)
+        // 🔵 STRUCTURATION PAR SEGMENT (Filtrée RBAC)
         // ==========================================
         const segmentHierarchy: Record<string, any> = {};
 
@@ -284,6 +315,14 @@ export async function getRevenueDashboardData(month: string, year: string) {
         };
 
         const processSeg = (line: any, type: 'mtd' | 'prev') => {
+            const orderId = Array.isArray(line.order_id) ? line.order_id[0] : line.order_id;
+            const configId = orderToConfigMap.get(orderId);
+            if (!configId) return;
+
+            // ✅ Filtrage RBAC également appliqué sur les segments !
+            const shop = allowedShops.find(s => s.odoo_pos_ids?.includes(configId));
+            if (!shop) return;
+
             const prod = productsMap.get(line.product_id[0]);
             const segment = prod?.x_studio_segment || "Autres";
             const categoryId = prod?.pos_categ_ids?.[0];
@@ -318,7 +357,6 @@ export async function getRevenueDashboardData(month: string, year: string) {
         previousLines.forEach((l: any) => processSeg(l, 'prev'));
 
         const segmentPerformance = Object.entries(segmentHierarchy).map(([name, d]: [string, any]) => {
-            // ✅ Somme des budgets pour ce segment sur TOUTES les boutiques physiques
             const segmentBudgets = dbBudgets?.filter(b => b.segment === name) || [];
             const totalSegmentBudget = segmentBudgets.reduce((sum, b) => sum + Number(b.target_amount || 0), 0);
 
@@ -329,7 +367,7 @@ export async function getRevenueDashboardData(month: string, year: string) {
                 deltaMoM: d.mtdPrev > 0 ? Math.round(((d.mtd - d.mtdPrev) / d.mtdPrev) * 100) : 0,
                 forecast: Math.round((d.mtd / daysPassed) * totalDaysInMonth),
                 weeks: d.weeks,
-                budgetMensuel: totalSegmentBudget, // ✅ Somme du segment sur le réseau
+                budgetMensuel: totalSegmentBudget,
 
                 subRows: Object.entries(d.subRows).map(([catName, cat]: [string, any]) => ({
                     boutique: catName,
@@ -343,11 +381,15 @@ export async function getRevenueDashboardData(month: string, year: string) {
             };
         });
 
-        return { shopPerformance, segmentPerformance };
+        return {
+            shopPerformance,
+            segmentPerformance,
+            isAccessDenied: false
+        };
 
     } catch (e) {
         console.error("[ACTIONS_ERROR] Erreur getRevenueDashboardData:", e);
-        return { shopPerformance: [], segmentPerformance: [] };
+        return { shopPerformance: [], segmentPerformance: [], isAccessDenied: false };
     }
 }
 
