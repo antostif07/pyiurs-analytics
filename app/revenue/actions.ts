@@ -160,19 +160,17 @@ export async function getRevenueDashboardData(month: string, year: string) {
             ],
             fields: ["order_id", "price_unit", "qty", "product_id", "discount", "create_date"]
         })
-        const [recentLines, posCategories] = await Promise.all([
-            odooJsonClient.searchRead<any>("pos.order.line", {
-                domain: [
-                    ["order_id.state", "in", ["paid", "done", "invoiced"]],
-                    ["order_id.date_order", ">=", currentWeekStart]
-                ],
-                fields: ["order_id", "price_unit", "qty", "product_id", "discount", "create_date"]
-            }),
-            odooJsonClient.searchRead<{ id: number; name: string }>("pos.category", {
-                domain: [],
-                fields: ["id", "name"]
-            })
-        ]);
+        const recentLines = await odooJsonClient.searchRead<any>("pos.order.line", {
+            domain: [
+                ["order_id.state", "in", ["paid", "done", "invoiced"]],
+                ["order_id.date_order", ">=", currentWeekStart]
+            ],
+            fields: ["order_id", "price_unit", "qty", "product_id", "discount", "create_date"]
+        });
+        const posCategories = await odooJsonClient.searchRead<{ id: number; name: string }>("pos.category", {
+            domain: [],
+            fields: ["id", "name"]
+        });
 
         const allProdIds = [...new Set([...currentLines, ...previousLines].map((l: any) => l.product_id[0]))];
 
@@ -520,23 +518,22 @@ export async function getBeautySixMonthSales(
         for (const idsChunk of productChunks) {
             if (idsChunk.length === 0) continue;
 
-            const [stockRaw, stockMoves] = await Promise.all([
-                odooJsonClient.readGroup<any>("stock.quant", {
-                    domain: [...stockDomain, ["product_id", "in", idsChunk]],
-                    fields: ["quantity"],
-                    groupby: ["product_id"]
-                }),
-                odooJsonClient.readGroup<any>("stock.move", {
-                    domain: [
-                        ["product_id", "in", idsChunk],
-                        ["state", "=", "done"],
-                        ["picking_code", "in", ["outgoing", "incoming"]]
-                    ],
-                    fields: ["product_uom_qty"],
-                    groupby: ["product_id", "date:month", "picking_code"],
-                    lazy: false
-                })
-            ]);
+            const stockRaw = await odooJsonClient.readGroup<any>("stock.quant", {
+                domain: [...stockDomain, ["product_id", "in", idsChunk]],
+                fields: ["quantity"],
+                groupby: ["product_id"]
+            })
+
+            const stockMoves = await odooJsonClient.readGroup<any>("stock.move", {
+                domain: [
+                    ["product_id", "in", idsChunk],
+                    ["state", "=", "done"],
+                    ["picking_code", "in", ["outgoing", "incoming"]]
+                ],
+                fields: ["product_uom_qty"],
+                groupby: ["product_id", "date:month", "picking_code"],
+                lazy: false
+            });
 
             allStockResults.push(...stockRaw);
             allStockMoves.push(...stockMoves);
