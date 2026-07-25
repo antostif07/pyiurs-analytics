@@ -1,7 +1,6 @@
-// components/purchases/purchase-order-selector.tsx
 "use client";
 
-import { CheckIcon, ChevronDownIcon } from "lucide-react";
+import { CheckIcon, ChevronDownIcon, FileText } from "lucide-react";
 import { useId, useState } from "react";
 
 import { cn } from "@/lib/utils";
@@ -49,28 +48,28 @@ export default function PurchaseOrderSelector({
     const currentPo = purchaseOrders.find((po) => po.id === selectedPoId);
 
     return (
-        <div className="space-y-2">
-            <Label htmlFor={id} className="text-xs font-black uppercase text-slate-400 tracking-wider">
-                Sélectionner le Bon de Commande (PO)
+        <div className="space-y-1.5">
+            <Label htmlFor={id} className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">
+                Bon de Commande Odoo (PO d'Origine)
             </Label>
 
             <Popover onOpenChange={setOpen} open={open}>
                 <PopoverTrigger asChild>
                     <Button
-                        aria-expanded={open}
-                        className="w-full justify-between border-slate-200 dark:border-slate-800 bg-background px-3 font-normal outline-none outline-offset-0 hover:bg-background/80 focus-visible:outline-[3px] text-xs h-10 rounded-lg shadow-sm"
                         id={id}
                         role="combobox"
+                        aria-expanded={open}
                         variant="outline"
+                        className="w-full justify-between border-input bg-card text-foreground px-3.5 font-normal outline-none hover:bg-accent/40 text-xs h-10 rounded-xl shadow-xs transition-colors cursor-pointer"
                     >
                         <span className={cn("truncate font-medium", !selectedPoId && "text-muted-foreground")}>
                             {currentPo
                                 ? `${currentPo.name} — ${currentPo.supplierName}`
-                                : "Sélectionner un PO Odoo..."}
+                                : "Sélectionner un Bon de Commande Odoo..."}
                         </span>
                         <ChevronDownIcon
                             aria-hidden="true"
-                            className="shrink-0 text-muted-foreground/80 ml-2"
+                            className="shrink-0 text-muted-foreground/60 ml-2"
                             size={14}
                         />
                     </Button>
@@ -78,42 +77,45 @@ export default function PurchaseOrderSelector({
 
                 <PopoverContent
                     align="start"
-                    className="w-full min-w-[var(--radix-popper-anchor-width)] border-slate-200 dark:border-slate-800 p-0 rounded-xl overflow-hidden shadow-2xl"
+                    className="w-full min-w-[var(--radix-popper-anchor-width)] border-border bg-popover text-popover-foreground p-0 rounded-2xl overflow-hidden shadow-2xl z-50"
                 >
-                    <Command>
+                    <Command className="bg-popover">
                         <CommandInput
-                            placeholder="Rechercher une référence ou un fournisseur..."
-                            className="text-xs"
+                            placeholder="Rechercher par référence, PO ou fournisseur..."
+                            className="text-xs h-9 border-b border-border"
                         />
-                        <CommandList className="max-h-60">
-                            <CommandEmpty className="text-xs text-slate-400 p-4 text-center">
+                        <CommandList className="max-h-60 scrollbar-thin">
+                            <CommandEmpty className="text-xs text-muted-foreground p-4 text-center font-light">
                                 Aucun bon de commande trouvé.
                             </CommandEmpty>
                             <CommandGroup>
                                 {purchaseOrders.map((po) => (
                                     <CommandItem
                                         key={po.id}
+                                        value={`${po.name} ${po.supplierName} ${po.supplierRef || ""}`}
                                         onSelect={() => {
-                                            // Si l'utilisateur clique sur le PO déjà sélectionné, on désélectionne
                                             const isAlreadySelected = po.id === selectedPoId;
                                             onSelectPo(isAlreadySelected ? null : po);
                                             setOpen(false);
                                         }}
-                                        value={`${po.name} ${po.supplierName} ${po.supplierRef}`}
-                                        className="text-xs font-medium cursor-pointer py-2 px-3"
+                                        className="text-xs font-medium cursor-pointer py-2.5 px-3 flex items-center justify-between hover:bg-accent transition-colors"
                                     >
-                                        <div className="flex flex-col">
-                                            <span className="font-bold text-slate-900 dark:text-slate-100">
-                                                {po.name} <span className="text-slate-400 font-normal">({po.supplierName})</span>
-                                            </span>
+                                        <div className="flex flex-col min-w-0 pr-2">
+                                            <div className="flex items-center gap-1.5 font-bold text-foreground">
+                                                <FileText className="w-3 h-3 text-primary shrink-0" />
+                                                <span>{po.name}</span>
+                                                <span className="text-muted-foreground font-normal text-[11px] truncate">
+                                                    ({po.supplierName})
+                                                </span>
+                                            </div>
                                             {po.supplierRef && (
-                                                <span className="text-[10px] text-slate-400 mt-0.5">
+                                                <span className="text-[10px] text-muted-foreground/70 font-mono mt-0.5">
                                                     Réf Fournisseur : {po.supplierRef}
                                                 </span>
                                             )}
                                         </div>
                                         {selectedPoId === po.id && (
-                                            <CheckIcon className="ml-auto text-indigo-600 dark:text-indigo-400 shrink-0" size={14} />
+                                            <CheckIcon className="text-primary shrink-0 ml-2" size={14} />
                                         )}
                                     </CommandItem>
                                 ))}

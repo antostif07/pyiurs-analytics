@@ -1,4 +1,3 @@
-// components/purchases/purchase-order-selector.tsx
 "use client";
 
 import { CheckIcon, ChevronDownIcon } from "lucide-react";
@@ -22,56 +21,57 @@ import {
 } from "@/components/ui/popover";
 import { OdooOption } from "../import-actions";
 
-// Interface stricte décrivant les données d'un PO Odoo requises pour l'importateur
-export interface OdooPurchaseOrderOption {
-    id: number;               // ID interne Odoo (ex: 142)
-    name: string;             // Référence Odoo (ex: PO00042)
-    externalId: string;       // ID Externe Odoo (ex: purchase.purchase_order_42)
-    supplierRef: string;      // Référence Fournisseur (partner_ref dans Odoo)
-    supplierId: number;       // ID du fournisseur Odoo (res.partner)
-    supplierName: string;     // Nom complet du fournisseur
-}
-
 interface NormalSelectorProps {
     data: OdooOption[];
     selected: string | null;
     onSelect: (value: OdooOption) => void;
+    label?: string;
+    placeholder?: string;
+    emptyText?: string;
+    className?: string;
 }
 
 export default function NormalSelector({
     data,
     selected,
-    onSelect
+    onSelect,
+    label,
+    placeholder = "Sélectionner une option...",
+    emptyText = "Aucun résultat trouvé.",
+    className
 }: NormalSelectorProps) {
     const id = useId();
     const [open, setOpen] = useState<boolean>(false);
 
-    // Recherche de l'objet PO actuellement sélectionné
-    const currentPo = data.find((po) => po.name === selected);
+    // Recherche de l'option actuellement sélectionnée
+    const currentOption = data.find((item) => item.name === selected);
 
     return (
-        <div className="space-y-2">
-            {/* <Label htmlFor={id} className="text-xs font-black uppercase text-slate-400 tracking-wider">
-                Sélectionner la valeur
-            </Label> */}
+        <div className="space-y-1.5 w-full">
+            {label && (
+                <Label htmlFor={id} className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">
+                    {label}
+                </Label>
+            )}
 
             <Popover onOpenChange={setOpen} open={open}>
                 <PopoverTrigger asChild>
                     <Button
-                        aria-expanded={open}
-                        className="w-full justify-between border-slate-200 dark:border-slate-800 bg-background px-3 font-normal outline-none outline-offset-0 hover:bg-background/80 focus-visible:outline-[3px] text-xs h-10 rounded-lg shadow-sm"
                         id={id}
                         role="combobox"
+                        aria-expanded={open}
                         variant="outline"
+                        className={cn(
+                            "w-full justify-between border-input bg-card text-foreground px-3 font-normal outline-none hover:bg-accent/40 text-xs h-9 rounded-xl shadow-xs transition-colors cursor-pointer",
+                            className
+                        )}
                     >
                         <span className={cn("truncate font-medium", !selected && "text-muted-foreground")}>
-                            {currentPo
-                                ? currentPo.name
-                                : "Sélectionner une valeur..."}
+                            {currentOption ? currentOption.name : placeholder}
                         </span>
                         <ChevronDownIcon
                             aria-hidden="true"
-                            className="shrink-0 text-muted-foreground/80 ml-2"
+                            className="shrink-0 text-muted-foreground/60 ml-2"
                             size={14}
                         />
                     </Button>
@@ -79,35 +79,33 @@ export default function NormalSelector({
 
                 <PopoverContent
                     align="start"
-                    className="w-full min-w-[var(--radix-popper-anchor-width)] border-slate-200 dark:border-slate-800 p-0 rounded-xl overflow-hidden shadow-2xl"
+                    className="w-full min-w-[var(--radix-popper-anchor-width)] border-border bg-popover text-popover-foreground p-0 rounded-2xl overflow-hidden shadow-2xl z-50"
                 >
-                    <Command>
+                    <Command className="bg-popover">
                         <CommandInput
-                            placeholder="Rechercher une référence ou un fournisseur..."
-                            className="text-xs"
+                            placeholder="Rechercher..."
+                            className="text-xs h-9 border-b border-border"
                         />
-                        <CommandList className="max-h-60">
-                            <CommandEmpty className="text-xs text-slate-400 p-4 text-center">
-                                Aucun bon de commande trouvé.
+                        <CommandList className="max-h-60 scrollbar-thin">
+                            <CommandEmpty className="text-xs text-muted-foreground p-4 text-center font-light">
+                                {emptyText}
                             </CommandEmpty>
                             <CommandGroup>
-                                {data.map((po) => (
+                                {data.map((item) => (
                                     <CommandItem
-                                        key={po.name}
+                                        key={item.id || item.name}
+                                        value={item.name}
                                         onSelect={() => {
-                                            onSelect(po);
+                                            onSelect(item);
                                             setOpen(false);
                                         }}
-                                        value={`${po.name}`}
-                                        className="text-xs font-medium cursor-pointer py-2 px-3"
+                                        className="text-xs font-medium cursor-pointer py-2 px-3 flex items-center justify-between hover:bg-accent transition-colors"
                                     >
-                                        <div className="flex flex-col">
-                                            <span className="font-bold text-slate-900 dark:text-slate-100">
-                                                {po.name}
-                                            </span>
-                                        </div>
-                                        {selected === po.name && (
-                                            <CheckIcon className="ml-auto text-indigo-600 dark:text-indigo-400 shrink-0" size={14} />
+                                        <span className="font-medium text-foreground truncate pr-2">
+                                            {item.name}
+                                        </span>
+                                        {selected === item.name && (
+                                            <CheckIcon className="text-primary shrink-0 ml-auto" size={14} />
                                         )}
                                     </CommandItem>
                                 ))}
