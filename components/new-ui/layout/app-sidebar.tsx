@@ -30,7 +30,7 @@ export type NavItem = {
   icon: LucideIcon;
   path: string;
   badge?: number;
-  roles?: UserRole[]; // ✅ Aligné sur les rôles réels du projet
+  roles?: UserRole[];
 };
 
 export type NavGroup = {
@@ -52,18 +52,15 @@ export default function AppSidebar({ role, collapsed, onCollapse, groups, mainPa
   const router = useRouter();
   const [search, setSearch] = useState("");
 
-  // ✅ Gestion sécurisée des favoris avec persistance locale sans avertissement d'hydratation
   const [favorites, setFavorites] = useState<string[]>([]);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  // Chargement des favoris au montage du composant client
   useEffect(() => {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_FAVS_KEY);
       if (saved) {
         setFavorites(JSON.parse(saved));
       } else {
-        // Favoris par défaut s'il s'agit du premier démarrage
         setFavorites(["revenue", "stock"]);
       }
     } catch {
@@ -71,7 +68,6 @@ export default function AppSidebar({ role, collapsed, onCollapse, groups, mainPa
     }
   }, []);
 
-  // Raccourci clavier Cmd+K / Ctrl+K pour focaliser la recherche
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -83,20 +79,34 @@ export default function AppSidebar({ role, collapsed, onCollapse, groups, mainPa
     return () => window.removeEventListener("keydown", handler);
   }, [collapsed]);
 
-  // Extraction de tous les éléments pour le moteur de recherche
   const allItems = groups.flatMap((g) => g.items);
   const filteredItems = search
     ? allItems.filter((item) =>
       item.label.toLowerCase().includes(search.toLowerCase()) &&
-      (!item.roles || item.roles.includes(role)) // ✅ Filtre la recherche selon les droits réels de l'utilisateur
+      (!item.roles || item.roles.includes(role))
     )
     : [];
 
+  // ✅ ALGORITHME DE CORRESPONDANCE D'URL STRICTE (Résout le double éclairage)
   const isActive = (path: string) => {
-    if (path === mainPath) {
-      return pathname === mainPath;
+    // 1. Correspondance exacte d'URL (Toujours prioritaire)
+    if (pathname === path) return true;
+
+    // 2. Si l'URL actuelle est une sous-page de ce lien (ex: /inventory/audits/AUD-001)
+    if (pathname.startsWith(`${path}/`)) {
+      // On vérifie si un AUTRE élément du menu possède une route plus longue/spécifique pour cette URL
+      const hasMoreSpecificSibling = allItems.some(
+        (other) =>
+          other.path !== path &&
+          other.path.length > path.length &&
+          (pathname === other.path || pathname.startsWith(`${other.path}/`))
+      );
+
+      // Si un frère plus spécifique existe dans le menu, cet élément parent N'EST PAS actif
+      return !hasMoreSpecificSibling;
     }
-    return pathname.startsWith(path);
+
+    return false;
   };
 
   const isFav = (id: string) => favorites.includes(id);
@@ -140,7 +150,6 @@ export default function AppSidebar({ role, collapsed, onCollapse, groups, mainPa
               collapsed && "justify-center"
             )}
           >
-            {/* ✅ Logo unifié avec la charte graphique de la marque */}
             <div className="w-7 h-7 rounded-lg flex items-center justify-center text-primary-foreground text-xs font-bold shrink-0 bg-primary">
               PY
             </div>
@@ -177,7 +186,6 @@ export default function AppSidebar({ role, collapsed, onCollapse, groups, mainPa
               )}
             </div>
 
-            {/* Liste déroulante des résultats de recherche */}
             <AnimatePresence>
               {filteredItems.length > 0 && (
                 <FramerMotion.div
@@ -202,10 +210,10 @@ export default function AppSidebar({ role, collapsed, onCollapse, groups, mainPa
           </div>
         )}
 
-        {/* Section défilante de navigation */}
+        {/* Section défilante */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden py-2 scrollbar-thin">
 
-          {/* Favoris persistés */}
+          {/* Favoris */}
           {!collapsed && favItems.length > 0 && !search && (
             <NavSection title="Favoris">
               {favItems.map((item) => (
@@ -240,9 +248,8 @@ export default function AppSidebar({ role, collapsed, onCollapse, groups, mainPa
             </NavSection>
           )}
 
-          {/* Groupes de navigation dynamiques */}
+          {/* Groupes de navigation */}
           {groups.map((group) => {
-            // Filtrage des éléments basés sur les permissions de rôles strictes d'Odoo
             const visibleItems = group.items.filter(
               (item) => !item.roles || item.roles.includes(role)
             );
@@ -255,7 +262,7 @@ export default function AppSidebar({ role, collapsed, onCollapse, groups, mainPa
                   <SidebarItem
                     key={item.id}
                     item={item}
-                    active={isActive(item.path)}
+                    active={isActive(item.path)} // ✅ Désormais 100% exact et unique
                     collapsed={collapsed}
                     isFav={isFav(item.id)}
                     onNavigate={navigateTo}
@@ -267,7 +274,7 @@ export default function AppSidebar({ role, collapsed, onCollapse, groups, mainPa
           })}
         </div>
 
-        {/* État de fonctionnement du système */}
+        {/* État du système */}
         <div className={cn("border-t border-sidebar-border p-3", collapsed && "flex justify-center")}>
           {collapsed ? (
             <Tooltip>
@@ -284,7 +291,7 @@ export default function AppSidebar({ role, collapsed, onCollapse, groups, mainPa
           )}
         </div>
 
-        {/* Bouton de repliement de la barre latérale */}
+        {/* Bouton de repliement */}
         <button
           onClick={() => onCollapse(!collapsed)}
           className="absolute -right-3 top-16 w-6 h-6 bg-card border border-border rounded-full flex items-center justify-center cursor-pointer hover:bg-accent transition-colors shadow-sm z-20 focus:outline-none"

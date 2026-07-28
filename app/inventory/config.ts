@@ -9,6 +9,7 @@ import {
     AlertTriangle,
     DollarSign,
     Truck,
+    ScanLine, // ✅ Icône pour le module d'Audits
 } from "lucide-react";
 
 export const NAV_GROUPS: NavGroup[] = [
@@ -22,6 +23,13 @@ export const NAV_GROUPS: NavGroup[] = [
                 icon: LayoutDashboard,
                 path: "/inventory",
                 roles: ["admin", "manager", "inventory-manager", "financier"],
+            },
+            {
+                id: "stock-audits",
+                label: "Inventaires & Audits", // ✅ NOUVEAU LIEN AJOUTÉ
+                icon: ScanLine,
+                path: "/inventory/audits",
+                roles: ["admin", "manager", "inventory-manager"],
             },
             {
                 id: "sans-code",
@@ -53,7 +61,7 @@ export const NAV_GROUPS: NavGroup[] = [
             {
                 id: "stock-transfers",
                 label: "Transferts Inter-Boutiques",
-                icon: Truck, // ✅ Transferts depuis la centrale PB - BC vers les boutiques
+                icon: Truck,
                 path: "/inventory/transfers",
                 roles: ["admin", "manager", "inventory-manager"],
             },
