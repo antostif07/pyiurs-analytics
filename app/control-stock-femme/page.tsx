@@ -3,7 +3,6 @@ import { OdooProductTemplate } from "../types/product_template";
 import { PurchaseOrder, PurchaseOrderLine } from "../types/purchase";
 import { controlStockBeautyColumns } from "./columns";
 import { CompactFilters } from "./compact-filters";
-// import { DataTable } from "./data-table";
 import { Suspense } from "react";
 import { TableSkeleton } from "./table-skeleton";
 import { endOfMonth, format, isBefore, startOfMonth } from "date-fns";

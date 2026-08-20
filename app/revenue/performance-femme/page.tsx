@@ -41,19 +41,17 @@ interface OdooStockMove {
 }
 
 interface OdooLocation {
-    id: number;
-    usage: string; // 'internal', 'customer', 'supplier', etc.
+  id: number;
+  usage: string; // 'internal', 'customer', 'supplier', etc.
 }
 
 interface OdooAttribute { id: number; name: string; x_name?: string }
 
 // --- HELPERS DE REGROUPEMENT ---
 function groupProductsByHsCode(products: ProductProduct[]): GroupedProduct[] {
-  // Map avec clé composite (string)
   const groupedMap = new Map<string, GroupedProduct>();
 
   for (const product of products) {
-    // 1. Validation HS Code
     const rawHsCode = product.hs_code;
     if (!rawHsCode || typeof rawHsCode !== 'string') continue;
     const cleanHsCode = rawHsCode.trim();
@@ -68,15 +66,17 @@ function groupProductsByHsCode(products: ProductProduct[]): GroupedProduct[] {
     if (existingGroup) {
       existingGroup.productIds.push(product.id);
     } else {
-      const nameElts = product.name.split("[")
-      const name = nameElts.toString().split("-")
-      name.pop()
-      nameElts.pop()
+      // Nettoyage sécurisé du nom sans risque de crash string undefined
+      let cleanName = product.name || "Produit Sans Nom";
+      if (cleanName.includes("[")) {
+        cleanName = cleanName.split("[")[0].trim();
+      }
+
       groupedMap.set(uniqueKey, {
         hs_code: cleanHsCode,
-        name: name ? name.toString().replaceAll(",", "-") : "",
+        name: cleanName,
         productIds: [product.id],
-        color: colorName || undefined // On stocke la couleur proprement
+        color: colorName || undefined
       });
     }
   }
@@ -88,14 +88,14 @@ function groupProductsByHsCode(products: ProductProduct[]): GroupedProduct[] {
  * Fusionne Ventes + Stock Actuel + Historique Mouvements
  */
 function enrichGroupsWithData(
-  groups: GroupedProduct[], 
+  groups: GroupedProduct[],
   salesLines: POSOrderLine[],
   currentStockMap: Map<number, number>,
   stockMoves: OdooStockMove[],
   internalLocationIds: Set<number>,
   monthsRange: string[]
 ): EnrichedGroupedProduct[] {
-  
+
   // 1. Map Rapide ProductID -> GroupIndex
   const productToGroupIndex = new Map<number, number>();
   groups.forEach((group, index) => {
@@ -128,7 +128,7 @@ function enrichGroupsWithData(
       // Cumul Revenu ET Quantité
       results[groupIndex].monthlySales[monthKey].revenue += amount;
       results[groupIndex].monthlySales[monthKey].qty += quantity;
-      
+
       results[groupIndex].totalRevenue += amount;
     }
   }
@@ -144,7 +144,7 @@ function enrichGroupsWithData(
 
   // --- C. CALCUL DU STOCK HISTORIQUE (REVERSE CALCULATION) ---
   // On part du stock actuel et on "rembobine" les mouvements
-  
+
   // 1. Organiser les mouvements par Mois et par Groupe
   // Structure: movesByGroup[groupIndex][monthKey] = { in: 0, out: 0 }
   const movesByGroup: Record<number, Record<string, { in: number, out: number }>> = {};
@@ -152,7 +152,7 @@ function enrichGroupsWithData(
   for (const move of stockMoves) {
     const productId = move.product_id[0];
     const groupIndex = productToGroupIndex.get(productId);
-    
+
     if (groupIndex !== undefined) {
       const moveDate = parseISO(move.date);
       const monthKey = format(moveDate, "yyyy-MM");
@@ -169,7 +169,7 @@ function enrichGroupsWithData(
       if (type !== 'internal') {
         if (!movesByGroup[groupIndex]) movesByGroup[groupIndex] = {};
         if (!movesByGroup[groupIndex][monthKey]) movesByGroup[groupIndex][monthKey] = { in: 0, out: 0 };
-        
+
         if (type === 'in') movesByGroup[groupIndex][monthKey].in += qty;
         else movesByGroup[groupIndex][monthKey].out += qty;
       }
@@ -180,7 +180,7 @@ function enrichGroupsWithData(
   // On part du stock actuel (supposons que c'est la fin du mois courant)
   // Stock Début M = Stock Fin M - Entrées M + Sorties M
   // Stock Fin M-1 = Stock Début M
-  
+
   results.forEach((group, idx) => {
     let runningStock = group.currentStock; // On part de maintenant
 
@@ -189,16 +189,16 @@ function enrichGroupsWithData(
     // On veut commencer par "2024-03" (le mois courant/récent)
     for (let i = monthsRange.length - 1; i >= 0; i--) {
       const monthKey = monthsRange[i];
-      
+
       // Mouvements du mois
       const moves = movesByGroup[idx]?.[monthKey] || { in: 0, out: 0 };
-      
+
       // Calcul du stock au DEBUT de ce mois
       // Stock Début = Stock Fin (runningStock) - Entrées + Sorties
       const openingStock = runningStock - moves.in + moves.out;
-      
+
       group.monthlyStockOpening[monthKey] = Math.round(openingStock); // Arrondi pour propreté
-      
+
       // Le stock de début de ce mois devient le "Stock de Fin" du mois précédent pour la prochaine itération
       runningStock = openingStock;
     }
@@ -227,7 +227,7 @@ function buildProductDomain(filters: any) {
   if (filters.color) {
     const ids = filters.color.split(',').map(Number);
     // Adaptez le nom du champ technique Odoo
-    if (ids.length > 0) domain.push(["x_studio_many2one_field_Arl5D", "in", ids]); 
+    if (ids.length > 0) domain.push(["x_studio_many2one_field_Arl5D", "in", ids]);
   }
 
   // Filtre Marque (Supposons champ 'x_studio_brand')
@@ -258,36 +258,36 @@ async function getProducts(filters: any): Promise<ProductProduct[]> {
     if (batch.length < pageSize) break;
     offset += pageSize;
   }
-  
+
   return allProducts;
 }
 
 // 2. Ventes
 async function getSalesData(month: string, year: string, productIds: number[]): Promise<POSOrderLine[]> {
-    const refDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-    const endDate = endOfMonth(refDate);
-    const startDate = startOfMonth(subMonths(endDate, 5));
-    const strStart = format(startDate, "yyyy-MM-dd 00:00:00");
-    const strEnd = format(endDate, "yyyy-MM-dd 23:59:59");
+  const refDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+  const endDate = endOfMonth(refDate);
+  const startDate = startOfMonth(subMonths(endDate, 5));
+  const strStart = format(startDate, "yyyy-MM-dd 00:00:00");
+  const strEnd = format(endDate, "yyyy-MM-dd 23:59:59");
 
-    // Batching des IDs produits pour ne pas casser l'URL
-    const BATCH_SIZE = 2000;
-    let allLines: POSOrderLine[] = [];
-    
-    for (let i = 0; i < productIds.length; i += BATCH_SIZE) {
-        const batchIds = productIds.slice(i, i + BATCH_SIZE);
-        const batch = await odooJsonCLient.searchRead<POSOrderLine>("pos.order.line", {
-            domain: [
-                ["order_id.date_order", ">=", strStart],
-                ["order_id.date_order", "<=", strEnd],
-                ["order_id.state", "in", ["paid", "done", "invoiced"]],
-                ["product_id", "in", batchIds]
-            ],
-            fields: ["id", "product_id", "qty", "price_subtotal_incl", "create_date"],
-        });
-        allLines = allLines.concat(batch);
-    }
-    return allLines;
+  // Batching des IDs produits pour ne pas casser l'URL
+  const BATCH_SIZE = 2000;
+  let allLines: POSOrderLine[] = [];
+
+  for (let i = 0; i < productIds.length; i += BATCH_SIZE) {
+    const batchIds = productIds.slice(i, i + BATCH_SIZE);
+    const batch = await odooJsonCLient.searchRead<POSOrderLine>("pos.order.line", {
+      domain: [
+        ["order_id.date_order", ">=", strStart],
+        ["order_id.date_order", "<=", strEnd],
+        ["order_id.state", "in", ["paid", "done", "invoiced"]],
+        ["product_id", "in", batchIds]
+      ],
+      fields: ["id", "product_id", "qty", "price_subtotal_incl", "create_date"],
+    });
+    allLines = allLines.concat(batch);
+  }
+  return allLines;
 }
 
 // 3. Stock Actuel (Snapshot)
@@ -316,40 +316,40 @@ async function getCurrentStock(productIds: number[]): Promise<Map<number, number
 
 // 4. Mouvements de Stock (Historique)
 async function getStockMoves(month: string, year: string, productIds: number[]): Promise<{ moves: OdooStockMove[], internalLocs: Set<number> }> {
-    const refDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-    const endDate = endOfMonth(refDate); // Fin du mois sélectionné (donc "Maintenant" ou passé proche)
-    const startDate = startOfMonth(subMonths(endDate, 5)); // Début de la période d'analyse
-    
-    // On veut les mouvements depuis le début de la période d'analyse jusqu'à "demain" 
-    // (pour être sûr de capter les mouvements récents si on analyse le mois courant)
-    const strStart = format(startDate, "yyyy-MM-dd 00:00:00");
-    
-    // Récupérer les IDs des emplacements internes (pour savoir si c'est IN ou OUT)
-    const locations = await odooJsonCLient.searchRead<OdooLocation>("stock.location", {
-        domain: [["usage", "=", "internal"]],
-        fields: ["id", "usage"]
+  const refDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+  const endDate = endOfMonth(refDate); // Fin du mois sélectionné (donc "Maintenant" ou passé proche)
+  const startDate = startOfMonth(subMonths(endDate, 5)); // Début de la période d'analyse
+
+  // On veut les mouvements depuis le début de la période d'analyse jusqu'à "demain" 
+  // (pour être sûr de capter les mouvements récents si on analyse le mois courant)
+  const strStart = format(startDate, "yyyy-MM-dd 00:00:00");
+
+  // Récupérer les IDs des emplacements internes (pour savoir si c'est IN ou OUT)
+  const locations = await odooJsonCLient.searchRead<OdooLocation>("stock.location", {
+    domain: [["usage", "=", "internal"]],
+    fields: ["id", "usage"]
+  });
+
+  const internalLocIds = new Set(locations.map(l => l.id));
+
+  // Récupérer les mouvements
+  const BATCH_SIZE = 5000;
+  let allMoves: OdooStockMove[] = [];
+
+  for (let i = 0; i < productIds.length; i += BATCH_SIZE) {
+    const batchIds = productIds.slice(i, i + BATCH_SIZE);
+    const batch = await odooJsonCLient.searchRead<OdooStockMove>("stock.move", {
+      domain: [
+        // ["date", ">=", strStart], // Depuis le début de notre analyse
+        // ["state", "=", "done"],   // Seulement les mouvements terminés
+        ["product_id", "in", batchIds]
+      ],
+      fields: ["date", "product_id", "product_uom_qty", "location_id", "location_dest_id"]
     });
-    
-    const internalLocIds = new Set(locations.map(l => l.id));
+    allMoves = allMoves.concat(batch);
+  }
 
-    // Récupérer les mouvements
-    const BATCH_SIZE = 5000;
-    let allMoves: OdooStockMove[] = [];
-
-    for (let i = 0; i < productIds.length; i += BATCH_SIZE) {
-        const batchIds = productIds.slice(i, i + BATCH_SIZE);
-        const batch = await odooJsonCLient.searchRead<OdooStockMove>("stock.move", {
-            domain: [
-                // ["date", ">=", strStart], // Depuis le début de notre analyse
-                // ["state", "=", "done"],   // Seulement les mouvements terminés
-                ["product_id", "in", batchIds]
-            ],
-            fields: ["date", "product_id", "product_uom_qty", "location_id", "location_dest_id"]
-        });
-        allMoves = allMoves.concat(batch);
-    }
-
-    return { moves: allMoves, internalLocs: internalLocIds };
+  return { moves: allMoves, internalLocs: internalLocIds };
 }
 
 async function getFilterOptions(productIds: number[]) {
@@ -365,7 +365,7 @@ async function getFilterOptions(productIds: number[]) {
 
   for (let i = 0; i < productIds.length; i += BATCH_SIZE) {
     const batchIds = productIds.slice(i, i + BATCH_SIZE);
-    const batchColor = await odooJsonCLient.readGroup<{x_studio_many2one_field_Arl5D: [number, string]}>("product.product", {
+    const batchColor = await odooJsonCLient.readGroup<{ x_studio_many2one_field_Arl5D: [number, string] }>("product.product", {
       domain: [
         ["id", "in", batchIds]
       ],
@@ -373,7 +373,7 @@ async function getFilterOptions(productIds: number[]) {
       groupby: ["x_studio_many2one_field_Arl5D"]
     })
 
-    const batchBrand = await odooJsonCLient.readGroup<{x_studio_many2one_field_21bvh: [number, string]}>("product.product", {
+    const batchBrand = await odooJsonCLient.readGroup<{ x_studio_many2one_field_21bvh: [number, string] }>("product.product", {
       domain: [
         ["id", "in", batchIds]
       ],
@@ -418,83 +418,83 @@ async function getFilterOptions(productIds: number[]) {
 
 // --- ORCHESTRATION ---
 async function getData(month: string, year: string, filters: any) {
-    const products = await getProducts(filters);
-    const groupedProducts = groupProductsByHsCode(products);
-    const allProductIds = groupedProducts.flatMap(g => g.productIds);
-    const filterOptions = await getFilterOptions(allProductIds)
+  const products = await getProducts(filters);
+  const groupedProducts = groupProductsByHsCode(products);
+  const allProductIds = groupedProducts.flatMap(g => g.productIds);
+  const filterOptions = await getFilterOptions(allProductIds)
 
-    if (allProductIds.length === 0) {
-        return { 
-            enrichedData: [], 
-            filterOptions 
-        };
-    }
+  if (allProductIds.length === 0) {
+    return {
+      enrichedData: [],
+      filterOptions
+    };
+  }
 
-    const salesLines = await getSalesData(month, year, allProductIds)
-    const stockMap = await getCurrentStock(allProductIds)
-    const { moves, internalLocs } = await getStockMoves(month, year, allProductIds)
+  const salesLines = await getSalesData(month, year, allProductIds)
+  const stockMap = await getCurrentStock(allProductIds)
+  const { moves, internalLocs } = await getStockMoves(month, year, allProductIds)
 
-    // Génération de la liste des mois clés pour l'algo de reverse calculation
-    const monthsRange: string[] = [];
-    const refDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-    for (let i = 5; i >= 0; i--) {
-        monthsRange.push(format(subMonths(refDate, i), 'yyyy-MM'));
-    }
+  // Génération de la liste des mois clés pour l'algo de reverse calculation
+  const monthsRange: string[] = [];
+  const refDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+  for (let i = 5; i >= 0; i--) {
+    monthsRange.push(format(subMonths(refDate, i), 'yyyy-MM'));
+  }
 
-    // Fusion et calculs
-    const enrichedData = enrichGroupsWithData(
-        groupedProducts, 
-        salesLines, 
-        stockMap, 
-        moves, 
-        internalLocs, 
-        monthsRange
-    );
-    
-    return { enrichedData, filterOptions };
+  // Fusion et calculs
+  const enrichedData = enrichGroupsWithData(
+    groupedProducts,
+    salesLines,
+    stockMap,
+    moves,
+    internalLocs,
+    monthsRange
+  );
+
+  return { enrichedData, filterOptions };
 }
 
 export default async function WomenSalesTrendPage({ searchParams }: SearchParamsProps) {
-    const params = await searchParams;
-    const month = params.month || format(new Date(), "MM");
-    const year = params.year || format(new Date(), "yyyy");
+  const params = await searchParams;
+  const month = params.month || format(new Date(), "MM");
+  const year = params.year || format(new Date(), "yyyy");
 
-    const filters = {
-        q: params.q,
-        color: params.color,      // IDs séparés par virgule
-        category: params.category, // IDs séparés par virgule
-        brand: params.brand,
-    };
+  const filters = {
+    q: params.q,
+    color: params.color,      // IDs séparés par virgule
+    category: params.category, // IDs séparés par virgule
+    brand: params.brand,
+  };
 
-    const { enrichedData, filterOptions } = await getData(month, year, filters);
+  const { enrichedData, filterOptions } = await getData(month, year, filters);
 
-    return (
-        <div className="space-y-6 pb-10">
-            <div className="flex flex-col md:flex-row justify-between items-end gap-4">
-                <div className="flex-1 w-full space-y-4">
-                    <h1 className="text-2xl font-black text-slate-900 italic uppercase tracking-tighter">
-                        Trend <span className="text-rose-600">Femme</span> 6 Mois
-                    </h1>
+  return (
+    <div className="space-y-6 pb-10">
+      <div className="flex flex-col md:flex-row justify-between items-end gap-4">
+        <div className="flex-1 w-full space-y-4">
+          <h1 className="text-2xl font-black text-slate-900 italic uppercase tracking-tighter">
+            Trend <span className="text-rose-600">Femme</span> 6 Mois
+          </h1>
 
-                    <div className="max-w-3xl">
-                        <RevenueSmartFilter                        
-                            categories={filterOptions.categories}
-                            colors={filterOptions.colors}
-                            brands={filterOptions.brands}
-                            // suppliers={filterOptions.suppliers} // Si vous l'ajoutez
-                        />
-                    </div>
-                </div>
-                <RevenueDateFilter />
-            </div>
-            
-            <Suspense key={`${month}-${year}`} fallback={<Loader placeholder="Analyse des stocks et ventes..." />}>
-                <BeautySalesContent 
-                    data={enrichedData}
-                    month={month}
-                    year={year}
-                />
-            </Suspense>
+          <div className="max-w-3xl">
+            <RevenueSmartFilter
+              categories={filterOptions.categories}
+              colors={filterOptions.colors}
+              brands={filterOptions.brands}
+            // suppliers={filterOptions.suppliers} // Si vous l'ajoutez
+            />
+          </div>
         </div>
-    );
+        <RevenueDateFilter />
+      </div>
+
+      <Suspense key={`${month}-${year}`} fallback={<Loader placeholder="Analyse des stocks et ventes..." />}>
+        <BeautySalesContent
+          data={enrichedData}
+          month={month}
+          year={year}
+        />
+      </Suspense>
+    </div>
+  );
 }

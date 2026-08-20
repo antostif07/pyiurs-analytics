@@ -1,5 +1,5 @@
+import { getInventoryMetadata } from "@/app/inventory/_lib/actions/inventory-actions";
 import { useQuery } from "@tanstack/react-query";
-import { getInventoryMetadata } from "@/app/actions/odoo";
 
 export function useInventoryMetadata() {
   return useQuery({

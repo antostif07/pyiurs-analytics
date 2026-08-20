@@ -1,15 +1,13 @@
 "use client";
-import { useState } from "react";
-import { toast } from "sonner";
-import { NAV_GROUPS } from "@/app/inventory/config";
 import { motion } from "framer-motion";
 import { Construction } from "lucide-react";
 import { usePathname } from "next/navigation";
+import { INVENTORY_NAV_GROUPS } from "@/app/inventory/config";
 
 export default function ComingSoonPage() {
-    const pathname = usePathname();
-    const allItems = NAV_GROUPS.flatMap((g) => g.items);
-    const match = allItems.find((i) => i.path === pathname);
+  const pathname = usePathname();
+  const allItems = INVENTORY_NAV_GROUPS.flatMap((g) => g.items);
+  const match = allItems.find((i) => i.path === pathname);
 
   return (
     <div className="flex items-center justify-center min-h-[calc(100vh-56px)] px-8">

@@ -42,7 +42,7 @@ export const CDF_DENOMINATIONS: Denomination[] = [
 ];
 
 // ✅ Aligné strictement sur la contrainte de clé CHECK PostgreSQL : profiles_role_check
-export type UserRole = "admin" | "manager" | "financier" | "user" | "inventory-manager";
+export type UserRole = "admin" | "manager" | "financier" | "user" | "inventory-manager" | "inventory_manager";
 
 export interface AppModule {
   id: string;

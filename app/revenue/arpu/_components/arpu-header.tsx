@@ -10,26 +10,26 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuLabel, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
-import { 
-  Popover, 
-  PopoverContent, 
-  PopoverTrigger 
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger
 } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar"; 
+import { Calendar } from "@/components/ui/calendar";
 import { format, subDays, startOfToday, startOfMonth, endOfMonth, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { DateRange } from "react-day-picker";
 import { toast } from "sonner";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useInventory } from "@/hooks/use-inventory";
+import { useInventory } from "@/app/inventory/_lib/hooks/use-inventory";
 
 const DATE_PRESETS = [
   { label: "Aujourd'hui", value: "today", days: 0 },
@@ -41,7 +41,7 @@ export default function DashboardHeader({ onExport }: { onExport: (f: "CSV" | "P
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  
+
   // Hook de synchronisation Odoo
   const { refreshAll, lastUpdatedAt, isLoading } = useInventory();
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
@@ -50,7 +50,7 @@ export default function DashboardHeader({ onExport }: { onExport: (f: "CSV" | "P
   const fromParam = searchParams.get("from");
   const toParam = searchParams.get("to");
   const currentPreset = searchParams.get("preset") || "30d";
-  
+
   const dateRange: DateRange = {
     from: fromParam ? parseISO(fromParam) : startOfMonth(new Date()),
     to: toParam ? parseISO(toParam) : endOfMonth(new Date()),
@@ -111,11 +111,11 @@ export default function DashboardHeader({ onExport }: { onExport: (f: "CSV" | "P
       <div>
         <div className="flex items-center gap-3 mb-1">
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Intelligence ARPU</h1>
-            {/* subtitle="Analyse de la rentabilité par utilisateur et efficacité du pricing" */}
+          {/* subtitle="Analyse de la rentabilité par utilisateur et efficacité du pricing" */}
           <Badge variant="outline" className="text-emerald-600 border-emerald-200 bg-emerald-50/50 flex items-center gap-1.5 px-2 py-0.5">
             <span className={cn(
-                "w-1.5 h-1.5 rounded-full bg-emerald-500",
-                (isLoading || isManualRefreshing) && "animate-ping"
+              "w-1.5 h-1.5 rounded-full bg-emerald-500",
+              (isLoading || isManualRefreshing) && "animate-ping"
             )} />
             Live Odoo
           </Badge>
@@ -123,16 +123,16 @@ export default function DashboardHeader({ onExport }: { onExport: (f: "CSV" | "P
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Clock className="w-3.5 h-3.5" />
           <p>
-            {lastUpdatedAt 
-                ? `Mis à jour à ${format(lastUpdatedAt, "HH:mm:ss", { locale: fr })}` 
-                : "Synchronisation en cours..."}
+            {lastUpdatedAt
+              ? `Mis à jour à ${format(lastUpdatedAt, "HH:mm:ss", { locale: fr })}`
+              : "Synchronisation en cours..."}
           </p>
         </div>
       </div>
 
       {/* DROITE : Contrôles et Filtres Temporels */}
       <div className="flex flex-wrap items-center gap-2">
-        
+
         {/* Sélecteur de Presets Rapides */}
         <div className="flex items-center gap-1 bg-muted/50 border border-border p-1 rounded-xl">
           {DATE_PRESETS.map((p) => (
@@ -187,15 +187,15 @@ export default function DashboardHeader({ onExport }: { onExport: (f: "CSV" | "P
           <div className="hidden xl:flex flex-col items-end mr-2">
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Période d'analyse</span>
             <span className="text-xs font-medium">
-              {dateRange.from ? format(dateRange.from, "dd MMM", { locale: fr }) : "?"} 
-              {" — "} 
+              {dateRange.from ? format(dateRange.from, "dd MMM", { locale: fr }) : "?"}
+              {" — "}
               {dateRange.to ? format(dateRange.to, "dd MMM yyyy", { locale: fr }) : "En cours"}
             </span>
           </div>
 
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             className="h-9 gap-2 text-xs border-border hover:bg-accent"
             onClick={handleManualRefresh}
             disabled={isManualRefreshing || isLoading}

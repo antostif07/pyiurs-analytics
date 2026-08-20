@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Trash2, Loader2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
-import { deleteAuditSessionAction } from "../audits-actions";
+import { deleteAuditSessionAction } from "../_lib/audits-actions";
 
 interface DeleteAuditButtonProps {
     auditId: string;

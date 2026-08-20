@@ -1,8 +1,7 @@
-import { unstable_cache } from "next/cache";
-import { 
-  extractBoutiqueCode, 
-  extractBrandFromProduct, 
-  extractColorFromProduct 
+import {
+  extractBoutiqueCode,
+  extractBrandFromProduct,
+  extractColorFromProduct
 } from "@/lib/utils";
 import { StockQuant } from "../types/stock";
 import { POSOrderLine } from "../types/pos";
@@ -16,7 +15,6 @@ import { odooClient as odooJsonCLient } from "@/lib/odoo/odoo-json2-client";
 const extractCategoryName = (categId: any): string => {
   if (Array.isArray(categId) && categId.length > 1) {
     const fullName = categId[1];
-    // Optionnel : on ne garde que le dernier segment (ex: "All / Skin / Cream" -> "Cream")
     const segments = fullName.split(' / ');
     return segments[segments.length - 1];
   }
@@ -25,7 +23,7 @@ const extractCategoryName = (categId: any): string => {
 
 // --- Fonctions d'appel API (Privées au module) ---
 async function getProducts(): Promise<OdooProductTemplate[]> {
-  const pageSize = 1000; // nombre max par page pour éviter timeout
+  const pageSize = 1000;
   let offset = 0;
   let allProducts: OdooProductTemplate[] = [];
 
@@ -59,7 +57,7 @@ async function getProducts(): Promise<OdooProductTemplate[]> {
 
     allProducts = allProducts.concat(batch);
 
-    if (batch.length < pageSize) break; // dernière page
+    if (batch.length < pageSize) break;
     offset += pageSize;
   }
 
@@ -82,14 +80,14 @@ async function getStockQuantsForProducts(productIds: number[]): Promise<{ record
       const res = await odooJsonCLient.searchRead<StockQuant>('stock.quant', {
         domain: [
           ['product_id', 'in', batch],
-          ['location_id', 'in', [8,58,62,89,99,100,105,107,121,160,169,170,180,225,226,231,232,244,245,259,261,293]],
+          ['location_id', 'in', [8, 58, 62, 89, 99, 100, 105, 107, 121, 160, 169, 170, 180, 225, 226, 231, 232, 244, 245, 259, 261, 293]],
         ],
         fields: "id,product_id,location_id,quantity".split(',')
-      })
-      
+      });
+
       allResults.push(...res);
     }
-    
+
     return { success: true, records: allResults };
   } catch (error) {
     console.error('❌ Erreur lors de la récupération des stocks quant:', error);
@@ -97,20 +95,21 @@ async function getStockQuantsForProducts(productIds: number[]): Promise<{ record
   }
 }
 
+// ✅ AJOUT DE 'partner_id' POUR RÉCUPÉRER LE FOURNISSEUR
 async function getPurchaseOrderLines() {
   const res = await odooJsonCLient.searchRead('purchase.order.line', {
     domain: [
-      ['partner_id', 'not ilike','pb - bc'],
-      ['partner_id', "not ilike",["pb - 24"]],
-      ['partner_id', "not ilike",["pb - mto"]],
-      ['partner_id', "not ilike",["pb - lmb"]],
-      ['partner_id', "not ilike",["pb - ktm"]],
+      ['partner_id', 'not ilike', 'pb - bc'],
+      ['partner_id', "not ilike", ["pb - 24"]],
+      ['partner_id', "not ilike", ["pb - mto"]],
+      ['partner_id', "not ilike", ["pb - lmb"]],
+      ['partner_id', "not ilike", ["pb - ktm"]],
       ["partner_id", "not in", [24099, 23705, 1, 23706, 23707, 23708, 27862]]
     ],
-    fields: ["id", "product_id", "product_qty", "qty_received", "price_unit", "price_unit", "order_id"] 
-  })
+    fields: ["id", "product_id", "product_qty", "qty_received", "price_unit", "order_id", "partner_id"]
+  });
 
-  return res as any[]
+  return res as any[];
 }
 
 async function getPOSOrderLines(productIds: number[]): Promise<POSOrderLine[]> {
@@ -125,24 +124,22 @@ async function getPOSOrderLines(productIds: number[]): Promise<POSOrderLine[]> {
 
     const allResults = [];
     for (const batch of batches) {
-      const result = await odooJsonCLient.searchRead('pos.order.line', 
+      const result = await odooJsonCLient.searchRead('pos.order.line',
         {
-          domain:  [['product_id', 'in', batch]], 
-          fields: ['id', 'qty', 'product_id', 'create_date'] 
+          domain: [['product_id', 'in', batch]],
+          fields: ['id', 'qty', 'product_id', 'create_date']
         }
       ) as POSOrderLine[];
-      
-      // if (!result.success) throw new Error(`Erreur POS fetch: ${result.error}`);
+
       allResults.push(...result);
     }
-    return allResults as POSOrderLine[]
+    return allResults as POSOrderLine[];
   } catch (error) {
     console.error('❌ Erreur lors de la récupération des ventes POS:', error);
-    return []
+    return [];
   }
 }
 
-// Fonction interne qui fait le gros travail
 export async function fetchAndProcessStockData() {
   const products = await getProducts();
   const categoryMap = new Map<number, string>();
@@ -150,7 +147,7 @@ export async function fetchAndProcessStockData() {
     categoryMap.set(p.id, extractCategoryName(p.categ_id));
   });
   const allProductIds = products.map((product: OdooProductTemplate) => product.product_variant_id![0]);
-  const productsData = products.map((p) => mapOdooProduct(p))
+  const productsData = products.map((p) => mapOdooProduct(p));
 
   const purchaseOrderLines = await getPurchaseOrderLines();
   const posOrderLines = await getPOSOrderLines(allProductIds);
@@ -169,26 +166,27 @@ export async function fetchAndProcessStockData() {
   stockQuants.records.forEach((quant: StockQuant) => {
     const productId = quant.product_id[0];
     const locationName = quant.location_id[1];
-    
+
     const quantity = quant.quantity;
     const boutiqueCode = extractBoutiqueCode(locationName);
-    
+
     const currentStock = stockByProductAndBoutique.get(productId);
-    if(currentStock) {
-        if (['P24', 'ktm', 'mto', 'onl', 'dc', 'lmb'].includes(boutiqueCode)) {
-            currentStock[boutiqueCode] += quantity;
-        } else {
-            currentStock.other += quantity;
-        }
-        currentStock.total += quantity;
+    if (currentStock) {
+      if (['P24', 'ktm', 'mto', 'onl', 'dc', 'lmb'].includes(boutiqueCode)) {
+        currentStock[boutiqueCode] += quantity;
+      } else {
+        currentStock.other += quantity;
+      }
+      currentStock.total += quantity;
     }
   });
 
-  const groupedData: ControlStockBeautyModel[] = [];
+  const groupedData: (ControlStockBeautyModel & { supplier?: string })[] = [];
   const groupedMap = new Map<string, Product[]>();
   const brandsSet = new Set<string>();
   const colorsSet = new Set<string>();
   const categoriesSet = new Set<string>();
+  const suppliersSet = new Set<string>(); // ✅ Set pour stocker les fournisseurs uniques
 
   productsData.forEach((product: Product) => {
     const key = product.hs_code || "UNKNOWN";
@@ -205,13 +203,22 @@ export async function fetchAndProcessStockData() {
     const cleanName = firstProduct.name.split("[").shift()?.trim();
     const brand = extractBrandFromProduct(productsGroup[0]);
     const color = extractColorFromProduct(productsGroup[0]);
-    const name = `${cleanName} - ${hs_code} - (${productsGroup[0].listPrice}$)`;    
+    const name = `${cleanName} - ${hs_code} - (${productsGroup[0].listPrice}$)`;
     const category = categoryMap.get(firstProduct.id) || "Non classé";
 
     const relatedLines = purchaseOrderLines.filter(
       (line: PurchaseOrderLine) =>
         line.product_id && productsGroup.some((p) => p.productVariantId === line.product_id[0])
     );
+
+    // ✅ EXTRACTION DU NOM DU FOURNISSEUR
+    let supplierName = "Non défini";
+    const lineWithSupplier = relatedLines.find((l: any) => l.partner_id && Array.isArray(l.partner_id));
+    if (lineWithSupplier) {
+      supplierName = lineWithSupplier.partner_id[1];
+    }
+    suppliersSet.add(supplierName);
+
     const relatedPosLines = posOrderLines.filter(
       (line: POSOrderLine) =>
         line.product_id && productsGroup.some((p) => p.productVariantId === line.product_id[0])
@@ -230,7 +237,7 @@ export async function fetchAndProcessStockData() {
       };
 
       Object.keys(groupStock).forEach(k => groupStock[k as keyof typeof groupStock] += productStock[k as keyof typeof groupStock]);
-      
+
       return {
         id: product.id,
         name: product.name,
@@ -254,12 +261,11 @@ export async function fetchAndProcessStockData() {
     });
 
     const sales30Days = productsGroup.reduce((total, product) => total + (salesLast30Days.get(product.productVariantId!) || 0), 0);
-    
-    // Trouver la date de vente la plus récente
+
     let lastSaleDate: Date | null = null;
     productsGroup.forEach(p => {
-        const d = lastSaleDates.get(p.productVariantId!);
-        if (d && (!lastSaleDate || d > lastSaleDate)) lastSaleDate = d;
+      const d = lastSaleDates.get(p.productVariantId!);
+      if (d && (!lastSaleDate || d > lastSaleDate)) lastSaleDate = d;
     });
 
     const replenishmentMetrics = calculateReplenishmentMetrics(groupStock.total, sales30Days);
@@ -269,6 +275,7 @@ export async function fetchAndProcessStockData() {
       name,
       brand,
       color,
+      supplier: supplierName, // ✅ Champ Fournisseur ajouté au modèle
       product_qty,
       category,
       qty_received,
@@ -299,5 +306,6 @@ export async function fetchAndProcessStockData() {
     brands: Array.from(brandsSet).sort(),
     colors: Array.from(colorsSet).sort(),
     categories: Array.from(categoriesSet).sort(),
+    suppliers: Array.from(suppliersSet).filter(Boolean).sort(), // ✅ Retour des fournisseurs
   };
 }

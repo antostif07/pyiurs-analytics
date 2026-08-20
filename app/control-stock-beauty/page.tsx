@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { TableSkeleton } from "./table-skeleton";
 import Link from "next/link";
 import { ExpandableDataTable } from "./data-table";
-import { fetchAndProcessStockData, } from "./services";
+import { fetchAndProcessStockData } from "./services";
 import { Legend } from "./components/legend";
 import { LevelCard } from "./components/level-card";
 import { ExportExcelButton } from "./components/export-excel-button";
@@ -15,7 +15,8 @@ interface PageProps {
   searchParams: Promise<{
     brand?: string;
     color?: string;
-    category?: string; // Ajouté
+    category?: string;
+    supplier?: string; // ✅ NOUVEAU PARAMÈTRE D'URL
     stock?: string;
   }>;
 }
@@ -24,10 +25,11 @@ export default async function ControlStockBeautyPage({ searchParams }: PageProps
   const params = await searchParams;
   const selectedBrand = params.brand;
   const selectedColor = params.color;
-  const selectedCategory = params.category; // Ajouté
+  const selectedCategory = params.category;
+  const selectedSupplier = params.supplier; // ✅ NOUVEAU
   const selectedStock = params.stock;
 
-  const { data: allData, brands, colors, categories } = await fetchAndProcessStockData();
+  const { data: allData, brands, colors, categories, suppliers } = await fetchAndProcessStockData();
 
   let filteredData = allData;
 
@@ -39,9 +41,13 @@ export default async function ControlStockBeautyPage({ searchParams }: PageProps
     filteredData = filteredData.filter(item => item.color === selectedColor);
   }
 
-  // Nouveau filtre catégorie
   if (selectedCategory && selectedCategory !== 'all') {
     filteredData = filteredData.filter(item => item.category === selectedCategory);
+  }
+
+  // ✅ FILTRE PAR FOURNISSEUR
+  if (selectedSupplier && selectedSupplier !== 'all') {
+    filteredData = filteredData.filter(item => item.supplier === selectedSupplier);
   }
 
   if (selectedStock && selectedStock !== 'all') {
@@ -56,32 +62,42 @@ export default async function ControlStockBeautyPage({ searchParams }: PageProps
     }
   }
 
-  // Calcul des options filtrées (Cross-filtering)
+  // Calcul des options filtrées (Cross-filtering récursif)
   const getFilteredOptions = () => {
     let dataForBrands = allData;
     let dataForColors = allData;
     let dataForCategories = allData;
+    let dataForSuppliers = allData;
 
-    // Pour les marques : on filtre par couleur et catégorie
+    // Pour les marques
     if (selectedColor && selectedColor !== 'all') dataForBrands = dataForBrands.filter(item => item.color === selectedColor);
     if (selectedCategory && selectedCategory !== 'all') dataForBrands = dataForBrands.filter(item => item.category === selectedCategory);
+    if (selectedSupplier && selectedSupplier !== 'all') dataForBrands = dataForBrands.filter(item => item.supplier === selectedSupplier);
 
-    // Pour les couleurs : on filtre par marque et catégorie
+    // Pour les couleurs
     if (selectedBrand && selectedBrand !== 'all') dataForColors = dataForColors.filter(item => item.brand === selectedBrand);
     if (selectedCategory && selectedCategory !== 'all') dataForColors = dataForColors.filter(item => item.category === selectedCategory);
+    if (selectedSupplier && selectedSupplier !== 'all') dataForColors = dataForColors.filter(item => item.supplier === selectedSupplier);
 
-    // Pour les catégories : on filtre par marque et couleur
+    // Pour les catégories
     if (selectedBrand && selectedBrand !== 'all') dataForCategories = dataForCategories.filter(item => item.brand === selectedBrand);
     if (selectedColor && selectedColor !== 'all') dataForCategories = dataForCategories.filter(item => item.color === selectedColor);
+    if (selectedSupplier && selectedSupplier !== 'all') dataForCategories = dataForCategories.filter(item => item.supplier === selectedSupplier);
+
+    // Pour les fournisseurs
+    if (selectedBrand && selectedBrand !== 'all') dataForSuppliers = dataForSuppliers.filter(item => item.brand === selectedBrand);
+    if (selectedColor && selectedColor !== 'all') dataForSuppliers = dataForSuppliers.filter(item => item.color === selectedColor);
+    if (selectedCategory && selectedCategory !== 'all') dataForSuppliers = dataForSuppliers.filter(item => item.category === selectedCategory);
 
     return {
       filteredBrands: [...new Set(dataForBrands.map(item => item.brand))].sort(),
       filteredColors: [...new Set(dataForColors.map(item => item.color))].sort(),
-      filteredCategories: [...new Set(dataForCategories.map(item => item.category))].sort()
+      filteredCategories: [...new Set(dataForCategories.map(item => item.category))].sort(),
+      filteredSuppliers: [...new Set(dataForSuppliers.map(item => item.supplier).filter((s): s is string => Boolean(s)))].sort(),
     };
   };
 
-  const { filteredBrands, filteredColors, filteredCategories } = getFilteredOptions();
+  const { filteredBrands, filteredColors, filteredCategories, filteredSuppliers } = getFilteredOptions();
 
   // Metrics UI
   const totalProducts = filteredData.length;
@@ -99,6 +115,7 @@ export default async function ControlStockBeautyPage({ searchParams }: PageProps
   if (selectedCategory && selectedCategory !== 'all') activeFilters.push(selectedCategory);
   if (selectedBrand && selectedBrand !== 'all') activeFilters.push(selectedBrand);
   if (selectedColor && selectedColor !== 'all') activeFilters.push(selectedColor);
+  if (selectedSupplier && selectedSupplier !== 'all') activeFilters.push(`Fournisseur: ${selectedSupplier}`);
   if (selectedStock && selectedStock !== 'all') activeFilters.push(selectedStock);
 
   return (
@@ -139,22 +156,25 @@ export default async function ControlStockBeautyPage({ searchParams }: PageProps
           <CompactFilters
             brands={brands}
             colors={colors}
-            categories={categories} // Ajouté
+            categories={categories}
+            suppliers={suppliers} // ✅ PASSE DES FOURNISSEURS
             selectedBrand={selectedBrand}
             selectedColor={selectedColor}
-            selectedCategory={selectedCategory} // Ajouté
+            selectedCategory={selectedCategory}
+            selectedSupplier={selectedSupplier} // ✅
             selectedStock={selectedStock}
             stockLevels={stockLevels}
             filteredBrands={filteredBrands}
             filteredColors={filteredColors}
-            filteredCategories={filteredCategories} // Ajouté
+            filteredCategories={filteredCategories}
+            filteredSuppliers={filteredSuppliers} // ✅
           />
         </div>
 
         <StockLevelGrid stockLevels={stockLevels} />
 
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-gray-200 dark:border-slate-700 overflow-hidden mt-6">
-          <div className="px-4 py-3 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-700/50">
+          <div className="px-4 py-3 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-700/50 flex items-center justify-between">
             <h2 className="text-base font-semibold text-gray-900 dark:text-white">
               Inventaire des Produits
             </h2>
@@ -179,8 +199,6 @@ export default async function ControlStockBeautyPage({ searchParams }: PageProps
     </main>
   );
 }
-
-// --- Composants UI internes ---
 
 function StatBadge({ label, value, colorClass }: { label: string, value: number, colorClass: string }) {
   return (

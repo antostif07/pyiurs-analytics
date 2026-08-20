@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getInventoryMetadata } from "@/app/actions/odoo";
+import { getInventoryMetadata } from "../actions/inventory-actions";
 
 export function useInventory() {
   const queryClient = useQueryClient();
@@ -16,14 +16,14 @@ export function useInventory() {
   const refreshAll = async () => {
     // On invalide les métadonnées (boutiques)
     await queryClient.invalidateQueries({ queryKey: ["inventory-metadata"] });
-    
+
     // On invalide les KPIs (les données calculées)
     await queryClient.invalidateQueries({ queryKey: ["kpis"] });
-    
+
     // On invalide les futures tables ou graphiques
     await queryClient.invalidateQueries({ queryKey: ["stock-table"] });
     await queryClient.invalidateQueries({ queryKey: ["analytics"] });
-    
+
     console.log("Dashboard Odoo synchronisé à :", new Date().toLocaleTimeString());
   };
 
@@ -31,12 +31,12 @@ export function useInventory() {
     // Données
     warehouses: metadataQuery.data?.warehouses || [],
     categories: metadataQuery.data?.categories || [],
-    
+
     // États
     isLoading: metadataQuery.isLoading,
     isError: metadataQuery.isError,
     lastUpdatedAt: metadataQuery.dataUpdatedAt, // L'heure réelle de la dernière réception de données
-    
+
     // Actions
     refreshAll,
   };
