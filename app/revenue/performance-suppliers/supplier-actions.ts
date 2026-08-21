@@ -25,23 +25,23 @@ export async function getSupplierPerformanceData(
     const endDate = format(endOfMonth(selectedDate), 'yyyy-MM-dd 23:59:59');
 
     try {
+
         // 1. RÉCUPÉRATION DES VENTES POS ET DES LIGNES D'ACHATS
-        const [salesLines, purchaseLines] = await Promise.all([
-            odooJsonClient.searchRead<any>("pos.order.line", {
-                domain: [
-                    ["order_id.state", "in", ["paid", "done", "invoiced"]],
-                    ["create_date", ">=", startDate],
-                    ["create_date", "<=", endDate]
-                ],
-                fields: ["product_id", "qty", "price_subtotal_incl", "create_date"]
-            }),
-            odooJsonClient.searchRead<any>("purchase.order.line", {
-                domain: [
-                    ["order_id.state", "in", ["purchase", "done"]]
-                ],
-                fields: ["product_id", "partner_id", "price_subtotal", "order_id"]
-            })
-        ]);
+        const salesLines = await odooJsonClient.searchRead<any>("pos.order.line", {
+            domain: [
+                ["order_id.state", "in", ["paid", "done", "invoiced"]],
+                ["create_date", ">=", startDate],
+                ["create_date", "<=", endDate]
+            ],
+            fields: ["product_id", "qty", "price_subtotal_incl", "create_date"]
+        });
+
+        const purchaseLines = await odooJsonClient.searchRead<any>("purchase.order.line", {
+            domain: [
+                ["order_id.state", "in", ["purchase", "done"]]
+            ],
+            fields: ["product_id", "partner_id", "price_subtotal", "order_id"]
+        });
 
         // ✅ 2. LECTURE DE L'EN-TÊTE purchase.order POUR x_studio_date_commande_1 ET currency_id
         const uniqueOrderIds = [...new Set(
