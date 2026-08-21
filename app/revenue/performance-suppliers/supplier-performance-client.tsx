@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
     useReactTable,
     getCoreRowModel,
@@ -11,6 +12,7 @@ import {
     ColumnDef,
 } from "@tanstack/react-table";
 import { SupplierMonthlyPerformance } from "./supplier-helpers";
+import { getSupplierPerformanceData } from "./supplier-actions";
 import {
     Table,
     TableBody,
@@ -32,12 +34,15 @@ import {
     ChevronRight,
     Download,
     Loader2,
+    RotateCw,
+    AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import Loader from "@/components/loader";
 
-interface SupplierTableProps {
-    suppliers: SupplierMonthlyPerformance[];
-    columns: { key: string; label: string }[];
+interface SupplierPerformanceClientProps {
+    month: string;
+    year: string;
 }
 
 const formatUSD = (amount: number) => {
@@ -48,8 +53,29 @@ const formatUSD = (amount: number) => {
     }).format(amount);
 };
 
-export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
+export function SupplierPerformanceClient({ month, year }: SupplierPerformanceClientProps) {
     const [isExporting, setIsExporting] = useState(false);
+
+    // TanStack Query conserve toute sa puissance technique en coulisses sans rien afficher à l'utilisateur
+    const {
+        data,
+        isPending,
+        isFetching,
+        isError,
+        error,
+        refetch,
+    } = useQuery({
+        queryKey: ["supplier-performance", month, year],
+        queryFn: () => getSupplierPerformanceData(month, year),
+        staleTime: 1000 * 60 * 30, // 30 minutes de cache
+        gcTime: 1000 * 60 * 60 * 2,
+        refetchOnWindowFocus: false,
+        retry: 1,
+    });
+
+    const suppliers = data?.suppliers || [];
+    const columns = data?.columns || [];
+
     const [sorting, setSorting] = useState<SortingState>([
         { id: "totalSales", desc: true },
     ]);
@@ -59,10 +85,10 @@ export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
         pageSize: 10,
     });
 
-    // ------------------------------------------------------------------
-    // FONCTION D'EXPORTATION EXCEL
-    // ------------------------------------------------------------------
+    // Exportation Excel
     const handleExportExcel = async () => {
+        if (!suppliers.length) return;
+
         try {
             setIsExporting(true);
             const XLSX = await import("xlsx");
@@ -70,14 +96,14 @@ export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
             const exportData = suppliers.map((s, index) => {
                 const row: Record<string, string | number> = {
                     "#": index + 1,
-                    "Fournisseur": s.supplierName,
-                    "Stock Actuel (Unités)": s.currentStockQty,
-                    "Ventes 3M ($)": Math.round(s.sales3M),
-                    "Achats 3M ($)": Math.round(s.purchases3M),
-                    "Marge 3M (%)": `${s.marginPercent3M}%`,
-                    "CA Total 6M ($)": Math.round(s.totalSales),
-                    "Achats Total 6M ($)": Math.round(s.totalPurchases),
-                    "Marge Total 6M (%)": `${s.totalMarginPercent}%`,
+                    "Fournisseur / Marque": s.supplierName,
+                    "Stock En Magasin (Unités)": s.currentStockQty,
+                    "Ventes 3 Derniers Mois ($)": Math.round(s.sales3M),
+                    "Achats 3 Derniers Mois ($)": Math.round(s.purchases3M),
+                    "Marge Brute 3M (%)": `${s.marginPercent3M}%`,
+                    "Chiffre d'Affaires 6M ($)": Math.round(s.totalSales),
+                    "Achats Totaux 6M ($)": Math.round(s.totalPurchases),
+                    "Marge Brute 6M (%)": `${s.totalMarginPercent}%`,
                 };
 
                 columns.forEach((col) => {
@@ -91,34 +117,26 @@ export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
             });
 
             const worksheet = XLSX.utils.json_to_sheet(exportData);
-
-            // Largeur automatique des colonnes
-            const columnWidths = [
-                { wch: 4 },
-                { wch: 30 },
-                { wch: 20 },
-                { wch: 15 },
-                { wch: 15 },
-                { wch: 12 },
-                { wch: 15 },
-                { wch: 18 },
-                { wch: 15 },
-                ...columns.flatMap(() => [{ wch: 15 }, { wch: 15 }])
+            worksheet["!cols"] = [
+                { wch: 4 }, { wch: 30 }, { wch: 22 },
+                { wch: 22 }, { wch: 22 }, { wch: 18 },
+                { wch: 22 }, { wch: 20 }, { wch: 18 },
+                ...columns.flatMap(() => [{ wch: 16 }, { wch: 16 }])
             ];
-            worksheet["!cols"] = columnWidths;
 
             const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "Performance Fournisseurs");
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Rapport Performance Marques");
 
-            const fileName = `Performance_Fournisseurs_${new Date().toISOString().slice(0, 10)}.xlsx`;
+            const fileName = `Performance_Fournisseurs_${year}_${month}.xlsx`;
             XLSX.writeFile(workbook, fileName);
-        } catch (error) {
-            console.error("[EXCEL_EXPORT_ERROR] Échec lors de la génération Excel:", error);
+        } catch (err) {
+            console.error("[EXCEL_EXPORT_ERROR] Échec lors de la génération du fichier Excel:", err);
         } finally {
             setIsExporting(false);
         }
     };
 
+    // Définition des colonnes orientées Métier
     const tableColumns = useMemo<ColumnDef<SupplierMonthlyPerformance>[]>(() => {
         const supplierCol: ColumnDef<SupplierMonthlyPerformance> = {
             id: "supplierName",
@@ -139,11 +157,11 @@ export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
         const stockCol: ColumnDef<SupplierMonthlyPerformance> = {
             id: "currentStockQty",
             accessorKey: "currentStockQty",
-            header: "Stock",
+            header: "Stock Disponible",
             cell: ({ getValue }) => (
                 <div className="inline-flex items-center justify-end gap-1 font-mono text-xs text-muted-foreground">
                     <Package className="w-3 h-3 text-muted-foreground/40 shrink-0" />
-                    <span>{(getValue<number>() || 0).toLocaleString("fr-FR")}</span>
+                    <span>{(getValue<number>() || 0).toLocaleString("fr-FR")} <span className="text-[10px] text-muted-foreground/60">unités</span></span>
                 </div>
             ),
         };
@@ -151,7 +169,7 @@ export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
         const total3MCol: ColumnDef<SupplierMonthlyPerformance> = {
             id: "sales3M",
             accessorKey: "sales3M",
-            header: "Total 3M ($)",
+            header: "Cumul 3 Mois ($)",
             cell: ({ row }) => {
                 const sales = row.original.sales3M;
                 const purchases = row.original.purchases3M;
@@ -163,13 +181,13 @@ export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
                         <div className="flex items-center gap-1">
                             <span className="font-bold text-foreground text-xs">{formatUSD(sales)}</span>
                             {sales > 0 && (
-                                <span className="text-[9px] font-bold px-1 rounded bg-muted text-foreground">
+                                <span className="text-[9px] font-bold px-1 rounded bg-muted text-foreground" title="Marge brute globale sur 3 mois">
                                     {margin}%
                                 </span>
                             )}
                         </div>
                         <div className="flex items-center gap-1 text-[9px] text-muted-foreground font-light">
-                            <span>Ach: {formatUSD(purchases)}</span>
+                            <span>Achats: {formatUSD(purchases)}</span>
                             <span>•</span>
                             <span>Coût: {formatUSD(cost)}</span>
                         </div>
@@ -192,12 +210,12 @@ export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
                     <div className="flex flex-col items-end gap-0.5 font-mono text-right">
                         <div className="flex items-center gap-1">
                             <span className="font-extrabold text-primary text-xs">{formatUSD(sales)}</span>
-                            <Badge className="text-[8px] bg-primary text-primary-foreground font-bold h-3.5 px-1 border-none">
+                            <Badge className="text-[8px] bg-primary text-primary-foreground font-bold h-3.5 px-1 border-none" title="Taux de marge brute globale 6 mois">
                                 {margin}%
                             </Badge>
                         </div>
                         <div className="flex items-center gap-1 text-[9px] text-primary/80 font-medium">
-                            <span>Ach: {formatUSD(purchases)}</span>
+                            <span>Achats: {formatUSD(purchases)}</span>
                             <span>•</span>
                             <span>Coût: {formatUSD(cost)}</span>
                         </div>
@@ -234,7 +252,7 @@ export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
                             )}
                         </div>
                         <div className="flex items-center gap-1 text-[9px] text-muted-foreground/70 font-light">
-                            <span>Ach: <strong className="text-foreground/80">{formatUSD(purchases)}</strong></span>
+                            <span>Achats: <strong className="text-foreground/80">{formatUSD(purchases)}</strong></span>
                             <span>•</span>
                             <span>Coût: {formatUSD(cost)}</span>
                         </div>
@@ -257,16 +275,31 @@ export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
         getPaginationRowModel: getPaginationRowModel(),
     });
 
-    if (!suppliers || suppliers.length === 0) {
+    // ------------------------------------------------------------------
+    // ÉTATS UX DE CHARGEMENT ET D'ERREUR (SANS JARGON TECHNIQUE)
+    // ------------------------------------------------------------------
+    if (isPending) {
+        return <Loader placeholder="Chargement des indicateurs de vente et de stock..." />;
+    }
+
+    if (isError) {
         return (
-            <div className="text-center py-16 px-4 bg-card rounded-2xl border border-border border-dashed">
-                <Building2 className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-                <h3 className="text-sm font-semibold text-foreground">Aucun fournisseur trouvé</h3>
+            <div className="p-8 text-center bg-card border border-border rounded-2xl shadow-sm space-y-4">
+                <AlertCircle className="w-10 h-10 text-amber-500 mx-auto" />
+                <div>
+                    <h3 className="text-sm font-semibold text-foreground">Données temporairement indisponibles</h3>
+                    <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
+                        Nous n'avons pas pu charger les données de performance pour cette période. Veuillez réessayer ou contacter le support.
+                    </p>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => refetch()} className="cursor-pointer">
+                    Actualiser la page
+                </Button>
             </div>
         );
     }
 
-    // Consolidation Globale
+    // Totaux Consolidés
     const totalSalesAll = suppliers.reduce((sum, s) => sum + s.totalSales, 0);
     const totalPurchasesAll = suppliers.reduce((sum, s) => sum + s.totalPurchases, 0);
     const totalCostAll = suppliers.reduce((sum, s) => sum + s.totalCost, 0);
@@ -280,28 +313,36 @@ export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
 
     return (
         <div className="w-full bg-card text-card-foreground border border-border rounded-2xl shadow-sm overflow-hidden transition-colors duration-150">
-            {/* 1. Entête du Tableau avec Bouton Export Excel */}
+            {/* Header / Bandeau de synthèse */}
             <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-3 bg-muted/20 border-b border-border/80 text-xs">
                 <div className="flex items-center gap-2">
                     <Building2 className="w-4 h-4 text-primary" />
                     <span className="font-semibold text-foreground uppercase tracking-wider text-[11px]">
-                        Performance Fournisseurs Externes
+                        Synthèse des Marques Partenaires
                     </span>
                     <Badge variant="outline" className="text-[9px] font-mono border-primary/30 text-primary">
-                        {suppliers.length} Fournisseurs
+                        {suppliers.length} Marques
                     </Badge>
                 </div>
 
-                <div className="flex items-center gap-4">
-                    <div className="hidden lg:flex items-center gap-4 text-[10px] text-muted-foreground font-light">
-                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-foreground" /> Ventes POS</span>
-                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary" /> Achats Bons de Commande</span>
-                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" /> Marge Brute %</span>
-                    </div>
+                <div className="flex items-center gap-2">
+                    {/* Bouton d'actualisation orienté métier */}
+                    <Button
+                        onClick={() => refetch()}
+                        disabled={isFetching}
+                        size="sm"
+                        variant="ghost"
+                        title="Actualiser les ventes et stocks récents"
+                        className="h-8 gap-1.5 text-xs font-normal text-muted-foreground hover:text-foreground cursor-pointer"
+                    >
+                        <RotateCw className={cn("w-3.5 h-3.5", isFetching && "animate-spin text-primary")} />
+                        <span className="hidden sm:inline">{isFetching ? "Mise à jour..." : "Actualiser"}</span>
+                    </Button>
 
+                    {/* Bouton Export Excel */}
                     <Button
                         onClick={handleExportExcel}
-                        disabled={isExporting}
+                        disabled={isExporting || suppliers.length === 0}
                         size="sm"
                         variant="outline"
                         className="h-8 gap-1.5 text-xs font-medium cursor-pointer hover:bg-primary hover:text-primary-foreground transition-all duration-200"
@@ -311,12 +352,12 @@ export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
                         ) : (
                             <Download className="w-3.5 h-3.5" />
                         )}
-                        <span>{isExporting ? "Exportation..." : "Exporter Excel"}</span>
+                        <span>{isExporting ? "Génération..." : "Exporter en Excel"}</span>
                     </Button>
                 </div>
             </div>
 
-            {/* 2. Zone de Table Defilante */}
+            {/* Zone de Tableau */}
             <div className="max-h-[65vh] overflow-auto scrollbar-thin relative">
                 <Table className="w-full text-left text-xs border-collapse">
                     <TableHeader>
@@ -397,10 +438,11 @@ export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
                         ))}
                     </TableBody>
 
+                    {/* Pied de tableau / Totaux Généraux */}
                     <TableFooter className="sticky bottom-0 z-20 bg-muted/95 backdrop-blur-md font-bold border-t-2 border-border">
                         <TableRow className="hover:bg-transparent border-none">
                             <TableCell className="sticky left-0 z-30 bg-muted/95 py-3.5 px-4 uppercase text-[10px] font-bold text-foreground border-r border-border shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                                Total Consolidation ({suppliers.length})
+                                Consolidation Globale ({suppliers.length})
                             </TableCell>
 
                             <TableCell className="py-3.5 px-4 text-right font-mono text-muted-foreground">
@@ -410,7 +452,7 @@ export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
                             <TableCell className="py-3.5 px-4 text-right font-mono bg-muted/40 border-l border-border/60">
                                 <div className="flex flex-col items-end gap-0.5">
                                     <span className="text-foreground font-bold text-xs">{formatUSD(totalSales3MAll)}</span>
-                                    <span className="text-[9px] text-muted-foreground font-light">Ach: {formatUSD(totalPurchases3MAll)}</span>
+                                    <span className="text-[9px] text-muted-foreground font-light">Achats: {formatUSD(totalPurchases3MAll)}</span>
                                 </div>
                             </TableCell>
 
@@ -420,7 +462,7 @@ export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
                                         <span className="text-primary font-black text-xs">{formatUSD(totalSalesAll)}</span>
                                         <span className="text-[9px] bg-primary text-primary-foreground font-bold px-1 rounded">{globalMarginPercent}%</span>
                                     </div>
-                                    <span className="text-[9px] text-primary/80 font-medium">Ach: {formatUSD(totalPurchasesAll)}</span>
+                                    <span className="text-[9px] text-primary/80 font-medium">Achats: {formatUSD(totalPurchasesAll)}</span>
                                 </div>
                             </TableCell>
 
@@ -437,7 +479,7 @@ export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
                                                 <span className="text-foreground font-semibold text-xs">{formatUSD(sales)}</span>
                                                 {sales > 0 && <span className="text-[9px] text-emerald-600 font-bold">{margin}%</span>}
                                             </div>
-                                            <span className="text-[9px] text-muted-foreground font-light">Ach: {formatUSD(purchases)}</span>
+                                            <span className="text-[9px] text-muted-foreground font-light">Achats: {formatUSD(purchases)}</span>
                                         </div>
                                     </TableCell>
                                 );
@@ -447,7 +489,7 @@ export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
                 </Table>
             </div>
 
-            {/* 3. Navigation / Pagination */}
+            {/* Navigation / Pagination */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-5 py-3 bg-muted/20 border-t border-border/80">
                 <div className="text-xs text-muted-foreground font-light">
                     Affichage de{" "}
@@ -461,7 +503,7 @@ export function SupplierTable({ suppliers, columns }: SupplierTableProps) {
                             suppliers.length
                         )}
                     </strong>{" "}
-                    sur <strong className="text-foreground font-medium">{suppliers.length}</strong> fournisseurs
+                    sur <strong className="text-foreground font-medium">{suppliers.length}</strong> marques
                 </div>
 
                 <div className="flex items-center gap-2">

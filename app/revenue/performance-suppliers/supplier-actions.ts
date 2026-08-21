@@ -10,12 +10,19 @@ export interface SupplierPerformanceResult {
     columns: { key: string; label: string }[];
 }
 
+const EUR_TO_USD_DEFAULT_RATE = 1.2;
+
 export async function getSupplierPerformanceData(
     month: string,
     year: string
 ): Promise<SupplierPerformanceResult> {
     const selectedMonthInt = parseInt(month, 10);
     const selectedYearInt = parseInt(year, 10);
+
+    if (isNaN(selectedMonthInt) || isNaN(selectedYearInt)) {
+        throw new Error("Mois ou année invalide.");
+    }
+
     const selectedDate = new Date(selectedYearInt, selectedMonthInt - 1, 1);
 
     const monthRange = Array.from({ length: 6 }, (_, i) => subMonths(selectedDate, i)).reverse();
@@ -25,8 +32,11 @@ export async function getSupplierPerformanceData(
     const endDate = format(endOfMonth(selectedDate), 'yyyy-MM-dd 23:59:59');
 
     try {
+        // ------------------------------------------------------------------
+        // APPELS ODOO STRICTEMENT SÉQUENTIELS (PAS DE PROMISE.ALL)
+        // ------------------------------------------------------------------
 
-        // 1. RÉCUPÉRATION DES VENTES POS ET DES LIGNES D'ACHATS
+        // Appel 1: Lignes de ventes POS
         const salesLines = await odooJsonClient.searchRead<any>("pos.order.line", {
             domain: [
                 ["order_id.state", "in", ["paid", "done", "invoiced"]],
@@ -36,14 +46,17 @@ export async function getSupplierPerformanceData(
             fields: ["product_id", "qty", "price_subtotal_incl", "create_date"]
         });
 
+        // Appel 2: Lignes d'achats (filtrées par date d'approbation)
         const purchaseLines = await odooJsonClient.searchRead<any>("purchase.order.line", {
             domain: [
-                ["order_id.state", "in", ["purchase", "done"]]
+                ["order_id.state", "in", ["purchase", "done"]],
+                ["date_approve", ">=", startDate],
+                ["date_approve", "<=", endDate]
             ],
             fields: ["product_id", "partner_id", "price_subtotal", "order_id"]
         });
 
-        // ✅ 2. LECTURE DE L'EN-TÊTE purchase.order POUR x_studio_date_commande_1 ET currency_id
+        // Appel 3: En-têtes des bons de commande d'achat
         const uniqueOrderIds = [...new Set(
             purchaseLines
                 .map((p: any) => (p.order_id && Array.isArray(p.order_id) ? p.order_id[0] : null))
@@ -57,10 +70,8 @@ export async function getSupplierPerformanceData(
             })
             : [];
 
-        // Map d'indexation: orderId -> { dateStr, isEUR }
         const orderInfoMap = new Map<number, { dateStr: string; isEUR: boolean }>();
         purchaseOrders.forEach((po: any) => {
-            // ✅ Récupération du champ x_studio_date_commande_1 sur l'en-tête purchase.order
             const dateStr = po.x_studio_date_commande_1 || po.date_approve || po.create_date;
             const currencyRaw = Array.isArray(po.currency_id) ? po.currency_id[1] : (po.currency_id || "");
             const isEUR = typeof currencyRaw === "string" && currencyRaw.toUpperCase().includes("EUR");
@@ -69,15 +80,15 @@ export async function getSupplierPerformanceData(
         });
 
         const productIds = [...new Set([
-            ...salesLines.map((l: any) => l.product_id[0]),
-            ...purchaseLines.map((p: any) => p.product_id ? p.product_id[0] : null).filter(Boolean)
+            ...salesLines.map((l: any) => l.product_id?.[0]).filter(Boolean),
+            ...purchaseLines.map((p: any) => p.product_id?.[0]).filter(Boolean)
         ])];
 
         if (productIds.length === 0) {
             return { suppliers: [], columns: [] };
         }
 
-        // 3. LECTURE DES PRODUITS ET DE LEURS FOURNISSEURS (seller_ids)
+        // Appel 4: Produits
         const products = await odooJsonClient.searchRead<any>("product.product", {
             domain: [["id", "in", productIds]],
             fields: ["id", "name", "seller_ids", "standard_price"]
@@ -87,6 +98,8 @@ export async function getSupplierPerformanceData(
         products.forEach((p: any) => productCostMap.set(p.id, p.standard_price || 0));
 
         const allSellerInfoIds = products.flatMap((p: any) => p.seller_ids || []);
+
+        // Appel 5: Fiches Fournisseurs (product.supplierinfo)
         const supplierInfos = allSellerInfoIds.length > 0
             ? await odooJsonClient.searchRead<any>("product.supplierinfo", {
                 domain: [["id", "in", allSellerInfoIds]],
@@ -119,7 +132,7 @@ export async function getSupplierPerformanceData(
             productToSupplierMap.set(p.id, assignedSupplier);
         });
 
-        // 4. STOCK ACTUEL EN BOUTIQUE
+        // Appel 6: Stock en magasin (stock.quant)
         const stockQuants = await odooJsonClient.searchRead<any>("stock.quant", {
             domain: [
                 ["product_id", "in", productIds],
@@ -134,7 +147,9 @@ export async function getSupplierPerformanceData(
             productStockMap.set(pid, (productStockMap.get(pid) || 0) + q.quantity);
         });
 
-        // 5. AGRÉGATION PAR FOURNISSEUR
+        // ------------------------------------------------------------------
+        // AGRÉGATION MÉTIER
+        // ------------------------------------------------------------------
         const supplierTracker = new Map<string, SupplierMonthlyPerformance>();
 
         const getOrCreateTracker = (id: string, name: string) => {
@@ -160,13 +175,13 @@ export async function getSupplierPerformanceData(
             return supplierTracker.get(key)!;
         };
 
-        // A. Traitement des ACHATS (Croisé avec purchase.order et conversion EUR * 1.2)
+        // Traitement Achats
         purchaseLines.forEach((pLine: any) => {
             const partner = pLine.partner_id;
             if (!partner || !Array.isArray(partner)) return;
 
             const supplierName = partner[1];
-            if (!isExternalSupplier(supplierName)) return; // Exclut PB - *
+            if (!isExternalSupplier(supplierName)) return;
 
             const orderId = pLine.order_id?.[0];
             const orderInfo = orderInfoMap.get(orderId);
@@ -178,8 +193,7 @@ export async function getSupplierPerformanceData(
             const supplierId = String(partner[0]);
             const entry = getOrCreateTracker(supplierId, supplierName);
 
-            // Conversion EUR -> USD (taux 1.2)
-            const conversionRate = orderInfo.isEUR ? 1.2 : 1.0;
+            const conversionRate = orderInfo.isEUR ? EUR_TO_USD_DEFAULT_RATE : 1.0;
             const rawAmount = pLine.price_subtotal || 0;
             const purchaseAmountInUSD = rawAmount * conversionRate;
 
@@ -187,7 +201,7 @@ export async function getSupplierPerformanceData(
             entry.monthlyPurchases[monthKey] = (entry.monthlyPurchases[monthKey] || 0) + purchaseAmountInUSD;
         });
 
-        // B. Traitement des VENTES POS
+        // Traitement Ventes
         salesLines.forEach((sLine: any) => {
             const productId = sLine.product_id[0];
             const supplier = productToSupplierMap.get(productId) || { id: "unknown", name: "Fournisseur Non Spécifié" };
@@ -208,7 +222,7 @@ export async function getSupplierPerformanceData(
             entry.monthlyCost[monthKey] = (entry.monthlyCost[monthKey] || 0) + costAmount;
         });
 
-        // C. Injection du stock
+        // Traitement Stock
         productStockMap.forEach((qty, pid) => {
             const supplier = productToSupplierMap.get(pid);
             if (supplier && isExternalSupplier(supplier.name)) {
@@ -217,7 +231,6 @@ export async function getSupplierPerformanceData(
             }
         });
 
-        // D. Calcul des synthèses 3M et Marges %
         const last3Keys = monthRange.slice(-3).map(d => format(d, "yyyy-MM"));
 
         const suppliersList = Array.from(supplierTracker.values()).map((entry) => {
@@ -244,7 +257,7 @@ export async function getSupplierPerformanceData(
         return { suppliers: suppliersList, columns };
 
     } catch (error) {
-        console.error("[SUPPLIER_ACTIONS_ERROR] Erreur extraction fournisseurs:", error);
+        console.error("[SUPPLIER_ACTIONS_ERROR] Erreur lors de l'extraction séquentielle Odoo:", error);
         return { suppliers: [], columns: [] };
     }
 }
