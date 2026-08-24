@@ -131,7 +131,7 @@ export function ImportExcelDialog({ auditId }: ImportExcelDialogProps) {
             const res = await importExcelBarcodesAction(auditId, extractedBarcodes);
 
             if (res.success) {
-                toast.success(`${res.successCount} articles scannés (1/1) avec succès !`);
+                toast.success(`${res.newlyScannedCount} articles scannés (1/1) avec succès !`);
                 if (res.unknownCount && res.unknownCount > 0) {
                     toast.warning(`${res.unknownCount} codes-barres du fichier sont hors périmètre Odoo.`);
                 }
