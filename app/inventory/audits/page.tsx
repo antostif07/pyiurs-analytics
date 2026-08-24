@@ -23,13 +23,14 @@ import {
     Boxes,
     TrendingDown,
     Lock,
+    ShieldAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DeleteAuditButton } from "./_components/delete-audit-button";
 import { getAllAuditsAction } from "./_lib/audits-actions";
 
 export const metadata: Metadata = {
-    title: "Audits & Inventaires Physiques | Pyiurs Analytics",
+    title: "Audits & Inventaires Physiques | Retail Intelligence",
     description: "Gestion du comptage au scanner et contrôle de la démarque inconnue.",
 };
 
@@ -58,15 +59,60 @@ const formatUSD = (amount: number) => {
 export default async function AuditsListPage() {
     const supabase = await createClient();
 
-    // Chargement en parallèle des audits et des boutiques
-    const [auditsResult, { data: shops }] = await Promise.all([
+    // 1. Récupération du profil de l'utilisateur connecté pour vérifier ses boutiques autorisées
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+        return (
+            <div className="p-8 text-center bg-card border border-border rounded-2xl">
+                <ShieldAlert className="w-10 h-10 text-destructive mx-auto mb-2" />
+                <h3 className="text-sm font-semibold">Accès non autorisé</h3>
+                <p className="text-xs text-muted-foreground">Veuillez vous connecter pour accéder aux audits d'inventaire.</p>
+            </div>
+        );
+    }
+
+    const { data: profile } = await supabase
+        .from("profiles")
+        .select("role, shop_access_type, assigned_shops, assigned_companies")
+        .eq("id", user.id)
+        .single();
+
+    // 2. Requête sécurisée des boutiques selon les droits du profil
+    const allowedShopIds: string[] = Array.isArray(profile?.assigned_shops)
+        ? (profile.assigned_shops as string[]).filter((id): id is string => typeof id === "string")
+        : [];
+
+    const allowedCompanyIds = Array.isArray(profile?.assigned_companies)
+        ? profile.assigned_companies.filter((id: any): id is number => typeof id === "number")
+        : [];
+
+    let shopsQuery = supabase
+        .from("shops")
+        .select("id, name, odoo_company_id")
+        .order("name");
+
+    if (profile?.role !== "admin" && profile?.shop_access_type === "specific") {
+        if (allowedCompanyIds.length > 0) {
+            shopsQuery = shopsQuery.in("odoo_company_id", allowedCompanyIds);
+        } else if (allowedShopIds.length > 0) {
+            shopsQuery = shopsQuery.in("id", allowedShopIds);
+        }
+    }
+
+    const [auditsResult, { data: allowedShops }] = await Promise.all([
         getAllAuditsAction(),
-        supabase.from("shops").select("id, name").order("name"),
+        shopsQuery,
     ]);
 
-    const audits: AuditSession[] = (auditsResult as AuditSession[]) || [];
+    const rawAudits: AuditSession[] = (auditsResult as AuditSession[]) || [];
 
-    // Statistiques globales calculées à la volée
+    // 3. Filtrage côté serveur des audits selon le périmètre de boutiques de l'utilisateur
+    const audits = profile?.shop_access_type === "all" || profile?.role === "admin"
+        ? rawAudits
+        : rawAudits.filter(a => allowedShopIds.includes(a.shop_id));
+
+    // Agrégations
     const totalAudits = audits.length;
     const activeAudits = audits.filter((a) => a.status === "in_progress").length;
     const totalScannedItems = audits.reduce((sum, a) => sum + (a.total_items_scanned || 0), 0);
@@ -74,21 +120,21 @@ export default async function AuditsListPage() {
 
     return (
         <div className="space-y-8 pb-10 animate-in fade-in duration-300">
-            {/* 1. EN-TÊTE AVEC BOUTON DE CRÉATION */}
+            {/* 1. EN-TÊTE ET BOUTON D'AUDIT */}
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-border/60 pb-6">
                 <div>
                     <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground uppercase">
                         Audits & <span className="text-primary font-black">Inventaires Physiques</span>
                     </h1>
                     <p className="text-xs text-muted-foreground font-light mt-1">
-                        Contrôle des stocks unitaires par scanner et suivi analytique de la démarque ($ USD).
+                        Contrôle des stocks unitaires au scanner et suivi analytique de la démarque ($ USD).
                     </p>
                 </div>
 
-                <NewAuditDialog shops={shops || []} />
+                <NewAuditDialog shops={allowedShops || []} />
             </div>
 
-            {/* 2. STATISTIQUES GLOBALES D'INVENTAIRE */}
+            {/* 2. STATISTIQUES GLOBALES */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="p-4 bg-card border border-border/60 rounded-2xl flex items-center gap-3.5 shadow-xs">
                     <div className="p-2.5 rounded-xl bg-primary/10 text-primary shrink-0">
@@ -167,9 +213,9 @@ export default async function AuditsListPage() {
                 {audits.length === 0 ? (
                     <div className="text-center py-16 bg-card border border-border border-dashed rounded-2xl">
                         <ScanLine className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-                        <h3 className="text-sm font-semibold text-foreground">Aucune session d'audit enregistrée</h3>
+                        <h3 className="text-sm font-semibold text-foreground">Aucune session d'audit trouvée</h3>
                         <p className="text-xs text-muted-foreground mt-1 font-light max-w-sm mx-auto">
-                            Cliquez sur "Lancer un Audit Physique" pour démarrer une session de comptage en boutique.
+                            Cliquez sur "Lancer un Audit Physique" pour démarrer une session de comptage dans votre boutique.
                         </p>
                     </div>
                 ) : (
@@ -217,7 +263,7 @@ export default async function AuditsListPage() {
                                                 </div>
                                             </TableCell>
 
-                                            {/* Périmètre / Département */}
+                                            {/* Périmètre */}
                                             <TableCell className="py-3 px-4 font-sans">
                                                 <Badge variant="outline" className="text-[9px] font-medium border-border/80 bg-muted/20">
                                                     {a.department}
@@ -276,7 +322,6 @@ export default async function AuditsListPage() {
                                                         </Button>
                                                     </Link>
 
-                                                    {/* Seuls les audits "En Cours" peuvent être supprimés pour des raisons de sécurité de la donnée Odoo */}
                                                     {!isValidated ? (
                                                         <DeleteAuditButton auditId={a.id} reference={a.reference} />
                                                     ) : (
