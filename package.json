@@ -29,6 +29,7 @@
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-tooltip": "^1.2.8",
+    "@react-pdf/renderer": "^4.9.0",
     "@rlizana/odoo-rpc": "^1.0.7",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.75.0",
