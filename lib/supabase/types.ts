@@ -1,5 +1,10 @@
 import { Database } from "./database.types";
 
+// 1. Types de base des tables
+export type TableRow<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Row'];
+export type TableInsert<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Insert'];
+export type TableUpdate<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Update'];
+
 export type Profile = Database["public"]["Tables"]["profiles"]["Row"]
 export type DocumentColumn = Database["public"]["Tables"]["document_columns"]["Row"]
 export type SubColumn = Database["public"]["Tables"]["sub_columns"]["Row"]
@@ -14,10 +19,22 @@ export type Shop = Database["public"]["Tables"]["shops"]["Row"]
 // Employee
 export type Employee = Database["public"]["Tables"]["employees"]["Row"]
 export type InsertEmployee = Database["public"]["Tables"]["employees"]["Insert"]
-export type EmployeeWithShop = Employee & { shops: { name: string } | null }
+export type EmployeeRow = TableRow<'employees'>;
+export type ShopRow = TableRow<'shops'>;
+export type AttendanceRow = TableRow<'attendances'>;
+export type ProfileRow = TableRow<'profiles'>;
+export type PayslipRow = TableRow<'payslips'>;
+export type EmployeeWithShop = EmployeeRow & {
+  shops: Pick<ShopRow, 'id' | 'name'> | null;
+};
 
 // Attendance
 export type AttendanceStatus = Database["public"]["Enums"]["attendance_status"]
+export type AttendanceWithEmployee = AttendanceRow & {
+  employees: EmployeeRow & {
+    shops: Pick<ShopRow, 'id' | 'name'> | null;
+  };
+};
 export const ATTENDANCE_LABELS: Record<AttendanceStatus, string> = {
   "present": "Présent",
   "absent": "Absent",

@@ -29,7 +29,7 @@ export type NavItem = {
   label: string;
   icon: LucideIcon;
   path: string;
-  badge?: number;
+  badge?: string | number;
   roles?: UserRole[];
 };
 

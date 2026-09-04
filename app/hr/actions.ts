@@ -1,58 +1,105 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { AttendanceStatus, Employee, EmployeeWithShop, InsertEmployee, PaySlip } from "@/lib/supabase/types";
+import { AttendanceStatus, AttendanceWithEmployee, Employee, EmployeeWithShop, InsertEmployee, PaySlip } from "@/lib/supabase/types";
+
+export interface MonthlyAttendanceResponse {
+  attendances: AttendanceWithEmployee[];
+  meta?: {
+    month: string;
+    year: string;
+    totalDays: number;
+    startDate: string;
+    endDate: string;
+  };
+}
 
 /**
- * Récupère la liste paginée des agents avec recherche et tri
- * @param page 
- * @param limit 
- * @param searchQuery 
- * @param sortBy 
- * @param sortOrder 
- * @returns 
+ * Récupère la liste paginée des agents avec recherche, tri et filtre par boutique
+ * @param page Numéro de page (1-indexé)
+ * @param limit Nombre d'éléments par page
+ * @param searchQuery Terme de recherche (nom, matricule, email, téléphone, poste)
+ * @param sortBy Colonne de tri
+ * @param sortOrder Ordre de tri ('asc' | 'desc')
+ * @param shopId Identifiant de la boutique ('all' ou UUID)
  */
 export async function getEmployees(
-    page: number = 1,
-    limit: number = 10,
-    searchQuery: string = "",
-    sortBy: string = "name", // Colonne par défaut
-    sortOrder: "asc" | "desc" = "asc" // Ordre par défaut
-): Promise<{ data: EmployeeWithShop[], totalCount: number, totalPages: number, currentPage: number }> {
-    const supabase = await createClient();
+  page: number = 1,
+  limit: number = 10,
+  searchQuery: string = "",
+  sortBy: string = "name",
+  sortOrder: "asc" | "desc" = "asc",
+  shopId?: string,
+  status: "active" | "inactive" | "all" = "active" // ✅ Filtrage actif par défaut
+): Promise<{ data: EmployeeWithShop[]; totalCount: number; totalPages: number; currentPage: number }> {
+  const supabase = await createClient();
 
-    const from = (page - 1) * limit;
-    const to = from + limit - 1;
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
 
-    let query = supabase
-        .from("employees")
-        .select(`
-            id, matricule, name, email, is_active, service_phone, department, job_title, base_salary, transport_allowance,  
-            shops ( id,name )
-        `, { count: "exact" });
-    
-    if (searchQuery) {
-        query = query.or(
-            `name.ilike.%${searchQuery}%,matricule.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%`
-        );
-    }
+  let query = supabase
+    .from("employees")
+    .select(
+      `
+        id, 
+        matricule, 
+        name, 
+        email, 
+        is_active, 
+        service_phone, 
+        private_phone,
+        department, 
+        job_title, 
+        base_salary, 
+        transport_allowance,
+        salary_currency,
+        shop_id,
+        shops ( id, name )
+      `,
+      { count: "exact" }
+    );
 
-    // Application du tri dynamique
-    const { data, count, error } = await query
-        .order(sortBy, { ascending: sortOrder === "asc" })
-        .range(from, to);
+  // 1. ✅ Filtre par Statut (Actifs uniquement par défaut)
+  if (status === "active") {
+    query = query.eq("is_active", true);
+  } else if (status === "inactive") {
+    query = query.eq("is_active", false);
+  }
+  // Si 'all', aucun filtre sur is_active n'est appliqué
 
-    if (error) {
-        console.error("Erreur lors de la récupération des agents:", error);
-        throw new Error("Impossible de charger les agents.");
-    }
+  // 2. Filtre par Boutique (Shop)
+  if (shopId && shopId !== "all") {
+    query = query.eq("shop_id", shopId);
+  }
 
-    return {
-        data: data as unknown as EmployeeWithShop[],
-        totalCount: count || 0,
-        totalPages: Math.ceil((count || 0) / limit),
-        currentPage: page,
-    };
+  // 3. Recherche textuelle multi-champs
+  const sanitizedSearch = searchQuery.trim().replace(/[,()]/g, "");
+  if (sanitizedSearch) {
+    query = query.or(
+      `name.ilike.%${sanitizedSearch}%,matricule.ilike.%${sanitizedSearch}%,email.ilike.%${sanitizedSearch}%,service_phone.ilike.%${sanitizedSearch}%,job_title.ilike.%${sanitizedSearch}%`
+    );
+  }
+
+  // 4. Sécurisation du tri
+  const allowedSortColumns = ["name", "matricule", "job_title", "department", "is_active", "base_salary", "created_at"];
+  const safeSortBy = allowedSortColumns.includes(sortBy) ? sortBy : "name";
+
+  // 5. Exécution de la requête
+  const { data, count, error } = await query
+    .order(safeSortBy, { ascending: sortOrder === "asc" })
+    .range(from, to);
+
+  if (error) {
+    console.error("Erreur lors de la récupération des agents:", error.message);
+    throw new Error(`Impossible de charger les agents: ${error.message}`);
+  }
+
+  return {
+    data: (data as unknown as EmployeeWithShop[]) || [],
+    totalCount: count || 0,
+    totalPages: Math.ceil((count || 0) / limit) || 1,
+    currentPage: page,
+  };
 }
 
 /**
@@ -72,7 +119,7 @@ export async function getShops() {
  */
 export async function upsertEmployee(employee: InsertEmployee): Promise<Employee> {
   const supabase = await createClient();
-  
+
   const { data, error } = await supabase
     .from("employees")
     .upsert(employee)
@@ -90,10 +137,10 @@ export async function upsertEmployee(employee: InsertEmployee): Promise<Employee
  * @returns 
  */
 export async function updateAttendanceValidation(
-  id: string, 
-  data: { 
-    validated_status?: AttendanceStatus, 
-    is_confirmed?: boolean, 
+  id: string,
+  data: {
+    validated_status?: AttendanceStatus | null,
+    is_confirmed?: boolean,
     is_validated?: boolean,
     confirmed_by?: string,
     validated_by?: string
@@ -109,46 +156,88 @@ export async function updateAttendanceValidation(
   return { success: true };
 }
 
-export async function getMonthlyAttendance(month: string, year: string, shopId?: string) {
+/**
+ * Récupère tous les pointages d'un mois pour une boutique donnée
+ * avec résolution timezone-safe des dates et jointures complètes.
+ */
+export async function getMonthlyAttendance(
+  month: string,
+  year: string,
+  shopId?: string
+): Promise<MonthlyAttendanceResponse> {
   const supabase = await createClient();
-  
-  const startDate = `${year}-${month}-01`;
-  const endDate = new Date(parseInt(year), parseInt(month), 0).toISOString().split('T')[0];
 
-  // Construction de la requête sur la table attendances
+  // 1. Calcul Timezone-Safe et mathématique du début et de la fin du mois
+  const numYear = parseInt(year, 10) || new Date().getFullYear();
+  const numMonth = parseInt(month, 10) || new Date().getMonth() + 1;
+
+  // Récupère le dernier jour du mois en UTC (ex: 28, 30 ou 31)
+  const lastDay = new Date(Date.UTC(numYear, numMonth, 0)).getUTCDate();
+  const formattedMonth = String(numMonth).padStart(2, "0");
+
+  const startDate = `${numYear}-${formattedMonth}-01`;
+  const endDate = `${numYear}-${formattedMonth}-${String(lastDay).padStart(2, "0")}`;
+
+  // 2. Requête Supabase optimisée avec sélection complète des relations
   let query = supabase
-    .from('attendances')
+    .from("attendances")
     .select(`
-      *,
+      id,
+      employee_id,
+      date,
+      check_in,
+      check_out,
+      is_late,
+      status,
+      observation,
+      is_confirmed,
+      is_validated,
+      confirmed_by,
+      validated_by,
+      created_at,
       employees!inner (
         id, 
         name, 
         matricule,
+        job_title,
+        department,
         shop_id,
+        is_active,
         shops!inner (
           id,
           name
         )
       )
     `)
-    .gte('date', startDate)
-    .lte('date', endDate);
+    .gte("date", startDate)
+    .lte("date", endDate);
 
-  // Filtrage par boutique si spécifié
+  // 3. Filtrage par boutique (Shop)
   if (shopId && shopId !== "all") {
-    query = query.eq('employees.shop_id', shopId);
+    query = query.eq("employees.shop_id", shopId);
   }
 
-  const { data, error } = await query.order('date', { ascending: true });
+  // 4. Tri chronologique par date puis par nom d'employé
+  const { data, error } = await query
+    .order("date", { ascending: true });
 
   if (error) {
-    console.error("Erreur récup attendances:", error);
+    console.error("Erreur SQL lors de la récupération des présences:", error.message);
     return { attendances: [] };
   }
 
-  const noSundays = (data || []).filter(att => new Date(att.date).getDay() !== 0);
+  const attendances = (data as unknown as AttendanceWithEmployee[]) || [];
 
-  return { attendances: noSundays };
+  return {
+    attendances,
+    meta: {
+      month: formattedMonth,
+      year: String(numYear),
+      totalDays: lastDay,
+      startDate,
+      endDate,
+    },
+  };
 }
 
 export async function prepareEmployeePayslip(employeeId: string, month: number, year: number) {
@@ -164,7 +253,7 @@ export async function prepareEmployeePayslip(employeeId: string, month: number, 
   // 2. Récupérer les absences du mois (Table attendances)
   const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
   const endDate = new Date(year, month, 0).toISOString().split('T')[0];
-  
+
   const { count: absencesCount } = await supabase
     .from('attendances')
     .select('*', { count: 'exact', head: true })
@@ -220,7 +309,7 @@ export async function getPayrollData(month: number, year: number, shopId: string
 
 export async function getPayrollStats(month: number, year: number) {
   const supabase = await createClient();
-  
+
   const { data: payslips } = await supabase
     .from('payslips')
     .select('net_payable, base_salary_snapshot, status') // Adapté à tes noms de colonnes
