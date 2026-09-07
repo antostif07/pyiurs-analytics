@@ -48,3 +48,20 @@ export const ATTENDANCE_LABELS: Record<AttendanceStatus, string> = {
 
 // Payroll
 export type PaySlip = Database["public"]["Tables"]["payslips"]["Row"]
+
+export type BonusWithEmployee = Database["public"]["Tables"]["employee_bonuses"]["Row"] & {
+  employees: Pick<Database["public"]["Tables"]["employees"]["Row"], "id" | "name" | "matricule" | "job_title" | "shop_id"> & {
+    shops: Pick<Database["public"]["Tables"]["shops"]["Row"], "id" | "name"> | null;
+  };
+};
+
+export type DebtWithEmployee = Database["public"]["Tables"]["employee_debts"]["Row"] & {
+  employees: Pick<Database["public"]["Tables"]["employees"]["Row"], "id" | "name" | "matricule" | "job_title" | "shop_id"> & {
+    shops: Pick<Database["public"]["Tables"]["shops"]["Row"], "id" | "name"> | null;
+  };
+};
+
+
+export type BonusRow = Database["public"]["Tables"]["employee_bonuses"]["Row"];
+export type DebtRow = Database["public"]["Tables"]["employee_debts"]["Row"];
+export type PayslipBatchRow = Database["public"]["Tables"]["payslip_batches"]["Row"];

@@ -312,7 +312,7 @@ export async function getPayrollStats(month: number, year: number) {
 
   const { data: payslips } = await supabase
     .from('payslips')
-    .select('net_payable, base_salary_snapshot, status') // Adapté à tes noms de colonnes
+    .select('net_payable, base_salary_snapshot, status')
     .eq('month', month)
     .eq('year', year);
 
