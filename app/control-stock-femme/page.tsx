@@ -34,7 +34,8 @@ export interface ControlStockFemmeModel {
   stock_dc: number;
   stock_other: number;
   po_name: string;
-  posOrderLines?: ControlStockFemmeModel[]
+  posOrderLines?: ControlStockFemmeModel[];
+  barcodes: string[];
 }
 
 // const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -133,7 +134,7 @@ async function getProductsByIds(productIds: number[]) {
           ["product_variant_ids", "in", chunk],
           ["type", "=", "consu"]
         ],
-        fields: "id,name,list_price,categ_id,hs_code,product_variant_id,x_studio_many2one_field_21bvh,x_studio_many2one_field_QyelN,x_studio_many2one_field_Arl5D".split(',')
+        fields: "id,name,list_price,categ_id,barcode,hs_code,product_variant_id,x_studio_many2one_field_21bvh,x_studio_many2one_field_QyelN,x_studio_many2one_field_Arl5D".split(',')
       })
 
       allResults.push(...res);
@@ -271,6 +272,7 @@ async function transformToControlStockModel(
     imageUrl: string;
     age: string;
     po_name: string;
+    barcodes: Set<string>;
     stock: Array<{
       P24: number;
       ktm: number;
@@ -311,6 +313,8 @@ async function transformToControlStockModel(
     const price = product.list_price;
     const imageUrl = `http://${process.env.NEXT_PUBLIC_IMAGES_DIR ?? "images.bybkm.fr"}/${hsCode}_${product.x_studio_many2one_field_Arl5D![1]}.jpg`;
 
+    console.log(product.barcode, hsCode, color);
+
     const stock = stockByProductAndBoutique.get(productId)
 
     if (!linesByHsCode.has(groupKey)) {
@@ -326,7 +330,8 @@ async function transformToControlStockModel(
         imageUrl: imageUrl,
         age,
         stock: stock ? [stock] : [],
-        po_name
+        po_name,
+        barcodes: new Set<string>(),
       });
     }
 
@@ -344,9 +349,10 @@ async function transformToControlStockModel(
       hsCodeGroup.brands.add(brand);
     }
 
-    // if (color) {
-    //   hsCodeGroup.colors.add(color);
-    // }
+    if (product.barcode) {
+      hsCodeGroup.barcodes.add(product.barcode);
+    }
+
     if (size) {
       hsCodeGroup.colors.add(size)
     }
@@ -397,6 +403,7 @@ async function transformToControlStockModel(
       not_received,
       qty_sold,
       qty_available,
+      barcodes: Array.from(group.barcodes),
       imageUrl: group.imageUrl,
       age: group.age,
       stock_24: group.stock.reduce((acc, val) => {
