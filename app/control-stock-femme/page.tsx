@@ -36,6 +36,12 @@ export interface ControlStockFemmeModel {
   po_name: string;
   posOrderLines?: ControlStockFemmeModel[];
   barcodes: string[];
+  barcodes_stock_24: string[];         // Barcodes avec stock > 0 à P24
+  barcodes_stock_ktm: string[];        // Barcodes avec stock > 0 à KTM
+  barcodes_stock_lmb: string[];        // Barcodes avec stock > 0 à LMB
+  barcodes_stock_mto: string[];        // Barcodes avec stock > 0 à MTO
+  barcodes_stock_onl: string[];        // Barcodes avec stock > 0 à ONL
+  barcodes_stock_dc: string[];
 }
 
 // const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -273,6 +279,12 @@ async function transformToControlStockModel(
     age: string;
     po_name: string;
     barcodes: Set<string>;
+    barcodes_stock_24: Set<string>;
+    barcodes_stock_ktm: Set<string>;
+    barcodes_stock_lmb: Set<string>;
+    barcodes_stock_mto: Set<string>;
+    barcodes_stock_onl: Set<string>;
+    barcodes_stock_dc: Set<string>;
     stock: Array<{
       P24: number;
       ktm: number;
@@ -332,6 +344,12 @@ async function transformToControlStockModel(
         stock: stock ? [stock] : [],
         po_name,
         barcodes: new Set<string>(),
+        barcodes_stock_24: new Set<string>(),
+        barcodes_stock_ktm: new Set<string>(),
+        barcodes_stock_lmb: new Set<string>(),
+        barcodes_stock_mto: new Set<string>(),
+        barcodes_stock_onl: new Set<string>(),
+        barcodes_stock_dc: new Set<string>(),
       });
     }
 
@@ -350,7 +368,18 @@ async function transformToControlStockModel(
     }
 
     if (product.barcode) {
+      // Barcode global
       hsCodeGroup.barcodes.add(product.barcode);
+
+      // Barcodes par boutique si stock > 0
+      if (stock) {
+        if (stock.P24 > 0) hsCodeGroup.barcodes_stock_24.add(product.barcode);
+        if (stock.ktm > 0) hsCodeGroup.barcodes_stock_ktm.add(product.barcode);
+        if (stock.lmb > 0) hsCodeGroup.barcodes_stock_lmb.add(product.barcode);
+        if (stock.mto > 0) hsCodeGroup.barcodes_stock_mto.add(product.barcode);
+        if (stock.onl > 0) hsCodeGroup.barcodes_stock_onl.add(product.barcode);
+        if (stock.dc > 0) hsCodeGroup.barcodes_stock_dc.add(product.barcode);
+      }
     }
 
     if (size) {
@@ -404,6 +433,12 @@ async function transformToControlStockModel(
       qty_sold,
       qty_available,
       barcodes: Array.from(group.barcodes),
+      barcodes_stock_24: Array.from(group.barcodes_stock_24),
+      barcodes_stock_ktm: Array.from(group.barcodes_stock_ktm),
+      barcodes_stock_lmb: Array.from(group.barcodes_stock_lmb),
+      barcodes_stock_mto: Array.from(group.barcodes_stock_mto),
+      barcodes_stock_onl: Array.from(group.barcodes_stock_onl),
+      barcodes_stock_dc: Array.from(group.barcodes_stock_dc),
       imageUrl: group.imageUrl,
       age: group.age,
       stock_24: group.stock.reduce((acc, val) => {

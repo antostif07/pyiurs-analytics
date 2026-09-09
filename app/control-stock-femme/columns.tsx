@@ -159,7 +159,8 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
   {
     accessorKey: "stock_24",
     header: ({ column }) => <SortableHeader column={column} title="P.24" />,
-    cell: ({ row, getValue }) => <StockBadgeCell value={getValue<number>()} barcodes={row.original.barcodes} />,
+    cell: ({ row, getValue }) => <StockBadgeCell value={getValue<number>()}
+      barcodes={row.original.barcodes_stock_24} />,
     size: 90,
     meta: { type: "number", filterVariant: "range", label: "P.24" },
     filterFn: numberRangeFilter,
@@ -167,7 +168,8 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
   {
     accessorKey: "stock_ktm",
     header: ({ column }) => <SortableHeader column={column} title="P.KTM" />,
-    cell: ({ row, getValue }) => <StockBadgeCell value={getValue<number>()} barcodes={row.original.barcodes} />,
+    cell: ({ row, getValue }) => <StockBadgeCell
+      value={getValue<number>()} barcodes={row.original.barcodes_stock_ktm} />,
     size: 90,
     meta: { type: "number", filterVariant: "range", label: "P.KTM" },
     filterFn: numberRangeFilter,
@@ -175,7 +177,8 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
   {
     accessorKey: "stock_lmb",
     header: ({ column }) => <SortableHeader column={column} title="LMB" />,
-    cell: ({ row, getValue }) => <StockBadgeCell value={getValue<number>()} barcodes={row.original.barcodes} />,
+    cell: ({ row, getValue }) => <StockBadgeCell value={getValue<number>()}
+      barcodes={row.original.barcodes_stock_lmb} />,
     size: 90,
     meta: { type: "number", filterVariant: "range", label: "P.LMB" },
     filterFn: numberRangeFilter,
@@ -183,7 +186,8 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
   {
     accessorKey: "stock_mto",
     header: ({ column }) => <SortableHeader column={column} title="MTO" />,
-    cell: ({ row, getValue }) => <StockBadgeCell value={getValue<number>()} barcodes={row.original.barcodes} />,
+    cell: ({ row, getValue }) => <StockBadgeCell value={getValue<number>()}
+      barcodes={row.original.barcodes_stock_mto} />,
     size: 90,
     meta: { type: "number", filterVariant: "range", label: "P.MTO" },
     filterFn: numberRangeFilter,
@@ -199,7 +203,8 @@ export const controlStockBeautyColumns: ColumnDef<ControlStockFemmeModel>[] = [
   {
     accessorKey: "stock_dc",
     header: ({ column }) => <SortableHeader column={column} title="BC" />,
-    cell: ({ row, getValue }) => <StockBadgeCell value={getValue<number>()} barcodes={row.original.barcodes} />,
+    cell: ({ row, getValue }) => <StockBadgeCell value={getValue<number>()}
+      barcodes={row.original.barcodes_stock_dc} />,
     size: 90,
     meta: { type: "number", filterVariant: "range", label: "DC" },
     filterFn: numberRangeFilter,
