@@ -13,7 +13,8 @@ import {
   Clock,
   PictureInPicture,
   Banknote,
-  ShoppingBag
+  ShoppingBag,
+  BarChart3
 } from "lucide-react";
 
 export interface Denomination {
@@ -71,6 +72,18 @@ export type ModuleCategory =
   | "purchasing";
 
 export const MODULES_CONFIG: AppModule[] = [
+  {
+    id: "ceo-report",
+    name: "Rapport DG",
+    description: "Tableau de bord stratégique consolidé : stock, ventes, finance, opérations et RH. Vision Direction Générale.",
+    href: "/ceo-report",
+    icon: BarChart3,          // à importer depuis lucide-react
+    color: "bg-rose-600",     // aligné sur votre charte rose premium
+    category: "finance",      // ou créez une catégorie "direction"
+    permissions: ["admin",],
+    isNew: true,
+    order: -1,                // avant "finance" qui est à 0
+  },
   {
     id: "revenue",
     name: "Revenu",

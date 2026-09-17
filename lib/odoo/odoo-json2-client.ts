@@ -31,9 +31,6 @@ const ODOO_DB = process.env.ODOO_DB ?? "pyiurs";
 const ODOO_API_KEY = process.env.ODOO_API_KEY ?? "";
 const ODOO_DEFAULT_LANG = process.env.ODOO_LANG ?? "fr_FR";
 
-console.log(ODOO_API_KEY);
-
-
 if (!ODOO_API_KEY) {
   throw new Error("ODOO_API_KEY manquant dans les variables d'environnement.");
 }

@@ -39,11 +39,8 @@ export type NavGroup = {
   items: NavItem[];
 };
 
-const RECENT_PATHS = [
-  "/inventory",
-  "/cloture-vente",
-  "/reports",
-];
+const RECENTS_KEY = (mainPath: string) => `pyiurs_sidebar_recents_${mainPath}`;
+const MAX_RECENTS = 3;
 
 const LOCAL_STORAGE_FAVS_KEY = "pyiurs_dashboard_favorites";
 
@@ -53,7 +50,45 @@ export default function AppSidebar({ role, collapsed, onCollapse, groups, mainPa
   const [search, setSearch] = useState("");
 
   const [favorites, setFavorites] = useState<string[]>([]);
+  const [recentPaths, setRecentPaths] = useState<string[]>([]);
   const searchRef = useRef<HTMLInputElement>(null);
+
+  // 🔁 Historique des dernières pages visitées, isolé par module
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(
+        localStorage.getItem(RECENTS_KEY(mainPath)) || "[]"
+      );
+      setRecentPaths(Array.isArray(stored) ? stored : []);
+    } catch {
+      setRecentPaths([]);
+    }
+  }, [mainPath]);
+
+  // 📝 Enregistre la page courante à chaque navigation
+  useEffect(() => {
+    if (!pathname || pathname === "/") return;
+
+    // On n'enregistre que si la page appartient au module courant
+    const belongsToModule =
+      pathname === mainPath || pathname.startsWith(`${mainPath}/`);
+    if (!belongsToModule) return;
+
+    try {
+      const stored: string[] = JSON.parse(
+        localStorage.getItem(RECENTS_KEY(mainPath)) || "[]"
+      );
+      const next = [
+        pathname,
+        ...stored.filter((p) => p !== pathname),
+      ].slice(0, MAX_RECENTS);
+
+      localStorage.setItem(RECENTS_KEY(mainPath), JSON.stringify(next));
+      setRecentPaths(next);
+    } catch {
+      // Silencieux — pas critique
+    }
+  }, [pathname, mainPath]);
 
   useEffect(() => {
     try {
@@ -129,7 +164,11 @@ export default function AppSidebar({ role, collapsed, onCollapse, groups, mainPa
   }
 
   const favItems = allItems.filter((i) => favorites.includes(i.id) && (!i.roles || i.roles.includes(role)));
-  const recentItems = allItems.filter((i) => RECENT_PATHS.includes(i.path) && (!i.roles || i.roles.includes(role)));
+  const recentItems = allItems.filter(
+    (i) =>
+      recentPaths.includes(i.path) &&
+      (!i.roles || i.roles.includes(role))
+  );
 
   const sidebarWidth = collapsed ? 64 : 256;
 

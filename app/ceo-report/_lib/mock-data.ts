@@ -1,0 +1,135 @@
+import { Package, TrendingUp, Banknote, Settings2, Users } from "lucide-react";
+import { KPI_CODES } from "./kpi-codes";
+import type { DomainSummary } from "./types";
+
+export const DOMAIN_SUMMARIES: DomainSummary[] = [
+    {
+        id: "stock",
+        label: "Stock",
+        description: "Valorisation, rotation, ruptures et stock dormant",
+        href: "/ceo-report/stock",
+        icon: Package,
+        alertCount: 23,
+        kpis: [
+            {
+                code: KPI_CODES.STOCK_VALUE_TOTAL,
+                label: "Valeur totale",
+                value: 1_245_000,
+                unit: "currency",
+                currency: "USD",
+                delta: 4.2,
+            },
+            {
+                code: KPI_CODES.STOCK_TURNOVER,
+                label: "Rotation",
+                value: 3.4,
+                unit: "ratio",
+                delta: -2.1,
+                status: "warning",
+            },
+            {
+                code: KPI_CODES.STOCK_DORMANT,
+                label: "Stock dormant",
+                value: 87_400,
+                unit: "currency",
+                currency: "USD",
+                delta: -6.8,
+                upIsGood: false,
+                status: "warning",
+            },
+            {
+                code: KPI_CODES.STOCK_DISCREPANCY,
+                label: "Écarts inventaire",
+                value: 142,
+                unit: "count",
+                delta: -12.0,
+                upIsGood: false,
+                status: "good",
+            },
+        ],
+    },
+    {
+        id: "sales",
+        label: "Commercial",
+        description: "Chiffre d'affaires, marges et top produits",
+        href: "/ceo-report/sales",
+        icon: TrendingUp,
+        kpis: [
+            {
+                code: KPI_CODES.SALES_REVENUE,
+                label: "CA",
+                value: 386_500,
+                unit: "currency",
+                currency: "USD",
+                delta: 12.8,
+            },
+            {
+                code: KPI_CODES.SALES_MARGIN,
+                label: "Marge brute",
+                value: 42.3,
+                unit: "percent",
+                delta: 1.4,
+            },
+        ],
+    },
+    {
+        id: "finance",
+        label: "Finance",
+        description: "Trésorerie, encaissements et délais de paiement",
+        href: "/ceo-report/finance",
+        icon: Banknote,
+        kpis: [
+            {
+                code: KPI_CODES.FINANCE_CASH,
+                label: "Trésorerie nette",
+                value: 512_300,
+                unit: "currency",
+                currency: "USD",
+                delta: 3.1,
+            },
+            {
+                code: KPI_CODES.FINANCE_DSO,
+                label: "DSO",
+                value: 32,
+                unit: "days",
+                delta: -4.0,
+                upIsGood: false,
+                status: "good",
+            },
+        ],
+    },
+    {
+        id: "operations",
+        label: "Opérations",
+        description: "Livraisons, qualité et efficacité opérationnelle",
+        href: "/ceo-report/operations",
+        icon: Settings2,
+        kpis: [
+            {
+                code: KPI_CODES.OPS_LATE_DELIVERY,
+                label: "Livraisons en retard",
+                value: 14,
+                unit: "count",
+                delta: 6.2,
+                upIsGood: false,
+                status: "warning",
+            },
+        ],
+    },
+    {
+        id: "hr",
+        label: "Ressources Humaines",
+        description: "Effectif, masse salariale et turnover",
+        href: "/ceo-report/hr",
+        icon: Users,
+        kpis: [
+            {
+                code: KPI_CODES.HR_HEADCOUNT,
+                label: "Effectif actif",
+                value: 142,
+                unit: "count",
+                delta: 2.1,
+            },
+        ],
+    },
+];
