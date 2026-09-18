@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScanBarcode } from 'lucide-react';
@@ -15,22 +15,22 @@ export default function ScanInput({ onScan, onReset, showReset }: Props) {
     const [value, setValue] = useState('');
     const inputRef = useRef<HTMLInputElement>(null);
 
-    // Focus permanent : essentiel pour qu'un scanner physique (USB/Bluetooth)
-    // envoie ses frappes dans le champ, quelle que soit la zone cliquée.
-    useEffect(() => {
-        const focus = () => inputRef.current?.focus();
-        focus();
-        window.addEventListener('click', focus);
-        return () => window.removeEventListener('click', focus);
-    }, []);
-
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
+
         const code = value.trim();
+
         if (!code) return;
+
         onScan(code);
+
+        // Vide le champ après le scan
         setValue('');
-        requestAnimationFrame(() => inputRef.current?.focus());
+
+        // IMPORTANT :
+        // On ne remet PAS le focus automatiquement.
+        // Le clavier mobile reste donc fermé après le résultat.
+        inputRef.current?.blur();
     };
 
     return (
@@ -39,8 +39,12 @@ export default function ScanInput({ onScan, onReset, showReset }: Props) {
                 <span className="grid h-10 w-10 place-items-center rounded-xl bg-primary/10 text-primary">
                     <ScanBarcode className="h-5 w-5" />
                 </span>
+
                 <div className="min-w-0">
-                    <p className="text-sm font-semibold">Scannez un code-barres</p>
+                    <p className="text-sm font-semibold">
+                        Scannez un code-barres
+                    </p>
+
                     <p className="text-xs text-muted-foreground">
                         Utilisez le scanner ou saisissez le code manuellement
                     </p>
@@ -59,7 +63,10 @@ export default function ScanInput({ onScan, onReset, showReset }: Props) {
                     aria-label="Code-barres du produit"
                     className="flex-1 font-mono"
                 />
-                <Button type="submit">OK</Button>
+
+                <Button type="submit">
+                    OK
+                </Button>
             </form>
 
             {showReset && (
@@ -70,7 +77,9 @@ export default function ScanInput({ onScan, onReset, showReset }: Props) {
                     onClick={(e) => {
                         e.stopPropagation();
                         onReset();
-                        requestAnimationFrame(() => inputRef.current?.focus());
+
+                        // Pas de focus automatique ici non plus
+                        inputRef.current?.blur();
                     }}
                     className="mt-2 w-full text-muted-foreground"
                 >
