@@ -39,7 +39,10 @@ function slugify(input: string): string {
         .trim()
         .toLowerCase()
         .replace(/\s+/g, '_')
-        .replace(/[^a-z0-9_-]/g, '');
+        .replace(/[^a-z0-9_-]/g, '')
+        .replace(/(^|_)([a-z])/g, (_, separator, letter) =>
+            separator + letter.toUpperCase()
+        );
 }
 
 function fallbackColorHex(colorName: string): string {
@@ -70,7 +73,7 @@ function buildImageUrl(hsCode: string | undefined, colorName: string, preferedBa
 
     const base = /^https?:\/\//i.test(IMAGES_BASE) ? IMAGES_BASE : `https://${IMAGES_BASE}`;
     const hs = (hsCode ?? '').trim() || 'no-hs';
-    const color = preferedBarcode.includes("COS") || preferedBarcode.includes("cos") ? '_' : slugify(colorName);
+    const color = preferedBarcode.includes("COS") || preferedBarcode.includes("cos") ? '' : slugify(colorName);
 
     return `${base.replace(/\/$/, '')}/${hs}_${color}.jpg`;
 }
