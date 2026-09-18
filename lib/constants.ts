@@ -14,7 +14,8 @@ import {
   PictureInPicture,
   Banknote,
   ShoppingBag,
-  BarChart3
+  BarChart3,
+  ScanBarcode
 } from "lucide-react";
 
 export interface Denomination {
@@ -137,6 +138,18 @@ export const MODULES_CONFIG: AppModule[] = [
     href: "/catalog",
     category: "inventory",
     permissions: ["admin", "manager", "user"]
+  },
+  {
+    id: "scan-product",
+    name: "Scan Produit",
+    description: "Scannez un code-barres pour localiser un produit, ses variantes (taille, couleur) et les boutiques qui le détiennent.",
+    href: "/scan-product",
+    icon: ScanBarcode,
+    color: "bg-yellow-500",
+    category: "inventory",
+    permissions: ["admin", "manager", "user", "inventory-manager"],
+    isNew: true,
+    order: 1
   },
   {
     id: "medias",

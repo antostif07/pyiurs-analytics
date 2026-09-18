@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { KpiCard } from "./kpi-card";
 import type { DomainSummary } from "@/app/ceo-report/_lib/types";
 import {
     Card,
@@ -12,6 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import KpiCard from "./kpi-card";
 
 interface DomainCardProps {
     domain: DomainSummary;
@@ -67,13 +67,13 @@ export function DomainCard({ domain }: DomainCardProps) {
                 </div>
             </CardHeader>
 
-            <CardContent>
+            {/* <CardContent>
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                     {domain.kpis.map((kpi) => (
                         <KpiCard key={kpi.code} kpi={kpi} variant="compact" />
                     ))}
                 </div>
-            </CardContent>
+            </CardContent> */}
         </Card>
     );
 }
