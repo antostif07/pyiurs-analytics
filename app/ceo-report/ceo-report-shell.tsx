@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "next-themes";
 import AppSidebar from "@/components/new-ui/layout/app-sidebar";
@@ -8,35 +9,52 @@ import AppTopbar from "@/components/new-ui/layout/app-topbar";
 import type { UserRole } from "@/lib/constants";
 import { DG_REPORT_NAV_GROUPS } from "./config";
 
-interface DgReportShellProps {
-    user: { email: string };
-    profile: { full_name: string | null; role: string } | null;
+export interface DgReportShellProps {
+    user: {
+        id?: string;
+        email: string
+    };
+    profile: {
+        full_name: string | null;
+        role: string;
+        avatar_url?: string | null;
+    } | null;
     children: React.ReactNode;
 }
 
 const SIDEBAR_STORAGE_KEY = "retail_sidebar_dg_report_collapsed";
-const MAIN_PATH = "/dg-report";
+// Vérifiez que ce chemin correspond exactement à votre arborescence Next.js (/dg-report ou /ceo-report)
+const MAIN_PATH = "/ceo-report";
 
 export default function CeoReportShell({
     user,
     profile,
     children,
 }: DgReportShellProps) {
-    // Persistance de l'état de réduction de la sidebar
-    const [collapsed, setCollapsed] = useState<boolean>(() => {
-        if (typeof window === "undefined") return false;
-        const saved = localStorage.getItem(SIDEBAR_STORAGE_KEY);
-        return saved ? JSON.parse(saved) : false;
-    });
+    const pathname = usePathname();
+    const [collapsed, setCollapsed] = useState<boolean>(false);
+    const [mobileOpen, setMobileOpen] = useState<boolean>(false);
+    const [mounted, setMounted] = useState<boolean>(false);
 
-    const [mobileOpen, setMobileOpen] = useState(false);
-    const [mounted, setMounted] = useState(false);
-
-    // Évite les erreurs de réhydratation pour le thème SSR/CSR
+    // 1. Montage sécurisé sans mismatch d'hydratation
     useEffect(() => {
         setMounted(true);
+        try {
+            const saved = localStorage.getItem(SIDEBAR_STORAGE_KEY);
+            if (saved !== null) {
+                setCollapsed(JSON.parse(saved));
+            }
+        } catch {
+            // Tolérance aux blocages de stockage (mode navigation privée stricte)
+        }
     }, []);
 
+    // 2. Fermeture automatique du tiroir mobile lors d'un changement de page
+    useEffect(() => {
+        setMobileOpen(false);
+    }, [pathname]);
+
+    // 3. Gestion du Thème
     const { resolvedTheme, setTheme } = useTheme();
     const isDarkMode = mounted ? resolvedTheme === "dark" : false;
 
@@ -46,25 +64,33 @@ export default function CeoReportShell({
 
     const handleCollapse = useCallback((isCollapsed: boolean) => {
         setCollapsed(isCollapsed);
-        if (typeof window !== "undefined") {
+        try {
             localStorage.setItem(SIDEBAR_STORAGE_KEY, JSON.stringify(isCollapsed));
+        } catch {
+            // Ignorer si localStorage est inaccessible
         }
     }, []);
 
-    // Fermeture du menu mobile via la touche Echap
+    // 4. Accessibilité : Fermeture via touche Échap
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Escape" && mobileOpen) setMobileOpen(false);
+            if (e.key === "Escape" && mobileOpen) {
+                setMobileOpen(false);
+            }
         };
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, [mobileOpen]);
 
-    // Empêcher le scroll arrière-plan quand le drawer mobile est ouvert
+    // 5. Blocage du scroll sous-jacent en mode mobile
     useEffect(() => {
-        document.body.style.overflow = mobileOpen ? "hidden" : "unset";
+        if (mobileOpen) {
+            document.body.style.overflow = "hidden";
+        } else {
+            document.body.style.overflow = "";
+        }
         return () => {
-            document.body.style.overflow = "unset";
+            document.body.style.overflow = "";
         };
     }, [mobileOpen]);
 
@@ -72,7 +98,7 @@ export default function CeoReportShell({
 
     return (
         <div className="flex h-screen w-full bg-background overflow-hidden antialiased select-none-text">
-            {/* Sidebar Bureau */}
+            {/* Sidebar Bureau (Desktop) */}
             <aside className="hidden md:flex h-full shrink-0 border-r border-border/40">
                 <AppSidebar
                     mainPath={MAIN_PATH}
@@ -83,7 +109,7 @@ export default function CeoReportShell({
                 />
             </aside>
 
-            {/* Sidebar Mobile (Tiroir Drawer) */}
+            {/* Sidebar Mobile (Drawer animé) */}
             <AnimatePresence mode="wait">
                 {mobileOpen && (
                     <div

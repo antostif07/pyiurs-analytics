@@ -1,3 +1,4 @@
+// executive-cockpit.tsx
 "use client";
 
 import { useState } from "react";
@@ -7,17 +8,27 @@ import {
     ResponsiveContainer, Legend, Cell, PieChart, Pie,
 } from "recharts";
 import { ChevronRight } from "lucide-react";
-import { cn } from "@/lib/utils";
 import KpiCard from "./kpi-card";
 import { defaultFilters } from "../_lib/filters";
-import ReportPageHeader from "./report-page-header";
-import { SectionHeader } from "./report-page-header";
+import ReportPageHeader, { SectionHeader } from "./report-page-header";
 import { ExecutiveCockpitData } from "../_lib/data/executive-cockpit";
 import GlobalFilters from "./global-filters";
 import { ReportFilter } from "../_lib/types/reports";
 import AlertBadge from "./alert-badge";
 
-/* ── Palette alignée sur le thème (oklch vars) ── */
+// ✅ Import direct du composant existant sous sales (Zéro duplication)
+import SalesRevenueMatrixTable from "@/app/ceo-report/sales/_components/sales-revenue-matrix-table";
+import { SALES_MATRIX_INITIAL_DATA } from "@/app/ceo-report/sales/_components/data";
+import CustomerSegmentationMatrixTable from "../customers/_components/customer-segmentation-matrix-table";
+import CustomerMatrixTable from "../customers/_components/customer-matrix-table";
+import StockMovementMatrixTable from "../stock/_components/stock-movement-matrix-table";
+import PurchaseDispatchMatrixTable from "../operations/_components/purchase-dispatch-matrix-table";
+import TransferControlTable from "../operations/_components/transfer-control-table.tsx";
+import PurchaseAuditFinanceTable from "../finance/_components/purchase-audit-finance-table";
+import StoreStockAuditSizesTable from "../stock/_components/store-stock-audit-sizes-table";
+import LeaseHrMatrixTable from "../hr/_components/lease-hr-matrix-table";
+import CashOpexMatrixTable from "../cash/_components/cash-opex-matrix-table";
+
 const STORE_COLORS = [
     "var(--chart-1)",
     "var(--chart-4)",
@@ -36,7 +47,6 @@ const CHART_AXIS = "var(--muted-foreground)";
 const CHART_GRID = "var(--border)";
 const CHART_NEUTRAL = "var(--muted)";
 
-/* ── Tooltip ── */
 const CustomTooltip = ({
     active, payload, label,
 }: {
@@ -65,7 +75,6 @@ type Props = { data: ExecutiveCockpitData };
 
 export default function ExecutiveCockpit({ data }: Props) {
     const [filters, setFilters] = useState<ReportFilter>(defaultFilters);
-
     const { sales, alerts } = data;
 
     const criticalAlerts = alerts.filter((a) => a.severity === "critical");
@@ -81,7 +90,7 @@ export default function ExecutiveCockpit({ data }: Props) {
     const totalSegment = segmentPieData.reduce((acc, s) => acc + s.value, 0);
 
     return (
-        <div className="flex flex-col min-h-screen">
+        <div className="flex flex-col min-h-screen bg-[#f8fafc] dark:bg-slate-950">
             <ReportPageHeader
                 title="Executive Cockpit"
                 subtitle="Vue consolidée de la performance Pyiurs"
@@ -91,7 +100,49 @@ export default function ExecutiveCockpit({ data }: Props) {
 
             <div className="p-6 space-y-8">
 
-                {/* ── KPI Financier ── */}
+                {/* ── 1. Matrice des Revenus (Composant existant sous sales) ── */}
+                <SalesRevenueMatrixTable data={SALES_MATRIX_INITIAL_DATA} />
+
+                <section className="space-y-2">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 border-l-4 border-amber-500 pl-3">
+                            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-slate-100">
+                                2. SUIVI CLIENTÈLE, FLUX (GROSS ADDS, CHURN 30J) & SEGMENTATION
+                            </h2>
+                        </div>
+                        {/* Lien direct vers la page dédiée */}
+                        <Link
+                            href="/ceo-report/customers"
+                            className="text-[11px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 transition-colors"
+                        >
+                            Analyse détaillée <ChevronRight className="w-3.5 h-3.5" />
+                        </Link>
+                    </div>
+
+                    {/* Réutilisation du tableau unique */}
+                    <CustomerMatrixTable />
+                </section>
+
+                <section className="space-y-2">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 border-l-4 border-amber-500 pl-3">
+                            <h2 className="text-xs md:text-sm font-black tracking-wide uppercase text-slate-900 dark:text-slate-100">
+                                3. MOUVEMENTS DE STOCK GLOBAL (CLÔTURE M-1, ACHATS FOURNISSEURS, VENTES & AJUSTEMENTS)
+                            </h2>
+                        </div>
+                        <Link
+                            href="/ceo-report/stock"
+                            className="text-[11px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 transition-colors"
+                        >
+                            Analyse détaillée <ChevronRight className="w-3.5 h-3.5" />
+                        </Link>
+                    </div>
+
+                    {/* Réutilisation propre sans duplication */}
+                    <StockMovementMatrixTable />
+                </section>
+
+                {/* ── 2. KPI Financier ── */}
                 <section>
                     <SectionHeader title="Financier" />
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -103,8 +154,8 @@ export default function ExecutiveCockpit({ data }: Props) {
                     </div>
                 </section>
 
-                {/* ── KPI Clients ── */}
-                <section>
+                {/* ── 3. KPI Clients ── */}
+                {/* <section>
                     <SectionHeader title="Clients" />
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                         <KpiCard label="Parc Clients" value={2750} format="number" variation={2.4} variationLabel="vs mois préc." href="/reports/customers" isPositiveUp />
@@ -114,169 +165,108 @@ export default function ExecutiveCockpit({ data }: Props) {
                         <KpiCard label="Rev. Récurrent" value={71100} format="currency" variation={3.2} variationLabel="vs mois préc." href="/reports/customers" isPositiveUp />
                         <KpiCard label="ARPU" value={34.91} format="currency" variation={0.9} variationLabel="vs mois préc." href="/reports/customers" isPositiveUp />
                     </div>
+                </section> */}
+
+                <section className="space-y-2">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 border-l-4 border-amber-500 pl-3">
+                            <h2 className="text-xs md:text-sm font-black tracking-wide uppercase text-slate-900 dark:text-slate-100">
+                                4. SUIVI DES ACHATS PO : COMMANDES, RÉCEPTIONS P.BC & TRANSFERTS ENVOYÉS AUX BOUTIQUES
+                            </h2>
+                        </div>
+                        <Link
+                            href="/ceo-report/operations/purchases"
+                            className="text-[11px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 transition-colors"
+                        >
+                            Détail Supply Chain <ChevronRight className="w-3.5 h-3.5" />
+                        </Link>
+                    </div>
+
+                    <PurchaseDispatchMatrixTable />
                 </section>
 
-                {/* ── Graphiques principaux ── */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-
-                    {/* CA vs Budget */}
-                    <div className="lg:col-span-2 rounded-xl border border-border/60 bg-card p-5">
-                        <div className="flex items-center justify-between mb-5">
-                            <div>
-                                <h3 className="text-[13px] font-semibold text-foreground">CA Réel vs Budget</h3>
-                                <p className="text-[11px] text-muted-foreground/50 mt-0.5">Évolution mensuelle 2026</p>
-                            </div>
-                            <Link href="/reports/sales" className="text-[11px] text-primary/70 flex items-center gap-0.5 hover:text-primary transition-colors">
-                                Détail <ChevronRight size={11} />
-                            </Link>
+                <section className="space-y-2">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 border-l-4 border-amber-500 pl-3">
+                            <h2 className="text-xs md:text-sm font-black tracking-wide uppercase text-slate-900 dark:text-slate-100">
+                                5. RAPPORT DE CONTRÔLE DES TRANSFERTS MENSUELS & VALIDATION CODES-BARRES
+                            </h2>
                         </div>
-                        <ResponsiveContainer width="100%" height={195}>
-                            <AreaChart data={sales.trend} margin={{ top: 4, right: 4, left: -10, bottom: 0 }}>
-                                <defs>
-                                    <linearGradient id="gradActual" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.3} />
-                                        <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} vertical={false} />
-                                <XAxis dataKey="date" tick={{ fontSize: 10.5, fill: CHART_AXIS }} axisLine={false} tickLine={false} />
-                                <YAxis tick={{ fontSize: 10.5, fill: CHART_AXIS }} axisLine={false} tickLine={false}
-                                    tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`} />
-                                <Tooltip content={<CustomTooltip />} />
-                                <Legend iconSize={8} wrapperStyle={{ fontSize: 10.5, color: CHART_AXIS }} />
-                                <Area type="monotone" dataKey="actual" name="CA Réel" stroke="var(--chart-1)" fill="url(#gradActual)" strokeWidth={2} dot={false} />
-                                <Area type="monotone" dataKey="budget" name="Budget" stroke={CHART_AXIS} fill="none" strokeWidth={1.5} strokeDasharray="5 3" dot={false} />
-                            </AreaChart>
-                        </ResponsiveContainer>
+                        <Link
+                            href="/ceo-report/operations/transfers"
+                            className="text-[11px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 transition-colors"
+                        >
+                            Audit Logistique <ChevronRight className="w-3.5 h-3.5" />
+                        </Link>
                     </div>
 
-                    {/* Donut segments */}
-                    <div className="rounded-xl border border-border/60 bg-card p-5">
-                        <div className="flex items-center justify-between mb-4">
-                            <div>
-                                <h3 className="text-[13px] font-semibold text-foreground">CA par Segment</h3>
-                                <p className="text-[11px] text-muted-foreground/50 mt-0.5">Répartition Sep 2026</p>
-                            </div>
-                            <Link href="/reports/sales" className="text-[11px] text-primary/70 hover:text-primary transition-colors">
-                                <ChevronRight size={11} />
-                            </Link>
-                        </div>
-                        <ResponsiveContainer width="100%" height={140}>
-                            <PieChart>
-                                <Pie data={segmentPieData} cx="50%" cy="50%" innerRadius={40} outerRadius={62} paddingAngle={3} dataKey="value" strokeWidth={0}>
-                                    {segmentPieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                                </Pie>
-                                <Tooltip
-                                    formatter={(value) =>
-                                        typeof value === "number" ? `$${value.toLocaleString("fr-FR")}` : value
-                                    }
-                                />
-                            </PieChart>
-                        </ResponsiveContainer>
-                        <div className="space-y-2 mt-1">
-                            {segmentPieData.map((s) => (
-                                <div key={s.name} className="flex items-center gap-2.5">
-                                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: s.color }} />
-                                    <span className="text-[11.5px] text-muted-foreground/70 flex-1">{s.name}</span>
-                                    <span className="text-[11.5px] font-semibold tabular-nums">
-                                        ${s.value.toLocaleString("fr-FR")}
-                                    </span>
-                                    <span className="text-[10.5px] text-muted-foreground/40 w-8 text-right">
-                                        {totalSegment ? ((s.value / totalSegment) * 100).toFixed(0) : 0}%
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
+                    <TransferControlTable />
+                </section>
 
-                {/* ── Boutiques + Matrice ── */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-                    <div className="rounded-xl border border-border/60 bg-card p-5">
-                        <div className="flex items-center justify-between mb-5">
-                            <div>
-                                <h3 className="text-[13px] font-semibold">CA par Boutique</h3>
-                                <p className="text-[11px] text-muted-foreground/50 mt-0.5">Réel vs Budget</p>
-                            </div>
-                            <Link href="/reports/sales" className="text-[11px] text-primary/70 flex items-center gap-0.5 hover:text-primary transition-colors">
-                                Détail <ChevronRight size={11} />
-                            </Link>
+                <section className="space-y-2">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 border-l-4 border-amber-500 pl-3">
+                            <h2 className="text-xs md:text-sm font-black tracking-wide uppercase text-slate-900 dark:text-slate-100">
+                                6. AUDIT COMPTABILITÉ ACHATS & FRAIS LOGISTIQUES SUR ACHATS
+                            </h2>
                         </div>
-                        <ResponsiveContainer width="100%" height={175}>
-                            <BarChart data={sales.byStore} margin={{ top: 4, right: 4, left: -10, bottom: 0 }} barGap={3} barCategoryGap="25%">
-                                <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} vertical={false} />
-                                <XAxis dataKey="store" tick={{ fontSize: 10.5, fill: CHART_AXIS }} axisLine={false} tickLine={false} />
-                                <YAxis tick={{ fontSize: 10.5, fill: CHART_AXIS }} axisLine={false} tickLine={false}
-                                    tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`} />
-                                <Tooltip content={<CustomTooltip />} />
-                                <Legend iconSize={8} wrapperStyle={{ fontSize: 10.5, color: CHART_AXIS }} />
-                                <Bar dataKey="actual" name="CA Réel" radius={[4, 4, 0, 0]}>
-                                    {sales.byStore.map((_, i) => (
-                                        <Cell key={i} fill={STORE_COLORS[i % STORE_COLORS.length]} />
-                                    ))}
-                                </Bar>
-                                <Bar dataKey="budget" name="Budget" radius={[4, 4, 0, 0]} fill={CHART_NEUTRAL} />
-                            </BarChart>
-                        </ResponsiveContainer>
+                        <Link
+                            href="/ceo-report/finance"
+                            className="text-[11px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 transition-colors"
+                        >
+                            Synthèse Trésorerie & Frais <ChevronRight className="w-3.5 h-3.5" />
+                        </Link>
                     </div>
 
-                    <div className="rounded-xl border border-border/60 bg-card p-5">
-                        <div className="flex items-center justify-between mb-4">
-                            <div>
-                                <h3 className="text-[13px] font-semibold">Matrice Boutique × Segment</h3>
-                                <p className="text-[11px] text-muted-foreground/50 mt-0.5">CA réalisé ($)</p>
-                            </div>
-                            <Link href="/reports/sales" className="text-[11px] text-primary/70 flex items-center gap-0.5 hover:text-primary transition-colors">
-                                Détail <ChevronRight size={11} />
-                            </Link>
-                        </div>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-[11.5px]">
-                                <thead>
-                                    <tr className="border-b border-border/40">
-                                        <th className="text-left font-semibold py-2 pr-3 text-muted-foreground/50">Segment</th>
-                                        {["P24", "P.MTO", "P.LMB", "P.KTM", "P.ONL"].map((s) => (
-                                            <th key={s} className="text-right font-semibold py-2 px-1.5 text-muted-foreground/50">{s}</th>
-                                        ))}
-                                        <th className="text-right font-semibold py-2 px-1.5 text-muted-foreground/50">Total</th>
-                                        <th className="text-right font-semibold py-2 pl-2 text-muted-foreground/50">Écart %</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {sales.matrix.map((row) => (
-                                        <tr
-                                            key={row.segment}
-                                            className={cn(
-                                                "border-b border-border/20 hover:bg-foreground/[0.02] transition-colors",
-                                                row.segment === "Total" && "border-t border-border/50 font-bold"
-                                            )}
-                                        >
-                                            <td className="py-2.5 pr-3 font-medium text-foreground/80">{row.segment}</td>
-                                            {(["P24", "P.MTO", "P.LMB", "P.KTM", "P.ONL"] as const).map((s) => (
-                                                <td key={s} className="py-2.5 px-1.5 text-right tabular-nums text-foreground/70">
-                                                    ${(row[s] / 1000).toFixed(1)}k
-                                                </td>
-                                            ))}
-                                            <td className="py-2.5 px-1.5 text-right tabular-nums font-semibold">
-                                                ${(row.total / 1000).toFixed(0)}k
-                                            </td>
-                                            <td
-                                                className="py-2.5 pl-2 text-right tabular-nums font-bold"
-                                                style={{ color: row.variancePct >= 0 ? "var(--chart-2)" : "var(--destructive)" }}
-                                            >
-                                                {row.variancePct >= 0 ? "+" : ""}{row.variancePct.toFixed(1)}%
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
+                    <PurchaseAuditFinanceTable />
+                </section>
 
-                {/* ── Alertes ── */}
-                <section>
+                <section className="space-y-2">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 border-l-4 border-amber-500 pl-3">
+                            <h2 className="text-xs md:text-sm font-black tracking-wide uppercase text-slate-900 dark:text-slate-100">
+                                7. TRÉSORERIE CASH PAR POINT DE VENTE & CLASSIFICATION DES DÉPENSES (OPEX)
+                            </h2>
+                        </div>
+                        <Link href="/ceo-report/cash" className="text-[11px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1">
+                            Détail Cash <ChevronRight className="w-3.5 h-3.5" />
+                        </Link>
+                    </div>
+                    <CashOpexMatrixTable />
+                </section>
+
+                {/* ── POINT 8 : VALORISATION STOCK & TAILLES FEMME ── */}
+                <section className="space-y-2">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 border-l-4 border-amber-500 pl-3">
+                            <h2 className="text-xs md:text-sm font-black tracking-wide uppercase text-slate-900 dark:text-slate-100">
+                                8. VALORISATION DU STOCK PAR BOUTIQUE (AVEC AUDITS) & SUIVI DES TAILLES FEMME
+                            </h2>
+                        </div>
+                        <Link href="/ceo-report/stock" className="text-[11px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1">
+                            Audit Stock & Tailles <ChevronRight className="w-3.5 h-3.5" />
+                        </Link>
+                    </div>
+                    <StoreStockAuditSizesTable />
+                </section>
+
+                {/* ── POINT 9 : IMMOBILIER (LOYERS) & TABLEAU RH ── */}
+                <section className="space-y-2">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 border-l-4 border-amber-500 pl-3">
+                            <h2 className="text-xs md:text-sm font-black tracking-wide uppercase text-slate-900 dark:text-slate-100">
+                                9. SUIVI IMMOBILIER (LOYERS), FISCALITÉ LOCATIVE & TABLEAU RH
+                            </h2>
+                        </div>
+                        <Link href="/ceo-report/hr" className="text-[11px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1">
+                            Détail Loyers & RH <ChevronRight className="w-3.5 h-3.5" />
+                        </Link>
+                    </div>
+                    <LeaseHrMatrixTable />
+                </section>
+
+                {/* ── 5. Alertes ── */}
+                {/* <section>
                     <SectionHeader
                         title="Points nécessitant une attention"
                         action={
@@ -291,7 +281,7 @@ export default function ExecutiveCockpit({ data }: Props) {
                         {warningAlerts.map((a) => <AlertBadge key={a.id} {...a} />)}
                         {infoAlerts.map((a) => <AlertBadge key={a.id} {...a} />)}
                     </div>
-                </section>
+                </section> */}
 
             </div>
         </div>

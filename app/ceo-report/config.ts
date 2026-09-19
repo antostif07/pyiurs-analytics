@@ -5,12 +5,25 @@ import {
     Banknote,
     Settings2,
     Users,
+    Truck,
+    PackageCheck,
 } from "lucide-react";
 import type { NavGroup, NavItem } from "@/components/new-ui/layout/app-sidebar";
+import type { UserRole } from "@/lib/constants";
 
 /**
- * Navigation latérale du module Rapport DG.
- * Toutes les routes sont préfixées par /dg-report.
+ * Préfixe racine du module.
+ * Modifiez ici en "/dg-report" si le dossier dans app/ s'appelle dg-report.
+ */
+export const CEO_REPORT_BASE_PATH = "/ceo-report" as const;
+
+/**
+ * Rôles ayant accès par défaut aux métriques exécutives de ce module
+ */
+const DEFAULT_EXEC_ROLES: UserRole[] = ["admin", "manager"];
+
+/**
+ * Navigation latérale du module Rapport DG / CEO Intelligence.
  */
 export const DG_REPORT_NAV_GROUPS: NavGroup[] = [
     {
@@ -21,8 +34,8 @@ export const DG_REPORT_NAV_GROUPS: NavGroup[] = [
                 id: "dg-dashboard",
                 label: "Tableau de bord",
                 icon: LayoutDashboard,
-                path: "/ceo-report",
-                roles: ["admin", "manager"],
+                path: CEO_REPORT_BASE_PATH,
+                roles: DEFAULT_EXEC_ROLES,
             },
         ],
     },
@@ -34,9 +47,9 @@ export const DG_REPORT_NAV_GROUPS: NavGroup[] = [
                 id: "dg-stock-overview",
                 label: "Vue Stock",
                 icon: Package,
-                path: "/dg-report/stock",
+                path: `${CEO_REPORT_BASE_PATH}/stock`,
                 badge: "Nouveau",
-                roles: ["admin", "manager"],
+                roles: DEFAULT_EXEC_ROLES,
             },
         ],
     },
@@ -48,8 +61,22 @@ export const DG_REPORT_NAV_GROUPS: NavGroup[] = [
                 id: "dg-sales-overview",
                 label: "Ventes",
                 icon: TrendingUp,
-                path: "/dg-report/sales",
-                roles: ["admin", "manager"],
+                path: `${CEO_REPORT_BASE_PATH}/sales`,
+                roles: DEFAULT_EXEC_ROLES,
+            },
+        ],
+    },
+    {
+        id: "customers",
+        title: "Clientèle",
+        items: [
+            {
+                id: "dg-customers-matrix",
+                label: "Suivi & Segmentation",
+                icon: Users,
+                path: `${CEO_REPORT_BASE_PATH}/customers`,
+                // badge: "Point 2",
+                roles: DEFAULT_EXEC_ROLES,
             },
         ],
     },
@@ -58,11 +85,12 @@ export const DG_REPORT_NAV_GROUPS: NavGroup[] = [
         title: "Finance",
         items: [
             {
-                id: "dg-finance-overview",
-                label: "Synthèse financière",
+                id: "dg-finance-audit",
+                label: "Audit Achats & Frais Approche",
                 icon: Banknote,
-                path: "/dg-report/finance",
-                roles: ["admin", "manager"],
+                path: `${CEO_REPORT_BASE_PATH}/finance`,
+                badge: "Point 6",
+                roles: DEFAULT_EXEC_ROLES,
             },
         ],
     },
@@ -71,11 +99,19 @@ export const DG_REPORT_NAV_GROUPS: NavGroup[] = [
         title: "Opérations",
         items: [
             {
-                id: "dg-operations-overview",
-                label: "Opérations",
-                icon: Settings2,
-                path: "/dg-report/operations",
-                roles: ["admin", "manager"],
+                id: "dg-purchases-dispatch",
+                label: "Achats PO & Dispatch",
+                icon: Truck,
+                path: `${CEO_REPORT_BASE_PATH}/operations/purchases`,
+                roles: DEFAULT_EXEC_ROLES,
+            },
+            {
+                id: "dg-transfers-control",
+                label: "Contrôle des Transferts",
+                icon: PackageCheck,
+                path: `${CEO_REPORT_BASE_PATH}/operations/transfers`,
+                badge: "Audit TR",
+                roles: DEFAULT_EXEC_ROLES,
             },
         ],
     },
@@ -87,16 +123,23 @@ export const DG_REPORT_NAV_GROUPS: NavGroup[] = [
                 id: "dg-hr-overview",
                 label: "RH",
                 icon: Users,
-                path: "/dg-report/hr",
-                roles: ["admin", "manager"],
+                path: `${CEO_REPORT_BASE_PATH}/hr`,
+                roles: DEFAULT_EXEC_ROLES,
             },
         ],
     },
 ];
 
 /**
- * Helper : aplatit tous les items pour un accès rapide par id ou path.
+ * Liste aplatie de tous les items de navigation
  */
 export const DG_REPORT_ALL_ITEMS: NavItem[] = DG_REPORT_NAV_GROUPS.flatMap(
     (group) => group.items
 );
+
+/**
+ * Map indexée par chemin d'accès (Lookup en O(1) pour le Topbar et Breadcrumbs)
+ */
+export const DG_REPORT_ITEMS_BY_PATH = new Map<string, NavItem>(
+    DG_REPORT_ALL_ITEMS.map((item) => [item.path, item])
+);  
