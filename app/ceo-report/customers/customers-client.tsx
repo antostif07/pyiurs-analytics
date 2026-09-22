@@ -17,10 +17,10 @@ import {
     Pie,
     Cell,
 } from "recharts";
-import DashboardHeader from "@/app/revenue/arpu/_components/arpu-header";
 import CustomerMatrixTable, {
     DEFAULT_CUSTOMER_DATA,
 } from "./_components/customer-matrix-table";
+import DashboardHeader from "@/components/new-ui/layout/dashboard-header";
 
 const PIE_COLORS = ["#0f172a", "#f59e0b", "#94a3b8", "#64748b"];
 
@@ -43,7 +43,13 @@ export default function CustomersClient() {
     return (
         <div className="space-y-6">
             {/* 1. Header de contrôle */}
-            <DashboardHeader onExport={(fmt) => toast(`Export ${fmt} en cours...`)} />
+            <DashboardHeader
+                title="Suivi Clientèle, Flux & Segmentation"
+                subtitle="Analyse du parc clients, Gross Adds, Churn et ARPU par segment"
+                onRefresh={() => { }}
+                isLoading={false}
+                onExport={(format) => toast(`Export ${format} de la clientèle...`)}
+            />
 
             {/* 2. KPIs Clés Clientèle */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

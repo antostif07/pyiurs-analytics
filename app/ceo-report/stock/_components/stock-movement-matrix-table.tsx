@@ -28,52 +28,41 @@ export interface StockMovementRow {
     closingStock: number;
 }
 
-// Données fidèles à la capture d'écran
-export const DEFAULT_STOCK_MOVEMENTS: StockMovementRow[] = [
-    {
-        segment: "Femme",
-        initialStock: 65000,
-        purchases: 22000,
-        sales: 21500,
-        adjustments: -450,
-        closingStock: 65050,
-    },
-    {
-        segment: "Kids",
-        initialStock: 24000,
-        purchases: 8000,
-        sales: 7800,
-        adjustments: -200,
-        closingStock: 23990,
-    },
-    {
-        segment: "Beauty",
-        initialStock: 18000,
-        purchases: 12000,
-        sales: 11900,
-        adjustments: -150,
-        closingStock: 17950,
-    },
-];
-
-const TOTALS = {
-    segment: "TOTAL STOCK",
-    initialStock: 107000,
-    purchases: 42000,
-    sales: 41200,
-    adjustments: -800,
-    closingStock: 106990,
-};
-
 function formatUsd(val: number): string {
-    return `${val.toLocaleString("fr-FR")} $`;
+    return `${Math.round(val).toLocaleString("fr-FR")} $`;
+}
+
+interface StockMovementMatrixTableProps {
+    data?: StockMovementRow[];
+    isLoading?: boolean;
 }
 
 export default function StockMovementMatrixTable({
-    data = DEFAULT_STOCK_MOVEMENTS,
-}: {
-    data?: StockMovementRow[];
-}) {
+    data = [],
+    isLoading = false,
+}: StockMovementMatrixTableProps) {
+    // Calcul dynamique de la ligne TOTAL à partir des vraies données
+    const totals = useMemo(() => {
+        return data.reduce(
+            (acc, row) => ({
+                segment: "TOTAL STOCK",
+                initialStock: acc.initialStock + (row.initialStock || 0),
+                purchases: acc.purchases + (row.purchases || 0),
+                sales: acc.sales + (row.sales || 0),
+                adjustments: acc.adjustments + (row.adjustments || 0),
+                closingStock: acc.closingStock + (row.closingStock || 0),
+            }),
+            {
+                segment: "TOTAL STOCK",
+                initialStock: 0,
+                purchases: 0,
+                sales: 0,
+                adjustments: 0,
+                closingStock: 0,
+            }
+        );
+    }, [data]);
+
     const columns = useMemo<ColumnDef<StockMovementRow>[]>(
         () => [
             {
@@ -108,17 +97,19 @@ export default function StockMovementMatrixTable({
                 accessorKey: "adjustments",
                 header: () => "Ajustements Stock (Casses/Écarts) ($)",
                 cell: (info) => {
-                    const val = info.getValue() as number;
+                    const val = Number(info.getValue() || 0);
                     return (
                         <span
                             className={cn(
                                 "font-bold font-mono",
                                 val < 0
                                     ? "text-rose-600 dark:text-rose-400"
-                                    : "text-emerald-600 dark:text-emerald-400"
+                                    : val > 0
+                                        ? "text-emerald-600 dark:text-emerald-400"
+                                        : "text-slate-400"
                             )}
                         >
-                            {val < 0 ? `-${formatUsd(Math.abs(val))}` : `+${formatUsd(val)}`}
+                            {val < 0 ? `-${formatUsd(Math.abs(val))}` : val > 0 ? `+${formatUsd(val)}` : "0 $"}
                         </span>
                     );
                 },
@@ -175,53 +166,75 @@ export default function StockMovementMatrixTable({
                         ))}
                     </TableHeader>
 
-                    {/* Lignes de données */}
+                    {/* Lignes de données ou Skeleton */}
                     <TableBody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                        {table.getRowModel().rows.map((row) => (
-                            <TableRow
-                                key={row.id}
-                                className="hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors border-b border-slate-100 dark:border-slate-800/60"
-                            >
-                                {row.getVisibleCells().map((cell, idx) => (
-                                    <TableCell
-                                        key={cell.id}
-                                        className={cn(
-                                            "py-1.5 px-3 font-mono tabular-nums",
-                                            idx === 0
-                                                ? "text-left sticky left-0 z-10 bg-white dark:bg-slate-900 border-r border-slate-100 dark:border-slate-800"
-                                                : "text-right text-slate-700 dark:text-slate-300"
-                                        )}
-                                    >
-                                        {flexRender(
-                                            cell.column.columnDef.cell,
-                                            cell.getContext()
-                                        )}
+                        {isLoading ? (
+                            // Skeletons de chargement
+                            [1, 2, 3].map((i) => (
+                                <TableRow key={i} className="animate-pulse">
+                                    <TableCell className="py-2.5 px-3">
+                                        <div className="h-3.5 w-20 bg-slate-200 dark:bg-slate-800 rounded" />
                                     </TableCell>
-                                ))}
+                                    {[1, 2, 3, 4, 5].map((c) => (
+                                        <TableCell key={c} className="py-2.5 px-3 text-right">
+                                            <div className="h-3.5 w-16 bg-slate-200 dark:bg-slate-800 rounded ml-auto" />
+                                        </TableCell>
+                                    ))}
+                                </TableRow>
+                            ))
+                        ) : table.getRowModel().rows.length > 0 ? (
+                            table.getRowModel().rows.map((row) => (
+                                <TableRow
+                                    key={row.id}
+                                    className="hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors border-b border-slate-100 dark:border-slate-800/60"
+                                >
+                                    {row.getVisibleCells().map((cell, idx) => (
+                                        <TableCell
+                                            key={cell.id}
+                                            className={cn(
+                                                "py-1.5 px-3 font-mono tabular-nums",
+                                                idx === 0
+                                                    ? "text-left sticky left-0 z-10 bg-white dark:bg-slate-900 border-r border-slate-100 dark:border-slate-800"
+                                                    : "text-right text-slate-700 dark:text-slate-300"
+                                            )}
+                                        >
+                                            {flexRender(
+                                                cell.column.columnDef.cell,
+                                                cell.getContext()
+                                            )}
+                                        </TableCell>
+                                    ))}
+                                </TableRow>
+                            ))
+                        ) : (
+                            <TableRow>
+                                <TableCell colSpan={6} className="py-4 text-center text-slate-400 italic">
+                                    Aucun mouvement de stock sur cette période
+                                </TableCell>
                             </TableRow>
-                        ))}
+                        )}
                     </TableBody>
 
-                    {/* Ligne TOTAL FOOTER */}
+                    {/* Ligne TOTAL DYNAMIQUE */}
                     <TableFooter className="bg-slate-50 dark:bg-slate-800/80 border-t-2 border-slate-300 dark:border-slate-700 font-bold">
                         <TableRow className="hover:bg-transparent border-none">
                             <TableCell className="py-2 px-3 text-left font-black uppercase tracking-wider text-slate-900 dark:text-white sticky left-0 z-10 bg-slate-50 dark:bg-slate-800/90 border-r border-slate-200 dark:border-slate-700">
-                                {TOTALS.segment}
+                                {totals.segment}
                             </TableCell>
                             <TableCell className="py-2 px-3 text-right font-mono font-black text-slate-900 dark:text-white">
-                                {formatUsd(TOTALS.initialStock)}
+                                {formatUsd(totals.initialStock)}
                             </TableCell>
                             <TableCell className="py-2 px-3 text-right font-mono font-black text-slate-900 dark:text-white">
-                                {formatUsd(TOTALS.purchases)}
+                                {formatUsd(totals.purchases)}
                             </TableCell>
                             <TableCell className="py-2 px-3 text-right font-mono font-black text-slate-900 dark:text-white">
-                                {formatUsd(TOTALS.sales)}
+                                {formatUsd(totals.sales)}
                             </TableCell>
                             <TableCell className="py-2 px-3 text-right font-mono font-black text-rose-600 dark:text-rose-400">
-                                -{formatUsd(Math.abs(TOTALS.adjustments))}
+                                {totals.adjustments < 0 ? `-${formatUsd(Math.abs(totals.adjustments))}` : `${formatUsd(totals.adjustments)}`}
                             </TableCell>
                             <TableCell className="py-2 px-3 text-right font-mono font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50/40 dark:bg-indigo-950/30">
-                                {formatUsd(TOTALS.closingStock)}
+                                {formatUsd(totals.closingStock)}
                             </TableCell>
                         </TableRow>
                     </TableFooter>

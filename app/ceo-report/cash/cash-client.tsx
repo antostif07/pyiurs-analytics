@@ -16,8 +16,8 @@ import {
     YAxis,
     CartesianGrid,
 } from "recharts";
-import DashboardHeader from "@/app/revenue/arpu/_components/arpu-header";
 import CashOpexMatrixTable from "./_components/cash-opex-matrix-table";
+import DashboardHeader from "@/components/new-ui/layout/dashboard-header";
 
 const OPEX_COLORS = ["#3b82f6", "#64748b", "#ec4899", "#f59e0b", "#8b5cf6", "#10b981"];
 
@@ -41,8 +41,14 @@ export default function CashClient() {
 
     return (
         <div className="space-y-6">
-            <DashboardHeader onExport={(fmt) => toast(`Export ${fmt} de la trésorerie en cours...`)} />
-
+            <DashboardHeader
+                title="Trésorerie Cash & Dépenses OPEX"
+                subtitle="Position de trésorerie par boutique et répartition des charges opérationnelles"
+                onRefresh={() => { }}
+                isLoading={false}
+                lastUpdatedAt={new Date()}
+                onExport={(format) => toast(`Export ${format} trésorerie...`)}
+            />
             {/* 4 KPIs Trésorerie & OPEX */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
