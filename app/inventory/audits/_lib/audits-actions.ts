@@ -13,14 +13,155 @@ import {
     SoldLocation,
     extractOdooMany2oneName,
     StockAuditItemInsert,
+    OdooPosCategory,
 } from "./types";
+import { Json } from "@/lib/supabase/database.types";
+import { toJson } from "./helpers";
 
 /**
- * Helper: Extraction sécurisée des IDs de boutiques autorisées depuis JSONB
+ * Brouillon local d'un item d'audit — utilise les types métier (SoldLocation[],
+ * number[], string[]) pendant toute la construction. La conversion finale
+ * vers `Json` se fait UNE SEULE FOIS au moment de l'appel RPC.
  */
+type AuditItemDraft = {
+    odoo_product_id: number;
+    product_name: string;
+    internal_barcode: string;
+    supplier_ref: string;
+    hs_code: string;
+    brand: string;
+    color: string;
+    odoo_create_date: string | null;
+    sold_locations: SoldLocation[];
+    theoretical_qty: number;
+    counted_qty: number;
+    unit_cost: number;
+    pos_category_ids: number[];
+    pos_category_names: string[];
+};
+
+/**
+ * Patch partiel d'un item d'audit pour la resynchronisation.
+ * Reste en types métier jusqu'au cast final vers Json.
+ */
+type SyncItemPatch = {
+    id: string;
+    sold_locations: SoldLocation[];
+    hs_code: string;
+    brand: string;
+    color: string;
+    odoo_create_date: string | null;
+    unit_cost: number;
+    pos_category_ids: number[];
+    pos_category_names: string[];
+};
+
+/* ──────────────────────────────────────────────────────────────────── */
+/* HELPERS                                                              */
+/* ──────────────────────────────────────────────────────────────────── */
+/* ──────────────────────────────────────────────────────────────────── */
+/* TYPE GUARDS / NORMALISATION JSONB                                    */
+/* ──────────────────────────────────────────────────────────────────── */
+
+/** Narrow un `Json` en `number[]` */
+function normalizeNumberArray(value: unknown): number[] {
+    if (!Array.isArray(value)) return [];
+    return value.filter((v): v is number => typeof v === "number" && Number.isInteger(v));
+}
+
+/** Narrow un `Json` en `string[]` */
+function normalizeStringArray(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+    return value.filter((v): v is string => typeof v === "string");
+}
+
+/** Extraction sécurisée des IDs de boutiques autorisées depuis JSONB */
 function extractAllowedShopIds(assignedShops: unknown): string[] {
     if (!Array.isArray(assignedShops)) return [];
     return assignedShops.filter((id): id is string => typeof id === "string" && id.trim().length > 0);
+}
+
+/**
+ * Résout les noms des catégories POS Odoo depuis un set d'IDs.
+ * Cache local par appel. Retourne une map { id → name }.
+ */
+async function resolvePosCategoryNames(ids: number[]): Promise<Map<number, string>> {
+    const map = new Map<number, string>();
+    if (ids.length === 0) return map;
+
+    try {
+        const categories = await odooClient.searchRead<OdooPosCategory>(
+            "pos.category",
+            { domain: [["id", "in", ids]], fields: ["id", "name"] }
+        );
+        (categories || []).forEach((c) => map.set(c.id, c.name));
+    } catch (err) {
+        console.error("[RESOLVE_POS_CATEG_ERROR]", err);
+    }
+    return map;
+}
+
+/**
+ * Recalcul complet des totaux (utilisé uniquement en sanity-check / validation).
+ * Pour les scans unitaires, préférer la RPC atomique increment_audit_totals.
+ */
+async function recalcAuditTotalsFull(supabase: SupabaseClient, auditId: string) {
+    const { data: allItems, error } = await supabase
+        .from("stock_audit_items")
+        .select("counted_qty, theoretical_qty, unit_cost")
+        .eq("audit_id", auditId);
+
+    if (error || !allItems) {
+        console.error("[RECALC_AUDIT_TOTALS_ERROR]", error);
+        return;
+    }
+
+    let totalScanned = 0;
+    let totalDiffQty = 0;
+    let totalDiffVal = 0;
+
+    for (const i of allItems) {
+        const counted = i.counted_qty ?? 0;
+        const theoretical = i.theoretical_qty ?? 0;
+        const cost = Number(i.unit_cost) || 0;
+
+        if (counted === 1) totalScanned++;
+
+        const diff = counted - theoretical;
+        totalDiffQty += diff;
+        totalDiffVal += diff * cost;
+    }
+
+    await supabase
+        .from("stock_audits")
+        .update({
+            total_items_scanned: totalScanned,
+            total_discrepancy_qty: totalDiffQty,
+            total_discrepancy_value: totalDiffVal,
+            updated_at: new Date().toISOString(),
+        })
+        .eq("id", auditId);
+}
+
+/** Delta atomique via RPC Postgres (fix race condition B4) */
+async function incrementAuditTotalsAtomic(
+    supabase: SupabaseClient,
+    auditId: string,
+    delta: { scanned: number; qty: number; value: number }
+) {
+    if (delta.scanned === 0 && delta.qty === 0 && delta.value === 0) return;
+
+    const { error } = await supabase.rpc("increment_audit_totals", {
+        p_audit_id: auditId,
+        p_scanned_delta: delta.scanned,
+        p_qty_delta: delta.qty,
+        p_value_delta: delta.value,
+    });
+
+    if (error) {
+        console.error("[INCREMENT_AUDIT_TOTALS_ERROR]", error);
+        throw new Error(error.message);
+    }
 }
 
 /**
@@ -66,12 +207,12 @@ async function updateAuditTotals(supabase: SupabaseClient, auditId: string) {
         .eq("id", auditId);
 }
 
-/**
- * 1. CRÉATION D'AUDIT EN EXTRAISANT LES STOCKS ET VENTIES NÉGATIVES INTER-COMPAGNIES
- */
+/* ════════════════════════════════════════════════════════════════════ */
+/* 1. CRÉATION D'AUDIT — transactionnelle + POS categories              */
+/* ════════════════════════════════════════════════════════════════════ */
 export async function createAuditSessionAction(
-    shopIds: string[],       // IDs des boutiques
-    departments: string[],   // Segments ("Femme", "Enfant", "Beauty", "Tous")
+    shopIds: string[],
+    departments: string[],
     notes?: string,
     auditDate?: string
 ) {
@@ -88,6 +229,7 @@ export async function createAuditSessionAction(
             return { success: false, error: "Veuillez sélectionner au moins une boutique valide." };
         }
 
+        /* ─── Boutiques ─── */
         const { data: shops, error: shopError } = await supabase
             .from("shops")
             .select("id, name, odoo_company_id")
@@ -113,46 +255,25 @@ export async function createAuditSessionAction(
             };
         }
 
+        /* ─── Métadonnées audit ─── */
         const departmentLabel = departments.length > 0 ? departments.join(", ") : "Tous";
         const selectedDate = auditDate ? new Date(auditDate) : new Date();
         const todayStr = new Date().toISOString().split("T")[0];
-        const isHistorical = auditDate && auditDate !== todayStr;
+        const isHistorical = !!auditDate && auditDate !== todayStr;
 
         const datePrefix = selectedDate.toISOString().slice(0, 7).replace("-", "");
         const randomSuffix = Math.floor(1000 + Math.random() * 9000);
         const reference = `AUD-${datePrefix}-${randomSuffix}`;
 
-        // Insertion En-tête d'audit
-        const { data: audit, error: insertError } = await supabase
-            .from("stock_audits")
-            .insert({
-                reference,
-                shop_id: shopIds[0],
-                shop_name: shopNames,
-                department: departmentLabel,
-                status: "in_progress",
-                created_by: userId,
-                created_at: selectedDate.toISOString(),
-                audit_date: selectedDate.toISOString().split("T")[0],
-                total_items_scanned: 0,
-                total_discrepancy_qty: 0,
-                total_discrepancy_value: 0,
-                notes: notes
-                    ? isHistorical
-                        ? `[Historique du ${auditDate}] ${notes}`
-                        : notes
-                    : isHistorical
-                        ? `[Historique du ${auditDate}]`
-                        : null,
-            })
-            .select()
-            .single();
+        const notesFinal = notes
+            ? isHistorical ? `[Historique du ${auditDate}] ${notes}` : notes
+            : isHistorical ? `[Historique du ${auditDate}]` : null;
 
-        if (insertError) throw new Error(insertError.message);
+        const auditDateStr = selectedDate.toISOString().split("T")[0];
 
-        /* ─── APPELS ODOO SÉQUENTIELS (Jamais Promise.all sur Odoo JSON-RPC) ─── */
+        /* ─── Appels Odoo séquentiels (jamais Promise.all sur Odoo JSON-RPC) ─── */
 
-        // Appel A : Quants positifs (> 0) de la boutique ciblée
+        // A. Quants positifs de la société cible
         const positiveQuants = await odooClient.searchRead<OdooQuant>("stock.quant", {
             domain: [
                 ["company_id", "in", odooCompanyIds],
@@ -163,7 +284,7 @@ export async function createAuditSessionAction(
             limit: 25000,
         });
 
-        // Appel B : Quants négatifs (< 0) sur TOUTES LES COMPAGNIES DU GROUPE ODOO
+        // B. Quants négatifs (toutes compagnies du groupe)
         const negativeQuants = await odooClient.searchRead<OdooQuant>("stock.quant", {
             domain: [
                 ["location_id.usage", "=", "internal"],
@@ -197,16 +318,30 @@ export async function createAuditSessionAction(
             new Set([...productQuantMap.keys(), ...soldLocationsMap.keys()])
         );
 
+        /* ─── Cas vide : pas de stock Odoo → audit vide mais valide ─── */
         if (uniqueProductIds.length === 0) {
+            const { data: auditId, error: rpcError } = await supabase.rpc("create_audit_session", {
+                p_reference: reference,
+                p_shop_id: cleanShopIds[0],
+                p_shop_name: shopNames,
+                p_department: departmentLabel,
+                p_notes: notesFinal || "",
+                p_created_by: userId || "",
+                p_audit_date: auditDateStr,
+                p_items: [] as unknown as Json,
+            });
+            if (rpcError) throw new Error(rpcError.message);
+
+            revalidatePath("/inventory/audits");
             return {
                 success: true,
-                auditId: audit.id,
-                reference: audit.reference,
+                auditId,
+                reference,
                 warning: "Aucun stock Odoo trouvé pour cette société.",
             };
         }
 
-        // Domaine Odoo avec typage strict OdooDomain
+        /* ─── Produits Odoo ─── */
         const productDomain: OdooDomain = [
             ["id", "in", uniqueProductIds],
             ["active", "=", true],
@@ -218,108 +353,109 @@ export async function createAuditSessionAction(
             productDomain.push(["x_studio_segment", "in", departments]);
         }
 
-        // Appel C : Produits Odoo avec tous les attributs Studio
         const products = await odooClient.searchRead<OdooProduct>("product.product", {
             domain: productDomain,
             fields: [
-                "id",
-                "name",
-                "barcode",
-                "default_code",
-                "hs_code",
-                "standard_price",
-                "create_date",
-                "x_studio_segment",
-                "x_studio_many2one_field_21bvh", // Marque
-                "x_studio_many2one_field_Arl5D",  // Couleur
+                "id", "name", "barcode", "default_code", "hs_code",
+                "standard_price", "create_date", "x_studio_segment",
+                "x_studio_many2one_field_21bvh",
+                "x_studio_many2one_field_Arl5D",
+                "pos_categ_ids",
             ],
             limit: uniqueProductIds.length,
         });
 
-        if (products && products.length > 0) {
-            const barcodeMap = new Map<
-                string,
-                {
-                    audit_id: string;
-                    odoo_product_id: number;
-                    product_name: string;
-                    internal_barcode: string;
-                    supplier_ref: string;
-                    hs_code: string;
-                    brand: string;
-                    color: string;
-                    odoo_create_date: string | null;
-                    sold_locations: SoldLocation[];
-                    theoretical_qty: number;
-                    counted_qty: number;
-                    unit_cost: number;
-                }
-            >();
-
-            products.forEach((p) => {
-                const barcodeVal = (p.barcode || p.default_code || "").trim().toUpperCase();
-                if (!barcodeVal) return;
-
-                const quantList = productQuantMap.get(p.id) || [];
-                const soldLocs = soldLocationsMap.get(p.id) || [];
-                const totalQty = quantList.reduce((sum, q) => sum + q.quantity, 0);
-                const locations = [...new Set(quantList.map((q) => q.locationName))].join(", ");
-
-                const brandVal = extractOdooMany2oneName(p.x_studio_many2one_field_21bvh, "N/A");
-                const colorVal = extractOdooMany2oneName(p.x_studio_many2one_field_Arl5D, "N/A");
-                const hsCodeVal = p.hs_code || "N/A";
-
-                if (!barcodeMap.has(barcodeVal)) {
-                    barcodeMap.set(barcodeVal, {
-                        audit_id: audit.id,
-                        odoo_product_id: p.id,
-                        product_name: p.name,
-                        internal_barcode: barcodeVal,
-                        supplier_ref: locations || "Stock Principal",
-                        hs_code: hsCodeVal,
-                        brand: brandVal,
-                        color: colorVal,
-                        odoo_create_date: p.create_date || null,
-                        sold_locations: soldLocs,
-                        theoretical_qty: totalQty >= 1 ? totalQty : 1,
-                        counted_qty: 0,
-                        unit_cost: p.standard_price || 0,
-                    });
-                } else {
-                    const existing = barcodeMap.get(barcodeVal)!;
-                    existing.theoretical_qty += totalQty;
-                    if (soldLocs.length > 0) {
-                        const existingLocs = existing.sold_locations || [];
-                        soldLocs.forEach((sl) => {
-                            if (!existingLocs.some((el) => el.id === sl.id)) existingLocs.push(sl);
-                        });
-                        existing.sold_locations = existingLocs;
-                    }
-                }
-            });
-
-            const snapshotItems = Array.from(barcodeMap.values());
-
-            // Insertion batchée ultra-rapide par paquets de 500 dans Supabase
-            if (snapshotItems.length > 0) {
-                const batchSize = 500;
-                for (let i = 0; i < snapshotItems.length; i += batchSize) {
-                    const batch = snapshotItems.slice(i, i + batchSize);
-                    const { error: insertBatchError } = await supabase
-                        .from("stock_audit_items")
-                        .insert(batch as any);
-
-                    if (insertBatchError) {
-                        console.error("[AUDIT_SNAPSHOT_INSERT_ERROR]", insertBatchError);
-                    }
-                }
+        /* ─── Résolution POS categories (1 seul appel Odoo) ─── */
+        const allCategIds = new Set<number>();
+        (products || []).forEach((p) => {
+            if (Array.isArray(p.pos_categ_ids)) {
+                p.pos_categ_ids.forEach((id) => {
+                    if (Number.isInteger(id)) allCategIds.add(id);
+                });
             }
-        }
+        });
+        const categNameMap = await resolvePosCategoryNames(Array.from(allCategIds));
 
-        await updateAuditTotals(supabase, audit.id);
+        /* ─── Construction du snapshot ─── */
+        const barcodeMap = new Map<string, AuditItemDraft>();
+
+        (products || []).forEach((p) => {
+            const rawBarcode = (p.barcode || p.default_code || "") as string;
+            const barcodeVal = rawBarcode.trim().toUpperCase();
+            if (!barcodeVal) return;
+
+            const quantList = productQuantMap.get(p.id) || [];
+            const soldLocs = soldLocationsMap.get(p.id) || [];
+            const totalQty = quantList.reduce((sum, q) => sum + q.quantity, 0);
+            const locations = [...new Set(quantList.map((q) => q.locationName))].join(", ");
+
+            const brandVal = extractOdooMany2oneName(p.x_studio_many2one_field_21bvh, "N/A");
+            const colorVal = extractOdooMany2oneName(p.x_studio_many2one_field_Arl5D, "N/A");
+
+            const categIds = Array.isArray(p.pos_categ_ids)
+                ? p.pos_categ_ids.filter((id): id is number => Number.isInteger(id))
+                : [];
+            const categNames = categIds.map((id) => categNameMap.get(id) ?? `#${id}`);
+
+            const existing = barcodeMap.get(barcodeVal);
+
+            if (existing) {
+                /* Fusion — TS est content car AuditItemDraft est un type propre */
+                existing.theoretical_qty += totalQty;
+
+                if (soldLocs.length > 0) {
+                    soldLocs.forEach((sl) => {
+                        if (!existing.sold_locations.some((el) => el.id === sl.id)) {
+                            existing.sold_locations.push(sl);
+                        }
+                    });
+                }
+
+                existing.pos_category_ids = Array.from(
+                    new Set([...existing.pos_category_ids, ...categIds])
+                );
+                existing.pos_category_names = Array.from(
+                    new Set([...existing.pos_category_names, ...categNames])
+                );
+            } else {
+                barcodeMap.set(barcodeVal, {
+                    odoo_product_id: p.id,
+                    product_name: p.name,
+                    internal_barcode: barcodeVal,
+                    supplier_ref: locations || "Stock Principal",
+                    hs_code: typeof p.hs_code === "string" && p.hs_code ? p.hs_code : "N/A",
+                    brand: brandVal,
+                    color: colorVal,
+                    odoo_create_date: typeof p.create_date === "string" ? p.create_date : null,
+                    sold_locations: [...soldLocs],
+                    theoretical_qty: totalQty,
+                    counted_qty: 0,
+                    unit_cost: p.standard_price || 0,
+                    pos_category_ids: categIds,
+                    pos_category_names: categNames,
+                });
+            }
+        });
+
+        const snapshotItems = Array.from(barcodeMap.values());
+
+        /* ─── Appel RPC transactionnel (audit + items en 1 TX) ─── */
+        const { data: auditId, error: rpcError } = await supabase.rpc("create_audit_session", {
+            p_reference: reference,
+            p_shop_id: cleanShopIds[0],
+            p_shop_name: shopNames,
+            p_department: departmentLabel,
+            p_notes: notesFinal || "",
+            p_created_by: userId || "",
+            p_audit_date: auditDateStr,
+            p_items: snapshotItems as unknown as Json,   // ← SEUL cast de la fonction
+        });
+
+        if (rpcError) throw new Error(rpcError.message);
+
         revalidatePath("/inventory/audits");
+        return { success: true, auditId, reference };
 
-        return { success: true, auditId: audit.id, reference: audit.reference };
     } catch (err: unknown) {
         console.error("[CREATE_AUDIT_ERROR]", err);
         return {
@@ -329,35 +465,61 @@ export async function createAuditSessionAction(
     }
 }
 
-/**
- * 2. RESYNCHRONISATION DES MÉTADONNÉES ET EMPLACEMENTS NÉGATIFS INTER-COMPAGNIES
- * NE RECALCULE PAS LE STOCK THÉORIQUE DE RÉFÉRENCE NI LES SCANS DÉJÀ EFFECTUÉS.
- * Exécute un UPSERT batché (< 100ms sur 3 000 articles).
- */
+/* ════════════════════════════════════════════════════════════════════ */
+/* 2. SYNCHRONISATION DES MÉTADONNÉES + EMPLACEMENTS NÉGATIFS           */
+/*    - Ne recalcule PAS theoretical_qty ni counted_qty                 */
+/*    - Ne touche PAS aux scans déjà effectués                         */
+/*    - Batch via RPC SQL atomique (update par id, valeurs par item)   */
+/* ════════════════════════════════════════════════════════════════════ */
+
 export async function syncAuditStockSnapshotAction(auditId: string) {
     try {
         const supabase = await createClient();
 
+        /* ─── 1. Vérifications préalables ─── */
         const { data: audit, error: fetchAuditError } = await supabase
             .from("stock_audits")
             .select("id, shop_id, audit_date, status")
             .eq("id", auditId)
             .single();
 
-        if (fetchAuditError || !audit) throw new Error("Audit introuvable.");
-
-        if (audit.status === "validated") {
-            return { success: false, error: "Un audit clôturé et verrouillé ne peut plus être synchronisé." };
+        if (fetchAuditError || !audit) {
+            throw new Error("Audit introuvable.");
         }
 
-        // Extraction élargie des stocks négatifs (< 0) sur TOUTES LES COMPAGNIES ODOO
+        if (audit.status === "validated" || audit.status === "completed") {
+            return {
+                success: false,
+                error: "Un audit clôturé et verrouillé ne peut plus être synchronisé.",
+            };
+        }
+
+        /* ─── 2. Récupération des items actuels du snapshot ─── */
+        const { data: existingItems, error: fetchItemsError } = await supabase
+            .from("stock_audit_items")
+            .select("id, odoo_product_id")
+            .eq("audit_id", auditId);
+
+        if (fetchItemsError) {
+            console.error("[SYNC_FETCH_ITEMS_ERROR]", fetchItemsError);
+            throw new Error("Impossible de lire le snapshot d'items.");
+        }
+
+        if (!existingItems || existingItems.length === 0) {
+            return {
+                success: true,
+                message: "Aucun article dans le snapshot — rien à synchroniser.",
+            };
+        }
+
+        /* ─── 3. Récupération des quants négatifs (toutes compagnies) ─── */
         const negativeQuants = await odooClient.searchRead<OdooQuant>("stock.quant", {
             domain: [
                 ["location_id.usage", "=", "internal"],
-                ["quantity", "<", 0]
+                ["quantity", "<", 0],
             ],
             fields: ["product_id", "location_id", "quantity"],
-            limit: 25000
+            limit: 25000,
         });
 
         const soldLocationsMap = new Map<number, SoldLocation[]>();
@@ -369,82 +531,125 @@ export async function syncAuditStockSnapshotAction(auditId: string) {
 
             if (!soldLocationsMap.has(pid)) soldLocationsMap.set(pid, []);
             const arr = soldLocationsMap.get(pid)!;
-            if (!arr.some((l) => l.id === locId)) arr.push({ id: locId, name: locName });
+            if (!arr.some((l) => l.id === locId)) {
+                arr.push({ id: locId, name: locName });
+            }
         });
 
-        // Récupération des articles actuels du snapshot
-        const { data: existingItems } = await supabase
-            .from("stock_audit_items")
-            .select("id, odoo_product_id")
-            .eq("audit_id", auditId);
+        /* ─── 4. Récupération des produits Odoo concernés ─── */
+        const productIds = Array.from(
+            new Set(existingItems.map((i) => i.odoo_product_id))
+        );
 
-        if (existingItems && existingItems.length > 0) {
-            const productIds = Array.from(new Set(existingItems.map((i) => i.odoo_product_id)));
+        const products = await odooClient.searchRead<OdooProduct>("product.product", {
+            domain: [["id", "in", productIds]],
+            fields: [
+                "id", "name", "barcode", "default_code", "hs_code",
+                "standard_price", "create_date",
+                "x_studio_many2one_field_21bvh",
+                "x_studio_many2one_field_Arl5D",
+                "pos_categ_ids",
+            ],
+            limit: productIds.length,
+        });
 
-            const products = await odooClient.searchRead<OdooProduct>("product.product", {
-                domain: [["id", "in", productIds]],
-                fields: [
-                    "id", "name", "barcode", "default_code", "hs_code",
-                    "standard_price", "create_date",
-                    "x_studio_many2one_field_21bvh",
-                    "x_studio_many2one_field_Arl5D"
-                ],
-                limit: productIds.length
-            });
+        const productInfoMap = new Map<number, OdooProduct>();
+        (products || []).forEach((p) => productInfoMap.set(p.id, p));
 
-            const productInfoMap = new Map<number, OdooProduct>();
-            (products || []).forEach((p) => productInfoMap.set(p.id, p));
-
-            // Préparation des mises à jour pour Supabase UPSERT (0 boucle unitaire)
-            const updates = existingItems.map((item) => {
-                const pid = item.odoo_product_id;
-                const prodInfo = productInfoMap.get(pid);
-                const soldLocs = soldLocationsMap.get(pid) || [];
-
-                const brandVal = extractOdooMany2oneName(prodInfo?.x_studio_many2one_field_21bvh, "N/A");
-                const colorVal = extractOdooMany2oneName(prodInfo?.x_studio_many2one_field_Arl5D, "N/A");
-
-                return {
-                    id: item.id,
-                    sold_locations: soldLocs as any,
-                    hs_code: prodInfo?.hs_code || "N/A",
-                    brand: brandVal,
-                    color: colorVal,
-                    odoo_create_date: prodInfo?.create_date || null,
-                    unit_cost: prodInfo?.standard_price || 0,
-                };
-            });
-
-            // Upsert batché par paquets de 500
-            const batchSize = 500;
-            for (let i = 0; i < updates.length; i += batchSize) {
-                const batch = updates.slice(i, i + batchSize);
-                const { error: upsertError } = await supabase
-                    .from("stock_audit_items")
-                    .upsert(batch as any);
-
-                if (upsertError) {
-                    console.error("[SYNC_UPSERT_ERROR]", upsertError);
-                }
+        /* ─── 5. Résolution POS categories (1 seul appel Odoo) ─── */
+        const allCategIds = new Set<number>();
+        (products || []).forEach((p) => {
+            if (Array.isArray(p.pos_categ_ids)) {
+                p.pos_categ_ids.forEach((id) => {
+                    if (Number.isInteger(id)) allCategIds.add(id);
+                });
             }
+        });
+        const categNameMap = await resolvePosCategoryNames(Array.from(allCategIds));
+
+        /* ─── 6. Construction du patch (types métier propres) ─── */
+        const updates: SyncItemPatch[] = existingItems.map((item) => {
+            const pid = item.odoo_product_id;
+            const prodInfo = productInfoMap.get(pid);
+            const soldLocs = soldLocationsMap.get(pid) ?? [];
+
+            const brandVal = extractOdooMany2oneName(
+                prodInfo?.x_studio_many2one_field_21bvh,
+                "N/A"
+            );
+            const colorVal = extractOdooMany2oneName(
+                prodInfo?.x_studio_many2one_field_Arl5D,
+                "N/A"
+            );
+
+            const categIds = Array.isArray(prodInfo?.pos_categ_ids)
+                ? prodInfo!.pos_categ_ids!.filter((id): id is number => Number.isInteger(id))
+                : [];
+            const categNames = categIds.map((id) => categNameMap.get(id) ?? `#${id}`);
+
+            return {
+                id: item.id,
+                sold_locations: soldLocs,
+                hs_code:
+                    typeof prodInfo?.hs_code === "string" && prodInfo.hs_code
+                        ? prodInfo.hs_code
+                        : "N/A",
+                brand: brandVal,
+                color: colorVal,
+                odoo_create_date:
+                    typeof prodInfo?.create_date === "string"
+                        ? prodInfo.create_date
+                        : null,
+                unit_cost: prodInfo?.standard_price ?? 0,
+                pos_category_ids: categIds,
+                pos_category_names: categNames,
+            };
+        });
+
+        /* ─── 7. Envoi batché via RPC SQL (chaque item garde ses valeurs) ─── */
+        const batchSize = 500;
+        let syncedCount = 0;
+
+        for (let i = 0; i < updates.length; i += batchSize) {
+            const batch = updates.slice(i, i + batchSize);
+
+            const { data: affected, error: rpcError } = await supabase.rpc(
+                "sync_audit_items_batch",
+                { p_items: batch as unknown as Json }
+            );
+
+            if (rpcError) {
+                console.error("[SYNC_RPC_ERROR]", rpcError);
+                // On continue avec les batches suivants (résilience partielle)
+                continue;
+            }
+
+            syncedCount += typeof affected === "number" ? affected : batch.length;
         }
 
         revalidatePath(`/inventory/audits/${auditId}`);
 
-        return { success: true, message: "Informations Odoo et emplacements de vente resynchronisés !" };
+        return {
+            success: true,
+            message: `${syncedCount} article(s) resynchronisé(s) depuis Odoo.`,
+            syncedCount,
+        };
 
     } catch (err: unknown) {
         console.error("[SYNC_SNAPSHOT_ERROR]", err);
         return {
             success: false,
-            error: err instanceof Error ? err.message : "Échec de la resynchronisation.",
+            error:
+                err instanceof Error
+                    ? err.message
+                    : "Échec de la resynchronisation.",
         };
     }
 }
 
-/**
- * 3. REGISTRE LE SCAN UNITAIRE + GESTION DYNAMIQUE DES ARTICLES HORS PÉRIMÈTRE
- */
+/* ════════════════════════════════════════════════════════════════════ */
+/* 3. SCAN UNITAIRE — check statut, delta atomique, POS categories      */
+/* ════════════════════════════════════════════════════════════════════ */
 export async function recordBarcodeScanAction(auditId: string, barcode: string) {
     try {
         const supabase = await createClient();
@@ -454,6 +659,24 @@ export async function recordBarcodeScanAction(auditId: string, barcode: string) 
             return { success: false, error: "Code-barres vide fourni." };
         }
 
+        /* ─── 1. Vérification statut de l'audit (fix B3) ─── */
+        const { data: audit, error: auditErr } = await supabase
+            .from("stock_audits")
+            .select("id, status")
+            .eq("id", auditId)
+            .single();
+
+        if (auditErr || !audit) {
+            return { success: false, error: "Audit introuvable." };
+        }
+        if (audit.status === "validated" || audit.status === "completed") {
+            return {
+                success: false,
+                error: "Cet audit est verrouillé, aucun scan supplémentaire n'est autorisé.",
+            };
+        }
+
+        /* ─── 2. Recherche de l'item dans le snapshot ─── */
         const { data: existingItem, error: fetchError } = await supabase
             .from("stock_audit_items")
             .select("*")
@@ -465,13 +688,13 @@ export async function recordBarcodeScanAction(auditId: string, barcode: string) 
             console.error("[FETCH_ITEM_ERROR]", fetchError);
         }
 
-        // CAS A : Produit dans le snapshot de la boutique
+        /* ─── CAS A : produit déjà dans le snapshot ─── */
         if (existingItem) {
             if ((existingItem.counted_qty ?? 0) === 1) {
                 return {
                     success: false,
                     isDuplicate: true,
-                    error: `⚠️ ALERTE : Le code-barres unitaire (${cleanBarcode}) a DÉJÀ été scanné !`
+                    error: `⚠️ ALERTE : Le code-barres (${cleanBarcode}) a DÉJÀ été scanné !`,
                 };
             }
 
@@ -487,33 +710,41 @@ export async function recordBarcodeScanAction(auditId: string, barcode: string) 
 
             if (updateError) throw new Error(updateError.message);
 
-            await updateAuditTotals(supabase, auditId);
-            revalidatePath(`/inventory/audits/${auditId}`);
+            /* Delta atomique (fix B4) — 1 item scanné, +1 sur l'écart */
+            const cost = Number(existingItem.unit_cost) || 0;
+            await incrementAuditTotalsAtomic(supabase, auditId, {
+                scanned: 1,
+                qty: 1,
+                value: cost,
+            });
 
+            revalidatePath(`/inventory/audits/${auditId}`);
             return { success: true, item: updatedItem, isUnexpected: false };
         }
 
-        // CAS B : Produit hors périmètre Odoo (Inattendu)
+        /* ─── CAS B : produit hors périmètre → lookup Odoo ─── */
         const odooProducts = await odooClient.searchRead<OdooProduct>("product.product", {
             domain: [
                 ["active", "=", true],
                 "|",
                 ["barcode", "=", cleanBarcode],
-                ["default_code", "=", cleanBarcode]
+                ["default_code", "=", cleanBarcode],
             ],
             fields: [
                 "id", "name", "barcode", "default_code", "hs_code",
                 "standard_price", "create_date", "x_studio_segment",
-                "x_studio_many2one_field_21bvh", "x_studio_many2one_field_Arl5D"
+                "x_studio_many2one_field_21bvh",
+                "x_studio_many2one_field_Arl5D",
+                "pos_categ_ids",
             ],
-            limit: 1
+            limit: 1,
         });
 
         if (!odooProducts || odooProducts.length === 0) {
             return {
                 success: false,
                 isUnknown: true,
-                error: `⛔ ERREUR : Le code-barres '${cleanBarcode}' est inconnu dans tout le catalogue Odoo.`
+                error: `⛔ ERREUR : Le code-barres '${cleanBarcode}' est inconnu dans tout le catalogue Odoo.`,
             };
         }
 
@@ -521,37 +752,56 @@ export async function recordBarcodeScanAction(auditId: string, barcode: string) 
         const brandVal = extractOdooMany2oneName(odooProd.x_studio_many2one_field_21bvh, "N/A");
         const colorVal = extractOdooMany2oneName(odooProd.x_studio_many2one_field_Arl5D, "N/A");
 
+        /* Résolution POS categories (1 appel Odoo) */
+        const categIds = Array.isArray(odooProd.pos_categ_ids)
+            ? odooProd.pos_categ_ids.filter((id): id is number => Number.isInteger(id))
+            : [];
+        const categNameMap = await resolvePosCategoryNames(categIds);
+        const categNames = categIds.map((id) => categNameMap.get(id) ?? `#${id}`);
+
+        const insertPayload: StockAuditItemInsert = {
+            audit_id: auditId,
+            odoo_product_id: odooProd.id,
+            product_name: odooProd.name,
+            internal_barcode: cleanBarcode,
+            supplier_ref: "Hors Périmètre Odoo / Inattendu",
+            hs_code:
+                typeof odooProd.hs_code === "string" && odooProd.hs_code
+                    ? odooProd.hs_code
+                    : "Inattendu",
+            brand: brandVal,
+            color: colorVal,
+            odoo_create_date:
+                typeof odooProd.create_date === "string" ? odooProd.create_date : null,
+            sold_locations: toJson([]),
+            theoretical_qty: 0,
+            counted_qty: 1,
+            unit_cost: odooProd.standard_price || 0,
+            pos_category_ids: categIds,
+            pos_category_names: categNames,
+            scanned_at: new Date().toISOString(),
+        };
+
         const { data: newItem, error: insertError } = await supabase
             .from("stock_audit_items")
-            .insert({
-                audit_id: auditId,
-                odoo_product_id: odooProd.id,
-                product_name: odooProd.name,
-                internal_barcode: cleanBarcode,
-                supplier_ref: "Hors Périmètre Odoo / Inattendu",
-                hs_code: odooProd.hs_code || "Inattendu",
-                brand: brandVal,
-                color: colorVal,
-                odoo_create_date: odooProd.create_date || null,
-                sold_locations: [],
-                theoretical_qty: 0,
-                counted_qty: 1,
-                unit_cost: odooProd.standard_price || 0,
-                scanned_at: new Date().toISOString(),
-            } as unknown as StockAuditItemInsert)
+            .insert(insertPayload)
             .select()
             .single();
 
         if (insertError) throw new Error(insertError.message);
 
-        await updateAuditTotals(supabase, auditId);
-        revalidatePath(`/inventory/audits/${auditId}`);
+        await incrementAuditTotalsAtomic(supabase, auditId, {
+            scanned: 1,
+            qty: 1,
+            value: Number(odooProd.standard_price) || 0,
+        });
 
+        revalidatePath(`/inventory/audits/${auditId}`);
         return {
             success: true,
             item: newItem,
             isUnexpected: true,
-            message: `⚠️ Produit hors périmètre Odoo détecté (${odooProd.name}). Ajouté à l'inventaire (+1).`
+            message: `⚠️ Produit hors périmètre Odoo détecté (${odooProd.name}). Ajouté à l'inventaire (+1).`,
         };
 
     } catch (err: unknown) {
@@ -563,16 +813,14 @@ export async function recordBarcodeScanAction(auditId: string, barcode: string) 
     }
 }
 
-/**
- * 4. IMPORTATION EXCEL BATCHÉE
- */
-export async function importExcelBarcodesAction(
-    auditId: string,
-    barcodes: string[]
-) {
+/* ════════════════════════════════════════════════════════════════════ */
+/* 4. IMPORT EXCEL — compteurs corrigés (B6) + POS categories           */
+/* ════════════════════════════════════════════════════════════════════ */
+export async function importExcelBarcodesAction(auditId: string, barcodes: string[]) {
     try {
         const supabase = await createClient();
 
+        /* ─── 1. Nettoyage des entrées ─── */
         const cleanBarcodes = Array.from(
             new Set(barcodes.map((b) => b.trim().toUpperCase()).filter(Boolean))
         );
@@ -581,151 +829,237 @@ export async function importExcelBarcodesAction(
             return { success: false, error: "Aucun code-barres valide fourni." };
         }
 
+        /* ─── 2. Vérification statut audit ─── */
+        const { data: audit } = await supabase
+            .from("stock_audits")
+            .select("id, status")
+            .eq("id", auditId)
+            .single();
+
+        if (!audit) return { success: false, error: "Audit introuvable." };
+        if (audit.status === "validated" || audit.status === "completed") {
+            return { success: false, error: "Cet audit est verrouillé." };
+        }
+
+        /* ─── 3. Chargement des items existants ─── */
         const { data: existingItems } = await supabase
             .from("stock_audit_items")
-            .select("internal_barcode, counted_qty")
+            .select("internal_barcode, counted_qty, unit_cost")
             .eq("audit_id", auditId);
 
-        const existingItemMap = new Map<string, number>();
+        const existingItemMap = new Map<
+            string,
+            { counted: number; cost: number }
+        >();
         (existingItems || []).forEach((i) => {
-            existingItemMap.set(i.internal_barcode.toUpperCase(), i.counted_qty ?? 0);
+            existingItemMap.set(i.internal_barcode.toUpperCase(), {
+                counted: i.counted_qty ?? 0,
+                cost: Number(i.unit_cost) || 0,
+            });
         });
 
+        /* ─── 4. Classification ─── */
         const toScanBarcodes: string[] = [];
         const alreadyScannedBarcodes: string[] = [];
         const missingBarcodes: string[] = [];
+        const handledSet = new Set<string>();   // ← fix B6
 
         cleanBarcodes.forEach((code) => {
-            if (existingItemMap.has(code)) {
-                const currentQty = existingItemMap.get(code);
-                if (currentQty === 1) {
+            const existing = existingItemMap.get(code);
+            if (existing) {
+                if (existing.counted === 1) {
                     alreadyScannedBarcodes.push(code);
                 } else {
                     toScanBarcodes.push(code);
                 }
+                handledSet.add(code);
             } else {
                 missingBarcodes.push(code);
             }
         });
 
+        /* ─── 5. Accumulateurs pour un seul delta atomique en fin ─── */
         let newlyScannedCount = 0;
         let unexpectedCount = 0;
+        let deltaScanned = 0;
+        let deltaQty = 0;
+        let deltaValue = 0;
 
+        /* ─── 6. Update batché des items existants non scannés ─── */
         if (toScanBarcodes.length > 0) {
             const batchSize = 1000;
+            const now = new Date().toISOString();
+
             for (let i = 0; i < toScanBarcodes.length; i += batchSize) {
                 const batch = toScanBarcodes.slice(i, i + batchSize);
 
                 const { data: updatedRows, error: updateError } = await supabase
                     .from("stock_audit_items")
-                    .update({
-                        counted_qty: 1,
-                        scanned_at: new Date().toISOString()
-                    })
+                    .update({ counted_qty: 1, scanned_at: now })
                     .eq("audit_id", auditId)
                     .in("internal_barcode", batch)
-                    .select("id");
+                    .select("internal_barcode");
 
                 if (updateError) {
                     console.error("[IMPORT_EXCEL_BATCH_ERROR]", updateError);
-                } else if (updatedRows) {
-                    newlyScannedCount += updatedRows.length;
+                    continue;
                 }
+
+                (updatedRows || []).forEach((r) => {
+                    const info = existingItemMap.get(r.internal_barcode.toUpperCase());
+                    newlyScannedCount++;
+                    deltaScanned += 1;
+                    deltaQty += 1;
+                    deltaValue += info?.cost ?? 0;
+                });
             }
         }
 
+        /* ─── 7. Traitement des barcodes absents → lookup Odoo ─── */
         if (missingBarcodes.length > 0) {
             const odooBatchSize = 500;
+
             for (let i = 0; i < missingBarcodes.length; i += odooBatchSize) {
                 const batchMissing = missingBarcodes.slice(i, i + odooBatchSize);
 
-                const odooProducts = await odooClient.searchRead<OdooProduct>("product.product", {
-                    domain: [
-                        ["active", "=", true],
-                        "|",
-                        ["barcode", "in", batchMissing],
-                        ["default_code", "in", batchMissing]
-                    ],
-                    fields: [
-                        "id", "name", "barcode", "default_code", "hs_code",
-                        "standard_price", "create_date", "x_studio_segment",
-                        "x_studio_many2one_field_21bvh", "x_studio_many2one_field_Arl5D"
-                    ],
-                    limit: batchMissing.length
-                });
+                const odooProducts = await odooClient.searchRead<OdooProduct>(
+                    "product.product",
+                    {
+                        domain: [
+                            ["active", "=", true],
+                            "|",
+                            ["barcode", "in", batchMissing],
+                            ["default_code", "in", batchMissing],
+                        ],
+                        fields: [
+                            "id", "name", "barcode", "default_code", "hs_code",
+                            "standard_price", "create_date", "x_studio_segment",
+                            "x_studio_many2one_field_21bvh",
+                            "x_studio_many2one_field_Arl5D",
+                            "pos_categ_ids",
+                        ],
+                        limit: batchMissing.length,
+                    }
+                );
 
-                if (odooProducts && odooProducts.length > 0) {
-                    const itemsToInsert: any[] = [];
-                    const insertedOdooBarcodes = new Set<string>();
+                if (!odooProducts || odooProducts.length === 0) continue;
 
-                    odooProducts.forEach((p) => {
-                        const code = (p.barcode || p.default_code || "").trim().toUpperCase();
-                        if (!code || insertedOdooBarcodes.has(code)) return;
-
-                        insertedOdooBarcodes.add(code);
-                        const brandVal = extractOdooMany2oneName(p.x_studio_many2one_field_21bvh, "N/A");
-                        const colorVal = extractOdooMany2oneName(p.x_studio_many2one_field_Arl5D, "N/A");
-
-                        itemsToInsert.push({
-                            audit_id: auditId,
-                            odoo_product_id: p.id,
-                            product_name: p.name,
-                            internal_barcode: code,
-                            supplier_ref: "Hors Périmètre (Import Excel)",
-                            hs_code: p.hs_code || "Inattendu",
-                            brand: brandVal,
-                            color: colorVal,
-                            odoo_create_date: p.create_date || null,
-                            sold_locations: [],
-                            theoretical_qty: 0,
-                            counted_qty: 1,
-                            unit_cost: p.standard_price || 0,
-                            scanned_at: new Date().toISOString(),
+                /* Résolution POS categories en 1 appel pour le batch */
+                const allCategIds = new Set<number>();
+                odooProducts.forEach((p) => {
+                    if (Array.isArray(p.pos_categ_ids)) {
+                        p.pos_categ_ids.forEach((id) => {
+                            if (Number.isInteger(id)) allCategIds.add(id);
                         });
+                    }
+                });
+                const categNameMap = await resolvePosCategoryNames(Array.from(allCategIds));
+
+                const itemsToInsert: StockAuditItemInsert[] = [];
+                const insertedOdooBarcodes = new Set<string>();
+                const now = new Date().toISOString();
+
+                odooProducts.forEach((p) => {
+                    const rawCode = (p.barcode || p.default_code || "") as string;
+                    const code = rawCode.trim().toUpperCase();
+                    if (!code || insertedOdooBarcodes.has(code)) return;
+                    insertedOdooBarcodes.add(code);
+
+                    const brandVal = extractOdooMany2oneName(
+                        p.x_studio_many2one_field_21bvh,
+                        "N/A"
+                    );
+                    const colorVal = extractOdooMany2oneName(
+                        p.x_studio_many2one_field_Arl5D,
+                        "N/A"
+                    );
+
+                    const categIds = Array.isArray(p.pos_categ_ids)
+                        ? p.pos_categ_ids.filter((id): id is number => Number.isInteger(id))
+                        : [];
+                    const categNames = categIds.map((id) => categNameMap.get(id) ?? `#${id}`);
+
+                    itemsToInsert.push({
+                        audit_id: auditId,
+                        odoo_product_id: p.id,
+                        product_name: p.name,
+                        internal_barcode: code,
+                        supplier_ref: "Hors Périmètre (Import Excel)",
+                        hs_code:
+                            typeof p.hs_code === "string" && p.hs_code
+                                ? p.hs_code
+                                : "Inattendu",
+                        brand: brandVal,
+                        color: colorVal,
+                        odoo_create_date:
+                            typeof p.create_date === "string" ? p.create_date : null,
+                        sold_locations: toJson([]),                 // ← cast unique
+                        theoretical_qty: 0,
+                        counted_qty: 1,
+                        unit_cost: p.standard_price || 0,
+                        pos_category_ids: categIds,
+                        pos_category_names: categNames,
+                        scanned_at: now,
                     });
 
-                    if (itemsToInsert.length > 0) {
-                        const { data: inserted, error: insertError } = await supabase
-                            .from("stock_audit_items")
-                            .insert(itemsToInsert)
-                            .select("id");
+                    handledSet.add(code);
+                });
 
-                        if (insertError) {
-                            console.error("[IMPORT_EXCEL_UNEXPECTED_INSERT_ERROR]", insertError);
-                        } else if (inserted) {
-                            unexpectedCount += inserted.length;
-                        }
+                if (itemsToInsert.length > 0) {
+                    const { data: inserted, error: insertError } = await supabase
+                        .from("stock_audit_items")
+                        .insert(itemsToInsert)
+                        .select("id, internal_barcode, unit_cost");
+
+                    if (insertError) {
+                        console.error("[IMPORT_EXCEL_UNEXPECTED_INSERT_ERROR]", insertError);
+                    } else if (inserted) {
+                        unexpectedCount += inserted.length;
+                        inserted.forEach((r) => {
+                            deltaScanned += 1;
+                            deltaQty += 1;
+                            deltaValue += Number(r.unit_cost) || 0;
+                        });
                     }
                 }
             }
         }
 
-        const alreadyScannedCount = alreadyScannedBarcodes.length;
-        const unknownCount = cleanBarcodes.length - (newlyScannedCount + alreadyScannedCount + unexpectedCount);
+        /* ─── 8. Compteur d'inconnus robuste (fix B6) ─── */
+        const unknownCount = cleanBarcodes.filter((c) => !handledSet.has(c)).length;
 
-        await updateAuditTotals(supabase, auditId);
+        /* ─── 9. Un seul delta atomique en fin de traitement ─── */
+        await incrementAuditTotalsAtomic(supabase, auditId, {
+            scanned: deltaScanned,
+            qty: deltaQty,
+            value: deltaValue,
+        });
+
         revalidatePath(`/inventory/audits/${auditId}`);
 
         return {
             success: true,
             newlyScannedCount,
-            alreadyScannedCount,
+            alreadyScannedCount: alreadyScannedBarcodes.length,
             unexpectedCount,
-            unknownCount
+            unknownCount,
         };
 
     } catch (err: unknown) {
         console.error("[IMPORT_EXCEL_ERROR]", err);
         return {
             success: false,
-            error: err instanceof Error ? err.message : "Erreur lors de l'importation Excel.",
+            error:
+                err instanceof Error
+                    ? err.message
+                    : "Erreur lors de l'importation Excel.",
         };
     }
 }
 
-/**
- * 5. SUPPRESSION D'UN AUDIT ET PURGE DU SNAPSHOT
- */
+/* ════════════════════════════════════════════════════════════════════ */
+/* 5. SUPPRESSION — inchangé (fonctionnait déjà bien)                   */
+/* ════════════════════════════════════════════════════════════════════ */
 export async function deleteAuditSessionAction(auditId: string) {
     try {
         const supabase = await createClient();
@@ -768,15 +1102,16 @@ export async function deleteAuditSessionAction(auditId: string) {
     }
 }
 
-/**
- * 6. VALIDATION ET VERROUILLAGE DÉFINITIF DE L'AUDIT
- */
+/* ════════════════════════════════════════════════════════════════════ */
+/* 6. VALIDATION — full recalc (sanity-check)                           */
+/* ════════════════════════════════════════════════════════════════════ */
 export async function validateAuditSessionAction(auditId: string) {
     try {
         const supabase = await createClient();
         const { data: { user } } = await supabase.auth.getUser();
 
-        await updateAuditTotals(supabase, auditId);
+        /* Full recalc pour garantir la cohérence avant verrouillage */
+        await recalcAuditTotalsFull(supabase, auditId);
 
         const { error } = await supabase
             .from("stock_audits")
@@ -801,21 +1136,34 @@ export async function validateAuditSessionAction(auditId: string) {
     }
 }
 
-/**
- * 7. LISTE SÉCURISÉE DES AUDITS AVEC FILTRAGE PAR SESSIONS & DROITS BOUTIQUES
- */
+/* ════════════════════════════════════════════════════════════════════ */
+/* 7. LISTE — sécurisée par shop_ids                                    */
+/* ════════════════════════════════════════════════════════════════════ */
 export async function getAuditsAction(filters?: AuditFilters): Promise<StockAudit[]> {
     const supabase = await createClient();
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const { data: profile } = await supabase
+        .from("profiles")
+        .select("role, assigned_shops, shop_access_type")
+        .eq("id", user.id)
+        .single();
+
+    const isAdmin = profile?.role === "admin" || profile?.shop_access_type === "all";
+    const allowedShops = extractAllowedShopIds(profile?.assigned_shops);
 
     let query = supabase
         .from("stock_audits")
         .select("*")
         .order("created_at", { ascending: false });
 
-    if (filters?.allowedShopIds && filters.allowedShopIds.length > 0) {
+    if (!isAdmin) {
+        if (allowedShops.length === 0) return [];
+        query = query.in("shop_id", allowedShops);
+    } else if (filters?.allowedShopIds && filters.allowedShopIds.length > 0) {
         query = query.in("shop_id", filters.allowedShopIds);
-    } else if (filters?.allowedShopIds && filters.allowedShopIds.length === 0) {
-        return [];
     }
 
     if (filters?.status && filters.status !== "all") {
@@ -823,9 +1171,11 @@ export async function getAuditsAction(filters?: AuditFilters): Promise<StockAudi
     }
 
     if (filters?.searchQuery && filters.searchQuery.trim() !== "") {
-        query = query.or(
-            `reference.ilike.%${filters.searchQuery}%,shop_name.ilike.%${filters.searchQuery}%`
-        );
+        /* Échappement basique pour éviter de casser la syntaxe .or() */
+        const safe = filters.searchQuery.replace(/[%,()]/g, "").trim();
+        if (safe) {
+            query = query.or(`reference.ilike.%${safe}%,shop_name.ilike.%${safe}%`);
+        }
     }
 
     const { data, error } = await query;

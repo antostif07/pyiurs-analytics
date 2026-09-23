@@ -1,162 +1,230 @@
-import { Metadata } from "next";
+import { cache } from "react";
+import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { ArrowLeft, ShieldAlert } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { AuditScannerClient } from "./audit-scanner-client";
-import { StockAudit, StockAuditItem } from "../_lib/types";
+import type { StockAudit, StockAuditItem } from "../_lib/types";
 
 interface PageProps {
     params: Promise<{ id: string }>;
 }
 
-/**
- * Génération dynamique des métadonnées SEO / En-tête
- */
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-    const { id } = await params;
-    const supabase = await createClient();
+type SupabaseServer = Awaited<ReturnType<typeof createClient>>;
 
-    const { data: audit } = await supabase
+// TODO: adapter à la route réelle de la liste des audits
+const AUDITS_LIST_HREF = "/stock-audits";
+
+// Doit rester <= au "max rows" de PostgREST (1 000 par défaut sur Supabase)
+const PAGE_SIZE = 1000;
+// Évite de lancer 50 requêtes d'un coup sur un très gros audit
+const MAX_PARALLEL_PAGES = 5;
+
+const ITEM_COLUMNS = `
+  id, audit_id, odoo_product_id, product_name, internal_barcode,
+  supplier_ref, hs_code, brand, color, theoretical_qty, counted_qty,
+  unit_cost, scanned_at, odoo_create_date, sold_locations,
+  pos_category_ids, pos_category_names
+`.replace(/\s+/g, " ").trim();
+
+/* -------------------------------------------------------------------------- */
+/*  Accès aux données                                                         */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Mémorisé par requête HTTP (React cache) :
+ * generateMetadata() et la page partagent UNE seule requête SQL.
+ */
+const getAudit = cache(async (id: string): Promise<StockAudit | null> => {
+    const supabase = await createClient();
+    const { data, error } = await supabase
         .from("stock_audits")
-        .select("reference, shop_name")
+        .select("*")
         .eq("id", id)
         .maybeSingle();
 
-    if (!audit) {
-        return {
-            title: "Audit Introuvable | Retail Intelligence",
-        };
+    if (error) {
+        throw new Error(`Chargement de l'audit impossible : ${error.message}`);
     }
+    return data as StockAudit | null;
+});
 
-    return {
-        title: `Audit ${audit.reference} - ${audit.shop_name} | Retail Intelligence`,
-        description: "Interface de comptage au scanner et gestion de la démarque.",
-    };
+function fetchItemsPage(
+    supabase: SupabaseServer,
+    auditId: string,
+    page: number,
+    withCount: boolean
+) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    return supabase
+        .from("stock_audit_items")
+        .select(ITEM_COLUMNS, { count: withCount ? "exact" : undefined })
+        .eq("audit_id", auditId)
+        // internal_barcode est unique par audit => tri total, donc pagination déterministe
+        .order("scanned_at", { ascending: false, nullsFirst: false })
+        .order("internal_barcode", { ascending: true })
+        .range(from, to);
 }
 
 /**
- * HELPER HAUTE PERFORMANCE & DÉTERMINISTE
- * Récupère 100% des articles du snapshot sans doublons ni omissions
+ * 1re page + décompte exact dans UNE requête (plus de requête "count" séparée),
+ * puis pages restantes en parallèle par lots.
+ * Toute erreur est propagée : un audit d'inventaire partiel affiché comme
+ * complet est pire qu'une page d'erreur.
  */
-async function fetchAllAuditItemsOptimized(
-    supabase: Awaited<ReturnType<typeof createClient>>,
+async function fetchAllAuditItems(
+    supabase: SupabaseServer,
     auditId: string
 ): Promise<StockAuditItem[]> {
-    try {
-        const pageSize = 1000;
+    const first = await fetchItemsPage(supabase, auditId, 0, true);
+    if (first.error) {
+        throw new Error(`Chargement des articles impossible : ${first.error.message}`);
+    }
 
-        // 1. Récupération du décompte exact
-        const { count, error: countError } = await supabase
-            .from("stock_audit_items")
-            .select("id", { count: "exact", head: true })
-            .eq("audit_id", auditId);
+    const firstRows = (first.data ?? []) as unknown as StockAuditItem[];
+    const total = first.count ?? firstRows.length;
+    const totalPages = Math.ceil(total / PAGE_SIZE);
 
-        if (countError || !count || count === 0) {
-            return [];
-        }
+    const itemMap = new Map<string, StockAuditItem>();
+    for (const item of firstRows) itemMap.set(item.id, item);
 
-        // 2. Si moins de 1 000 articles : Fetch unique direct avec tri déterministe
-        if (count <= pageSize) {
-            const { data } = await supabase
-                .from("stock_audit_items")
-                .select("*")
-                .eq("audit_id", auditId)
-                .order("scanned_at", { ascending: false, nullsFirst: false })
-                .order("internal_barcode", { ascending: true });
+    for (let start = 1; start < totalPages; start += MAX_PARALLEL_PAGES) {
+        const end = Math.min(start + MAX_PARALLEL_PAGES, totalPages);
+        const batch = await Promise.all(
+            Array.from({ length: end - start }, (_, i) =>
+                fetchItemsPage(supabase, auditId, start + i, false)
+            )
+        );
 
-            return (data as StockAuditItem[]) || [];
-        }
-
-        // 3. Si plus de 1 000 articles : Execution en parallèle avec TRI SQL COMPOSÉ DÉTERMINISTE
-        const totalPages = Math.ceil(count / pageSize);
-        const pagePromises = Array.from({ length: totalPages }, (_, pageIndex) => {
-            const from = pageIndex * pageSize;
-            const to = from + pageSize - 1;
-
-            return supabase
-                .from("stock_audit_items")
-                .select("*")
-                .eq("audit_id", auditId)
-                .order("scanned_at", { ascending: false, nullsFirst: false })
-                .order("internal_barcode", { ascending: true }) // Deuxième clé de tri pour éviter le mélange des NULLs
-                .range(from, to);
-        });
-
-        const results = await Promise.all(pagePromises);
-
-        // 4. Dédoublonnage de sécurité par ID pour garantir zéro doublon React
-        const itemMap = new Map<string, StockAuditItem>();
-
-        for (const res of results) {
-            if (res.data) {
-                for (const item of res.data as StockAuditItem[]) {
-                    if (!itemMap.has(item.id)) {
-                        itemMap.set(item.id, item);
-                    }
-                }
+        for (const res of batch) {
+            if (res.error) {
+                throw new Error(`Chargement des articles impossible : ${res.error.message}`);
+            }
+            for (const item of (res.data ?? []) as unknown as StockAuditItem[]) {
+                itemMap.set(item.id, item);
             }
         }
+    }
 
-        return Array.from(itemMap.values());
-    } catch (err) {
-        console.error("[FETCH_ALL_AUDIT_ITEMS_ERROR]", err);
-        return [];
+    if (itemMap.size !== total) {
+        // Peut arriver si des scans sont écrits pendant le chargement
+        console.warn(
+            `[AUDIT_ITEMS_COUNT_MISMATCH] audit=${auditId} attendu=${total} reçu=${itemMap.size}`
+        );
+    }
+
+    return Array.from(itemMap.values());
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Permissions                                                               */
+/* -------------------------------------------------------------------------- */
+
+interface ProfileAccess {
+    role: string | null;
+    shop_access_type: string | null;
+    assigned_shops: unknown;
+}
+
+function canAccessShop(profile: ProfileAccess | null, shopId: string): boolean {
+    if (!profile) return false;
+    if (profile.role === "admin" || profile.shop_access_type === "all") return true;
+
+    return (
+        Array.isArray(profile.assigned_shops) &&
+        (profile.assigned_shops as string[]).includes(shopId)
+    );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Métadonnées                                                               */
+/* -------------------------------------------------------------------------- */
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+    const { id } = await params;
+
+    try {
+        const audit = await getAudit(id);
+        if (!audit) return { title: "Audit introuvable | Retail Intelligence" };
+
+        return {
+            title: `Audit ${audit.reference} - ${audit.shop_name} | Retail Intelligence`,
+            description: "Interface de comptage au scanner et gestion de la démarque.",
+        };
+    } catch {
+        return { title: "Audit | Retail Intelligence" };
     }
 }
+
+/* -------------------------------------------------------------------------- */
+/*  UI                                                                        */
+/* -------------------------------------------------------------------------- */
+
+function AccessDenied() {
+    return (
+        <div
+            role="alert"
+            className="mx-auto mt-16 flex max-w-md flex-col items-center gap-5 rounded-2xl border border-border bg-card p-8 text-center"
+        >
+            <div className="flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                <ShieldAlert className="size-6" aria-hidden="true" />
+            </div>
+
+            <div className="space-y-1.5">
+                <h1 className="text-base font-semibold">Accès restreint</h1>
+                <p className="text-sm text-muted-foreground">
+                    Vous n&apos;avez pas accès aux audits de cette boutique. Demandez à un
+                    administrateur de vous l&apos;attribuer.
+                </p>
+            </div>
+
+            <Link
+                href={AUDITS_LIST_HREF}
+                className="inline-flex items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+                <ArrowLeft className="size-4" aria-hidden="true" />
+                Retour aux audits
+            </Link>
+        </div>
+    );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Page                                                                      */
+/* -------------------------------------------------------------------------- */
 
 export default async function AuditDetailPage({ params }: PageProps) {
     const { id } = await params;
     const supabase = await createClient();
 
-    // 1. Authentification & Sécurité
-    const { data: { user } } = await supabase.auth.getUser();
+    // 1. Authentification
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) redirect("/login");
 
-    if (!user) {
-        redirect("/login");
-    }
-
-    // 2. Vérification des permissions boutiques de l'utilisateur
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("role, shop_access_type, assigned_shops")
-        .eq("id", user.id)
-        .single();
-
-    // 3. Chargement conjoint de l'audit et des articles
-    const [{ data: audit }, items] = await Promise.all([
+    // 2. Profil + audit en parallèle (requêtes légères, indépendantes)
+    const [{ data: profile }, audit] = await Promise.all([
         supabase
-            .from("stock_audits")
-            .select("*")
-            .eq("id", id)
+            .from("profiles")
+            .select("role, shop_access_type, assigned_shops")
+            .eq("id", user.id)
             .maybeSingle(),
-        fetchAllAuditItemsOptimized(supabase, id),
+        getAudit(id),
     ]);
 
-    // 4. Redirection 404 si l'audit n'existe pas
-    if (!audit) {
-        notFound();
+    if (!audit) notFound();
+
+    // 3. Contrôle d'accès AVANT de charger les articles (la requête lourde)
+    if (!canAccessShop(profile as ProfileAccess | null, audit.shop_id)) {
+        return <AccessDenied />;
     }
 
-    // 5. Contrôle d'accès : Vérifier si l'utilisateur a le droit d'accéder à cette boutique
-    const isFullAccess = profile?.role === "admin" || profile?.shop_access_type === "all";
-    const allowedShops = Array.isArray(profile?.assigned_shops)
-        ? (profile.assigned_shops as string[])
-        : [];
+    // 4. Chargement des articles, uniquement pour un utilisateur autorisé
+    const items = await fetchAllAuditItems(supabase, id);
 
-    if (!isFullAccess && !allowedShops.includes(audit.shop_id)) {
-        return (
-            <div className="p-8 text-center bg-card border border-border rounded-2xl max-w-md mx-auto mt-12">
-                <h3 className="text-base font-bold text-destructive">Accès Restreint</h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                    Vous n'avez pas l'autorisation d'accéder aux audits de la boutique <strong>{audit.shop_name}</strong>.
-                </p>
-            </div>
-        );
-    }
-
-    return (
-        <AuditScannerClient
-            audit={audit as StockAudit}
-            initialItems={items}
-        />
-    );
+    return <AuditScannerClient audit={audit} initialItems={items} />;
 }

@@ -10,13 +10,13 @@ import { ActionBar } from "../_components/ActionBar";
 import { forceMarkItemAsFoundAction } from "../_lib/reconcile-actions";
 import { syncAuditStockSnapshotAction } from "../_lib/audits-actions";
 import { useAuditItems } from "../_lib/hooks/useAuditItems";
+import { AuditDataTable } from "../_components/AuditDataTable";
 import { useAuditScanner } from "../_lib/hooks/useAuditScanner";
 import { useAuditImport } from "../_lib/hooks/useAuditImport";
 import { useAuditExport } from "../_lib/hooks/useAuditExport";
 import { StatusBadge } from "../_components/StatusBadge";
 import { LaserScanZone } from "../_components/LaserScanZone";
 import { KpiDashboard } from "../_components/KpiDashboard";
-import { AuditDataTable } from "../_components/AuditDataTable";
 
 interface Props {
     audit: StockAudit;

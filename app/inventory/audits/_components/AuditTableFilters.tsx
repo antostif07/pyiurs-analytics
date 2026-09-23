@@ -1,19 +1,21 @@
 "use client";
 
 import React from "react";
-import { Search, X, Filter, RotateCcw } from "lucide-react";
+import { Search, X, Filter, RotateCcw, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { StatusFilter, StockAuditItem, getSoldLocations } from "../_lib/types";
+import { PosCategoryFilter, PosCategoryOption } from "./PosCategoryFilter";
 
 export interface ExtendedAuditFilters {
     searchQuery: string;
-    statusFilter: StatusFilter;
+    statusFilter: "all" | "scanned" | "remaining" | "sold_elsewhere";
     brandFilter: string;
     colorFilter: string;
-    theoreticalStockFilter: "all" | "zero" | "one" | "greater_than_one" | "negative";
+    theoreticalStockFilter: "all" | "one" | "zero" | "greater_than_one" | "negative";
     soldElsewhereFilter: "all" | "yes" | "no";
-    specificSoldLocationFilter: string; // Filtre par emplacement de vente spécifique (-1)
+    specificSoldLocationFilter: string;
+    posCategoryFilter: number[];   // ← AJOUT — [] = toutes
 }
 
 interface AuditTableFiltersProps {
@@ -36,7 +38,7 @@ export function AuditTableFilters({
     items,
     counts,
 }: AuditTableFiltersProps) {
-    // Extraction dynamique des marques uniques
+    /* ─── Extraction dynamique des marques uniques ─── */
     const availableBrands = React.useMemo(() => {
         const brands = new Set<string>();
         items.forEach((i) => {
@@ -46,7 +48,7 @@ export function AuditTableFilters({
         return Array.from(brands).sort();
     }, [items]);
 
-    // Extraction dynamique des couleurs uniques
+    /* ─── Extraction dynamique des couleurs uniques ─── */
     const availableColors = React.useMemo(() => {
         const colors = new Set<string>();
         items.forEach((i) => {
@@ -56,7 +58,7 @@ export function AuditTableFilters({
         return Array.from(colors).sort();
     }, [items]);
 
-    // Extraction dynamique des emplacements de vente uniques (-1)
+    /* ─── Extraction dynamique des emplacements de vente (-1) ─── */
     const availableSoldLocations = React.useMemo(() => {
         const locsMap = new Map<string, { id: number | string; name: string }>();
         items.forEach((i) => {
@@ -73,6 +75,30 @@ export function AuditTableFilters({
         return Array.from(locsMap.values()).sort((a, b) => a.name.localeCompare(b.name));
     }, [items]);
 
+    /* ─── AJOUT : Extraction dynamique des catégories POS ─── */
+    const availablePosCategories = React.useMemo<PosCategoryOption[]>(() => {
+        const map = new Map<number, PosCategoryOption>();
+        for (const item of items) {
+            const ids = (item as any).pos_category_ids as number[] | null | undefined;
+            const names = (item as any).pos_category_names as string[] | null | undefined;
+
+            if (!Array.isArray(ids)) continue;
+
+            ids.forEach((id, idx) => {
+                if (!Number.isInteger(id)) return;
+                const entry = map.get(id) ?? {
+                    id,
+                    name: names?.[idx] ?? `#${id}`,
+                    count: 0,
+                };
+                entry.count++;
+                map.set(id, entry);
+            });
+        }
+        return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+    }, [items]);
+
+    /* ─── AJOUT : posCategoryFilter dans la détection de filtres actifs ─── */
     const hasActiveFilters =
         filters.searchQuery !== "" ||
         filters.statusFilter !== "all" ||
@@ -80,7 +106,8 @@ export function AuditTableFilters({
         filters.colorFilter !== "all" ||
         filters.theoreticalStockFilter !== "all" ||
         filters.soldElsewhereFilter !== "all" ||
-        filters.specificSoldLocationFilter !== "all";
+        filters.specificSoldLocationFilter !== "all" ||
+        filters.posCategoryFilter.length > 0;
 
     return (
         <div className="space-y-3 print:hidden">
@@ -140,6 +167,17 @@ export function AuditTableFilters({
                     <Filter className="w-3.5 h-3.5 text-primary" />
                     <span>Filtres :</span>
                 </div>
+
+                {/* AJOUT : Filtre Catégories POS (multi-select) */}
+                <PosCategoryFilter
+                    categories={availablePosCategories}
+                    selected={filters.posCategoryFilter}
+                    onChange={(ids) =>
+                        onFilterChange((prev) => ({ ...prev, posCategoryFilter: ids }))
+                    }
+                    disabled={availablePosCategories.length === 0}
+                    label="Catégories POS"
+                />
 
                 {/* Filtre Marque */}
                 <select

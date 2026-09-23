@@ -92,6 +92,7 @@ export interface OdooProduct {
     x_studio_segment: string | false | null;
     x_studio_many2one_field_21bvh: [number, string] | false | null; // Marque Odoo
     x_studio_many2one_field_Arl5D: [number, string] | false | null; // Couleur Odoo
+    pos_categ_ids: number[] | false | null;
 }
 
 /**
@@ -106,3 +107,8 @@ export const extractOdooMany2oneName = (
     }
     return fallback;
 };
+
+export interface OdooPosCategory {
+    id: number;
+    name: string;
+}

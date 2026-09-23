@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
     useReactTable,
     getCoreRowModel,
@@ -35,6 +35,7 @@ import { cn } from "@/lib/utils";
 import { StockAuditItem, hasSoldElsewhere, getSoldLocations } from "../_lib/types";
 import { AuditTableFilters, ExtendedAuditFilters } from "./AuditTableFilters";
 import { SoldLocationsBadges } from "./SoldLocationsBadges";
+import { PosCategoryOption } from "./PosCategoryFilter";
 
 const formatUSD = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -103,6 +104,7 @@ export function AuditDataTable({
         theoreticalStockFilter: "all",
         soldElsewhereFilter: "all",
         specificSoldLocationFilter: "all",
+        posCategoryFilter: [],           // ← AJOUT
     });
 
     const [sorting, setSorting] = useState<SortingState>([]);
@@ -117,9 +119,30 @@ export function AuditDataTable({
             theoreticalStockFilter: "all",
             soldElsewhereFilter: "all",
             specificSoldLocationFilter: "all",
+            posCategoryFilter: [],
         });
         setPagination((prev) => ({ ...prev, pageIndex: 0 }));
     };
+
+    const availablePosCategories = useMemo<PosCategoryOption[]>(() => {
+        const map = new Map<number, PosCategoryOption>();
+        for (const item of items) {
+            const ids = (item as any).pos_category_ids as number[] | null | undefined;
+            const names = (item as any).pos_category_names as string[] | null | undefined;
+            if (!Array.isArray(ids)) continue;
+            ids.forEach((id, idx) => {
+                if (!Number.isInteger(id)) return;
+                const entry = map.get(id) ?? {
+                    id,
+                    name: names?.[idx] ?? `#${id}`,
+                    count: 0,
+                };
+                entry.count++;
+                map.set(id, entry);
+            });
+        }
+        return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+    }, [items]);
 
     // Filtrage combiné multi-critères
     const filteredData = useMemo(() => {
@@ -177,9 +200,23 @@ export function AuditDataTable({
                 if (!hasSpecificLoc) return false;
             }
 
+            if (filters.posCategoryFilter.length > 0) {
+                const selectedSet = new Set(filters.posCategoryFilter);
+                const itemCats = ((item as any).pos_category_ids ?? []) as number[];
+                const match = itemCats.some((id) => selectedSet.has(id));
+                if (!match) return false;
+            }
+
             return true;
         });
     }, [items, filters]);
+
+    useEffect(() => {
+        setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+    }, [filters.posCategoryFilter, filters.brandFilter, filters.colorFilter,
+    filters.statusFilter, filters.searchQuery,
+    filters.theoreticalStockFilter, filters.soldElsewhereFilter,
+    filters.specificSoldLocationFilter]);
 
     // Définition des colonnes TanStack Table avec TRI SUR CHAQUE COLONNE
     const columns = useMemo<ColumnDef<StockAuditItem>[]>(
@@ -232,6 +269,39 @@ export function AuditDataTable({
                                     <span className="text-[9px] text-muted-foreground font-mono">HS: {hsCode}</span>
                                 )}
                             </div>
+                        </div>
+                    );
+                },
+            },
+            {
+                id: "pos_categories",
+                accessorFn: (row) => ((row as any).pos_category_names ?? []).join(", "),
+                header: ({ column }) => <ColumnHeader column={column} title="Catégories POS" />,
+                cell: ({ row }) => {
+                    const names = ((row.original as any).pos_category_names ?? []) as string[];
+                    if (names.length === 0) {
+                        return <span className="text-[10px] text-muted-foreground/50 italic">—</span>;
+                    }
+                    return (
+                        <div className="flex flex-wrap items-center gap-1 max-w-[260px]">
+                            {names.slice(0, 2).map((n) => (
+                                <Badge
+                                    key={n}
+                                    variant="outline"
+                                    className="text-[9px] font-normal border-primary/30 bg-primary/5 text-primary/90"
+                                >
+                                    {n}
+                                </Badge>
+                            ))}
+                            {names.length > 2 && (
+                                <Badge
+                                    variant="outline"
+                                    className="text-[9px] font-normal border-border/60 bg-muted/20 text-muted-foreground"
+                                    title={names.slice(2).join(", ")}
+                                >
+                                    +{names.length - 2}
+                                </Badge>
+                            )}
                         </div>
                     );
                 },
