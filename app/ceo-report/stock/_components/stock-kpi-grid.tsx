@@ -23,6 +23,7 @@ export default function StockKpiGrid({ initialData }: StockKpiGridProps) {
         beautyValuation: 0,
         kidsArticlesCount: 0,
         kidsValuation: 0,
+        storeStockAuditSizesData: []
     };
 
     return (

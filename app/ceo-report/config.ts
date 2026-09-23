@@ -89,7 +89,7 @@ export const DG_REPORT_NAV_GROUPS: NavGroup[] = [
                 label: "Audit Achats & Frais Approche",
                 icon: Banknote,
                 path: `${CEO_REPORT_BASE_PATH}/finance`,
-                badge: "Point 6",
+                // badge: "Point 6",
                 roles: DEFAULT_EXEC_ROLES,
             },
         ],

@@ -1,7 +1,6 @@
 // app/ceo-report/finance/finance-client.tsx
 "use client";
 
-import { useState } from "react";
 import { toast } from "sonner";
 import {
     Banknote,
