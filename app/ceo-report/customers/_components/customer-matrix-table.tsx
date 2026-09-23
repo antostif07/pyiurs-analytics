@@ -29,36 +29,52 @@ export interface CustomerSegmentRow {
     arpu: number;
 }
 
-export const DEFAULT_CUSTOMER_DATA: CustomerSegmentRow[] = [
-    { segment: "Platinum", totalCustomers: 80, grossAdds: 6, churn30d: 1, acqRevenue: 2400, recRevenue: 18500, arpu: 261.25 },
-    { segment: "Gold", totalCustomers: 220, grossAdds: 18, churn30d: 4, acqRevenue: 4500, recRevenue: 21000, arpu: 115.91 },
-    { segment: "Silver", totalCustomers: 650, grossAdds: 55, churn30d: 22, acqRevenue: 6800, recRevenue: 24500, arpu: 48.15 },
-    { segment: "Autres Clients", totalCustomers: 1800, grossAdds: 210, churn30d: 95, acqRevenue: 11200, recRevenue: 7100, arpu: 10.17 },
-];
-
-const TOTALS = {
-    segment: "TOTAL CLIENTS",
-    totalCustomers: 2750,
-    grossAdds: 289,
-    churn30d: 122,
-    acqRevenue: 24900,
-    recRevenue: 71100,
-    arpu: 34.91,
-};
+interface CustomerMatrixTableProps {
+    data?: CustomerSegmentRow[];
+    isLoading?: boolean; // ✅ Prise en charge de l'état de chargement
+}
 
 function formatNumber(val: number): string {
-    return val.toLocaleString("fr-FR");
+    return Math.round(val || 0).toLocaleString("fr-FR");
 }
 
 function formatArpu(val: number): string {
-    return `${val.toFixed(2).replace(".", ",")} $`;
+    return `${(val || 0).toFixed(2).replace(".", ",")} $`;
 }
 
 export default function CustomerMatrixTable({
-    data = DEFAULT_CUSTOMER_DATA,
-}: {
-    data?: CustomerSegmentRow[];
-}) {
+    data = [],
+    isLoading = false,
+}: CustomerMatrixTableProps) {
+    // ✅ Calcul 100% dynamique de la ligne TOTAL à partir des données réelles
+    const totals = useMemo(() => {
+        const sum = data.reduce(
+            (acc, row) => ({
+                totalCustomers: acc.totalCustomers + (row.totalCustomers || 0),
+                grossAdds: acc.grossAdds + (row.grossAdds || 0),
+                churn30d: acc.churn30d + (row.churn30d || 0),
+                acqRevenue: acc.acqRevenue + (row.acqRevenue || 0),
+                recRevenue: acc.recRevenue + (row.recRevenue || 0),
+            }),
+            {
+                totalCustomers: 0,
+                grossAdds: 0,
+                churn30d: 0,
+                acqRevenue: 0,
+                recRevenue: 0,
+            }
+        );
+
+        const totalRevenue = sum.acqRevenue + sum.recRevenue;
+        const globalArpu = sum.totalCustomers > 0 ? Number((totalRevenue / sum.totalCustomers).toFixed(2)) : 0;
+
+        return {
+            segment: "TOTAL CLIENTS",
+            ...sum,
+            arpu: globalArpu,
+        };
+    }, [data]);
+
     const columns = useMemo<ColumnDef<CustomerSegmentRow>[]>(
         () => [
             {
@@ -72,7 +88,7 @@ export default function CustomerMatrixTable({
                                 "text-[11px] font-bold",
                                 val === "Platinum" && "text-slate-900 dark:text-white font-black",
                                 val === "Gold" && "text-amber-600 dark:text-amber-400",
-                                val === "Silver" && "text-slate-500",
+                                val === "Silver" && "text-slate-500 dark:text-slate-400",
                                 val === "Autres Clients" && "text-slate-600 dark:text-slate-400 font-medium"
                             )}
                         >
@@ -107,12 +123,12 @@ export default function CustomerMatrixTable({
             {
                 accessorKey: "acqRevenue",
                 header: () => "Revenu Acquisitions ($)",
-                cell: (info) => formatNumber(info.getValue() as number),
+                cell: (info) => `${formatNumber(info.getValue() as number)} $`,
             },
             {
                 accessorKey: "recRevenue",
                 header: () => "Revenu Récurrent ($)",
-                cell: (info) => formatNumber(info.getValue() as number),
+                cell: (info) => `${formatNumber(info.getValue() as number)} $`,
             },
             {
                 accessorKey: "arpu",
@@ -160,50 +176,73 @@ export default function CustomerMatrixTable({
                     </TableHeader>
 
                     <TableBody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                        {table.getRowModel().rows.map((row) => (
-                            <TableRow
-                                key={row.id}
-                                className="hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors border-b border-slate-100 dark:border-slate-800/60"
-                            >
-                                {row.getVisibleCells().map((cell, idx) => (
-                                    <TableCell
-                                        key={cell.id}
-                                        className={cn(
-                                            "py-1.5 px-3 font-mono tabular-nums",
-                                            idx === 0
-                                                ? "text-left sticky left-0 z-10 bg-white dark:bg-slate-900 border-r border-slate-100 dark:border-slate-800"
-                                                : "text-right text-slate-700 dark:text-slate-300"
-                                        )}
-                                    >
-                                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        {isLoading ? (
+                            // ── Skeletons animés pendant le fetch Odoo ──
+                            [1, 2, 3, 4].map((i) => (
+                                <TableRow key={i} className="animate-pulse">
+                                    <TableCell className="py-2.5 px-3">
+                                        <div className="h-3.5 w-20 bg-slate-200 dark:bg-slate-800 rounded" />
                                     </TableCell>
-                                ))}
+                                    {[1, 2, 3, 4, 5, 6].map((c) => (
+                                        <TableCell key={c} className="py-2.5 px-3 text-right">
+                                            <div className="h-3.5 w-16 bg-slate-200 dark:bg-slate-800 rounded ml-auto" />
+                                        </TableCell>
+                                    ))}
+                                </TableRow>
+                            ))
+                        ) : table.getRowModel().rows.length > 0 ? (
+                            table.getRowModel().rows.map((row) => (
+                                <TableRow
+                                    key={row.id}
+                                    className="hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors border-b border-slate-100 dark:border-slate-800/60"
+                                >
+                                    {row.getVisibleCells().map((cell, idx) => (
+                                        <TableCell
+                                            key={cell.id}
+                                            className={cn(
+                                                "py-1.5 px-3 font-mono tabular-nums",
+                                                idx === 0
+                                                    ? "text-left sticky left-0 z-10 bg-white dark:bg-slate-900 border-r border-slate-100 dark:border-slate-800"
+                                                    : "text-right text-slate-700 dark:text-slate-300"
+                                            )}
+                                        >
+                                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                        </TableCell>
+                                    ))}
+                                </TableRow>
+                            ))
+                        ) : (
+                            <TableRow>
+                                <TableCell colSpan={7} className="py-6 text-center text-slate-400 italic">
+                                    Aucune transaction client trouvée sur cette période
+                                </TableCell>
                             </TableRow>
-                        ))}
+                        )}
                     </TableBody>
 
+                    {/* Ligne TOTAL DYNAMIQUE */}
                     <TableFooter className="bg-slate-50 dark:bg-slate-800/80 border-t-2 border-slate-300 dark:border-slate-700 font-bold">
                         <TableRow className="hover:bg-transparent border-none">
                             <TableCell className="py-2 px-3 text-left font-black uppercase tracking-wider text-slate-900 dark:text-white sticky left-0 z-10 bg-slate-50 dark:bg-slate-800/90 border-r border-slate-200 dark:border-slate-700">
-                                {TOTALS.segment}
+                                {totals.segment}
                             </TableCell>
                             <TableCell className="py-2 px-3 text-right font-mono font-black text-slate-900 dark:text-white">
-                                {formatNumber(TOTALS.totalCustomers)}
+                                {formatNumber(totals.totalCustomers)}
                             </TableCell>
                             <TableCell className="py-2 px-3 text-right font-mono font-black text-emerald-600 dark:text-emerald-400">
-                                +{formatNumber(TOTALS.grossAdds)}
+                                +{formatNumber(totals.grossAdds)}
                             </TableCell>
                             <TableCell className="py-2 px-3 text-right font-mono font-black text-rose-600 dark:text-rose-400">
-                                {formatNumber(TOTALS.churn30d)}
+                                {formatNumber(totals.churn30d)}
                             </TableCell>
                             <TableCell className="py-2 px-3 text-right font-mono font-black text-slate-900 dark:text-white">
-                                {formatNumber(TOTALS.acqRevenue)}
+                                {formatNumber(totals.acqRevenue)} $
                             </TableCell>
                             <TableCell className="py-2 px-3 text-right font-mono font-black text-slate-900 dark:text-white">
-                                {formatNumber(TOTALS.recRevenue)}
+                                {formatNumber(totals.recRevenue)} $
                             </TableCell>
                             <TableCell className="py-2 px-3 text-right font-mono font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50/40 dark:bg-indigo-950/30">
-                                {formatArpu(TOTALS.arpu)}
+                                {formatArpu(totals.arpu)}
                             </TableCell>
                         </TableRow>
                     </TableFooter>

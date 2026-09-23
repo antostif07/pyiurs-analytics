@@ -18,10 +18,8 @@ import AlertBadge from "./alert-badge";
 
 // ✅ Import direct des composants tableaux
 import SalesRevenueMatrixTable from "@/app/ceo-report/sales/_components/sales-revenue-matrix-table";
-import { SALES_MATRIX_INITIAL_DATA } from "@/app/ceo-report/sales/_components/data";
 import CustomerMatrixTable from "../customers/_components/customer-matrix-table";
 import StockMovementMatrixTable from "../stock/_components/stock-movement-matrix-table";
-import PurchaseDispatchMatrixTable from "../operations/_components/purchase-dispatch-matrix-table";
 import PurchaseAuditFinanceTable from "../finance/_components/purchase-audit-finance-table";
 import StoreStockAuditSizesTable from "../stock/_components/store-stock-audit-sizes-table";
 import LeaseHrMatrixTable from "../hr/_components/lease-hr-matrix-table";
@@ -31,6 +29,9 @@ import CashOpexMatrixTable from "../cash/_components/cash-opex-matrix-table";
 import { useStockKpis } from "../stock/_lib/hooks/use-stock-kpis";
 import TransferControlTable from "../operations/_components/transfer-control-table.tsx";
 import { useSalesMatrix } from "../sales/_lib/use-sales-matrix";
+import { useCustomerSegmentation } from "../customers/_lib/hooks/use-customer-segmentation";
+import { usePurchaseDispatch } from "../operations/purchases/_lib/hooks/use-purchase-dispatch";
+import PurchaseDispatchMatrixTable from "../operations/purchases/_components/purchase-dispatch-matrix-table";
 
 const STORE_COLORS = [
     "var(--chart-1)",
@@ -78,6 +79,8 @@ type Props = { data: ExecutiveCockpitData };
 
 export default function ExecutiveCockpit({ data }: Props) {
     const { data: salesData, isLoading: isSalesLoading } = useSalesMatrix();
+    const { data: customerData, isLoading: isCustomerLoading } = useCustomerSegmentation();
+    const { data: purchaseData, isLoading: isPurchaseLoading } = usePurchaseDispatch();
     const [filters, setFilters] = useState<ReportFilter>(defaultFilters);
     const { sales, alerts } = data;
 
@@ -128,7 +131,10 @@ export default function ExecutiveCockpit({ data }: Props) {
                         </Link>
                     </div>
 
-                    <CustomerMatrixTable />
+                    <CustomerMatrixTable
+                        data={customerData?.rows}
+                        isLoading={isCustomerLoading}
+                    />
                 </section>
 
                 {/* ── 3. Mouvements de Stock Globaux (Branché Données Réelles Odoo) ── */}
@@ -155,13 +161,12 @@ export default function ExecutiveCockpit({ data }: Props) {
                 </section>
 
                 {/* ── 2. KPI Financier ── */}
-                <section>
+                {/* <section>
                     <SectionHeader title="Financier" />
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                         <KpiCard label="CA Réalisé" value={96000} format="currency" variation={3.56} variationLabel="vs budget" href="/reports/sales" isPositiveUp accentColor="blue" highlight />
                         <KpiCard label="Budget" value={92700} format="currency" href="/reports/sales" />
                         <KpiCard label="Écart Budget" value={3300} format="currency" variation={3.56} variationLabel="du budget" href="/reports/sales" isPositiveUp />
-                        {/* ✅ Valeur de stock réelle issue d'Odoo */}
                         <KpiCard
                             label="Valeur Stock"
                             value={stockData ? stockData.totalValuation : 0}
@@ -173,7 +178,7 @@ export default function ExecutiveCockpit({ data }: Props) {
                         />
                         <KpiCard label="Cash" value={30100} format="currency" variation={-0.07} variationLabel="écart caisse" href="/reports/cash" isPositiveUp={false} />
                     </div>
-                </section>
+                </section> */}
 
                 {/* ── 4. Suivi des Achats PO & Dispatch ── */}
                 <section className="space-y-2">
@@ -191,7 +196,10 @@ export default function ExecutiveCockpit({ data }: Props) {
                         </Link>
                     </div>
 
-                    <PurchaseDispatchMatrixTable />
+                    <PurchaseDispatchMatrixTable
+                        data={purchaseData?.tableRows}
+                        isLoading={isPurchaseLoading}
+                    />
                 </section>
 
                 {/* ── 5. Contrôle des Transferts TR ── */}

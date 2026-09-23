@@ -1,9 +1,8 @@
 // app/ceo-report/customers/customers-client.tsx
 "use client";
 
-import { useState } from "react";
 import { toast } from "sonner";
-import { Users, UserPlus, UserMinus, DollarSign, Award } from "lucide-react";
+import { Users, UserPlus, UserMinus, DollarSign } from "lucide-react";
 import {
     BarChart,
     Bar,
@@ -13,157 +12,140 @@ import {
     Tooltip,
     ResponsiveContainer,
     Legend,
-    PieChart,
-    Pie,
-    Cell,
 } from "recharts";
-import CustomerMatrixTable, {
-    DEFAULT_CUSTOMER_DATA,
-} from "./_components/customer-matrix-table";
 import DashboardHeader from "@/components/new-ui/layout/dashboard-header";
-
-const PIE_COLORS = ["#0f172a", "#f59e0b", "#94a3b8", "#64748b"];
+import CustomerMatrixTable from "./_components/customer-matrix-table";
+import CeoKpiCard from "@/app/ceo-report/_components/ceo-kpi-card";
+import { useCustomerSegmentation } from "./_lib/hooks/use-customer-segmentation";
 
 export default function CustomersClient() {
-    const [data] = useState(DEFAULT_CUSTOMER_DATA);
+    const { data, isLoading, isFetching, refetch, dataUpdatedAt } = useCustomerSegmentation();
 
-    // Graphique 1 : Mix Revenu Acquisition vs Récurrent
-    const revenueMixData = data.map((d) => ({
+    const isBusy = isLoading || isFetching;
+    const kpis = data?.kpis || {
+        parcTotal: 0,
+        parcActif: 0,
+        grossAdds: 0,
+        churn30d: 0,
+        arpuGlobal: 0,
+        arpuActif: 0,
+    };
+
+    const rows = data?.rows || [];
+
+    // Graphique basé UNIQUEMENT sur la période sélectionnée
+    const chartData = rows.map((d) => ({
         name: d.segment,
-        Acquisition: d.acqRevenue,
-        Récurrent: d.recRevenue,
+        "Revenu Acquisition": d.acqRevenue,
+        "Revenu Récurrent": d.recRevenue,
     }));
 
-    // Graphique 2 : Répartition du CA Total par Segment (Pareto)
-    const shareData = data.map((d) => ({
-        name: d.segment,
-        value: d.acqRevenue + d.recRevenue,
-    }));
+    const handleRefresh = async () => {
+        try {
+            await refetch();
+            toast.success("Clientèle actualisée depuis Odoo");
+        } catch {
+            toast.error("Échec de l'actualisation");
+        }
+    };
 
     return (
         <div className="space-y-6">
-            {/* 1. Header de contrôle */}
+            {/* 1. Header Global avec filtres de date */}
             <DashboardHeader
                 title="Suivi Clientèle, Flux & Segmentation"
-                subtitle="Analyse du parc clients, Gross Adds, Churn et ARPU par segment"
-                onRefresh={() => { }}
-                isLoading={false}
-                onExport={(format) => toast(`Export ${format} de la clientèle...`)}
+                subtitle="Analyse du parc clients par mobile unique, flux d'acquisition, churn 30j et ARPU"
+                badgeLabel="Live Odoo"
+                isLoading={isBusy}
+                lastUpdatedAt={dataUpdatedAt ? new Date(dataUpdatedAt) : null}
+                onRefresh={handleRefresh}
+                onExport={(fmt) => toast(`Export ${fmt} de la clientèle...`)}
             />
 
-            {/* 2. KPIs Clés Clientèle */}
+            {/* 2. 4 KPIs avec les 2 Parcs et les 2 ARPUs */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Parc Total</span>
-                        <div className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/50 text-blue-600">
-                            <Users className="w-4 h-4" />
-                        </div>
-                    </div>
-                    <div className="mt-2 text-xl font-bold font-mono text-slate-900 dark:text-white">2 750</div>
-                    <p className="text-[10px] text-slate-500 mt-0.5">Base active identifiée</p>
-                </div>
+                {/* KPI 1 : Parc Total & Parc Actif */}
+                <CeoKpiCard
+                    label="Parc Total / Actif"
+                    value={`${kpis.parcActif.toLocaleString("fr-FR")} actives`}
+                    subtitle={`Sur ${kpis.parcTotal.toLocaleString("fr-FR")} clientes dans la base globale`}
+                    icon={<Users className="w-4 h-4" />}
+                    iconColor="text-blue-600"
+                    iconBg="bg-blue-50 dark:bg-blue-950/50"
+                    isLoading={isBusy}
+                />
 
-                <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Gross Adds</span>
-                        <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600">
-                            <UserPlus className="w-4 h-4" />
-                        </div>
-                    </div>
-                    <div className="mt-2 text-xl font-bold font-mono text-emerald-600">+289</div>
-                    <p className="text-[10px] text-slate-500 mt-0.5">24 900 $ générés</p>
-                </div>
+                {/* KPI 2 : Gross Adds */}
+                <CeoKpiCard
+                    label="Gross Adds (Nouveaux)"
+                    value={`+${kpis.grossAdds.toLocaleString("fr-FR")}`}
+                    subtitle="Première commande sur la période"
+                    icon={<UserPlus className="w-4 h-4" />}
+                    iconColor="text-emerald-600"
+                    iconBg="bg-emerald-50 dark:bg-emerald-950/50"
+                    valueColor="text-emerald-600"
+                    isLoading={isBusy}
+                />
 
-                <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Churn 30J</span>
-                        <div className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/50 text-rose-600">
-                            <UserMinus className="w-4 h-4" />
-                        </div>
-                    </div>
-                    <div className="mt-2 text-xl font-bold font-mono text-rose-600">122</div>
-                    <p className="text-[10px] text-slate-500 mt-0.5">4,4% taux d'attrition</p>
-                </div>
+                {/* KPI 3 : Churn 30J */}
+                <CeoKpiCard
+                    label="Churn 30J"
+                    value={kpis.churn30d.toLocaleString("fr-FR")}
+                    subtitle="Sans achat depuis plus de 30 jours"
+                    icon={<UserMinus className="w-4 h-4" />}
+                    iconColor="text-rose-600"
+                    iconBg="bg-rose-50 dark:bg-rose-950/50"
+                    valueColor="text-rose-600"
+                    isLoading={isBusy}
+                />
 
-                <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">ARPU Global</span>
-                        <div className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600">
-                            <DollarSign className="w-4 h-4" />
-                        </div>
-                    </div>
-                    <div className="mt-2 text-xl font-bold font-mono text-indigo-600">34,91 $</div>
-                    <p className="text-[10px] text-slate-500 mt-0.5">Platinum à 261,25 $</p>
+                {/* KPI 4 : ARPU Actif & ARPU Global */}
+                <CeoKpiCard
+                    label="ARPU Actif (Période)"
+                    value={`${kpis.arpuActif.toFixed(2).replace(".", ",")} $`}
+                    subtitle={`Panier global historique : ${kpis.arpuGlobal.toFixed(2).replace(".", ",")} $`}
+                    icon={<DollarSign className="w-4 h-4" />}
+                    iconColor="text-indigo-600"
+                    iconBg="bg-indigo-50 dark:bg-indigo-950/50"
+                    valueColor="text-indigo-600"
+                    isLoading={isBusy}
+                />
+            </div>
+
+            {/* 3. Graphique : Basé UNIQUEMENT sur la période sélectionnée */}
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white mb-1">
+                    Mix Revenus : Acquisition vs Récurrent par Segment (Période)
+                </h3>
+                <p className="text-[10px] text-slate-500 mb-3">
+                    Contribution financière des nouvelles clientes vs clientes fidèles sur la sélection ($)
+                </p>
+                <div className="h-[200px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={chartData} margin={{ top: 5, right: 10, left: -15, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#64748b", fontWeight: "bold" }} />
+                            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#64748b" }} tickFormatter={(v) => `$${v}`} />
+                            <Tooltip
+                                contentStyle={{ borderRadius: "10px", border: "none", boxShadow: "0 8px 16px rgba(0,0,0,0.06)", fontSize: "11px" }}
+                                formatter={(v: any) => [`${Number(v).toLocaleString("fr-FR")} $`]}
+                            />
+                            <Legend wrapperStyle={{ fontSize: "10px" }} />
+                            <Bar dataKey="Revenu Acquisition" fill="#10b981" radius={[3, 3, 0, 0]} maxBarSize={24} />
+                            <Bar dataKey="Revenu Récurrent" fill="#6366f1" radius={[3, 3, 0, 0]} maxBarSize={24} />
+                        </BarChart>
+                    </ResponsiveContainer>
                 </div>
             </div>
 
-            {/* 3. Section Graphiques d'Analyse */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                {/* BarChart : Acquisition vs Récurrent */}
-                <div className="lg:col-span-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white mb-1">
-                        Mix Revenus par Segment : Acquisition vs Récurrent
-                    </h3>
-                    <p className="text-[10px] text-slate-500 mb-3">
-                        Structure du chiffre d'affaires généré par segment ($)
-                    </p>
-                    <div className="h-[200px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={revenueMixData} margin={{ top: 5, right: 10, left: -15, bottom: 0 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#64748b" }} />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#64748b" }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
-                                <Tooltip
-                                    contentStyle={{ borderRadius: "10px", border: "none", boxShadow: "0 8px 16px rgba(0,0,0,0.06)", fontSize: "11px" }}
-                                    formatter={(v: any) => [`${Number(v).toLocaleString("fr-FR")} $`]}
-                                />
-                                <Legend wrapperStyle={{ fontSize: "10px" }} />
-                                <Bar dataKey="Acquisition" fill="#10b981" radius={[3, 3, 0, 0]} maxBarSize={24} />
-                                <Bar dataKey="Récurrent" fill="#6366f1" radius={[3, 3, 0, 0]} maxBarSize={24} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
-
-                {/* Donut : Contribution au CA Total */}
-                <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white mb-1">
-                        Poids dans le Chiffre d'Affaires
-                    </h3>
-                    <p className="text-[10px] text-slate-500 mb-2">Part du CA total ($96 000)</p>
-                    <div className="h-[140px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie data={shareData} cx="50%" cy="50%" innerRadius={35} outerRadius={55} paddingAngle={2} dataKey="value">
-                                    {shareData.map((_, i) => (
-                                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                                    ))}
-                                </Pie>
-                                <Tooltip formatter={(v: any) => [`${Number(v).toLocaleString("fr-FR")} $`]} />
-                            </PieChart>
-                        </ResponsiveContainer>
-                    </div>
-                    <div className="grid grid-cols-2 gap-1.5 mt-2">
-                        {shareData.map((s, i) => (
-                            <div key={s.name} className="flex items-center gap-1.5 text-[10px]">
-                                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
-                                <span className="text-slate-500 truncate">{s.name}</span>
-                                <span className="font-mono font-bold ml-auto">{((s.value / 96000) * 100).toFixed(0)}%</span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
-
-            {/* 4. Le Tableau Matrice exact (Réutilisé) */}
+            {/* 4. Le Tableau Matrice Point 2 (Basé UNIQUEMENT sur la période) */}
             <div className="space-y-2">
                 <div className="flex items-center gap-2 border-l-4 border-amber-500 pl-3">
                     <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-slate-100">
                         2. SUIVI CLIENTÈLE, FLUX (GROSS ADDS, CHURN 30J) & SEGMENTATION
                     </h2>
                 </div>
-                <CustomerMatrixTable data={data} />
+                <CustomerMatrixTable data={rows} isLoading={isBusy} />
             </div>
         </div>
     );
