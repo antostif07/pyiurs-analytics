@@ -1,49 +1,96 @@
 "use client";
 
-import { useMemo, useState, useCallback } from "react";
-import { hasSoldElsewhere, isItemScanned, StatusFilter, StockAuditItem } from "../types";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { hasSoldElsewhere, isItemScanned, StockAuditItem } from "../types";
 
+/**
+ * Hook d'état local des articles d'audit.
+ *
+ * RESPONSABILITÉS :
+ *  - Source de vérité des items (state local synchronisé avec initialItems)
+ *  - Mise à jour optimiste d'un item (scan, markFound, etc.)
+ *  - Calcul des KPIs globaux (scanned, remaining, valuations…)
+ *
+ * NON-RESPONSABILITÉS (déléguées à AuditDataTable via TanStack) :
+ *  - Filtrage (recherche, statut, marque, POS…)
+ *  - Pagination
+ */
 export function useAuditItems(initialItems: StockAuditItem[]) {
     const [items, setItems] = useState<StockAuditItem[]>(initialItems);
-    const [filterSearch, setFilterSearch] = useState("");
-    const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-    const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 20;
 
-    const updateItemOptimistic = useCallback((itemId: string, updater: (item: StockAuditItem) => StockAuditItem) => {
-        setItems((prev) => {
-            const idx = prev.findIndex((i) => i.id === itemId);
-            if (idx === -1) return prev;
-            const next = [...prev];
-            next[idx] = updater(next[idx]);
-            return next;
-        });
-    }, []);
+    /**
+     * Sync serveur → client.
+     *
+     * Après un `router.refresh()` (sync Odoo, import Excel, validation),
+     * Next.js re-render le Server Component et fournit un nouveau tableau
+     * `initialItems`. React ignore la valeur initiale de `useState`, donc on
+     * doit explicitement remettre le state local à jour.
+     *
+     * Sécurité : on garde une réf de la dernière liste appliquée pour éviter
+     * un reset inutile si le parent re-render sans que les données changent
+     * (ex: toggle d'un state local du parent).
+     */
+    const lastSyncedRef = useRef<StockAuditItem[]>(initialItems);
 
-    // ACCUMULATION PERFORMANTE DE TOUS LES KPIS DANS UN SEUL USEMEMO
+    useEffect(() => {
+        if (lastSyncedRef.current === initialItems) return;
+        lastSyncedRef.current = initialItems;
+        setItems(initialItems);
+    }, [initialItems]);
+
+    /**
+     * Mise à jour optimiste d'un item par son id.
+     * Ne fait rien si l'id est introuvable (sécurité).
+     */
+    const updateItemOptimistic = useCallback(
+        (itemId: string, updater: (item: StockAuditItem) => StockAuditItem) => {
+            setItems((prev) => {
+                const idx = prev.findIndex((i) => i.id === itemId);
+                if (idx === -1) return prev;
+                const next = [...prev];
+                next[idx] = updater(next[idx]);
+                return next;
+            });
+        },
+        []
+    );
+
+    /**
+     * KPIs globaux de l'audit — un seul passage sur les items.
+     * Recalculé uniquement quand la liste change.
+     */
     const stats = useMemo(() => {
         const totalItemsCount = items.length;
         const scannedItemsCount = items.filter(isItemScanned).length;
         const remainingItemsCount = totalItemsCount - scannedItemsCount;
         const soldElsewhereCount = items.filter(hasSoldElsewhere).length;
-        const progressPercent = totalItemsCount > 0 ? Math.round((scannedItemsCount / totalItemsCount) * 100) : 0;
+        const progressPercent =
+            totalItemsCount > 0
+                ? Math.round((scannedItemsCount / totalItemsCount) * 100)
+                : 0;
 
-        const { totalDiffQty, totalDiffValue, scannedValuation, totalValuation } = items.reduce(
-            (acc, item) => {
-                const counted = item.counted_qty ?? 0;
-                const theoretical = item.theoretical_qty ?? 0;
-                const cost = Number(item.unit_cost) || 0;
-                const diff = counted - theoretical;
+        const { totalDiffQty, totalDiffValue, scannedValuation, totalValuation } =
+            items.reduce(
+                (acc, item) => {
+                    const counted = item.counted_qty ?? 0;
+                    const theoretical = item.theoretical_qty ?? 0;
+                    const cost = Number(item.unit_cost) || 0;
+                    const diff = counted - theoretical;
 
-                return {
-                    totalDiffQty: acc.totalDiffQty + diff,
-                    totalDiffValue: acc.totalDiffValue + diff * cost,
-                    scannedValuation: acc.scannedValuation + (counted * cost),
-                    totalValuation: acc.totalValuation + (theoretical * cost),
-                };
-            },
-            { totalDiffQty: 0, totalDiffValue: 0, scannedValuation: 0, totalValuation: 0 }
-        );
+                    return {
+                        totalDiffQty: acc.totalDiffQty + diff,
+                        totalDiffValue: acc.totalDiffValue + diff * cost,
+                        scannedValuation: acc.scannedValuation + counted * cost,
+                        totalValuation: acc.totalValuation + theoretical * cost,
+                    };
+                },
+                {
+                    totalDiffQty: 0,
+                    totalDiffValue: 0,
+                    scannedValuation: 0,
+                    totalValuation: 0,
+                }
+            );
 
         return {
             totalItemsCount,
@@ -58,66 +105,10 @@ export function useAuditItems(initialItems: StockAuditItem[]) {
         };
     }, [items]);
 
-    const filteredItems = useMemo(() => {
-        const query = filterSearch.trim().toLowerCase();
-        if (!query && statusFilter === "all") return items;
-
-        return items.filter((item) => {
-            const matchText =
-                !query ||
-                [
-                    item.internal_barcode,
-                    item.product_name,
-                    item.brand,
-                    item.color,
-                    item.hs_code,
-                ].some((field) => field?.toLowerCase().includes(query));
-
-            const scanned = isItemScanned(item);
-            const soldElsewhere = hasSoldElsewhere(item);
-
-            switch (statusFilter) {
-                case "scanned":
-                    return matchText && scanned;
-                case "remaining":
-                    return matchText && !scanned;
-                case "sold_elsewhere":
-                    return matchText && soldElsewhere;
-                default:
-                    return matchText;
-            }
-        });
-    }, [items, filterSearch, statusFilter]);
-
-    const totalPages = Math.max(1, Math.ceil(filteredItems.length / itemsPerPage));
-
-    const paginatedItems = useMemo(() => {
-        const start = (currentPage - 1) * itemsPerPage;
-        return filteredItems.slice(start, start + itemsPerPage);
-    }, [filteredItems, currentPage]);
-
-    const safeSetFilterSearch = useCallback((val: string) => {
-        setFilterSearch(val);
-        setCurrentPage(1);
-    }, []);
-
-    const safeSetStatusFilter = useCallback((val: StatusFilter) => {
-        setStatusFilter(val);
-        setCurrentPage(1);
-    }, []);
-
     return {
         items,
         setItems,
         updateItemOptimistic,
-        filterSearch,
-        setFilterSearch: safeSetFilterSearch,
-        statusFilter,
-        setStatusFilter: safeSetStatusFilter,
-        currentPage,
-        setCurrentPage,
-        totalPages,
-        paginatedItems,
         ...stats,
     };
 }

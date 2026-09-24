@@ -1,6 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
-import { odooClient } from "@/lib/odoo/odoo-json2-client";
 import { SupabaseClient } from "@supabase/supabase-js";
+import { OdooProduct } from "./types";
 
 /* ─── Types stricts alignés sur ta lib Odoo ─── */
 
@@ -9,19 +8,6 @@ export interface OdooQuant {
     location_id: [number, string];
     quantity: number;
     company_id?: [number, string];
-}
-
-export interface OdooProduct {
-    id: number;
-    name: string;
-    barcode: string | false;
-    default_code: string | false;
-    hs_code: string | false;
-    standard_price: number;
-    create_date: string | false;
-    x_studio_segment: string | false;
-    x_studio_many2one_field_21bvh: [number, string] | false;
-    x_studio_many2one_field_Arl5D: [number, string] | false;
 }
 
 /* ─── Retry exponentiel (ton client gère déjà le timeout, mais pas le retry) ─── */
@@ -132,4 +118,21 @@ export function sanitizeBarcodes(barcodes: unknown[]): string[] {
                 .filter(Boolean)
         )
     );
+}
+
+/**
+ * Détermine le coût unitaire d'un produit Odoo.
+ *
+ * RÈGLE MÉTIER :
+ *   - Si `standard_price` > 0 → on l'utilise tel quel
+ *   - Sinon → fallback sur 40% du `list_price` (prix de vente)
+ *
+ * Retourne un nombre arrondi à 2 décimales (format monétaire).
+ */
+export function resolveUnitCost(product: OdooProduct): number {
+    const cost = Number(product.standard_price) || 0;
+    if (cost > 0) return cost;
+
+    const listPrice = Number(product.list_price) || 0;
+    return Number((listPrice * 0.4).toFixed(2));
 }

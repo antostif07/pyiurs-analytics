@@ -4,7 +4,7 @@ import React from "react";
 import { Search, X, Filter, RotateCcw, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { StatusFilter, StockAuditItem, getSoldLocations } from "../_lib/types";
+import { StatusFilter, StockAuditItem, getPosCategoryIds, getPosCategoryNames, getSoldLocations } from "../_lib/types";
 import { PosCategoryFilter, PosCategoryOption } from "./PosCategoryFilter";
 
 export interface ExtendedAuditFilters {
@@ -79,18 +79,10 @@ export function AuditTableFilters({
     const availablePosCategories = React.useMemo<PosCategoryOption[]>(() => {
         const map = new Map<number, PosCategoryOption>();
         for (const item of items) {
-            const ids = (item as any).pos_category_ids as number[] | null | undefined;
-            const names = (item as any).pos_category_names as string[] | null | undefined;
-
-            if (!Array.isArray(ids)) continue;
-
+            const ids = getPosCategoryIds(item);
+            const names = getPosCategoryNames(item);
             ids.forEach((id, idx) => {
-                if (!Number.isInteger(id)) return;
-                const entry = map.get(id) ?? {
-                    id,
-                    name: names?.[idx] ?? `#${id}`,
-                    count: 0,
-                };
+                const entry = map.get(id) ?? { id, name: names[idx] ?? `#${id}`, count: 0 };
                 entry.count++;
                 map.set(id, entry);
             });

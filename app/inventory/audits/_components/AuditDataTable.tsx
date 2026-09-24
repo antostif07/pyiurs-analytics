@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
 import {
     useReactTable,
     getCoreRowModel,
@@ -26,16 +26,18 @@ import {
     CheckCircle2,
     AlertTriangle,
     PlusCircle,
-    Loader2
+    Loader2,
+    ChevronDown,
+    BarChart3,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { StockAuditItem, hasSoldElsewhere, getSoldLocations } from "../_lib/types";
+import { StockAuditItem, hasSoldElsewhere, getSoldLocations, matchesAnyPosCategory } from "../_lib/types";
 import { AuditTableFilters, ExtendedAuditFilters } from "./AuditTableFilters";
 import { SoldLocationsBadges } from "./SoldLocationsBadges";
-import { PosCategoryOption } from "./PosCategoryFilter";
+import { PosSummaryPanel } from "./category-pos-summary-panel";
 
 const formatUSD = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -57,7 +59,13 @@ function ColumnHeader({
     const isSorted = column.getIsSorted();
 
     return (
-        <div className={cn("flex items-center gap-1", align === "center" && "justify-center", align === "right" && "justify-end")}>
+        <div
+            className={cn(
+                "flex items-center gap-1",
+                align === "center" && "justify-center",
+                align === "right" && "justify-end"
+            )}
+        >
             <button
                 type="button"
                 onClick={() => column.toggleSorting(isSorted === "asc")}
@@ -89,6 +97,20 @@ interface Props {
     };
 }
 
+/* ──────────────────────────────────────────────────────────────── */
+/* État initial des filtres (extrait pour réutilisation au reset)   */
+/* ──────────────────────────────────────────────────────────────── */
+const INITIAL_FILTERS: ExtendedAuditFilters = {
+    searchQuery: "",
+    statusFilter: "all",
+    brandFilter: "all",
+    colorFilter: "all",
+    theoreticalStockFilter: "all",
+    soldElsewhereFilter: "all",
+    specificSoldLocationFilter: "all",
+    posCategoryFilter: [],           // ← AJOUT
+};
+
 export function AuditDataTable({
     items,
     isReadOnly,
@@ -96,60 +118,57 @@ export function AuditDataTable({
     onForceMarkFound,
     counts,
 }: Props) {
-    const [filters, setFilters] = useState<ExtendedAuditFilters>({
-        searchQuery: "",
-        statusFilter: "all",
-        brandFilter: "all",
-        colorFilter: "all",
-        theoreticalStockFilter: "all",
-        soldElsewhereFilter: "all",
-        specificSoldLocationFilter: "all",
-        posCategoryFilter: [],           // ← AJOUT
-    });
-
+    const [filters, setFilters] = useState<ExtendedAuditFilters>(INITIAL_FILTERS);
     const [sorting, setSorting] = useState<SortingState>([]);
     const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 20 });
+    const [showPosSummary, setShowPosSummary] = useState(false);
+
+    /* ─── AJOUT : reset page dès qu'un filtre change ─── */
+    useEffect(() => {
+        setPagination((prev) =>
+            prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 }
+        );
+    }, [
+        filters.searchQuery,
+        filters.statusFilter,
+        filters.brandFilter,
+        filters.colorFilter,
+        filters.theoreticalStockFilter,
+        filters.soldElsewhereFilter,
+        filters.specificSoldLocationFilter,
+        filters.posCategoryFilter,
+    ]);
 
     const handleResetFilters = () => {
-        setFilters({
-            searchQuery: "",
-            statusFilter: "all",
-            brandFilter: "all",
-            colorFilter: "all",
-            theoreticalStockFilter: "all",
-            soldElsewhereFilter: "all",
-            specificSoldLocationFilter: "all",
-            posCategoryFilter: [],
-        });
+        setFilters(INITIAL_FILTERS);
         setPagination((prev) => ({ ...prev, pageIndex: 0 }));
     };
 
-    const availablePosCategories = useMemo<PosCategoryOption[]>(() => {
-        const map = new Map<number, PosCategoryOption>();
-        for (const item of items) {
-            const ids = (item as any).pos_category_ids as number[] | null | undefined;
-            const names = (item as any).pos_category_names as string[] | null | undefined;
-            if (!Array.isArray(ids)) continue;
-            ids.forEach((id, idx) => {
-                if (!Number.isInteger(id)) return;
-                const entry = map.get(id) ?? {
-                    id,
-                    name: names?.[idx] ?? `#${id}`,
-                    count: 0,
-                };
-                entry.count++;
-                map.set(id, entry);
-            });
-        }
-        return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
-    }, [items]);
+    const handleTogglePosCategory = useCallback((id: number) => {
+        setFilters((prev) => {
+            const current = prev.posCategoryFilter;
+            const next = current.includes(id)
+                ? current.filter((x) => x !== id)
+                : [...current, id];
+            return { ...prev, posCategoryFilter: next };
+        });
+    }, []);
 
-    // Filtrage combiné multi-critères
+    const handleClearPosFilter = useCallback(() => {
+        setFilters((prev) => ({ ...prev, posCategoryFilter: [] }));
+    }, []);
+
+    /* ─── Filtrage combiné multi-critères ─── */
     const filteredData = useMemo(() => {
         const query = filters.searchQuery.trim().toLowerCase();
 
         return items.filter((item) => {
-            // 1. Recherche globale
+            /* 0. AJOUT : Filtre Catégories POS (multi-select, OR) */
+            if (filters.posCategoryFilter.length > 0) {
+                if (!matchesAnyPosCategory(item, filters.posCategoryFilter)) return false;
+            }
+
+            /* 1. Recherche globale */
             const brandStr = ((item as any).brand || "").toLowerCase();
             const colorStr = ((item as any).color || "").toLowerCase();
             const hsCodeStr = ((item as any).hs_code || "").toLowerCase();
@@ -164,35 +183,35 @@ export function AuditDataTable({
 
             if (!matchText) return false;
 
-            // 2. Statut Scan
+            /* 2. Statut Scan */
             const isScanned = (item.counted_qty || 0) === 1;
             if (filters.statusFilter === "scanned" && !isScanned) return false;
             if (filters.statusFilter === "remaining" && isScanned) return false;
             if (filters.statusFilter === "sold_elsewhere" && !hasSoldElsewhere(item)) return false;
 
-            // 3. Marque
+            /* 3. Marque */
             if (filters.brandFilter !== "all" && (item as any).brand !== filters.brandFilter) {
                 return false;
             }
 
-            // 4. Couleur
+            /* 4. Couleur */
             if (filters.colorFilter !== "all" && (item as any).color !== filters.colorFilter) {
                 return false;
             }
 
-            // 5. Stock Théorique
+            /* 5. Stock Théorique */
             const theo = item.theoretical_qty ?? 0;
             if (filters.theoreticalStockFilter === "one" && theo !== 1) return false;
             if (filters.theoreticalStockFilter === "zero" && theo !== 0) return false;
             if (filters.theoreticalStockFilter === "greater_than_one" && theo <= 1) return false;
             if (filters.theoreticalStockFilter === "negative" && theo >= 0) return false;
 
-            // 6. Vendus Ailleurs (-1)
+            /* 6. Vendus Ailleurs (-1) */
             const soldLocs = getSoldLocations(item);
             if (filters.soldElsewhereFilter === "yes" && soldLocs.length === 0) return false;
             if (filters.soldElsewhereFilter === "no" && soldLocs.length > 0) return false;
 
-            // 7. Filtre par Emplacement de Vente Spécifique (-1)
+            /* 7. Filtre par Emplacement de Vente Spécifique (-1) */
             if (filters.specificSoldLocationFilter !== "all") {
                 const hasSpecificLoc = soldLocs.some(
                     (l) => String(l.id) === filters.specificSoldLocationFilter
@@ -200,25 +219,11 @@ export function AuditDataTable({
                 if (!hasSpecificLoc) return false;
             }
 
-            if (filters.posCategoryFilter.length > 0) {
-                const selectedSet = new Set(filters.posCategoryFilter);
-                const itemCats = ((item as any).pos_category_ids ?? []) as number[];
-                const match = itemCats.some((id) => selectedSet.has(id));
-                if (!match) return false;
-            }
-
             return true;
         });
     }, [items, filters]);
 
-    useEffect(() => {
-        setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-    }, [filters.posCategoryFilter, filters.brandFilter, filters.colorFilter,
-    filters.statusFilter, filters.searchQuery,
-    filters.theoreticalStockFilter, filters.soldElsewhereFilter,
-    filters.specificSoldLocationFilter]);
-
-    // Définition des colonnes TanStack Table avec TRI SUR CHAQUE COLONNE
+    /* ─── Définition des colonnes TanStack Table ─── */
     const columns = useMemo<ColumnDef<StockAuditItem>[]>(
         () => [
             {
@@ -244,7 +249,9 @@ export function AuditDataTable({
             },
             {
                 accessorKey: "product_name",
-                header: ({ column }) => <ColumnHeader column={column} title="Produit / Marque / Couleur" />,
+                header: ({ column }) => (
+                    <ColumnHeader column={column} title="Produit / Marque / Couleur" />
+                ),
                 cell: ({ row }) => {
                     const item = row.original;
                     const brand = (item as any).brand;
@@ -253,38 +260,59 @@ export function AuditDataTable({
 
                     return (
                         <div className="flex flex-col gap-1">
-                            <span className="font-sans font-semibold text-foreground">{item.product_name}</span>
+                            <span className="font-sans font-semibold text-foreground">
+                                {item.product_name}
+                            </span>
                             <div className="flex flex-wrap items-center gap-1">
                                 {brand && brand !== "N/A" && (
-                                    <Badge variant="outline" className="text-[9px] font-normal border-border/80 bg-muted/20">
+                                    <Badge
+                                        variant="outline"
+                                        className="text-[9px] font-normal border-border/80 bg-muted/20"
+                                    >
                                         <Tag className="w-2.5 h-2.5 mr-1 text-primary" /> {brand}
                                     </Badge>
                                 )}
                                 {color && color !== "N/A" && (
-                                    <Badge variant="outline" className="text-[9px] font-normal border-border/80 bg-muted/20">
+                                    <Badge
+                                        variant="outline"
+                                        className="text-[9px] font-normal border-border/80 bg-muted/20"
+                                    >
                                         <Layers className="w-2.5 h-2.5 mr-1 text-amber-500" /> {color}
                                     </Badge>
                                 )}
                                 {hsCode && hsCode !== "N/A" && (
-                                    <span className="text-[9px] text-muted-foreground font-mono">HS: {hsCode}</span>
+                                    <span className="text-[9px] text-muted-foreground font-mono">
+                                        HS: {hsCode}
+                                    </span>
                                 )}
                             </div>
                         </div>
                     );
                 },
             },
+            /* ─── AJOUT : Colonne Catégories POS ─── */
             {
                 id: "pos_categories",
-                accessorFn: (row) => ((row as any).pos_category_names ?? []).join(", "),
-                header: ({ column }) => <ColumnHeader column={column} title="Catégories POS" />,
+                accessorFn: (row) =>
+                    (((row as any).pos_category_names ?? []) as string[]).join(", "),
+                header: ({ column }) => (
+                    <ColumnHeader column={column} title="Catégories POS" />
+                ),
                 cell: ({ row }) => {
-                    const names = ((row.original as any).pos_category_names ?? []) as string[];
+                    const names = (((row.original as any).pos_category_names ??
+                        []) as string[]);
                     if (names.length === 0) {
-                        return <span className="text-[10px] text-muted-foreground/50 italic">—</span>;
+                        return (
+                            <span className="text-[10px] text-muted-foreground/50 italic">
+                                —
+                            </span>
+                        );
                     }
+                    const visible = names.slice(0, 2);
+                    const rest = names.length - visible.length;
                     return (
                         <div className="flex flex-wrap items-center gap-1 max-w-[260px]">
-                            {names.slice(0, 2).map((n) => (
+                            {visible.map((n) => (
                                 <Badge
                                     key={n}
                                     variant="outline"
@@ -293,13 +321,13 @@ export function AuditDataTable({
                                     {n}
                                 </Badge>
                             ))}
-                            {names.length > 2 && (
+                            {rest > 0 && (
                                 <Badge
                                     variant="outline"
                                     className="text-[9px] font-normal border-border/60 bg-muted/20 text-muted-foreground"
                                     title={names.slice(2).join(", ")}
                                 >
-                                    +{names.length - 2}
+                                    +{rest}
                                 </Badge>
                             )}
                         </div>
@@ -322,12 +350,20 @@ export function AuditDataTable({
                     if (locs.length === 0) return "";
                     return locs.map((l) => `[${l.id}] ${l.name}`).join(", ");
                 },
-                header: ({ column }) => <ColumnHeader column={column} title="Vendu Dans Emplacement (-1)" />,
-                cell: ({ row }) => <SoldLocationsBadges locations={(row.original as any).sold_locations} />,
+                header: ({ column }) => (
+                    <ColumnHeader column={column} title="Vendu Dans Emplacement (-1)" />
+                ),
+                cell: ({ row }) => (
+                    <SoldLocationsBadges
+                        locations={(row.original as any).sold_locations}
+                    />
+                ),
             },
             {
                 accessorKey: "theoretical_qty",
-                header: ({ column }) => <ColumnHeader column={column} title="Théo." align="center" />,
+                header: ({ column }) => (
+                    <ColumnHeader column={column} title="Théo." align="center" />
+                ),
                 cell: ({ row }) => (
                     <div className="text-center font-mono font-bold text-muted-foreground">
                         {row.original.theoretical_qty}
@@ -336,7 +372,9 @@ export function AuditDataTable({
             },
             {
                 accessorKey: "counted_qty",
-                header: ({ column }) => <ColumnHeader column={column} title="Statut" align="center" />,
+                header: ({ column }) => (
+                    <ColumnHeader column={column} title="Statut" align="center" />
+                ),
                 cell: ({ row }) => {
                     const item = row.original;
                     const isScanned = (item.counted_qty || 0) === 1;
@@ -346,14 +384,18 @@ export function AuditDataTable({
                         <div className="text-center font-sans">
                             {isUnexpected ? (
                                 <Badge className="bg-purple-500/10 text-purple-600 border border-purple-500/20 text-[9px] font-bold">
-                                    <AlertTriangle className="w-2.5 h-2.5 mr-1 text-purple-600" /> Hors Périmètre (+1)
+                                    <AlertTriangle className="w-2.5 h-2.5 mr-1 text-purple-600" />
+                                    Hors Périmètre (+1)
                                 </Badge>
                             ) : isScanned ? (
                                 <Badge className="bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 text-[9px] font-bold">
                                     <CheckCircle2 className="w-2.5 h-2.5 mr-1" /> Scanné (1/1)
                                 </Badge>
                             ) : (
-                                <Badge variant="outline" className="text-[9px] text-amber-600 border-amber-500/30 font-medium">
+                                <Badge
+                                    variant="outline"
+                                    className="text-[9px] text-amber-600 border-amber-500/30 font-medium"
+                                >
                                     En Attente (0/1)
                                 </Badge>
                             )}
@@ -367,7 +409,9 @@ export function AuditDataTable({
                     const diff = (row.counted_qty || 0) - (row.theoretical_qty || 0);
                     return diff * (Number(row.unit_cost) || 0);
                 },
-                header: ({ column }) => <ColumnHeader column={column} title="Impact ($)" align="right" />,
+                header: ({ column }) => (
+                    <ColumnHeader column={column} title="Impact ($)" align="right" />
+                ),
                 cell: ({ row }) => {
                     const item = row.original;
                     const diff = (item.counted_qty || 0) - (item.theoretical_qty || 0);
@@ -375,7 +419,11 @@ export function AuditDataTable({
 
                     return (
                         <div className="text-right font-mono font-bold">
-                            <span className={cn(diff < 0 ? "text-rose-600" : "text-muted-foreground/60")}>
+                            <span
+                                className={cn(
+                                    diff < 0 ? "text-rose-600" : "text-muted-foreground/60"
+                                )}
+                            >
                                 {formatUSD(impact)}
                             </span>
                         </div>
@@ -437,7 +485,39 @@ export function AuditDataTable({
 
     return (
         <div className="space-y-3">
-            {/* BARRE DE FILTRES EXTRAITE */}
+            <div className="flex items-center justify-between">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowPosSummary((v) => !v)}
+                    className={cn(
+                        "h-8 rounded-xl gap-2 text-xs font-medium border-border/80",
+                        showPosSummary && "bg-primary/5 border-primary/40 text-primary"
+                    )}
+                >
+                    <BarChart3 className="w-3.5 h-3.5" />
+                    <span>
+                        {showPosSummary ? "Masquer" : "Afficher"} la synthèse POS
+                    </span>
+                    <ChevronDown
+                        className={cn(
+                            "w-3.5 h-3.5 transition-transform",
+                            showPosSummary && "rotate-180"
+                        )}
+                    />
+                </Button>
+            </div>
+
+            {/* ─── PANNEAU SYNTHÈSE POS (collapsible) ─── */}
+            {showPosSummary && (
+                <PosSummaryPanel
+                    items={items}
+                    selectedCategoryIds={filters.posCategoryFilter}
+                    onToggleCategory={handleTogglePosCategory}
+                    onClearFilter={handleClearPosFilter}
+                />
+            )}
+            {/* BARRE DE FILTRES */}
             <AuditTableFilters
                 filters={filters}
                 onFilterChange={setFilters}
@@ -446,17 +526,26 @@ export function AuditDataTable({
                 counts={counts}
             />
 
-            {/* TABLEAU TANSTACK TRIBALE */}
+            {/* TABLEAU */}
             <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-xs">
                 <Table className="w-full text-xs">
                     <TableHeader className="bg-muted/40">
                         {table.getHeaderGroups().map((headerGroup) => (
-                            <TableRow key={headerGroup.id} className="border-b border-border hover:bg-transparent">
+                            <TableRow
+                                key={headerGroup.id}
+                                className="border-b border-border hover:bg-transparent"
+                            >
                                 {headerGroup.headers.map((header) => (
-                                    <TableHead key={header.id} className="py-3 px-4 uppercase text-[9px] font-bold tracking-wider">
+                                    <TableHead
+                                        key={header.id}
+                                        className="py-3 px-4 uppercase text-[9px] font-bold tracking-wider"
+                                    >
                                         {header.isPlaceholder
                                             ? null
-                                            : flexRender(header.column.columnDef.header, header.getContext())}
+                                            : flexRender(
+                                                header.column.columnDef.header,
+                                                header.getContext()
+                                            )}
                                     </TableHead>
                                 ))}
                             </TableRow>
@@ -486,7 +575,10 @@ export function AuditDataTable({
                                 >
                                     {row.getVisibleCells().map((cell) => (
                                         <TableCell key={cell.id} className="py-2.5 px-4">
-                                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                            {flexRender(
+                                                cell.column.columnDef.cell,
+                                                cell.getContext()
+                                            )}
                                         </TableCell>
                                     ))}
                                 </TableRow>
@@ -496,11 +588,12 @@ export function AuditDataTable({
                 </Table>
             </div>
 
-            {/* CONTROLES DE PAGINATION */}
+            {/* PAGINATION */}
             <div className="flex items-center justify-between pt-2">
                 <span className="text-xs text-muted-foreground font-light">
                     Page <strong>{table.getState().pagination.pageIndex + 1}</strong> sur{" "}
-                    <strong>{table.getPageCount() || 1}</strong> ({filteredData.length} résultats)
+                    <strong>{table.getPageCount() || 1}</strong> ({filteredData.length}{" "}
+                    résultats)
                 </span>
 
                 <div className="flex items-center gap-1">

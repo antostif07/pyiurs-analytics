@@ -32,14 +32,6 @@ export function AuditScannerClient({ audit, initialItems }: Props) {
         items,
         setItems,
         updateItemOptimistic,
-        paginatedItems,
-        currentPage,
-        setCurrentPage,
-        totalPages,
-        filterSearch,
-        setFilterSearch,
-        statusFilter,
-        setStatusFilter,
         totalItemsCount,
         scannedItemsCount,
         remainingItemsCount,
@@ -138,29 +130,38 @@ export function AuditScannerClient({ audit, initialItems }: Props) {
     return (
         <div className="space-y-6 pb-12 animate-in fade-in duration-300">
             {/* EN-TÊTE ET BARRE D'ACTIONS */}
-            <div className="border-b border-border pb-5 flex flex-col lg:flex-row justify-between lg:items-center gap-4">
-                <div>
+            <div className="border-b border-border pb-3 flex flex-col lg:flex-row justify-between lg:items-center gap-3">
+                <div className="min-w-0">
                     <Link
                         href="/inventory/audits"
-                        className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-primary text-[10px] font-bold uppercase tracking-wider mb-2 transition-colors"
+                        className="inline-flex items-center gap-1 text-muted-foreground hover:text-primary text-[10px] font-bold uppercase tracking-wider mb-1 transition-colors"
                     >
-                        <ArrowLeft size={12} /> Retour à la liste des audits
+                        <ArrowLeft size={11} /> Retour aux audits
                     </Link>
-                    <div className="flex items-center gap-2.5">
-                        <h1 className="text-xl sm:text-2xl font-bold text-foreground font-mono uppercase">
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <h1 className="text-lg sm:text-xl font-bold text-foreground font-mono uppercase leading-tight">
                             {audit.reference}
                         </h1>
-                        <StatusBadge isReadOnly={isReadOnly} isCompleted={audit.status === "completed"} />
+                        <StatusBadge
+                            isReadOnly={isReadOnly}
+                            isCompleted={audit.status === "completed"}
+                        />
                     </div>
-                    <p className="text-xs text-muted-foreground font-light mt-1 flex items-center gap-2">
+
+                    <div className="text-[11px] text-muted-foreground font-light mt-0.5 flex items-center gap-1.5 flex-wrap">
                         <span className="flex items-center gap-1 font-semibold text-foreground">
-                            <Store className="w-3.5 h-3.5 text-primary" /> {audit.shop_name}
+                            <Store className="w-3 h-3 text-primary" />
+                            {audit.shop_name}
                         </span>
-                        <span>•</span>
+                        <span className="text-muted-foreground/50">•</span>
                         <span>
-                            Périmètre : <strong>{audit.department || "Tous"}</strong>
+                            Périmètre :{" "}
+                            <strong className="text-foreground">
+                                {audit.department || "Tous"}
+                            </strong>
                         </span>
-                    </p>
+                    </div>
                 </div>
 
                 <ActionBar

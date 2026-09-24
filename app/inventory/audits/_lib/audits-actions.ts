@@ -17,6 +17,7 @@ import {
 } from "./types";
 import { Json } from "@/lib/supabase/database.types";
 import { toJson } from "./helpers";
+import { resolveUnitCost } from "./audits-actions-helpers";
 
 /**
  * Brouillon local d'un item d'audit — utilise les types métier (SoldLocation[],
@@ -357,7 +358,8 @@ export async function createAuditSessionAction(
             domain: productDomain,
             fields: [
                 "id", "name", "barcode", "default_code", "hs_code",
-                "standard_price", "create_date", "x_studio_segment",
+                "standard_price", "list_price",
+                "create_date", "x_studio_segment",
                 "x_studio_many2one_field_21bvh",
                 "x_studio_many2one_field_Arl5D",
                 "pos_categ_ids",
@@ -430,7 +432,7 @@ export async function createAuditSessionAction(
                     sold_locations: [...soldLocs],
                     theoretical_qty: totalQty,
                     counted_qty: 0,
-                    unit_cost: p.standard_price || 0,
+                    unit_cost: resolveUnitCost(p),
                     pos_category_ids: categIds,
                     pos_category_names: categNames,
                 });
@@ -545,7 +547,7 @@ export async function syncAuditStockSnapshotAction(auditId: string) {
             domain: [["id", "in", productIds]],
             fields: [
                 "id", "name", "barcode", "default_code", "hs_code",
-                "standard_price", "create_date",
+                "standard_price", "create_date", "list_price",
                 "x_studio_many2one_field_21bvh",
                 "x_studio_many2one_field_Arl5D",
                 "pos_categ_ids",
@@ -600,7 +602,7 @@ export async function syncAuditStockSnapshotAction(auditId: string) {
                     typeof prodInfo?.create_date === "string"
                         ? prodInfo.create_date
                         : null,
-                unit_cost: prodInfo?.standard_price ?? 0,
+                unit_cost: prodInfo ? resolveUnitCost(prodInfo) : 0,
                 pos_category_ids: categIds,
                 pos_category_names: categNames,
             };
@@ -732,7 +734,8 @@ export async function recordBarcodeScanAction(auditId: string, barcode: string) 
             ],
             fields: [
                 "id", "name", "barcode", "default_code", "hs_code",
-                "standard_price", "create_date", "x_studio_segment",
+                "standard_price", "list_price",
+                "create_date", "x_studio_segment",
                 "x_studio_many2one_field_21bvh",
                 "x_studio_many2one_field_Arl5D",
                 "pos_categ_ids",
@@ -776,7 +779,7 @@ export async function recordBarcodeScanAction(auditId: string, barcode: string) 
             sold_locations: toJson([]),
             theoretical_qty: 0,
             counted_qty: 1,
-            unit_cost: odooProd.standard_price || 0,
+            unit_cost: resolveUnitCost(odooProd),
             pos_category_ids: categIds,
             pos_category_names: categNames,
             scanned_at: new Date().toISOString(),
@@ -793,7 +796,7 @@ export async function recordBarcodeScanAction(auditId: string, barcode: string) 
         await incrementAuditTotalsAtomic(supabase, auditId, {
             scanned: 1,
             qty: 1,
-            value: Number(odooProd.standard_price) || 0,
+            value: resolveUnitCost(odooProd),
         });
 
         revalidatePath(`/inventory/audits/${auditId}`);
@@ -933,7 +936,7 @@ export async function importExcelBarcodesAction(auditId: string, barcodes: strin
                         ],
                         fields: [
                             "id", "name", "barcode", "default_code", "hs_code",
-                            "standard_price", "create_date", "x_studio_segment",
+                            "standard_price", "list_price", "create_date", "x_studio_segment",
                             "x_studio_many2one_field_21bvh",
                             "x_studio_many2one_field_Arl5D",
                             "pos_categ_ids",
@@ -996,7 +999,7 @@ export async function importExcelBarcodesAction(auditId: string, barcodes: strin
                         sold_locations: toJson([]),                 // ← cast unique
                         theoretical_qty: 0,
                         counted_qty: 1,
-                        unit_cost: p.standard_price || 0,
+                        unit_cost: resolveUnitCost(p),
                         pos_category_ids: categIds,
                         pos_category_names: categNames,
                         scanned_at: now,
@@ -1171,7 +1174,6 @@ export async function getAuditsAction(filters?: AuditFilters): Promise<StockAudi
     }
 
     if (filters?.searchQuery && filters.searchQuery.trim() !== "") {
-        /* Échappement basique pour éviter de casser la syntaxe .or() */
         const safe = filters.searchQuery.replace(/[%,()]/g, "").trim();
         if (safe) {
             query = query.or(`reference.ilike.%${safe}%,shop_name.ilike.%${safe}%`);

@@ -8,7 +8,14 @@ import {
     View,
     StyleSheet,
 } from '@react-pdf/renderer';
-import { StockAudit, StockAuditItem } from '@/app/inventory/audits/_lib/types';
+import {
+    StockAudit,
+    StockAuditItem,
+    hasSoldElsewhere,
+    getPosCategoryIds,
+    getPosCategoryNames,
+    aggregateByPosCategory,
+} from '@/app/inventory/audits/_lib/types';
 
 const styles = StyleSheet.create({
     page: {
@@ -20,7 +27,7 @@ const styles = StyleSheet.create({
     },
     header: {
         flexDirection: 'row',
-        justify: 'space-between',
+        justifyContent: 'space-between',
         alignItems: 'center',
         borderBottomWidth: 1.5,
         borderBottomColor: '#0F172A',
@@ -64,7 +71,7 @@ const styles = StyleSheet.create({
     },
     kpiGrid: {
         flexDirection: 'row',
-        justify: 'space-between',
+        justifyContent: 'space-between',
         backgroundColor: '#F8FAFC',
         borderRadius: 6,
         padding: 8,
@@ -97,7 +104,7 @@ const styles = StyleSheet.create({
     },
     infoRow: {
         flexDirection: 'row',
-        justify: 'space-between',
+        justifyContent: 'space-between',
         marginBottom: 8,
         paddingHorizontal: 2,
     },
@@ -124,6 +131,12 @@ const styles = StyleSheet.create({
         paddingBottom: 2,
         borderBottomWidth: 0.5,
         borderBottomColor: '#CBD5E1',
+    },
+    sectionNote: {
+        fontSize: 6.5,
+        color: '#64748B',
+        fontStyle: 'italic',
+        marginBottom: 6,
     },
     table: {
         width: '100%',
@@ -155,6 +168,12 @@ const styles = StyleSheet.create({
     tableRowZebra: {
         backgroundColor: '#F8FAFC',
     },
+    tableRowTotal: {
+        backgroundColor: '#FEF3C7',
+        borderTopWidth: 1,
+        borderTopColor: '#D97706',
+        borderTopStyle: 'solid',
+    },
     tableCell: {
         fontSize: 6.5,
         color: '#334155',
@@ -169,6 +188,18 @@ const styles = StyleSheet.create({
         fontFamily: 'Helvetica-Bold',
         color: '#E11D48',
     },
+    tableCellGain: {
+        fontSize: 6.5,
+        fontFamily: 'Helvetica-Bold',
+        color: '#16A34A',
+    },
+    tableCellMuted: {
+        fontSize: 6.5,
+        color: '#94A3B8',
+        fontStyle: 'italic',
+    },
+
+    /* ─── Colonnes du tableau des écarts (page 1) ─── */
     colBarcode: { width: '20%' },
     colProduct: { width: '36%' },
     colLocation: { width: '16%' },
@@ -176,10 +207,35 @@ const styles = StyleSheet.create({
     colCounted: { width: '7%', textAlign: 'center' },
     colDiff: { width: '7%', textAlign: 'center' },
     colCost: { width: '7%', textAlign: 'right' },
+
+    /* ─── Colonnes du tableau POS (page 2) ─── */
+    posColCategory: { width: '30%' },
+    // posColId: { width: '8%', textAlign: 'center' },
+    posColTotal: { width: '11%', textAlign: 'center' },
+    posColScanned: { width: '11%', textAlign: 'center' },
+    posColRemaining: { width: '11%', textAlign: 'center' },
+    posColSold: { width: '13%', textAlign: 'center' },
+    posColDiffQty: { width: '11%', textAlign: 'center' },
+    posColDiffValue: { width: '13%', textAlign: 'right' },
+
+    /* ─── Barre visuelle de progression par catégorie ─── */
+    posProgressWrap: {
+        marginTop: 3,
+        height: 3,
+        backgroundColor: '#E2E8F0',
+        borderRadius: 2,
+        overflow: 'hidden',
+    },
+    posProgressBar: {
+        height: 3,
+        backgroundColor: '#16A34A',
+        borderRadius: 2,
+    },
+
     signatureBlock: {
         marginTop: 20,
         flexDirection: 'row',
-        justify: 'space-between',
+        justifyContent: 'space-between',
         paddingHorizontal: 20,
     },
     signatureBox: {
@@ -201,7 +257,7 @@ const styles = StyleSheet.create({
         left: 25,
         right: 25,
         flexDirection: 'row',
-        justify: 'space-between',
+        justifyContent: 'space-between',
         alignItems: 'center',
         borderTopWidth: 0.5,
         borderTopColor: '#CBD5E1',
@@ -218,6 +274,11 @@ const styles = StyleSheet.create({
         fontFamily: 'Helvetica-Bold',
     },
 });
+
+
+/* ══════════════════════════════════════════════════════════════════ */
+/* COMPOSANT                                                         */
+/* ══════════════════════════════════════════════════════════════════ */
 
 interface AuditReportPDFProps {
     audit: StockAudit;
@@ -246,12 +307,38 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
         totalDiffValue += diff * (Number(item.unit_cost) || 0);
     });
 
-    // FILTRAGE INTELLIGENT : Le PDF se concentre sur les ÉCARTS ET ANOMALIES (max 300 lignes)
-    // Cela garantit une génération en 0.5 seconde sans AUCUN plantage mémoire !
-    const discrepancyItems = items.filter((item) => {
-        const diff = (item.counted_qty || 0) - (item.theoretical_qty || 0);
-        return diff !== 0; // Seuls les produits avec écart ou hors périmètre
-    }).slice(0, 300); // Protection mémoire
+    /* Filtrage anomalies (page 1) — max 300 lignes */
+    const discrepancyItems = items
+        .filter((item) => {
+            const diff = (item.counted_qty || 0) - (item.theoretical_qty || 0);
+            return diff !== 0;
+        })
+        .slice(0, 300);
+
+    /* Agrégation POS (page 2) */
+    const posAggregates = aggregateByPosCategory(items);
+    const hasPosData = posAggregates.some((a) => a.id !== null);
+    const distinctPosCount = posAggregates.filter((a) => a.id !== null).length;
+
+    /* Totaux de la synthèse POS (pour ligne TOTAL) */
+    const posTotals = posAggregates.reduce(
+        (acc, agg) => ({
+            totalItems: acc.totalItems + agg.totalItems,
+            scannedItems: acc.scannedItems + agg.scannedItems,
+            remainingItems: acc.remainingItems + agg.remainingItems,
+            soldElsewhere: acc.soldElsewhere + agg.soldElsewhere,
+            totalDiffQty: acc.totalDiffQty + agg.totalDiffQty,
+            totalDiffValue: acc.totalDiffValue + agg.totalDiffValue,
+        }),
+        {
+            totalItems: 0,
+            scannedItems: 0,
+            remainingItems: 0,
+            soldElsewhere: 0,
+            totalDiffQty: 0,
+            totalDiffValue: 0,
+        }
+    );
 
     const formattedDate = audit.created_at
         ? new Date(audit.created_at).toLocaleDateString('fr-FR', {
@@ -263,12 +350,17 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
 
     return (
         <Document title={`Rapport Audit ${audit.reference}`}>
+            {/* ═══════════════════════════════════════════════════════ */}
+            {/* PAGE 1 — RAPPORT PRINCIPAL (écarts et anomalies)       */}
+            {/* ═══════════════════════════════════════════════════════ */}
             <Page size="A4" style={styles.page}>
                 {/* EN-TÊTE */}
                 <View style={styles.header}>
                     <View>
-                        <Text style={styles.brandName}>LUXURY RETAIL INTELLIGENCE</Text>
-                        <Text style={styles.reportTitle}>Rapport Officiel de Démarque & Écarts</Text>
+                        <Text style={styles.brandName}>Pyiurs Enterprise</Text>
+                        <Text style={styles.reportTitle}>
+                            Rapport Officiel de Démarque &amp; Écarts
+                        </Text>
                         <Text style={styles.metaText}>Référence Audit : {audit.reference}</Text>
                     </View>
                     <View style={styles.badge}>
@@ -293,12 +385,12 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                         <Text style={styles.infoValue}>{audit.department || 'Tous'}</Text>
                     </View>
                     <View style={styles.infoCol}>
-                        <Text style={styles.infoLabel}>Date d'Audit :</Text>
+                        <Text style={styles.infoLabel}>Date d&apos;Audit :</Text>
                         <Text style={styles.infoValue}>{formattedDate}</Text>
                     </View>
                 </View>
 
-                {/* CARTOUCHE FINANCIER GLOBAL */}
+                {/* KPI GLOBAL */}
                 <View style={styles.kpiGrid}>
                     <View style={styles.kpiBox}>
                         <Text style={styles.kpiLabel}>Total Référencés</Text>
@@ -326,26 +418,43 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                     </View>
                 </View>
 
-                {/* TABLEAU DES ÉCARTS ET ANOMALIES D'INVENTAIRE */}
+                {/* TABLEAU DES ÉCARTS */}
                 <Text style={styles.sectionTitle}>
-                    Détail des Écarts et Produits Non Conformes ({discrepancyItems.length} lignes d'anomalies)
+                    Détail des Écarts et Produits Non Conformes (
+                    {discrepancyItems.length} lignes d&apos;anomalies)
                 </Text>
 
                 <View style={styles.table}>
                     <View style={styles.tableHeader} fixed>
-                        <Text style={[styles.tableHeaderCell, styles.colBarcode]}>Code-barres</Text>
-                        <Text style={[styles.tableHeaderCell, styles.colProduct]}>Produit Odoo</Text>
-                        <Text style={[styles.tableHeaderCell, styles.colLocation]}>Emplacement</Text>
+                        <Text style={[styles.tableHeaderCell, styles.colBarcode]}>
+                            Code-barres
+                        </Text>
+                        <Text style={[styles.tableHeaderCell, styles.colProduct]}>
+                            Produit Odoo
+                        </Text>
+                        <Text style={[styles.tableHeaderCell, styles.colLocation]}>
+                            Emplacement
+                        </Text>
                         <Text style={[styles.tableHeaderCell, styles.colTheo]}>Théo.</Text>
-                        <Text style={[styles.tableHeaderCell, styles.colCounted]}>Compté</Text>
+                        <Text style={[styles.tableHeaderCell, styles.colCounted]}>
+                            Compté
+                        </Text>
                         <Text style={[styles.tableHeaderCell, styles.colDiff]}>Écart</Text>
-                        <Text style={[styles.tableHeaderCell, styles.colCost]}>Impact ($)</Text>
+                        <Text style={[styles.tableHeaderCell, styles.colCost]}>
+                            Impact ($)
+                        </Text>
                     </View>
 
                     {discrepancyItems.length === 0 ? (
                         <View style={styles.tableRow}>
-                            <Text style={[styles.tableCell, { width: '100%', textAlign: 'center', paddingVertical: 10 }]}>
-                                🎉 Aucun écart détecté ! L'inventaire physique est à 100% conforme au stock Odoo.
+                            <Text
+                                style={[
+                                    styles.tableCell,
+                                    { width: '100%', textAlign: 'center', paddingVertical: 10 },
+                                ]}
+                            >
+                                🎉 Aucun écart détecté ! L&apos;inventaire physique est à 100%
+                                conforme au stock Odoo.
                             </Text>
                         </View>
                     ) : (
@@ -358,20 +467,50 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                             return (
                                 <View
                                     key={item.id || index}
-                                    style={[styles.tableRow, index % 2 === 1 ? styles.tableRowZebra : {}]}
+                                    style={[
+                                        styles.tableRow,
+                                        index % 2 === 1 ? styles.tableRowZebra : {},
+                                    ]}
                                     wrap={false}
                                 >
-                                    <Text style={[styles.tableCellBold, styles.colBarcode]}>{item.internal_barcode}</Text>
-                                    <Text style={[styles.tableCell, styles.colProduct]}>{item.product_name}</Text>
+                                    <Text
+                                        style={[
+                                            styles.tableCellBold,
+                                            styles.colBarcode,
+                                        ]}
+                                    >
+                                        {item.internal_barcode}
+                                    </Text>
+                                    <Text style={[styles.tableCell, styles.colProduct]}>
+                                        {item.product_name}
+                                    </Text>
                                     <Text style={[styles.tableCell, styles.colLocation]}>
                                         {item.supplier_ref || 'Stock Principal'}
                                     </Text>
-                                    <Text style={[styles.tableCell, styles.colTheo]}>{theoretical}</Text>
-                                    <Text style={[styles.tableCellBold, styles.colCounted]}>{counted}</Text>
-                                    <Text style={[diff < 0 ? styles.tableCellLoss : styles.tableCell, styles.colDiff]}>
+                                    <Text style={[styles.tableCell, styles.colTheo]}>
+                                        {theoretical}
+                                    </Text>
+                                    <Text style={[styles.tableCellBold, styles.colCounted]}>
+                                        {counted}
+                                    </Text>
+                                    <Text
+                                        style={[
+                                            diff < 0
+                                                ? styles.tableCellLoss
+                                                : styles.tableCell,
+                                            styles.colDiff,
+                                        ]}
+                                    >
                                         {diff > 0 ? `+${diff}` : diff}
                                     </Text>
-                                    <Text style={[diff < 0 ? styles.tableCellLoss : styles.tableCell, styles.colCost]}>
+                                    <Text
+                                        style={[
+                                            diff < 0
+                                                ? styles.tableCellLoss
+                                                : styles.tableCell,
+                                            styles.colCost,
+                                        ]}
+                                    >
                                         {formatUSD(impact)}
                                     </Text>
                                 </View>
@@ -380,25 +519,334 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                     )}
                 </View>
 
-                {/* BLOC DE SIGNATURES FINANCIÈRES */}
+                {/* SIGNATURES (page 1 uniquement) */}
                 <View style={styles.signatureBlock} wrap={false}>
                     <View style={styles.signatureBox}>
-                        <Text style={styles.signatureTitle}>Signature Responsable Boutique</Text>
+                        <Text style={styles.signatureTitle}>
+                            Signature Responsable Boutique
+                        </Text>
                     </View>
                     <View style={styles.signatureBox}>
-                        <Text style={styles.signatureTitle}>Signature Direction Financière / Audit</Text>
+                        <Text style={styles.signatureTitle}>
+                            Signature Direction Financière / Audit
+                        </Text>
                     </View>
                 </View>
 
-                {/* FOOTER */}
                 <View style={styles.footer} fixed>
-                    <Text style={styles.footerText}>Document Officiel d'Audit Financier • Confidentiel</Text>
+                    <Text style={styles.footerText}>
+                        Document Officiel d&apos;Audit Financier • Confidentiel
+                    </Text>
                     <Text
                         style={styles.pageNumber}
-                        render={({ pageNumber, totalPages }) => `Page ${pageNumber} sur ${totalPages}`}
+                        render={({ pageNumber, totalPages }) =>
+                            `Page ${pageNumber} sur ${totalPages}`
+                        }
                     />
                 </View>
             </Page>
+
+            {/* ═══════════════════════════════════════════════════════ */}
+            {/* PAGE 2 — ANNEXE : SYNTHÈSE PAR CATÉGORIE POS           */}
+            {/* ═══════════════════════════════════════════════════════ */}
+            {hasPosData && (
+                <Page size="A4" style={styles.page}>
+                    {/* EN-TÊTE */}
+                    <View style={styles.header}>
+                        <View>
+                            <Text style={styles.brandName}>
+                                Pyiurs Enterprise
+                            </Text>
+                            <Text style={styles.reportTitle}>
+                                Annexe • Synthèse par Catégorie POS
+                            </Text>
+                            <Text style={styles.metaText}>
+                                Référence Audit : {audit.reference} • {audit.shop_name}
+                            </Text>
+                        </View>
+                        <View style={styles.badge}>
+                            <Text style={styles.badgeText}>
+                                {distinctPosCount} CATÉGORIE{distinctPosCount > 1 ? 'S' : ''}
+                            </Text>
+                        </View>
+                    </View>
+
+                    {/* KPI POS GLOBAUX */}
+                    <View style={styles.kpiGrid}>
+                        <View style={styles.kpiBox}>
+                            <Text style={styles.kpiLabel}>Catégories POS</Text>
+                            <Text style={styles.kpiValue}>{distinctPosCount}</Text>
+                        </View>
+                        <View style={styles.kpiBox}>
+                            <Text style={styles.kpiLabel}>Items Catégorisés</Text>
+                            <Text style={styles.kpiValue}>
+                                {
+                                    items.filter(
+                                        (i) => getPosCategoryIds(i).length > 0
+                                    ).length
+                                }
+                            </Text>
+                        </View>
+                        <View style={styles.kpiBox}>
+                            <Text style={styles.kpiLabel}>Items Non Catégorisés</Text>
+                            <Text style={styles.kpiValue}>
+                                {
+                                    items.filter(
+                                        (i) => getPosCategoryIds(i).length === 0
+                                    ).length
+                                }
+                            </Text>
+                        </View>
+                        <View style={styles.kpiBox}>
+                            <Text style={styles.kpiLabel}>Écart Qté Global</Text>
+                            <Text
+                                style={
+                                    totalDiffQty < 0
+                                        ? styles.kpiValueLoss
+                                        : styles.kpiValue
+                                }
+                            >
+                                {totalDiffQty}
+                            </Text>
+                        </View>
+                        <View style={styles.kpiBox}>
+                            <Text style={styles.kpiLabel}>Démarque Totale ($)</Text>
+                            <Text
+                                style={
+                                    totalDiffValue < 0
+                                        ? styles.kpiValueLoss
+                                        : styles.kpiValue
+                                }
+                            >
+                                {formatUSD(totalDiffValue)}
+                            </Text>
+                        </View>
+                    </View>
+
+                    {/* NOTE EXPLICATIVE */}
+                    <Text style={styles.sectionNote}>
+                        Les items appartenant à plusieurs catégories POS sont comptés dans
+                        chacune d&apos;elles. La somme des « Total Articles » peut donc
+                        dépasser le nombre réel d&apos;items de l&apos;audit.
+                    </Text>
+
+                    {/* TABLEAU SYNTHÈSE POS */}
+                    <Text style={styles.sectionTitle}>
+                        Répartition des Écarts par Catégorie POS
+                    </Text>
+
+                    <View style={styles.table}>
+                        <View style={styles.tableHeader} fixed>
+                            <Text
+                                style={[styles.tableHeaderCell, styles.posColCategory]}
+                            >
+                                Catégorie POS
+                            </Text>
+                            <Text style={[styles.tableHeaderCell, styles.posColTotal]}>
+                                Total
+                            </Text>
+                            <Text
+                                style={[styles.tableHeaderCell, styles.posColScanned]}
+                            >
+                                Scannés
+                            </Text>
+                            <Text
+                                style={[styles.tableHeaderCell, styles.posColRemaining]}
+                            >
+                                Restants
+                            </Text>
+                            <Text style={[styles.tableHeaderCell, styles.posColSold]}>
+                                Vendus (-1)
+                            </Text>
+                            <Text
+                                style={[styles.tableHeaderCell, styles.posColDiffQty]}
+                            >
+                                Écart Qté
+                            </Text>
+                            <Text
+                                style={[styles.tableHeaderCell, styles.posColDiffValue]}
+                            >
+                                Écart ($)
+                            </Text>
+                        </View>
+
+                        {posAggregates.map((agg, index) => {
+                            const progress =
+                                agg.totalItems > 0
+                                    ? Math.round(
+                                        (agg.scannedItems / agg.totalItems) * 100
+                                    )
+                                    : 0;
+                            const isUncategorized = agg.id === null;
+
+                            return (
+                                <View
+                                    key={`pos-${agg.id ?? 'uncat'}`}
+                                    style={[
+                                        styles.tableRow,
+                                        index % 2 === 1 ? styles.tableRowZebra : {},
+                                    ]}
+                                    wrap={false}
+                                >
+                                    <View style={[styles.posColCategory]}>
+                                        <Text
+                                            style={
+                                                isUncategorized
+                                                    ? styles.tableCellMuted
+                                                    : styles.tableCellBold
+                                            }
+                                        >
+                                            {agg.name}
+                                        </Text>
+                                        {/* Barre de progression visuelle */}
+                                        <View style={styles.posProgressWrap}>
+                                            <View
+                                                style={[
+                                                    styles.posProgressBar,
+                                                    { width: `${progress}%` },
+                                                ]}
+                                            />
+                                        </View>
+                                    </View>
+                                    <Text
+                                        style={[
+                                            styles.tableCell,
+                                            styles.posColTotal,
+                                        ]}
+                                    >
+                                        {agg.totalItems}
+                                    </Text>
+                                    <Text
+                                        style={[
+                                            styles.tableCellBold,
+                                            styles.posColScanned,
+                                        ]}
+                                    >
+                                        {agg.scannedItems}
+                                    </Text>
+                                    <Text
+                                        style={[
+                                            styles.tableCell,
+                                            styles.posColRemaining,
+                                        ]}
+                                    >
+                                        {agg.remainingItems}
+                                    </Text>
+                                    <Text
+                                        style={[
+                                            agg.soldElsewhere > 0
+                                                ? styles.tableCellLoss
+                                                : styles.tableCell,
+                                            styles.posColSold,
+                                        ]}
+                                    >
+                                        {agg.soldElsewhere}
+                                    </Text>
+                                    <Text
+                                        style={[
+                                            agg.totalDiffQty < 0
+                                                ? styles.tableCellLoss
+                                                : styles.tableCell,
+                                            styles.posColDiffQty,
+                                        ]}
+                                    >
+                                        {agg.totalDiffQty > 0
+                                            ? `+${agg.totalDiffQty}`
+                                            : agg.totalDiffQty}
+                                    </Text>
+                                    <Text
+                                        style={[
+                                            agg.totalDiffValue < 0
+                                                ? styles.tableCellLoss
+                                                : styles.tableCell,
+                                            styles.posColDiffValue,
+                                        ]}
+                                    >
+                                        {formatUSD(agg.totalDiffValue)}
+                                    </Text>
+                                </View>
+                            );
+                        })}
+
+                        {/* LIGNE TOTAL */}
+                        <View
+                            style={[styles.tableRow, styles.tableRowTotal]}
+                            wrap={false}
+                        >
+                            <Text
+                                style={[styles.tableCellBold, styles.posColCategory]}
+                            >
+                                TOTAL GÉNÉRAL
+                            </Text>
+                            <Text
+                                style={[styles.tableCellBold, styles.posColTotal]}
+                            >
+                                {posTotals.totalItems}
+                            </Text>
+                            <Text
+                                style={[
+                                    styles.tableCellBold,
+                                    styles.posColScanned,
+                                ]}
+                            >
+                                {posTotals.scannedItems}
+                            </Text>
+                            <Text
+                                style={[
+                                    styles.tableCellBold,
+                                    styles.posColRemaining,
+                                ]}
+                            >
+                                {posTotals.remainingItems}
+                            </Text>
+                            <Text
+                                style={[
+                                    posTotals.soldElsewhere > 0
+                                        ? styles.tableCellLoss
+                                        : styles.tableCellBold,
+                                    styles.posColSold,
+                                ]}
+                            >
+                                {posTotals.soldElsewhere}
+                            </Text>
+                            <Text
+                                style={[
+                                    posTotals.totalDiffQty < 0
+                                        ? styles.tableCellLoss
+                                        : styles.tableCellBold,
+                                    styles.posColDiffQty,
+                                ]}
+                            >
+                                {posTotals.totalDiffQty > 0
+                                    ? `+${posTotals.totalDiffQty}`
+                                    : posTotals.totalDiffQty}
+                            </Text>
+                            <Text
+                                style={[
+                                    posTotals.totalDiffValue < 0
+                                        ? styles.tableCellLoss
+                                        : styles.tableCellBold,
+                                    styles.posColDiffValue,
+                                ]}
+                            >
+                                {formatUSD(posTotals.totalDiffValue)}
+                            </Text>
+                        </View>
+                    </View>
+
+                    <View style={styles.footer} fixed>
+                        <Text style={styles.footerText}>
+                            Annexe Synthèse POS • Document Confidentiel
+                        </Text>
+                        <Text
+                            style={styles.pageNumber}
+                            render={({ pageNumber, totalPages }) =>
+                                `Page ${pageNumber} sur ${totalPages}`
+                            }
+                        />
+                    </View>
+                </Page>
+            )}
         </Document>
     );
 };
