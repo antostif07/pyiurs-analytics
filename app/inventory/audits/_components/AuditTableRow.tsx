@@ -15,9 +15,10 @@ import {
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { StockAuditItem, isItemScanned } from "../_lib/types";
+import { StockAuditItem, } from "../_lib/types";
 import { SoldLocationsBadges } from "./SoldLocationsBadges";
 import { ScanStatusBadge } from "./ScanStatusBadge";
+import { isItemScanned } from "../_lib/helpers";
 
 const formatUSD = (amount: number) => {
     return new Intl.NumberFormat("en-US", {

@@ -7,9 +7,8 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
     StockAuditItem,
-    aggregateByPosCategory,
-    PosCategoryAggregate,
 } from "../_lib/types";
+import { aggregateByPosCategory } from "../_lib/helpers";
 
 const formatUSD = (amount: number) =>
     new Intl.NumberFormat("en-US", {

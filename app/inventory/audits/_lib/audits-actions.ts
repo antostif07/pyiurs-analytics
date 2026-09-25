@@ -11,13 +11,14 @@ import {
     OdooQuant,
     OdooProduct,
     SoldLocation,
-    extractOdooMany2oneName,
     StockAuditItemInsert,
     OdooPosCategory,
+    FoundLocation,
+    SyncItemPatch,
 } from "./types";
 import { Json } from "@/lib/supabase/database.types";
-import { toJson } from "./helpers";
-import { resolveUnitCost } from "./audits-actions-helpers";
+import { extractOdooMany2oneName, toJson } from "./helpers";
+import { resolvePositiveLocationsForProducts, resolveUnitCost } from "./audits-actions-helpers";
 
 /**
  * Brouillon local d'un item d'audit — utilise les types métier (SoldLocation[],
@@ -36,22 +37,6 @@ type AuditItemDraft = {
     sold_locations: SoldLocation[];
     theoretical_qty: number;
     counted_qty: number;
-    unit_cost: number;
-    pos_category_ids: number[];
-    pos_category_names: string[];
-};
-
-/**
- * Patch partiel d'un item d'audit pour la resynchronisation.
- * Reste en types métier jusqu'au cast final vers Json.
- */
-type SyncItemPatch = {
-    id: string;
-    sold_locations: SoldLocation[];
-    hs_code: string;
-    brand: string;
-    color: string;
-    odoo_create_date: string | null;
     unit_cost: number;
     pos_category_ids: number[];
     pos_category_names: string[];
@@ -298,21 +283,76 @@ export async function createAuditSessionAction(
         const productQuantMap = new Map<number, Array<{ locationName: string; quantity: number }>>();
         const soldLocationsMap = new Map<number, SoldLocation[]>();
 
+        /* ═══════════════════════════════════════════════════════════════
+           VALIDATION STRICTE — Un quant sans location valide est un BUG Odoo.
+           On l'ignore + log l'anomalie. Aucun fallback fictif ("Stock Principal").
+           ═══════════════════════════════════════════════════════════════ */
+
+        /* ─── Quants positifs (company ciblée) ─── */
         (positiveQuants || []).forEach((q) => {
-            const pid = q.product_id[0];
-            const locName = q.location_id[1] ?? "Stock Principal";
+            const pid = Array.isArray(q.product_id) ? q.product_id[0] : null;
+            const locId = Array.isArray(q.location_id) ? q.location_id[0] : null;
+            const locName = Array.isArray(q.location_id) ? q.location_id[1] : null;
+
+            /* Validation stricte */
+            if (typeof pid !== "number" || pid <= 0) {
+                console.warn(
+                    "[CREATE_AUDIT] Quant positif ignoré — product_id invalide :",
+                    JSON.stringify(q)
+                );
+                return;
+            }
+            if (
+                typeof locId !== "number" ||
+                locId <= 0 ||
+                typeof locName !== "string" ||
+                !locName.trim()
+            ) {
+                console.warn(
+                    `[CREATE_AUDIT] Quant positif ignoré — location_id invalide (product ${pid}) :`,
+                    JSON.stringify(q)
+                );
+                return;
+            }
+
             const qty = Math.round(q.quantity || 0);
+            if (qty <= 0) return;
+
             if (!productQuantMap.has(pid)) productQuantMap.set(pid, []);
-            productQuantMap.get(pid)!.push({ locationName: locName, quantity: qty });
+            productQuantMap.get(pid)!.push({ locationName: locName.trim(), quantity: qty });
         });
 
+        /* ─── Quants négatifs (toutes companies) ─── */
         (negativeQuants || []).forEach((q) => {
-            const pid = q.product_id[0];
-            const locId = q.location_id[0];
-            const locName = q.location_id[1] ?? "Emplacement Vente";
+            const pid = Array.isArray(q.product_id) ? q.product_id[0] : null;
+            const locId = Array.isArray(q.location_id) ? q.location_id[0] : null;
+            const locName = Array.isArray(q.location_id) ? q.location_id[1] : null;
+
+            if (typeof pid !== "number" || pid <= 0) {
+                console.warn(
+                    "[CREATE_AUDIT] Quant négatif ignoré — product_id invalide :",
+                    JSON.stringify(q)
+                );
+                return;
+            }
+            if (
+                typeof locId !== "number" ||
+                locId <= 0 ||
+                typeof locName !== "string" ||
+                !locName.trim()
+            ) {
+                console.warn(
+                    `[CREATE_AUDIT] Quant négatif ignoré — location_id invalide (product ${pid}) :`,
+                    JSON.stringify(q)
+                );
+                return;
+            }
+
             if (!soldLocationsMap.has(pid)) soldLocationsMap.set(pid, []);
             const arr = soldLocationsMap.get(pid)!;
-            if (!arr.some((l) => l.id === locId)) arr.push({ id: locId, name: locName });
+            if (!arr.some((l) => l.id === locId)) {
+                arr.push({ id: locId, name: locName.trim() });
+            }
         });
 
         const uniqueProductIds = Array.from(
@@ -380,6 +420,7 @@ export async function createAuditSessionAction(
 
         /* ─── Construction du snapshot ─── */
         const barcodeMap = new Map<string, AuditItemDraft>();
+        let skippedNoLocation = 0;
 
         (products || []).forEach((p) => {
             const rawBarcode = (p.barcode || p.default_code || "") as string;
@@ -388,6 +429,28 @@ export async function createAuditSessionAction(
 
             const quantList = productQuantMap.get(p.id) || [];
             const soldLocs = soldLocationsMap.get(p.id) || [];
+
+            /* ═══════════════════════════════════════════════════════
+               RÈGLE MÉTIER — Un produit DOIT avoir au moins une location.
+               - quantList vide ET soldLocs vide → BUG Odoo → on skip.
+               - quantList non vide → location réelle (source).
+               - quantList vide MAIS soldLocs non vide → produit
+                 uniquement détecté en négatif ailleurs. On le garde
+                 avec supplier_ref = "—" (pas de localisation source).
+               ═══════════════════════════════════════════════════════ */
+            if (quantList.length === 0 && soldLocs.length === 0) {
+                skippedNoLocation++;
+                console.warn(
+                    "[CREATE_AUDIT] Produit ignoré — aucune location valide (ni positive ni négative) :",
+                    JSON.stringify({
+                        productId: p.id,
+                        barcode: p.barcode,
+                        name: p.name,
+                    })
+                );
+                return;
+            }
+
             const totalQty = quantList.reduce((sum, q) => sum + q.quantity, 0);
             const locations = [...new Set(quantList.map((q) => q.locationName))].join(", ");
 
@@ -402,7 +465,7 @@ export async function createAuditSessionAction(
             const existing = barcodeMap.get(barcodeVal);
 
             if (existing) {
-                /* Fusion — TS est content car AuditItemDraft est un type propre */
+                /* Fusion */
                 existing.theoretical_qty += totalQty;
 
                 if (soldLocs.length > 0) {
@@ -411,6 +474,16 @@ export async function createAuditSessionAction(
                             existing.sold_locations.push(sl);
                         }
                     });
+                }
+
+                /* Fusion des locations texte si plusieurs quants */
+                if (locations) {
+                    const existingLocs = existing.supplier_ref
+                        .split(", ")
+                        .filter(Boolean);
+                    const newLocs = locations.split(", ").filter(Boolean);
+                    const merged = [...new Set([...existingLocs, ...newLocs])].join(", ");
+                    existing.supplier_ref = merged;
                 }
 
                 existing.pos_category_ids = Array.from(
@@ -424,7 +497,8 @@ export async function createAuditSessionAction(
                     odoo_product_id: p.id,
                     product_name: p.name,
                     internal_barcode: barcodeVal,
-                    supplier_ref: locations || "Stock Principal",
+                    /* "—" si le produit n'a QUE des locations négatives (pas de stock source) */
+                    supplier_ref: locations || "—",
                     hs_code: typeof p.hs_code === "string" && p.hs_code ? p.hs_code : "N/A",
                     brand: brandVal,
                     color: colorVal,
@@ -441,6 +515,12 @@ export async function createAuditSessionAction(
 
         const snapshotItems = Array.from(barcodeMap.values());
 
+        if (skippedNoLocation > 0) {
+            console.warn(
+                `[CREATE_AUDIT] ${skippedNoLocation} produit(s) ignoré(s) — aucune location valide.`
+            );
+        }
+
         /* ─── Appel RPC transactionnel (audit + items en 1 TX) ─── */
         const { data: auditId, error: rpcError } = await supabase.rpc("create_audit_session", {
             p_reference: reference,
@@ -450,7 +530,7 @@ export async function createAuditSessionAction(
             p_notes: notesFinal || "",
             p_created_by: userId || "",
             p_audit_date: auditDateStr,
-            p_items: snapshotItems as unknown as Json,   // ← SEUL cast de la fonction
+            p_items: snapshotItems as unknown as Json,
         });
 
         if (rpcError) throw new Error(rpcError.message);
@@ -471,6 +551,7 @@ export async function createAuditSessionAction(
 /* 2. SYNCHRONISATION DES MÉTADONNÉES + EMPLACEMENTS NÉGATIFS           */
 /*    - Ne recalcule PAS theoretical_qty ni counted_qty                 */
 /*    - Ne touche PAS aux scans déjà effectués                         */
+/*    - Ne touche PAS à supplier_ref (immuable après création)         */
 /*    - Batch via RPC SQL atomique (update par id, valeurs par item)   */
 /* ════════════════════════════════════════════════════════════════════ */
 
@@ -499,7 +580,7 @@ export async function syncAuditStockSnapshotAction(auditId: string) {
         /* ─── 2. Récupération des items actuels du snapshot ─── */
         const { data: existingItems, error: fetchItemsError } = await supabase
             .from("stock_audit_items")
-            .select("id, odoo_product_id")
+            .select("id, odoo_product_id, theoretical_qty")
             .eq("audit_id", auditId);
 
         if (fetchItemsError) {
@@ -526,15 +607,33 @@ export async function syncAuditStockSnapshotAction(auditId: string) {
 
         const soldLocationsMap = new Map<number, SoldLocation[]>();
 
+        /* ═══════════════════════════════════════════════════════════════
+           VALIDATION STRICTE — Même règle que createAuditSessionAction.
+           Un quant négatif sans location valide est un BUG Odoo → ignoré.
+           ═══════════════════════════════════════════════════════════════ */
         (negativeQuants || []).forEach((q) => {
-            const pid = q.product_id[0];
-            const locId = q.location_id[0];
-            const locName = q.location_id[1] ?? "Emplacement Vente";
+            const pid = Array.isArray(q.product_id) ? q.product_id[0] : null;
+            const locId = Array.isArray(q.location_id) ? q.location_id[0] : null;
+            const locName = Array.isArray(q.location_id) ? q.location_id[1] : null;
+
+            if (typeof pid !== "number" || pid <= 0) return;
+            if (
+                typeof locId !== "number" ||
+                locId <= 0 ||
+                typeof locName !== "string" ||
+                !locName.trim()
+            ) {
+                console.warn(
+                    `[SYNC] Quant négatif ignoré — location_id invalide (product ${pid}) :`,
+                    JSON.stringify(q)
+                );
+                return;
+            }
 
             if (!soldLocationsMap.has(pid)) soldLocationsMap.set(pid, []);
             const arr = soldLocationsMap.get(pid)!;
             if (!arr.some((l) => l.id === locId)) {
-                arr.push({ id: locId, name: locName });
+                arr.push({ id: locId, name: locName.trim() });
             }
         });
 
@@ -569,6 +668,24 @@ export async function syncAuditStockSnapshotAction(auditId: string) {
         });
         const categNameMap = await resolvePosCategoryNames(Array.from(allCategIds));
 
+        /* ─── 5bis. Résolution des emplacements positifs pour les HORS PÉRIMÈTRE ─── */
+        const unexpectedProductIds = existingItems
+            .filter((i) => (i.theoretical_qty ?? 0) === 0)
+            .map((i) => i.odoo_product_id);
+
+        let foundLocationsByProduct = new Map<number, FoundLocation[]>();
+
+        if (unexpectedProductIds.length > 0) {
+            try {
+                foundLocationsByProduct = await resolvePositiveLocationsForProducts(
+                    unexpectedProductIds
+                );
+            } catch (err) {
+                console.error("[SYNC_FOUND_LOCATIONS_ERROR]", err);
+                /* On continue sans bloquer le sync — found_locations restera vide */
+            }
+        }
+
         /* ─── 6. Construction du patch (types métier propres) ─── */
         const updates: SyncItemPatch[] = existingItems.map((item) => {
             const pid = item.odoo_product_id;
@@ -592,6 +709,7 @@ export async function syncAuditStockSnapshotAction(auditId: string) {
             return {
                 id: item.id,
                 sold_locations: soldLocs,
+                found_locations: foundLocationsByProduct.get(pid) ?? [],
                 hs_code:
                     typeof prodInfo?.hs_code === "string" && prodInfo.hs_code
                         ? prodInfo.hs_code
@@ -762,6 +880,9 @@ export async function recordBarcodeScanAction(auditId: string, barcode: string) 
         const categNameMap = await resolvePosCategoryNames(categIds);
         const categNames = categIds.map((id) => categNameMap.get(id) ?? `#${id}`);
 
+        const foundLocationsMap = await resolvePositiveLocationsForProducts([odooProd.id]);
+        const foundLocations: FoundLocation[] = foundLocationsMap.get(odooProd.id) ?? [];
+
         const insertPayload: StockAuditItemInsert = {
             audit_id: auditId,
             odoo_product_id: odooProd.id,
@@ -777,6 +898,7 @@ export async function recordBarcodeScanAction(auditId: string, barcode: string) 
             odoo_create_date:
                 typeof odooProd.create_date === "string" ? odooProd.create_date : null,
             sold_locations: toJson([]),
+            found_locations: toJson(foundLocations),
             theoretical_qty: 0,
             counted_qty: 1,
             unit_cost: resolveUnitCost(odooProd),
@@ -949,6 +1071,8 @@ export async function importExcelBarcodesAction(auditId: string, barcodes: strin
 
                 /* Résolution POS categories en 1 appel pour le batch */
                 const allCategIds = new Set<number>();
+                const batchProductIds = odooProducts.map((p) => p.id);
+                const foundLocationsMap = await resolvePositiveLocationsForProducts(batchProductIds);
                 odooProducts.forEach((p) => {
                     if (Array.isArray(p.pos_categ_ids)) {
                         p.pos_categ_ids.forEach((id) => {
@@ -996,7 +1120,8 @@ export async function importExcelBarcodesAction(auditId: string, barcodes: strin
                         color: colorVal,
                         odoo_create_date:
                             typeof p.create_date === "string" ? p.create_date : null,
-                        sold_locations: toJson([]),                 // ← cast unique
+                        sold_locations: toJson([]),
+                        found_locations: toJson(foundLocationsMap.get(p.id) ?? []),                // ← cast unique
                         theoretical_qty: 0,
                         counted_qty: 1,
                         unit_cost: resolveUnitCost(p),

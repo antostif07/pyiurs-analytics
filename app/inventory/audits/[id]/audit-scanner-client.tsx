@@ -1,11 +1,14 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Store } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
-import { StockAudit, StockAuditItem } from "../_lib/types";
+import {
+    StockAudit,
+    StockAuditItem,
+} from "../_lib/types";
 import { ActionBar } from "../_components/ActionBar";
 import { forceMarkItemAsFoundAction } from "../_lib/reconcile-actions";
 import { syncAuditStockSnapshotAction } from "../_lib/audits-actions";
@@ -17,6 +20,7 @@ import { useAuditExport } from "../_lib/hooks/useAuditExport";
 import { StatusBadge } from "../_components/StatusBadge";
 import { LaserScanZone } from "../_components/LaserScanZone";
 import { KpiDashboard } from "../_components/KpiDashboard";
+import { computeAuditStats } from "../_lib/helpers";
 
 interface Props {
     audit: StockAudit;
@@ -27,7 +31,7 @@ export function AuditScannerClient({ audit, initialItems }: Props) {
     const router = useRouter();
     const isReadOnly = audit.status === "validated";
 
-    // 1. Hook de gestion des articles & filtres
+    /* ─── Source de vérité : tous les items de l'audit ─── */
     const {
         items,
         setItems,
@@ -36,21 +40,49 @@ export function AuditScannerClient({ audit, initialItems }: Props) {
         scannedItemsCount,
         remainingItemsCount,
         soldElsewhereCount,
-        progressPercent,
         totalDiffValue,
         scannedValuation,
         totalValuation,
+        progressPercent,
     } = useAuditItems(initialItems);
 
-    // 2. Callback de succès du scan unitaire
+    /* ─── State pour les items filtrés (remontés par AuditDataTable) ─── */
+    const [filteredItems, setFilteredItems] = useState<StockAuditItem[]>(items);
+
+    /* Quand les items bruts changent (scan, sync, import), reset le filtre */
+    useEffect(() => {
+        setFilteredItems(items);
+    }, [items]);
+
+    /* Callback stable pour recevoir les items filtrés du tableau */
+    const handleFilteredChange = useCallback((filtered: StockAuditItem[]) => {
+        setFilteredItems(filtered);
+    }, []);
+
+    /* KPIs recalculés à partir des items FILTRÉS */
+    const filteredStats = useMemo(
+        () => computeAuditStats(filteredItems),
+        [filteredItems]
+    );
+
+    /* Est-ce qu'un filtre est actif ? (pour l'indicateur visuel) */
+    const isFiltered = filteredItems.length !== items.length;
+
+    /* ─── Scan unitaire ─── */
     const handleScanSuccess = useCallback(
         (cleanCode: string, scannedItem: StockAuditItem) => {
             setItems((prev) => {
-                const exists = prev.some((i) => i.internal_barcode.toUpperCase() === cleanCode);
+                const exists = prev.some(
+                    (i) => i.internal_barcode.toUpperCase() === cleanCode
+                );
                 if (exists) {
                     return prev.map((i) =>
                         i.internal_barcode.toUpperCase() === cleanCode
-                            ? { ...i, counted_qty: 1, scanned_at: new Date().toISOString() }
+                            ? {
+                                ...i,
+                                counted_qty: 1,
+                                scanned_at: new Date().toISOString(),
+                            }
                             : i
                     );
                 }
@@ -60,7 +92,7 @@ export function AuditScannerClient({ audit, initialItems }: Props) {
         [setItems]
     );
 
-    // 3. Hooks spécialisés Scanner, Import & Export
+    /* ─── Hooks spécialisés ─── */
     const {
         inputRef,
         barcodeInput,
@@ -71,14 +103,20 @@ export function AuditScannerClient({ audit, initialItems }: Props) {
         handleScanSubmit,
     } = useAuditScanner(audit.id, isReadOnly, handleScanSuccess);
 
-    const { processExcel, importProgress } = useAuditImport(audit.id, router.refresh);
-    const { handleExportExcel, handleExportPDF, isGeneratingPDF } = useAuditExport(audit, items);
+    const { processExcel, importProgress } = useAuditImport(
+        audit.id,
+        router.refresh
+    );
+    const { handleExportExcel, handleExportPDF, isGeneratingPDF } =
+        useAuditExport(audit, items);
 
-    // États d'actions locales
-    const [actionProcessingId, setActionProcessingId] = useState<string | null>(null);
+    /* ─── États locaux ─── */
+    const [actionProcessingId, setActionProcessingId] = useState<string | null>(
+        null
+    );
     const [isSyncingOdoo, setIsSyncingOdoo] = useState(false);
 
-    // 4. Handler : Déclarer un article sans code-barres comme retrouvé (+1)
+    /* ─── Handlers ─── */
     const handleForceMarkFound = useCallback(
         async (item: StockAuditItem) => {
             setActionProcessingId(item.id);
@@ -89,7 +127,9 @@ export function AuditScannerClient({ audit, initialItems }: Props) {
                     "Article physique validé sans étiquette"
                 );
                 if (res.success) {
-                    toast.success(`Article '${item.product_name}' déclaré scanné (1/1) !`);
+                    toast.success(
+                        `Article '${item.product_name}' déclaré scanné (1/1) !`
+                    );
                     updateItemOptimistic(item.id, (i) => ({
                         ...i,
                         counted_qty: 1,
@@ -99,7 +139,9 @@ export function AuditScannerClient({ audit, initialItems }: Props) {
                     toast.error(res.error || "Échec de la validation.");
                 }
             } catch (err) {
-                toast.error(err instanceof Error ? err.message : "Erreur réseau.");
+                toast.error(
+                    err instanceof Error ? err.message : "Erreur réseau."
+                );
             } finally {
                 setActionProcessingId(null);
             }
@@ -107,7 +149,6 @@ export function AuditScannerClient({ audit, initialItems }: Props) {
         [audit.id, updateItemOptimistic]
     );
 
-    // 5. Handler : Resynchronisation Odoo multi-compagnies
     const handleSyncOdoo = useCallback(async () => {
         if (isSyncingOdoo) return;
         setIsSyncingOdoo(true);
@@ -138,7 +179,6 @@ export function AuditScannerClient({ audit, initialItems }: Props) {
                     >
                         <ArrowLeft size={11} /> Retour aux audits
                     </Link>
-
                     <div className="flex items-center gap-2 flex-wrap">
                         <h1 className="text-lg sm:text-xl font-bold text-foreground font-mono uppercase leading-tight">
                             {audit.reference}
@@ -148,7 +188,6 @@ export function AuditScannerClient({ audit, initialItems }: Props) {
                             isCompleted={audit.status === "completed"}
                         />
                     </div>
-
                     <div className="text-[11px] text-muted-foreground font-light mt-0.5 flex items-center gap-1.5 flex-wrap">
                         <span className="flex items-center gap-1 font-semibold text-foreground">
                             <Store className="w-3 h-3 text-primary" />
@@ -176,6 +215,7 @@ export function AuditScannerClient({ audit, initialItems }: Props) {
                     isGeneratingPDF={isGeneratingPDF}
                     isImporting={importProgress.isImporting}
                     importProgress={importProgress}
+                    /* ⚠️ COMPTEURS GLOBAUX — les actions s'appliquent à TOUS les items */
                     remainingItemsCount={remainingItemsCount}
                     totalItemsCount={totalItemsCount}
                 />
@@ -194,24 +234,39 @@ export function AuditScannerClient({ audit, initialItems }: Props) {
                 />
             )}
 
-            {/* DASHBOARD KPIS */}
-            <KpiDashboard
-                scanned={scannedItemsCount}
-                total={totalItemsCount}
-                remaining={remainingItemsCount}
-                soldElsewhere={soldElsewhereCount}
-                totalDiffValue={totalDiffValue}
-                scannedValuation={scannedValuation}
-                totalValuation={totalValuation}
-                progressPercent={progressPercent}
-            />
+            {/* DASHBOARD KPIs — réactifs aux filtres */}
+            <div className="space-y-2">
+                {isFiltered && (
+                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary font-bold uppercase tracking-wider">
+                            KPIs filtrés
+                        </span>
+                        <span>
+                            {filteredItems.length} / {totalItemsCount} articles
+                            visibles selon les filtres actifs
+                        </span>
+                    </div>
+                )}
+                <KpiDashboard
+                    scanned={filteredStats.scannedItemsCount}
+                    total={filteredStats.totalItemsCount}
+                    remaining={filteredStats.remainingItemsCount}
+                    soldElsewhere={filteredStats.soldElsewhereCount}
+                    totalDiffValue={filteredStats.totalDiffValue}
+                    scannedValuation={filteredStats.scannedValuation}
+                    totalValuation={filteredStats.totalValuation}
+                    progressPercent={filteredStats.progressPercent}
+                />
+            </div>
 
-            {/* TABLEAU DES ARTICLES AVEC ACTIONS DIRECTES */}
+            {/* TABLEAU DES ARTICLES */}
             <AuditDataTable
+                audit={audit}
                 items={items}
                 isReadOnly={isReadOnly}
                 actionProcessingId={actionProcessingId}
                 onForceMarkFound={handleForceMarkFound}
+                onFilteredChange={handleFilteredChange}
                 counts={{
                     all: totalItemsCount,
                     scanned: scannedItemsCount,

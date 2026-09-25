@@ -3,7 +3,8 @@
 import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, AlertTriangle } from "lucide-react";
-import { StockAuditItem, isItemScanned } from "../_lib/types";
+import { StockAuditItem } from "../_lib/types";
+import { isItemScanned } from "../_lib/helpers";
 
 interface Props {
     item: StockAuditItem;

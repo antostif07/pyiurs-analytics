@@ -11,24 +11,10 @@ import {
     SoldElsewhereGroup,
     SoldElsewhereLine,
     SoldElsewhereAction,
-    getSoldLocations,
+    OdooPosConfig,
+    OdooPickingType,
 } from "./types";
-
-/* ──────────────────────────────────────────────────────────────────── */
-/* INTERFACES ODOO LOCALES                                            */
-/* ──────────────────────────────────────────────────────────────────── */
-
-interface OdooPosConfig {
-    id: number;
-    name: string;
-    picking_type_id: [number, string] | false | null;
-}
-
-interface OdooPickingType {
-    id: number;
-    name: string;
-    default_location_src_id: [number, string] | false | null;
-}
+import { getSoldLocations } from "./helpers";
 
 /* ════════════════════════════════════════════════════════════════════ */
 /* SERVER ACTION — ANALYSE "VENDUS AILLEURS"                          */

@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { hasSoldElsewhere, isItemScanned, StockAuditItem } from "../types";
+import { StockAuditItem } from "../types";
+import { computeAuditStats } from "../helpers";
 
 /**
  * Hook d'état local des articles d'audit.
@@ -59,51 +60,7 @@ export function useAuditItems(initialItems: StockAuditItem[]) {
      * KPIs globaux de l'audit — un seul passage sur les items.
      * Recalculé uniquement quand la liste change.
      */
-    const stats = useMemo(() => {
-        const totalItemsCount = items.length;
-        const scannedItemsCount = items.filter(isItemScanned).length;
-        const remainingItemsCount = totalItemsCount - scannedItemsCount;
-        const soldElsewhereCount = items.filter(hasSoldElsewhere).length;
-        const progressPercent =
-            totalItemsCount > 0
-                ? Math.round((scannedItemsCount / totalItemsCount) * 100)
-                : 0;
-
-        const { totalDiffQty, totalDiffValue, scannedValuation, totalValuation } =
-            items.reduce(
-                (acc, item) => {
-                    const counted = item.counted_qty ?? 0;
-                    const theoretical = item.theoretical_qty ?? 0;
-                    const cost = Number(item.unit_cost) || 0;
-                    const diff = counted - theoretical;
-
-                    return {
-                        totalDiffQty: acc.totalDiffQty + diff,
-                        totalDiffValue: acc.totalDiffValue + diff * cost,
-                        scannedValuation: acc.scannedValuation + counted * cost,
-                        totalValuation: acc.totalValuation + theoretical * cost,
-                    };
-                },
-                {
-                    totalDiffQty: 0,
-                    totalDiffValue: 0,
-                    scannedValuation: 0,
-                    totalValuation: 0,
-                }
-            );
-
-        return {
-            totalItemsCount,
-            scannedItemsCount,
-            remainingItemsCount,
-            soldElsewhereCount,
-            progressPercent,
-            totalDiffQty,
-            totalDiffValue,
-            scannedValuation,
-            totalValuation,
-        };
-    }, [items]);
+    const stats = useMemo(() => computeAuditStats(items), [items]);
 
     return {
         items,

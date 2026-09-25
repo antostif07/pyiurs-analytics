@@ -11,11 +11,8 @@ import {
 import {
     StockAudit,
     StockAuditItem,
-    hasSoldElsewhere,
-    getPosCategoryIds,
-    getPosCategoryNames,
-    aggregateByPosCategory,
 } from '@/app/inventory/audits/_lib/types';
+import { aggregateByPosCategory, getFoundLocations, getPosCategoryIds, getSoldLocations, hasSoldElsewhere } from '../_lib/helpers';
 
 const styles = StyleSheet.create({
     page: {
@@ -199,6 +196,30 @@ const styles = StyleSheet.create({
         fontStyle: 'italic',
     },
 
+    /* Styles pour les tableaux de synthèse Vendus / Trouvés */
+    sectionSubtitle: {
+        fontSize: 7,
+        color: '#64748B',
+        marginBottom: 4,
+        marginTop: 2,
+    },
+    emptyBlock: {
+        paddingVertical: 12,
+        paddingHorizontal: 8,
+        backgroundColor: '#F8FAFC',
+        borderRadius: 4,
+        borderWidth: 0.5,
+        borderColor: '#E2E8F0',
+        borderStyle: 'solid',
+        marginBottom: 8,
+    },
+    emptyText: {
+        fontSize: 7,
+        color: '#64748B',
+        textAlign: 'center',
+        fontStyle: 'italic',
+    },
+
     /* ─── Colonnes du tableau des écarts (page 1) ─── */
     colBarcode: { width: '20%' },
     colProduct: { width: '36%' },
@@ -207,6 +228,10 @@ const styles = StyleSheet.create({
     colCounted: { width: '7%', textAlign: 'center' },
     colDiff: { width: '7%', textAlign: 'center' },
     colCost: { width: '7%', textAlign: 'right' },
+    colProductWide: { width: '30%' },
+    colLocWide: { width: '30%' },
+    colQtySmall: { width: '10%', textAlign: 'center' },
+    colValueSmall: { width: '15%', textAlign: 'right' },
 
     /* ─── Colonnes du tableau POS (page 2) ─── */
     posColCategory: { width: '30%' },
@@ -339,6 +364,30 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
             totalDiffValue: 0,
         }
     );
+
+    /* Produits vendus ailleurs (sold_locations non vide) */
+    const soldElsewhereItems = items.filter((item) => hasSoldElsewhere(item));
+
+    const soldElsewhereQty = soldElsewhereItems.length;
+    const soldElsewhereValue = soldElsewhereItems.reduce(
+        (acc, i) => acc + (Number(i.unit_cost) || 0),
+        0
+    );
+
+    /* Produits hors périmètre (theoretical_qty = 0 + scanné) */
+    const unexpectedItems = items.filter(
+        (item) =>
+            (item.theoretical_qty ?? 0) === 0 && (item.counted_qty ?? 0) === 1
+    );
+
+    const unexpectedQty = unexpectedItems.length;
+    const unexpectedValue = unexpectedItems.reduce(
+        (acc, i) => acc + (Number(i.unit_cost) || 0),
+        0
+    );
+
+    const hasSoldElsewhereData = soldElsewhereItems.length > 0;
+    const hasUnexpectedData = unexpectedItems.length > 0;
 
     const formattedDate = audit.created_at
         ? new Date(audit.created_at).toLocaleDateString('fr-FR', {
@@ -485,7 +534,17 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                                         {item.product_name}
                                     </Text>
                                     <Text style={[styles.tableCell, styles.colLocation]}>
-                                        {item.supplier_ref || 'Stock Principal'}
+                                        {(() => {
+                                            const soldLocs = getSoldLocations(item);
+                                            const foundLocs = getFoundLocations(item);
+                                            if (soldLocs.length > 0) {
+                                                return `Vendu: ${soldLocs.map((l) => l.name).join(", ")}`;
+                                            }
+                                            if ((item.theoretical_qty ?? 0) === 0 && foundLocs.length > 0) {
+                                                return `Trouvé: ${foundLocs.map((l) => l.name).join(", ")}`;
+                                            }
+                                            return item.supplier_ref || 'Stock Principal';
+                                        })()}
                                     </Text>
                                     <Text style={[styles.tableCell, styles.colTheo]}>
                                         {theoretical}
@@ -837,6 +896,260 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                     <View style={styles.footer} fixed>
                         <Text style={styles.footerText}>
                             Annexe Synthèse POS • Document Confidentiel
+                        </Text>
+                        <Text
+                            style={styles.pageNumber}
+                            render={({ pageNumber, totalPages }) =>
+                                `Page ${pageNumber} sur ${totalPages}`
+                            }
+                        />
+                    </View>
+                </Page>
+            )}
+            {/* ═══════════════════════════════════════════════════════ */}
+            {/* PAGE 3 — PRODUITS VENDUS AILLEURS                      */}
+            {/* ═══════════════════════════════════════════════════════ */}
+            {hasSoldElsewhereData && (
+                <Page size="A4" style={styles.page}>
+                    <View style={styles.header}>
+                        <View>
+                            <Text style={styles.brandName}>Pyiurs Enterprise</Text>
+                            <Text style={styles.reportTitle}>
+                                Annexe • Produits Vendus Ailleurs
+                            </Text>
+                            <Text style={styles.metaText}>
+                                Référence Audit : {audit.reference} • {audit.shop_name}
+                            </Text>
+                        </View>
+                        <View style={styles.badge}>
+                            <Text style={styles.badgeText}>
+                                {soldElsewhereQty} PRODUIT{soldElsewhereQty > 1 ? 'S' : ''}
+                            </Text>
+                        </View>
+                    </View>
+
+                    {/* KPI */}
+                    <View style={styles.kpiGrid}>
+                        <View style={styles.kpiBox}>
+                            <Text style={styles.kpiLabel}>Total Produits</Text>
+                            <Text style={styles.kpiValue}>{soldElsewhereQty}</Text>
+                        </View>
+                        <View style={styles.kpiBox}>
+                            <Text style={styles.kpiLabel}>Quantité Totale</Text>
+                            <Text style={styles.kpiValue}>{soldElsewhereQty}</Text>
+                        </View>
+                        <View style={styles.kpiBox}>
+                            <Text style={styles.kpiLabel}>Valeur Estimée ($)</Text>
+                            <Text style={styles.kpiValue}>{formatUSD(soldElsewhereValue)}</Text>
+                        </View>
+                    </View>
+
+                    <Text style={styles.sectionNote}>
+                        Ces produits ont été détectés dans un ou plusieurs emplacements
+                        négatifs (stocks -1) dans Odoo. Un transfert depuis notre stock
+                        vers chaque emplacement est requis.
+                    </Text>
+
+                    <Text style={styles.sectionTitle}>
+                        Liste des Produits Vendus Ailleurs
+                    </Text>
+
+                    <View style={styles.table}>
+                        <View style={styles.tableHeader} fixed>
+                            <Text style={[styles.tableHeaderCell, { width: '18%' }]}>
+                                Code-barres
+                            </Text>
+                            <Text style={[styles.tableHeaderCell, { width: '30%' }]}>
+                                Produit
+                            </Text>
+                            <Text style={[styles.tableHeaderCell, { width: '34%' }]}>
+                                Emplacements Vendus (-1)
+                            </Text>
+                            <Text style={[styles.tableHeaderCell, { width: '10%', textAlign: 'center' }]}>
+                                Qté
+                            </Text>
+                            <Text style={[styles.tableHeaderCell, { width: '8%', textAlign: 'right' }]}>
+                                Coût
+                            </Text>
+                        </View>
+
+                        {soldElsewhereItems.map((item, index) => {
+                            const soldLocs = getSoldLocations(item);
+                            const cost = Number(item.unit_cost) || 0;
+                            return (
+                                <View
+                                    key={item.id || index}
+                                    style={[
+                                        styles.tableRow,
+                                        index % 2 === 1 ? styles.tableRowZebra : {},
+                                    ]}
+                                    wrap={false}
+                                >
+                                    <Text style={[styles.tableCellBold, { width: '18%' }]}>
+                                        {item.internal_barcode}
+                                    </Text>
+                                    <Text style={[styles.tableCell, { width: '30%' }]}>
+                                        {item.product_name}
+                                    </Text>
+                                    <Text style={[styles.tableCell, { width: '34%' }]}>
+                                        {soldLocs
+                                            .map((l) => `[${l.id}] ${l.name}`)
+                                            .join(', ')}
+                                    </Text>
+                                    <Text
+                                        style={[
+                                            styles.tableCellBold,
+                                            { width: '10%', textAlign: 'center' },
+                                        ]}
+                                    >
+                                        {soldLocs.length}
+                                    </Text>
+                                    <Text
+                                        style={[
+                                            styles.tableCell,
+                                            { width: '8%', textAlign: 'right' },
+                                        ]}
+                                    >
+                                        {formatUSD(cost)}
+                                    </Text>
+                                </View>
+                            );
+                        })}
+                    </View>
+
+                    <View style={styles.footer} fixed>
+                        <Text style={styles.footerText}>
+                            Annexe Vendus Ailleurs • Document Confidentiel
+                        </Text>
+                        <Text
+                            style={styles.pageNumber}
+                            render={({ pageNumber, totalPages }) =>
+                                `Page ${pageNumber} sur ${totalPages}`
+                            }
+                        />
+                    </View>
+                </Page>
+            )}
+            {/* ═══════════════════════════════════════════════════════ */}
+            {/* PAGE 4 — PRODUITS HORS PÉRIMÈTRE                       */}
+            {/* ═══════════════════════════════════════════════════════ */}
+            {hasUnexpectedData && (
+                <Page size="A4" style={styles.page}>
+                    <View style={styles.header}>
+                        <View>
+                            <Text style={styles.brandName}>Pyiurs Enterprise</Text>
+                            <Text style={styles.reportTitle}>
+                                Annexe • Produits Hors Périmètre
+                            </Text>
+                            <Text style={styles.metaText}>
+                                Référence Audit : {audit.reference} • {audit.shop_name}
+                            </Text>
+                        </View>
+                        <View style={styles.badge}>
+                            <Text style={styles.badgeText}>
+                                {unexpectedQty} PRODUIT{unexpectedQty > 1 ? 'S' : ''}
+                            </Text>
+                        </View>
+                    </View>
+
+                    {/* KPI */}
+                    <View style={styles.kpiGrid}>
+                        <View style={styles.kpiBox}>
+                            <Text style={styles.kpiLabel}>Total Produits</Text>
+                            <Text style={styles.kpiValue}>{unexpectedQty}</Text>
+                        </View>
+                        <View style={styles.kpiBox}>
+                            <Text style={styles.kpiLabel}>Quantité Totale</Text>
+                            <Text style={styles.kpiValue}>{unexpectedQty}</Text>
+                        </View>
+                        <View style={styles.kpiBox}>
+                            <Text style={styles.kpiLabel}>Valeur Estimée ($)</Text>
+                            <Text style={styles.kpiValue}>{formatUSD(unexpectedValue)}</Text>
+                        </View>
+                    </View>
+
+                    <Text style={styles.sectionNote}>
+                        Ces produits ont été physiquement trouvés lors de l&apos;audit mais
+                        n&apos;étaient pas dans le stock théorique de la boutique. Une
+                        intégration au stock Odoo est requise (source : emplacements
+                        positifs détectés).
+                    </Text>
+
+                    <Text style={styles.sectionTitle}>
+                        Liste des Produits Hors Périmètre
+                    </Text>
+
+                    <View style={styles.table}>
+                        <View style={styles.tableHeader} fixed>
+                            <Text style={[styles.tableHeaderCell, { width: '18%' }]}>
+                                Code-barres
+                            </Text>
+                            <Text style={[styles.tableHeaderCell, { width: '30%' }]}>
+                                Produit
+                            </Text>
+                            <Text style={[styles.tableHeaderCell, { width: '34%' }]}>
+                                Trouvé Dans (Stock Positif)
+                            </Text>
+                            <Text style={[styles.tableHeaderCell, { width: '10%', textAlign: 'center' }]}>
+                                Qté
+                            </Text>
+                            <Text style={[styles.tableHeaderCell, { width: '8%', textAlign: 'right' }]}>
+                                Coût
+                            </Text>
+                        </View>
+
+                        {unexpectedItems.map((item, index) => {
+                            const foundLocs = getFoundLocations(item);
+                            const cost = Number(item.unit_cost) || 0;
+                            return (
+                                <View
+                                    key={item.id || index}
+                                    style={[
+                                        styles.tableRow,
+                                        index % 2 === 1 ? styles.tableRowZebra : {},
+                                    ]}
+                                    wrap={false}
+                                >
+                                    <Text style={[styles.tableCellBold, { width: '18%' }]}>
+                                        {item.internal_barcode}
+                                    </Text>
+                                    <Text style={[styles.tableCell, { width: '30%' }]}>
+                                        {item.product_name}
+                                    </Text>
+                                    <Text style={[styles.tableCell, { width: '34%' }]}>
+                                        {foundLocs.length > 0
+                                            ? foundLocs
+                                                .map(
+                                                    (l) =>
+                                                        `[${l.id}] ${l.name}${l.quantity > 1 ? ` ×${l.quantity}` : ''}`
+                                                )
+                                                .join(', ')
+                                            : '—'}
+                                    </Text>
+                                    <Text
+                                        style={[
+                                            styles.tableCellBold,
+                                            { width: '10%', textAlign: 'center' },
+                                        ]}
+                                    >
+                                        {item.counted_qty ?? 1}
+                                    </Text>
+                                    <Text
+                                        style={[
+                                            styles.tableCell,
+                                            { width: '8%', textAlign: 'right' },
+                                        ]}
+                                    >
+                                        {formatUSD(cost)}
+                                    </Text>
+                                </View>
+                            );
+                        })}
+                    </View>
+
+                    <View style={styles.footer} fixed>
+                        <Text style={styles.footerText}>
+                            Annexe Hors Périmètre • Document Confidentiel
                         </Text>
                         <Text
                             style={styles.pageNumber}

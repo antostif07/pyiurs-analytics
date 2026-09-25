@@ -29,15 +29,20 @@ import {
     Loader2,
     ChevronDown,
     BarChart3,
+    MapPin,
+    FileSpreadsheet,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { StockAuditItem, hasSoldElsewhere, getSoldLocations, matchesAnyPosCategory } from "../_lib/types";
-import { AuditTableFilters, ExtendedAuditFilters } from "./AuditTableFilters";
+import { StockAuditItem, StockAudit, ExtendedAuditFilters } from "../_lib/types";
+import { AuditTableFilters } from "./AuditTableFilters";
 import { SoldLocationsBadges } from "./SoldLocationsBadges";
 import { PosSummaryPanel } from "./category-pos-summary-panel";
+import { FoundLocationsBadges } from "./found-location-badges";
+import { useAuditFilteredExport } from "../_lib/hooks/useAuditFilteredExport";
+import { getSoldLocations, hasSoldElsewhere, matchesAnyPosCategory } from "../_lib/helpers";
 
 const formatUSD = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -85,9 +90,11 @@ function ColumnHeader({
 }
 
 interface Props {
+    audit: StockAudit;
     items: StockAuditItem[];
     isReadOnly: boolean;
     actionProcessingId: string | null;
+    onFilteredChange?: (items: StockAuditItem[]) => void;
     onForceMarkFound: (item: StockAuditItem) => void;
     counts: {
         all: number;
@@ -108,14 +115,18 @@ const INITIAL_FILTERS: ExtendedAuditFilters = {
     theoreticalStockFilter: "all",
     soldElsewhereFilter: "all",
     specificSoldLocationFilter: "all",
-    posCategoryFilter: [],           // ← AJOUT
+    posCategoryFilter: [],
+    foundElsewhereFilter: "all",
+    cosmeticFilter: "all"
 };
 
 export function AuditDataTable({
+    audit,
     items,
     isReadOnly,
     actionProcessingId,
     onForceMarkFound,
+    onFilteredChange,
     counts,
 }: Props) {
     const [filters, setFilters] = useState<ExtendedAuditFilters>(INITIAL_FILTERS);
@@ -137,6 +148,8 @@ export function AuditDataTable({
         filters.soldElsewhereFilter,
         filters.specificSoldLocationFilter,
         filters.posCategoryFilter,
+        filters.foundElsewhereFilter,
+        filters.cosmeticFilter,
     ]);
 
     const handleResetFilters = () => {
@@ -211,6 +224,20 @@ export function AuditDataTable({
             if (filters.soldElsewhereFilter === "yes" && soldLocs.length === 0) return false;
             if (filters.soldElsewhereFilter === "no" && soldLocs.length > 0) return false;
 
+            if (filters.foundElsewhereFilter !== "all") {
+                const foundLocs = ((item as any).found_locations ?? []) as Array<unknown>;
+                const hasFound = Array.isArray(foundLocs) && foundLocs.length > 0;
+                if (filters.foundElsewhereFilter === "yes" && !hasFound) return false;
+                if (filters.foundElsewhereFilter === "no" && hasFound) return false;
+            }
+
+            if (filters.cosmeticFilter !== "all") {
+                const name = (item.product_name ?? "").toUpperCase();
+                const isCosmetic = name.includes("[COS");
+                if (filters.cosmeticFilter === "cosmetic" && !isCosmetic) return false;
+                if (filters.cosmeticFilter === "generic" && isCosmetic) return false;
+            }
+
             /* 7. Filtre par Emplacement de Vente Spécifique (-1) */
             if (filters.specificSoldLocationFilter !== "all") {
                 const hasSpecificLoc = soldLocs.some(
@@ -222,6 +249,27 @@ export function AuditDataTable({
             return true;
         });
     }, [items, filters]);
+
+    const posCategoryNameMap = useMemo(() => {
+        const map = new Map<number, string>();
+        items.forEach((item) => {
+            const ids = ((item as any).pos_category_ids ?? []) as number[];
+            const names = ((item as any).pos_category_names ?? []) as string[];
+            ids.forEach((id, idx) => {
+                if (!map.has(id) && names[idx]) map.set(id, names[idx]);
+            });
+        });
+        return map;
+    }, [items]);
+
+    const { handleExport: handleExportFiltered } = useAuditFilteredExport({
+        audit,
+        allItems: items,
+        filteredItems: filteredData,
+        totalItems: items.length,
+        filters,
+        posCategoryNameMap,
+    });
 
     /* ─── Définition des colonnes TanStack Table ─── */
     const columns = useMemo<ColumnDef<StockAuditItem>[]>(
@@ -360,6 +408,38 @@ export function AuditDataTable({
                 ),
             },
             {
+                id: "found_locations",
+                accessorFn: (row) => {
+                    const locs = ((row as any).found_locations ?? []) as Array<{
+                        id: number;
+                        name: string;
+                    }>;
+                    if (!Array.isArray(locs) || locs.length === 0) return "";
+                    return locs.map((l) => `[${l.id}] ${l.name}`).join(", ");
+                },
+                header: ({ column }) => (
+                    <ColumnHeader column={column} title="Trouvé Dans (Stock Positif)" />
+                ),
+                cell: ({ row }) => {
+                    const item = row.original;
+                    /* On affiche uniquement pour les hors périmètre */
+                    if ((item.theoretical_qty ?? 0) !== 0) {
+                        return (
+                            <span className="text-[10px] text-muted-foreground/40 italic">
+                                —
+                            </span>
+                        );
+                    }
+                    return (
+                        <FoundLocationsBadges
+                            locations={(item as any).found_locations}
+                            showQuantity
+                            maxVisible={2}
+                        />
+                    );
+                },
+            },
+            {
                 accessorKey: "theoretical_qty",
                 header: ({ column }) => (
                     <ColumnHeader column={column} title="Théo." align="center" />
@@ -380,25 +460,87 @@ export function AuditDataTable({
                     const isScanned = (item.counted_qty || 0) === 1;
                     const isUnexpected = item.theoretical_qty === 0 && isScanned;
 
-                    return (
-                        <div className="text-center font-sans">
-                            {isUnexpected ? (
-                                <Badge className="bg-purple-500/10 text-purple-600 border border-purple-500/20 text-[9px] font-bold">
-                                    <AlertTriangle className="w-2.5 h-2.5 mr-1 text-purple-600" />
-                                    Hors Périmètre (+1)
+                    /* ─── HORS PÉRIMÈTRE → afficher les emplacements trouvés ─── */
+                    if (isUnexpected) {
+                        const foundLocs = ((item as any).found_locations ?? []) as Array<{
+                            id: number;
+                            name: string;
+                            quantity: number;
+                            company_name: string;
+                        }>;
+
+                        /* Aucun emplacement résolu dans Odoo */
+                        if (!Array.isArray(foundLocs) || foundLocs.length === 0) {
+                            return (
+                                <div className="text-center">
+                                    <Badge className="bg-purple-500/10 text-purple-600 border border-purple-500/20 text-[9px] font-bold">
+                                        <AlertTriangle className="w-2.5 h-2.5 mr-1 text-purple-600" />
+                                        Hors Périmètre (inconnu)
+                                    </Badge>
+                                </div>
+                            );
+                        }
+
+                        /* 1 seul emplacement → badge vert avec nom */
+                        if (foundLocs.length === 1) {
+                            const loc = foundLocs[0];
+                            const qty =
+                                loc.quantity > 1 ? ` ×${loc.quantity}` : "";
+                            return (
+                                <div className="flex justify-center">
+                                    <Badge
+                                        className="bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 text-[9px] font-bold max-w-[200px]"
+                                        title={`${loc.company_name} / ${loc.name}`}
+                                    >
+                                        <MapPin className="w-2.5 h-2.5 mr-1 shrink-0" />
+                                        <span className="truncate">
+                                            Trouvé: {loc.name}
+                                            {qty}
+                                        </span>
+                                    </Badge>
+                                </div>
+                            );
+                        }
+
+                        /* Plusieurs emplacements → badge + count + tooltip */
+                        return (
+                            <div className="flex justify-center">
+                                <Badge
+                                    className="bg-sky-500/10 text-sky-700 border border-sky-500/20 text-[9px] font-bold cursor-help"
+                                    title={foundLocs
+                                        .map(
+                                            (l) =>
+                                                `• ${l.name}${l.quantity > 1 ? ` ×${l.quantity}` : ""} — ${l.company_name}`
+                                        )
+                                        .join("\n")}
+                                >
+                                    <MapPin className="w-2.5 h-2.5 mr-1" />
+                                    Trouvé dans {foundLocs.length} emplacements
                                 </Badge>
-                            ) : isScanned ? (
+                            </div>
+                        );
+                    }
+
+                    /* ─── Produit normalement scanné ─── */
+                    if (isScanned) {
+                        return (
+                            <div className="text-center font-sans">
                                 <Badge className="bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 text-[9px] font-bold">
                                     <CheckCircle2 className="w-2.5 h-2.5 mr-1" /> Scanné (1/1)
                                 </Badge>
-                            ) : (
-                                <Badge
-                                    variant="outline"
-                                    className="text-[9px] text-amber-600 border-amber-500/30 font-medium"
-                                >
-                                    En Attente (0/1)
-                                </Badge>
-                            )}
+                            </div>
+                        );
+                    }
+
+                    /* ─── En attente ─── */
+                    return (
+                        <div className="text-center font-sans">
+                            <Badge
+                                variant="outline"
+                                className="text-[9px] text-amber-600 border-amber-500/30 font-medium"
+                            >
+                                En Attente (0/1)
+                            </Badge>
                         </div>
                     );
                 },
@@ -483,9 +625,13 @@ export function AuditDataTable({
         getPaginationRowModel: getPaginationRowModel(),
     });
 
+    useEffect(() => {
+        onFilteredChange?.(filteredData);
+    }, [filteredData, onFilteredChange]);
+
     return (
         <div className="space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
                 <Button
                     variant="outline"
                     size="sm"
@@ -506,6 +652,21 @@ export function AuditDataTable({
                         )}
                     />
                 </Button>
+
+                {/* ─── AJOUT : Export filtré ─── */}
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleExportFiltered}
+                    disabled={filteredData.length === 0}
+                    className="h-8 rounded-xl gap-2 text-xs font-medium border-emerald-500/40 text-emerald-600 hover:bg-emerald-500/10"
+                    title={`Exporter les ${filteredData.length} ligne(s) actuellement filtrées`}
+                >
+                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                    <span>
+                        Exporter la vue ({filteredData.length})
+                    </span>
+                </Button>
             </div>
 
             {/* ─── PANNEAU SYNTHÈSE POS (collapsible) ─── */}
@@ -519,6 +680,7 @@ export function AuditDataTable({
             )}
             {/* BARRE DE FILTRES */}
             <AuditTableFilters
+                auditDepartment={audit.department}
                 filters={filters}
                 onFilterChange={setFilters}
                 onResetFilters={handleResetFilters}

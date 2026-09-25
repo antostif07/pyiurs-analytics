@@ -1,5 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
-import { OdooProduct } from "./types";
+import { FoundLocation, OdooProduct } from "./types";
+import { odooClient } from "@/lib/odoo/odoo-json2-client";
 
 /* ─── Types stricts alignés sur ta lib Odoo ─── */
 
@@ -135,4 +136,112 @@ export function resolveUnitCost(product: OdooProduct): number {
 
     const listPrice = Number(product.list_price) || 0;
     return Number((listPrice * 0.4).toFixed(2));
+}
+
+/* Interface Odoo locale pour la résolution des noms */
+interface OdooLocationShort {
+    id: number;
+    complete_name: string;
+    company_id: [number, string] | false | null;
+}
+
+interface OdooCompanyShort {
+    id: number;
+    name: string;
+}
+
+/**
+ * Récupère les emplacements positifs (found_locations) de plusieurs produits
+ * en 3 appels Odoo batchés (quants → locations → companies).
+ *
+ * Utilisé pour les produits hors périmètre : on veut savoir où Odoo dit
+ * qu'ils sont physiquement (stock positif) pour générer les transferts.
+ *
+ * @returns Map<productId, FoundLocation[]>
+ */
+export async function resolvePositiveLocationsForProducts(
+    productIds: number[]
+): Promise<Map<number, FoundLocation[]>> {
+    const map = new Map<number, FoundLocation[]>();
+    if (productIds.length === 0) return map;
+
+    /* 1. Quants positifs (tous companies confondues) */
+    const quants = await odooClient.searchRead<OdooQuant>("stock.quant", {
+        domain: [
+            ["product_id", "in", productIds],
+            ["location_id.usage", "=", "internal"],
+            ["quantity", ">", 0],
+        ],
+        fields: ["product_id", "location_id", "quantity"],
+        limit: 50000,
+    });
+
+    if (!quants || quants.length === 0) return map;
+
+    /* 2. Résoudre les noms des locations (1 appel) */
+    const locationIds = new Set<number>();
+    quants.forEach((q) => {
+        if (Array.isArray(q.location_id)) locationIds.add(q.location_id[0]);
+    });
+
+    const locations = await odooClient.searchRead<OdooLocationShort>(
+        "stock.location",
+        {
+            domain: [["id", "in", Array.from(locationIds)]],
+            fields: ["id", "complete_name", "company_id"],
+            limit: locationIds.size,
+        }
+    );
+
+    const locationMap = new Map<number, OdooLocationShort>();
+    (locations || []).forEach((l) => locationMap.set(l.id, l));
+
+    /* 3. Résoudre les noms des companies (1 appel) */
+    const companyIds = new Set<number>();
+    (locations || []).forEach((l) => {
+        if (Array.isArray(l.company_id)) companyIds.add(l.company_id[0]);
+    });
+
+    const companies = await odooClient.searchRead<OdooCompanyShort>(
+        "res.company",
+        {
+            domain: [["id", "in", Array.from(companyIds)]],
+            fields: ["id", "name"],
+            limit: companyIds.size,
+        }
+    );
+
+    const companyMap = new Map<number, string>();
+    (companies || []).forEach((c) => companyMap.set(c.id, c.name));
+
+    /* 4. Construire la Map<productId, FoundLocation[]> */
+    quants.forEach((q) => {
+        const pid = q.product_id[0];
+        const locId = q.location_id[0];
+        const loc = locationMap.get(locId);
+        if (!loc || !Array.isArray(loc.company_id)) return;
+
+        const companyId = loc.company_id[0];
+        const companyName = companyMap.get(companyId) ?? loc.company_id[1];
+
+        if (!map.has(pid)) map.set(pid, []);
+        const arr = map.get(pid)!;
+
+        /* Dédup : on ne garde qu'une occurrence par location,
+           en cumulant la quantité si plusieurs quants dans la même location */
+        const existing = arr.find((l) => l.id === locId);
+        if (existing) {
+            existing.quantity += Math.round(q.quantity || 0);
+        } else {
+            arr.push({
+                id: locId,
+                name: loc.complete_name,
+                quantity: Math.round(q.quantity || 0),
+                company_id: companyId,
+                company_name: companyName,
+            });
+        }
+    });
+
+    return map;
 }
