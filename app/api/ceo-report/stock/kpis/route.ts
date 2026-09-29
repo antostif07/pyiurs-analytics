@@ -4,6 +4,7 @@ import { StockKpisData, SizeDistributionPoint, StockFluxPoint } from "@/app/ceo-
 import { fetchAllInternalQuants, fetchAllQuantsProducts } from "./helpers";
 import { odooClient } from "@/lib/odoo/odoo-json2-client";
 import { StockMovementRow } from "@/app/ceo-report/stock/_components/stock-movement-matrix-table";
+import { parseFilters, resolveDateRange } from "@/app/ceo-report/_lib/filters";
 
 export const dynamic = "force-dynamic";
 
@@ -17,30 +18,31 @@ export const STORE_LOCATIONS = {
 
 type StoreKey = keyof typeof STORE_LOCATIONS;
 
+/**
+ * Mapping Store (UI) → StoreKey (Odoo).
+ * "all" → toutes les clés.
+ */
+const STORE_UI_TO_KEYS: Record<string, StoreKey[]> = {
+    "all": ["PB_BC", "P24", "PB_MTO", "PB_LMB", "PB_KTM"],
+    "P.BC": ["PB_BC"],
+    "P24": ["P24"],
+    "P.MTO": ["PB_MTO"],
+    "P.LMB": ["PB_LMB"],
+    "P.KTM": ["PB_KTM"],
+    "P.ONL": [], // pas d'emplacement Odoo → ignoré (à traiter si besoin)
+};
+
 export async function GET(request: NextRequest) {
     try {
         const { searchParams } = new URL(request.url);
 
-        // ────────────────────────────────────────────────────────────────────────
-        // 1. DATES DE LA PÉRIODE (Défaut : Mois en cours)
-        // ────────────────────────────────────────────────────────────────────────
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, "0");
-        const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
+        const filters = parseFilters(Object.fromEntries(searchParams.entries()));
+        const { from, to } = resolveDateRange(filters);
 
-        const defaultStart = `${year}-${month}-01 00:00:00`;
-        const defaultEnd = `${year}-${month}-${String(lastDay).padStart(2, "0")} 23:59:59`;
+        const fromDate = `${from} 00:00:00`;
+        const toDate = `${to} 23:59:59`;
 
-        const fromDate = searchParams.get("from") ? `${searchParams.get("from")} 00:00:00` : defaultStart;
-        const toDate = searchParams.get("to") ? `${searchParams.get("to")} 23:59:59` : defaultEnd;
-
-        // Filtrage des boutiques
-        const storesParam = searchParams.get("stores");
-        const selectedStoreKeys = storesParam
-            ? (storesParam.split(",") as StoreKey[])
-            : (Object.keys(STORE_LOCATIONS) as StoreKey[]);
-
+        const selectedStoreKeys = STORE_UI_TO_KEYS[filters.store] ?? [];
         const allowedLocationIds = new Set<number>();
         for (const storeKey of selectedStoreKeys) {
             if (STORE_LOCATIONS[storeKey]) {
@@ -48,6 +50,19 @@ export async function GET(request: NextRequest) {
                     allowedLocationIds.add(id);
                 }
             }
+        }
+
+        if (allowedLocationIds.size === 0) {
+            return NextResponse.json({
+                totalValuation: 0,
+                totalUnits: 0,
+                subtitle: "Aucun emplacement pour ce filtre",
+                womenArticlesCount: 0, womenValuation: 0,
+                beautyArticlesCount: 0, beautyValuation: 0,
+                kidsArticlesCount: 0, kidsValuation: 0,
+                sizesData: [], fluxData: [], movementsData: [],
+                storeStockAuditSizesData: [],
+            });
         }
 
         // ────────────────────────────────────────────────────────────────────────

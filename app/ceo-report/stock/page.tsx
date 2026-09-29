@@ -1,6 +1,4 @@
 // app/ceo-report/stock/page.tsx
-import { Suspense } from "react";
-import { DashboardSkeleton } from "@/components/new-ui/layout/skeletons";
 import StockClient from "./stock-client";
 
 export const dynamic = "force-dynamic";
@@ -12,8 +10,6 @@ export const metadata = {
 
 export default function StockPage() {
     return (
-        <Suspense fallback={<DashboardSkeleton />}>
-            <StockClient />
-        </Suspense>
+        <StockClient />
     );
 }

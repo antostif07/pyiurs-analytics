@@ -85,39 +85,61 @@ const MOCK_NOTIFICATIONS = [
 
 function useBreadcrumbs(groups?: NavGroup[]) {
   const pathname = usePathname();
-  const crumbs = [{ label: "Accueil", path: "/" }];
 
-  if (pathname === "/" || pathname === "/hr") {
-    crumbs.push({ label: "Pilotage RH", path: "/hr" });
-    return crumbs;
-  }
+  return React.useMemo(() => {
+    const crumbs: { label: string; path: string }[] = [
+      { label: "Accueil", path: "/" },
+    ];
 
-  if (groups && groups.length > 0) {
-    const allItems = groups.flatMap((g) =>
-      g.items.map((item) => ({ ...item, groupTitle: g.title }))
-    );
-    const match = allItems.find((i) => i.path === pathname || pathname.startsWith(`${i.path}/`));
+    const prettify = (s: string) =>
+      s.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
-    if (match) {
-      crumbs.push({ label: match.groupTitle, path: "" });
-      crumbs.push({ label: match.label, path: match.path });
+    // Fallback : pas de groupes fournis → découpage brut des segments
+    if (!groups || groups.length === 0) {
+      let currentPath = "";
+      for (const seg of pathname.split("/").filter(Boolean)) {
+        currentPath += `/${seg}`;
+        crumbs.push({ label: prettify(seg), path: currentPath });
+      }
       return crumbs;
     }
-  }
 
-  const segments = pathname.split("/").filter(Boolean);
-  let currentPath = "";
+    // Match le plus SPÉCIFIQUE : tri par longueur décroissante
+    const candidates = groups
+      .flatMap((g) => g.items.map((item) => ({ ...item, groupTitle: g.title })))
+      .sort((a, b) => b.path.length - a.path.length);
 
-  segments.forEach((segment) => {
-    currentPath += `/${segment}`;
-    const formattedLabel = segment
-      .replace(/-/g, " ")
-      .replace(/\b\w/g, (char) => char.toUpperCase());
+    const match = candidates.find(
+      (i) => pathname === i.path || pathname.startsWith(`${i.path}/`),
+    );
 
-    crumbs.push({ label: formattedLabel, path: currentPath });
-  });
+    if (!match) {
+      // Aucun item ne matche → fallback segments
+      let currentPath = "";
+      for (const seg of pathname.split("/").filter(Boolean)) {
+        currentPath += `/${seg}`;
+        crumbs.push({ label: prettify(seg), path: currentPath });
+      }
+      return crumbs;
+    }
 
-  return crumbs;
+    crumbs.push({ label: match.groupTitle, path: "" });
+    crumbs.push({ label: match.label, path: match.path });
+
+    // Segments résiduels : /ceo-report/operations/purchases/12345
+    // → 12345 s'affiche après "Achats PO & Dispatch"
+    const remaining = pathname
+      .slice(match.path.length)
+      .split("/")
+      .filter(Boolean);
+    let currentPath = match.path;
+    for (const seg of remaining) {
+      currentPath += `/${seg}`;
+      crumbs.push({ label: prettify(seg), path: currentPath });
+    }
+
+    return crumbs;
+  }, [pathname, groups]);
 }
 
 export default function AppTopbar({ dark, onToggleDark, onMenuOpen, groups }: TopbarProps) {

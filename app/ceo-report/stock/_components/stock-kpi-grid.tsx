@@ -4,74 +4,66 @@
 import { Package, Sparkles, Heart, Baby } from "lucide-react";
 import CeoKpiCard from "@/app/ceo-report/_components/ceo-kpi-card";
 import { useStockKpis } from "../_lib/hooks/use-stock-kpis";
-import type { StockKpisData } from "../_lib/types";
 
-interface StockKpiGridProps {
-    initialData?: StockKpisData;
-}
+const fmt = (n: number) => n.toLocaleString("fr-FR");
 
-export default function StockKpiGrid({ initialData }: StockKpiGridProps) {
+export default function StockKpiGrid() {
     const { data, isLoading } = useStockKpis();
 
-    const kpis: StockKpisData = data || initialData || {
+    const kpis = data ?? {
         totalValuation: 0,
         totalUnits: 0,
-        subtitle: "Chargement du stock...",
+        subtitle: "",
+        valuationDelta: undefined,
         womenArticlesCount: 0,
         womenValuation: 0,
         beautyArticlesCount: 0,
         beautyValuation: 0,
         kidsArticlesCount: 0,
         kidsValuation: 0,
-        storeStockAuditSizesData: []
+        storeStockAuditSizesData: [],
     };
 
     return (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* 1. Valorisation Stock Globale */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <CeoKpiCard
                 label="Valorisation Stock"
-                value={`${kpis.totalValuation.toLocaleString("fr-FR")} $`}
-                subtitle={kpis.subtitle}
-                icon={<Package className="w-4 h-4" />}
-                iconColor="text-indigo-600"
-                iconBg="bg-indigo-50 dark:bg-indigo-950/50"
+                value={`${fmt(kpis.totalValuation)} $`}
+                subtitle={kpis.subtitle || undefined}
+                delta={kpis.valuationDelta}
+                icon={<Package className="w-3.5 h-3.5" />}
+                iconColor="text-sky-600 dark:text-sky-400"
+                iconBg="bg-sky-50 dark:bg-sky-950/40"
                 isLoading={isLoading}
             />
 
-            {/* 2. Parc Articles Femme */}
             <CeoKpiCard
                 label="Parc Articles Femme"
-                value={`${kpis.womenArticlesCount.toLocaleString("fr-FR")} pcs`}
-                subtitle={`${kpis.womenValuation.toLocaleString("fr-FR")} $ de valeur`}
-                icon={<Heart className="w-4 h-4" />}
-                iconColor="text-rose-600"
-                iconBg="bg-rose-50 dark:bg-rose-950/50"
-                valueColor="text-rose-600 dark:text-rose-400"
+                value={`${fmt(kpis.womenArticlesCount)} pcs`}
+                subtitle={`${fmt(kpis.womenValuation)} $`}
+                icon={<Heart className="w-3.5 h-3.5" />}
+                iconColor="text-violet-600 dark:text-violet-400"
+                iconBg="bg-violet-50 dark:bg-violet-950/40"
                 isLoading={isLoading}
             />
 
-            {/* 3. Articles Beauty */}
             <CeoKpiCard
                 label="Articles Beauty"
-                value={`${kpis.beautyArticlesCount.toLocaleString("fr-FR")} pcs`}
-                subtitle={`${kpis.beautyValuation.toLocaleString("fr-FR")} $ de valeur`}
-                icon={<Sparkles className="w-4 h-4" />}
-                iconColor="text-amber-600"
-                iconBg="bg-amber-50 dark:bg-amber-950/50"
-                valueColor="text-amber-600 dark:text-amber-400"
+                value={`${fmt(kpis.beautyArticlesCount)} pcs`}
+                subtitle={`${fmt(kpis.beautyValuation)} $`}
+                icon={<Sparkles className="w-3.5 h-3.5" />}
+                iconColor="text-pink-600 dark:text-pink-400"
+                iconBg="bg-pink-50 dark:bg-pink-950/40"
                 isLoading={isLoading}
             />
 
-            {/* 4. Articles Enfant */}
             <CeoKpiCard
                 label="Articles Enfant"
-                value={`${kpis.kidsArticlesCount.toLocaleString("fr-FR")} pcs`}
-                subtitle={`${kpis.kidsValuation.toLocaleString("fr-FR")} $ de valeur`}
-                icon={<Baby className="w-4 h-4" />}
-                iconColor="text-blue-600"
-                iconBg="bg-blue-50 dark:bg-blue-950/50"
-                valueColor="text-blue-600 dark:text-blue-400"
+                value={`${fmt(kpis.kidsArticlesCount)} pcs`}
+                subtitle={`${fmt(kpis.kidsValuation)} $`}
+                icon={<Baby className="w-3.5 h-3.5" />}
+                iconColor="text-emerald-600 dark:text-emerald-400"
+                iconBg="bg-emerald-50 dark:bg-emerald-950/40"
                 isLoading={isLoading}
             />
         </div>

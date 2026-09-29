@@ -1,25 +1,53 @@
-"use server"
-
+// @/lib/supabase/server.ts
 import { createServerClient } from '@supabase/ssr'
-import { User } from '@supabase/supabase-js'
+import type { User } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { cache } from 'react'
-import { Database } from './database.types'
-import { Profile } from './types'
+import type { Database } from './database.types'
+import type { Profile } from './types'
+
+// -----------------------------------------------------------------------------
+// Types
+// -----------------------------------------------------------------------------
 
 export interface ServerAuthResult {
   user: User | null
-  profile: Partial<Profile> | null
+  profile: Profile | null
 }
 
-/**
- * Liste des champs réellement présents dans la table public.profiles
- */
-const SERVER_PROFILE_SELECT = 'id, email, full_name, role, avatar_url, assigned_shops, assigned_companies, shop_access_type, created_at, updated_at, created_by';
+type ProfileRow = Database['public']['Tables']['profiles']['Row']
 
 /**
- * Crée un client Supabase Server optimisé pour Next.js App Router (RSC, Route Handlers, Server Actions).
- * Enveloppé dans `cache()` de React pour éviter d'analyser les cookies à chaque appel.
+ * Colonnes réellement présentes dans public.profiles.
+ * Toute évolution du schéma doit être répercutée ici ET dans le type Profile.
+ */
+const SERVER_PROFILE_SELECT =
+  'id, email, full_name, role, avatar_url, assigned_shops, assigned_companies, shop_access_type, created_at, updated_at, created_by'
+
+// -----------------------------------------------------------------------------
+// Helpers internes
+// -----------------------------------------------------------------------------
+
+/**
+ * Next.js lance une erreur spéciale (digest DYNAMIC_SERVER_USAGE) quand un RSC
+ * dynamique est exécuté dans un contexte statique. Elle doit être propagée.
+ */
+function isDynamicServerUsageError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'digest' in error &&
+    (error as { digest?: unknown }).digest === 'DYNAMIC_SERVER_USAGE'
+  )
+}
+
+// -----------------------------------------------------------------------------
+// Client Supabase (server-side)
+// -----------------------------------------------------------------------------
+
+/**
+ * Client Supabase pour RSC / Route Handlers / Server Actions.
+ * `cache()` évite de ré-évaluer la lecture des cookies dans la même requête.
  */
 export const createClient = cache(async () => {
   const cookieStore = await cookies()
@@ -35,20 +63,24 @@ export const createClient = cache(async () => {
         setAll(cookiesToSet) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
+              cookieStore.set(name, value, options),
             )
-          } catch (error) {
-            // Cette erreur est attendue et ignorée uniquement si l'appel a lieu au sein d'un Server Component (RSC).
-            // Le middleware global (middleware.ts) doit obligatoirement prendre le relais pour rafraîchir la session.
+          } catch {
+            // Silencieux : se produit en RSC pur, où l'écriture cookie est interdite.
+            // Le middleware.ts est responsable du refresh de session.
           }
         },
       },
-    }
+    },
   )
 })
 
+// -----------------------------------------------------------------------------
+// Auth helpers
+// -----------------------------------------------------------------------------
+
 /**
- * Récupère de manière sécurisée l'utilisateur côté serveur (vérification cryptographique du JWT).
+ * Utilisateur authentifié côté serveur (JWT vérifié cryptographiquement).
  */
 export const getServerUser = cache(async (): Promise<User | null> => {
   const supabase = await createClient()
@@ -57,69 +89,65 @@ export const getServerUser = cache(async (): Promise<User | null> => {
     const { data: { user }, error } = await supabase.auth.getUser()
 
     if (error) {
-      console.warn('[SERVER_AUTH] Impossible de récupérer l\'utilisateur:', error.message)
+      console.warn('[SERVER_AUTH] getUser failed:', error.message)
       return null
     }
 
     return user
   } catch (error) {
-    if (error && typeof error === 'object' && (error as any).digest === 'DYNAMIC_SERVER_USAGE') {
-      throw error;
-    }
-    console.error('[SERVER_AUTH_ERROR] Erreur critique dans getServerUser:', error)
+    if (isDynamicServerUsageError(error)) throw error
+    console.error('[SERVER_AUTH_ERROR] getServerUser:', error)
     return null
   }
 })
 
 /**
- * Récupère le profil de l'utilisateur côté serveur.
+ * Profil utilisateur côté serveur.
+ * Retourne null si le profil est absent OU si la requête échoue (les deux cas
+ * sont distingués par un warn console — le consommateur traite uniformément).
  */
-export const getServerProfile = cache(async (userId: string): Promise<Profile | null> => {
-  if (!userId) return null;
-  const supabase = await createClient()
+export const getServerProfile = cache(
+  async (userId: string): Promise<Profile | null> => {
+    if (!userId) return null
+    const supabase = await createClient()
 
-  try {
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select(SERVER_PROFILE_SELECT)
-      .eq('id', userId)
-      .single()
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select(SERVER_PROFILE_SELECT)
+        .eq('id', userId)
+        .single()
 
-    if (error) {
-      console.warn(`[SERVER_AUTH] Impossible de charger le profil pour l'utilisateur ${userId}:`, error.message)
+      if (error) {
+        console.warn(
+          `[SERVER_AUTH] profile load failed for ${userId}:`,
+          error.message,
+        )
+        return null
+      }
+
+      return data
+    } catch (error) {
+      if (isDynamicServerUsageError(error)) throw error
+      console.error('[SERVER_AUTH_ERROR] getServerProfile:', error)
       return null
     }
-
-    return profile as Profile
-  } catch (error) {
-    if (error && typeof error === 'object' && (error as any).digest === 'DYNAMIC_SERVER_USAGE') {
-      throw error;
-    }
-    console.error('[SERVER_AUTH_ERROR] Erreur critique dans getServerProfile:', error)
-    return null
-  }
-})
+  },
+)
 
 /**
- * Récupère conjointement l'utilisateur et son profil.
- * Idéal pour hydrater l'AuthProvider client à l'initialisation du Root Layout.
+ * Auth complète (user + profil) pour hydrater le Root Layout ou les RSC exécutifs.
  */
 export const getServerAuth = cache(async (): Promise<ServerAuthResult> => {
   try {
     const user = await getServerUser()
-
-    if (!user) {
-      return { user: null, profile: null }
-    }
+    if (!user) return { user: null, profile: null }
 
     const profile = await getServerProfile(user.id)
-
     return { user, profile }
   } catch (error) {
-    if (error && typeof error === 'object' && (error as any).digest === 'DYNAMIC_SERVER_USAGE') {
-      throw error;
-    }
-    console.error('[SERVER_AUTH_ERROR] Erreur critique dans getServerAuth:', error)
+    if (isDynamicServerUsageError(error)) throw error
+    console.error('[SERVER_AUTH_ERROR] getServerAuth:', error)
     return { user: null, profile: null }
   }
 })

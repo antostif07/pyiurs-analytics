@@ -1,86 +1,98 @@
 import { Suspense } from "react";
-import QCTable from "./components/QCTable";
 import { Loader2, ShieldCheck } from "lucide-react";
 import { format, subDays } from "date-fns";
-import { getAvailableHSCodes, getProductQualityData } from "./actions";
+import HSCodeMultiSelect from "./components/HSCodeMultiSelect";
+import SupplierMultiSelect from "./components/SupplierMultiSelect";
+import { SegmentTabs } from "./components/SegmentTabs";
+import { getProductQualityData, getAvailableFilters } from "./actions";
 import BackButton from "@/components/BackButton";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
-import HSCodeMultiSelect from "./components/HSCodeMultiSelect";
+import QCTableServer from "./components/QCTableServer";
 
 export const metadata = { title: "Contrôle Qualité • Pyiurs Admin" };
 
-type PageProps = {
-  searchParams: Promise<{
-    from?: string;
-    to?: string;
-    segment?: string;
-    hs_codes?: string;
-  }>;
+type SearchParams = {
+  from?: string;
+  to?: string;
+  segment?: string;
+  hs_codes?: string;
+  suppliers?: string;
 };
+
+type PageProps = { searchParams: Promise<SearchParams> };
 
 export default async function QualityControlPage({ searchParams }: PageProps) {
   const params = await searchParams;
-  
+
   const from = params.from || format(subDays(new Date(), 7), "yyyy-MM-dd");
   const to = params.to || format(new Date(), "yyyy-MM-dd");
   const segment = params.segment || "femme";
-  const hsCodes = params.hs_codes ? params.hs_codes.split(',') : [];
+  const hsCodes = params.hs_codes ? params.hs_codes.split(",") : [];
+  const suppliers = params.suppliers ? params.suppliers.split(",") : [];
 
-  const [data, availableHSCodes] = await Promise.all([
-    getProductQualityData(from, to, segment, hsCodes),
-    getAvailableHSCodes(from, to, segment)
+  const [data, filters] = await Promise.all([
+    getProductQualityData(from, to, segment, hsCodes, suppliers),
+    getAvailableFilters(from, to, segment, hsCodes, suppliers),
   ]);
 
+  const { hsCodes: availableHSCodes, suppliers: availableSuppliers } = filters;
+
+  const suspenseKey = [segment, from, to, hsCodes.join(","), suppliers.join(",")].join("|");
+
   return (
-    <main className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans">
-      
-      {/* HEADER RESPONSIVE */}
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-8 gap-6">
-        
-        {/* Titre + Retour */}
-        <div className="flex items-center w-full xl:w-auto">
+    <main className="min-h-screen bg-background text-foreground overflow-x-hidden">
+      <div className="mx-auto w-full max-w-[1600px] px-3 py-4 md:px-6 md:py-6">
+
+        {/* ── HEADER : 1 ligne, compact ───────────────────────── */}
+        <header className="flex items-center gap-3 mb-4 min-w-0">
           <BackButton />
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 flex items-center gap-2 md:gap-3">
-              <ShieldCheck className="w-6 h-6 md:w-8 md:h-8 text-emerald-600"/> 
-              <span className="truncate">Contrôle Qualité</span>
+          <div className="flex items-center gap-2 min-w-0">
+            <ShieldCheck className="w-5 h-5 text-primary shrink-0" />
+            <h1 className="text-lg md:text-xl font-semibold truncate">
+              Contrôle Qualité
             </h1>
-            <p className="text-sm text-slate-500 mt-1 hidden md:block">
-              Générez les fichiers d'import pour Odoo.
-            </p>
+            <span className="hidden lg:inline text-xs text-muted-foreground truncate">
+              — Générez les fichiers d'import pour Odoo
+            </span>
           </div>
+        </header>
+
+        {/* ── FILTRES : une barre en flex-wrap ────────────────── */}
+        <div className="flex flex-wrap items-center gap-2 mb-4 min-w-0">
+          <SegmentTabs
+            current={segment}
+            from={from}
+            to={to}
+            hsCodes={hsCodes}
+            suppliers={suppliers}
+          />
+          <DateRangeFilter />
+
+          {/* Pousse les filtres à droite sur écran large */}
+          <div className="hidden md:block flex-1" />
+
+          <HSCodeMultiSelect options={availableHSCodes} />
+          <SupplierMultiSelect options={availableSuppliers} />
         </div>
 
-        {/* Zone Filtres (S'empile sur mobile, s'aligne sur desktop) */}
-        <div className="flex flex-col md:flex-row items-start md:items-end xl:items-center gap-3 w-full xl:w-auto">
-           
-           {/* Ligne 1 : Segments + Dates */}
-           <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-              {/* Sélecteur Segment */}
-              <div className="bg-white p-1 rounded-lg border border-slate-200 shadow-sm text-sm flex overflow-x-auto max-w-full">
-                    <a href={`?segment=femme&from=${from}&to=${to}`} className={`flex-1 text-center whitespace-nowrap px-3 md:px-4 py-1.5 rounded ${segment === 'femme' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-50'}`}>Femme</a>
-                    <a href={`?segment=beauty&from=${from}&to=${to}`} className={`flex-1 text-center whitespace-nowrap px-3 md:px-4 py-1.5 rounded ${segment === 'beauty' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-50'}`}>Beauty</a>
-                    <a href={`?segment=enfant&from=${from}&to=${to}`} className={`flex-1 text-center whitespace-nowrap px-3 md:px-4 py-1.5 rounded ${segment === 'enfant' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-50'}`}>Enfant</a>
-              </div>
-              
-              {/* Date Filter (doit être responsive lui aussi idéalement, mais ici on le wrap) */}
-              <div className="w-full sm:w-auto">
-                <DateRangeFilter />
-              </div>
-           </div>
-
-           {/* Ligne 2 : Recherche */}
-           <div className="w-full md:w-auto">
-                <HSCodeMultiSelect options={availableHSCodes} />
-           </div>
-           
-        </div>
+        {/* ── TABLE ───────────────────────────────────────────── */}
+        <Suspense
+          key={suspenseKey}
+          fallback={
+            <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">
+              <Loader2 className="animate-spin mr-2 w-4 h-4" /> Recherche Odoo...
+            </div>
+          }
+        >
+          <QCTableServer
+            from={from}
+            to={to}
+            segment={segment}
+            hsCodes={hsCodes}
+            suppliers={suppliers}
+          />
+        </Suspense>
       </div>
-
-      <Suspense key={hsCodes.join(',') + segment + from} fallback={<div className="h-64 flex items-center justify-center text-slate-400"><Loader2 className="animate-spin mr-2"/> Recherche Odoo...</div>}>
-         <QCTable data={data} />
-      </Suspense>
-
     </main>
   );
 }

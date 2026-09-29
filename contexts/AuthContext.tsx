@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Loader2 } from 'lucide-react';
 import { AuthService } from '@/lib/supabase/auth-service';
 import { Profile } from '@/lib/supabase/types';
+import { parseAssignedCompanyIds } from '@/lib/auth/scope';
 
 interface AuthContextType {
   user: User | null;
@@ -201,18 +202,17 @@ export const useAuth = (): AuthContextType => {
 };
 
 export const useShopAccess = () => {
-  const { profile } = useAuth();
+  const { profile } = useAuth()
 
   return {
-    hasAccessToShop: (shopId: string) => AuthService.hasShopAccess(profile, shopId),
+    hasAccessToShop: (shopId: string) =>
+      AuthService.hasShopAccess(profile, shopId),
+
     getUserShops: () => AuthService.getUserShops(profile),
 
-    hasAccessToCompany: (companyId: string): boolean => {
-      if (!profile) return false;
-      if (profile.role === 'admin' || profile.shop_access_type === 'all') return true;
-      return (profile.assigned_companies as string[])?.includes(companyId) || (profile.assigned_companies as string[])?.includes('all');
-    },
+    hasAccessToCompany: (companyId: number) =>
+      AuthService.hasCompanyAccess(profile, companyId),
 
-    isUserRestricted: profile ? profile.shop_access_type === 'specific' : true
-  };
-};
+    isUserRestricted: profile ? profile.shop_access_type === 'specific' : true,
+  }
+}

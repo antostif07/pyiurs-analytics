@@ -21,18 +21,22 @@ export interface StoreStockAuditRow {
 }
 
 export interface StockKpisData {
-    totalValuation: number;       // Ex: 106 990 $
-    totalUnits: number;           // Ex: 4 800 pcs
-    subtitle: string;             // Ex: "4 800 pièces réparties sur 5 sites"
+    totalValuation: number;
+    totalUnits: number;
+    subtitle: string;
+
+    // ⬇️ NOUVEAU — delta de valorisation vs période précédente
+    valuationDelta?: KpiDelta;
+
     // Segment Femme
-    womenArticlesCount: number;   // Ex: 1 600 pcs
-    womenValuation: number;       // Ex: 65 050 $
+    womenArticlesCount: number;
+    womenValuation: number;
     // Segment Beauty
-    beautyArticlesCount: number;  // Ex: 850 pcs
-    beautyValuation: number;      // Ex: 17 950 $
+    beautyArticlesCount: number;
+    beautyValuation: number;
     // Segment Enfant
-    kidsArticlesCount: number;    // Ex: 600 pcs
-    kidsValuation: number;        // Ex: 23 990 $
+    kidsArticlesCount: number;
+    kidsValuation: number;
     sizesData?: SizeDistributionPoint[];
     fluxData?: StockFluxPoint[];
     movementsData?: StockMovementRow[];
@@ -56,4 +60,19 @@ export interface SizeDistributionPoint {
 export interface StockReportData {
     fluxData: StockFluxPoint[];
     sizesData: SizeDistributionPoint[];
+}
+
+/**
+ * Delta d'une métrique vs période de référence (N-1 ou M-1).
+ * Utilisé par CeoKpiCard pour afficher la flèche + le %.
+ */
+export interface KpiDelta {
+    /** Valeur signée (ex: +2.4 ou -1.2) */
+    value: number;
+    /** Format d'affichage (défaut : "percent") */
+    format?: "percent" | "number" | "currency";
+    /** true = hausse bonne (défaut), false = hausse mauvaise (ex: démarque) */
+    isPositiveUp?: boolean;
+    /** Période de référence affichée (ex: "vs M-1") */
+    label?: string;
 }

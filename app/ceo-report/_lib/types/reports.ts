@@ -25,8 +25,8 @@ export interface ReportFilter {
     store: Store;
     segment: Segment;
     category: string | null;
-    dateFrom?: string;
-    dateTo?: string;
+    from?: string;
+    to?: string;
 }
 
 export interface KPI {

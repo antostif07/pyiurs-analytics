@@ -1,80 +1,67 @@
 // app/ceo-report/stock/stock-client.tsx
 "use client";
 
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import DashboardHeader from "@/components/new-ui/layout/dashboard-header";
+import ReportPageHeader from "../_components/report-page-header";
+import GlobalFilters from "../_components/global-filters";
+import { ReportSection } from "../_components/report-section";
+import { parseFilters } from "../_lib/filters";
 import StockKpiGrid from "./_components/stock-kpi-grid";
 import StockAnalytics from "./_components/stock-analytics";
 import StockMovementMatrixTable from "./_components/stock-movement-matrix-table";
 import StoreStockAuditSizesTable from "./_components/store-stock-audit-sizes-table";
-import type { StockReportData } from "./_lib/types";
 import { useStockKpis } from "./_lib/hooks/use-stock-kpis";
 
-// État initial (servira de fallback pendant la connexion API Odoo)
-const INITIAL_STOCK_DATA: StockReportData = {
-    fluxData: [],
-    sizesData: [
-        { size: "S", pieces: 240, part: "15%" },
-        { size: "M", pieces: 500, part: "31%" },
-        { size: "L", pieces: 435, part: "27%" },
-        { size: "XL", pieces: 275, part: "17%" },
-        { size: "XXL+", pieces: 150, part: "10%" },
-    ],
-};
-
 export default function StockClient() {
+    const searchParams = useSearchParams();
+    const filters = parseFilters(Object.fromEntries(searchParams.entries()));
+
     const { data, isLoading, refetch, dataUpdatedAt } = useStockKpis();
 
+    const handleRefresh = async () => {
+        await refetch();
+        toast.success("Stock actualisé depuis Odoo");
+    };
+
     return (
-        <div className="space-y-6">
-            {/* 1. Header Universel (Non bloqué sur ARPU) */}
-            <DashboardHeader
+        <div className="flex flex-col min-h-full">
+            <ReportPageHeader
                 title="Mouvements & Valorisation Stock"
-                subtitle="Suivi des flux logistiques, valorisation par boutique et conformité d'inventaire"
-                badgeLabel="Live Odoo"
-                isLoading={isLoading}
+                subtitle="Flux logistiques, valorisation par boutique et conformité d'inventaire"
+                badge={{ label: "Live Odoo", tone: "emerald" }}
                 lastUpdatedAt={dataUpdatedAt ? new Date(dataUpdatedAt) : null}
-                onRefresh={async () => {
-                    await refetch();
-                    toast.success("Stock actualisé depuis Odoo");
-                }}
-            />
-
-            {/* 2. Grille des 4 KPIs Découplée */}
-            <StockKpiGrid />
-
-            {/* 3. Graphiques Découplés */}
-            <StockAnalytics
-                fluxData={data?.fluxData || []}
-                sizesData={data?.sizesData || []}
                 isLoading={isLoading}
-            />
+                onRefresh={handleRefresh}
+            >
+                <GlobalFilters filters={filters} compact />
+            </ReportPageHeader>
 
-            {/* 4. Tableau Point 3 : Mouvements Globaux */}
-            <div className="space-y-2">
-                <div className="flex items-center gap-2 border-l-4 border-amber-500 pl-3">
-                    <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-slate-100">
-                        MOUVEMENTS DE STOCK GLOBAL (CLÔTURE M-1, ACHATS FOURNISSEURS, VENTES & AJUSTEMENTS)
-                    </h2>
-                </div>
-                <StockMovementMatrixTable
-                    data={data?.movementsData || []}
+            <div className="flex-1 p-4 sm:p-5 space-y-4">
+                <StockKpiGrid />
+
+                <StockAnalytics
+                    fluxData={data?.fluxData ?? []}
+                    sizesData={data?.sizesData ?? []}
                     isLoading={isLoading}
                 />
-            </div>
 
-            {/* 5. Tableau Point 8 : Valorisation par Boutique & Tailles Femme */}
-            <div className="space-y-2">
-                <div className="flex items-center gap-2 border-l-4 border-amber-500 pl-3">
-                    <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-slate-100">
-                        VALORISATION DU STOCK PAR BOUTIQUE (AVEC AUDITS) & SUIVI DES TAILLES FEMME
-                    </h2>
-                </div>
-                <StoreStockAuditSizesTable
-                    data={data?.storeStockAuditSizesData || []}
-                    isLoading={isLoading}
-                />
+                <ReportSection index={3} title="Mouvements de stock global">
+                    <StockMovementMatrixTable
+                        data={data?.movementsData ?? []}
+                        isLoading={isLoading}
+                    />
+                </ReportSection>
+
+                <ReportSection
+                    index={8}
+                    title="Valorisation stock par boutique · Tailles femme"
+                >
+                    <StoreStockAuditSizesTable
+                        data={data?.storeStockAuditSizesData ?? []}
+                        isLoading={isLoading}
+                    />
+                </ReportSection>
             </div>
         </div>
     );
