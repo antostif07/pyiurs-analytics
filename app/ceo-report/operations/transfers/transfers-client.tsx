@@ -3,152 +3,192 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { PackageCheck, DollarSign, FileCheck, AlertOctagon } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import {
-    PackageCheck,
-    DollarSign,
-    FileCheck,
-    AlertOctagon,
-} from "lucide-react";
-import {
-    BarChart,
-    Bar,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ResponsiveContainer,
-    Legend,
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+    ResponsiveContainer, Legend,
 } from "recharts";
-import DashboardHeader from "@/app/revenue/arpu/_components/arpu-header";
+
+import ReportPageHeader from "../../_components/report-page-header";
+import GlobalFilters from "../../_components/global-filters";
+import { ReportSection } from "../../_components/report-section";
+import CeoKpiCard from "../../_components/ceo-kpi-card";
+import { parseFilters } from "../../_lib/filters";
+
 import TransferPreviewDialog from "../_components/transfer-preview-dialog";
-import TransferControlTable, { DEFAULT_TRANSFERS, TransferControlRow } from "../_components/transfer-control-table.tsx";
+import { useTransfers } from "./_lib/hooks/use-transfers";
+import type { TransferControlRow, TransfersKpis } from "./_lib/types";
+import TransferControlTable from "./_components/transfer-control-table.tsx";
+
+const CHART_AXIS_COLOR = "var(--muted-foreground)";
+const CHART_GRID_COLOR = "var(--border)";
+
+const tooltipContentStyle: React.CSSProperties = {
+    borderRadius: "10px",
+    border: "1px solid var(--border)",
+    backgroundColor: "var(--popover)",
+    boxShadow: "0 8px 16px rgb(0 0 0 / 0.08)",
+    fontSize: "11px",
+    color: "var(--popover-foreground)",
+};
+
+const FALLBACK_KPIS: TransfersKpis = {
+    validatedCount: 0,
+    itemsOrdered: 0,
+    itemsShipped: 0,
+    transferValue: 0,
+    signatureCompliancePct: 0,
+    signatureConformCount: 0,
+    signatureTotalCount: 0,
+    barcodeMissingCount: 0,
+    barcodeMissingRef: null,
+};
+
+const fmt = (n: number) => n.toLocaleString("fr-FR");
 
 export default function TransfersClient() {
-    const [data] = useState(DEFAULT_TRANSFERS);
+    const searchParams = useSearchParams();
+    const filters = parseFilters(Object.fromEntries(searchParams.entries()));
+
+    // ✅ Source unique de vérité
+    const { data, isLoading, isFetching, refetch, dataUpdatedAt } = useTransfers();
+    const isBusy = isLoading || isFetching;
+
     const [selectedTransfer, setSelectedTransfer] = useState<TransferControlRow | null>(null);
     const [dialogOpen, setDialogOpen] = useState(false);
 
+    // Dérivés — jamais undefined
+    const transfers = data?.transfers ?? [];
+    const kpis = data?.kpis ?? FALLBACK_KPIS;
+    const destinationChartData = data?.destinationChartData ?? [];
+
+    const handleRefresh = async () => {
+        try {
+            await refetch();
+            toast.success("Transferts actualisés");
+        } catch {
+            toast.error("Échec de l'actualisation");
+        }
+    };
+
     const handlePreview = (ref: string) => {
-        const found = data.find((t) => t.refTransfert === ref) || null;
+        const found = transfers.find((t) => t.refTransfert === ref) ?? null;
         setSelectedTransfer(found);
         setDialogOpen(true);
     };
 
-    // Données analytiques par Boutique réceptrice
-    const destinationChartData = data.map((t) => ({
-        name: t.destination,
-        "Valeur ($)": t.value,
-        "Articles (pcs)": t.itemCount,
-    }));
-
     return (
-        <div className="space-y-6">
-            {/* 1. Header de Contrôle & Synchronisation Odoo stock.picking */}
-            <DashboardHeader onExport={(fmt) => toast(`Export ${fmt} de l'audit logistique en cours...`)} />
+        <div>
+            <ReportPageHeader
+                title="Contrôle des Transferts & Audit Codes-Barres"
+                subtitle="Conformité documentaire et scanning des transferts inter-boutiques"
+                badge={{ label: "Live Odoo", tone: "emerald" }}
+                lastUpdatedAt={dataUpdatedAt ? new Date(dataUpdatedAt) : null}
+                isLoading={isBusy}
+                onRefresh={handleRefresh}
+            >
+                <GlobalFilters filters={filters} compact />
+            </ReportPageHeader>
 
-            {/* 2. KPIs de Contrôle & Risque Logistique */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                            Transferts Validés
-                        </span>
-                        <div className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/50 text-blue-600">
-                            <PackageCheck className="w-4 h-4" />
-                        </div>
-                    </div>
-                    <div className="mt-2 text-xl font-bold font-mono text-slate-900 dark:text-white">
-                        5 TR
-                    </div>
-                    <p className="text-[10px] text-slate-500 mt-0.5">488 articles expédiés du P.BC</p>
+            <div className="p-4 sm:p-5 space-y-4">
+                {/* ─── KPIs ─────────────────────────────────────── */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    <CeoKpiCard
+                        label="Transferts Validés"
+                        value={`${kpis.validatedCount} TR`}
+                        subtitle={`${fmt(kpis.itemsOrdered)} prévus, ${fmt(kpis.itemsShipped)} expédiés`}
+                        icon={<PackageCheck className="w-3.5 h-3.5" />}
+                        iconColor="text-emerald-600 dark:text-emerald-400"
+                        iconBg="bg-emerald-50 dark:bg-emerald-950/40"
+                        isLoading={isBusy}
+                    />
+                    <CeoKpiCard
+                        label="Valeur Transférée"
+                        value={`${fmt(kpis.transferValue)} $`}
+                        subtitle="Marchandises sécurisées en transit"
+                        icon={<DollarSign className="w-3.5 h-3.5" />}
+                        iconColor="text-sky-600 dark:text-sky-400"
+                        iconBg="bg-sky-50 dark:bg-sky-950/40"
+                        isLoading={isBusy}
+                    />
+                    <CeoKpiCard
+                        label="Conformité Signature"
+                        value={`${kpis.signatureCompliancePct.toFixed(1)} %`}
+                        subtitle={`${kpis.signatureConformCount}/${kpis.signatureTotalCount} conformes`}
+                        icon={<FileCheck className="w-3.5 h-3.5" />}
+                        iconColor="text-amber-600 dark:text-amber-400"
+                        iconBg="bg-amber-50 dark:bg-amber-950/40"
+                        isLoading={isBusy}
+                    />
+                    <CeoKpiCard
+                        label="Alerte Code-Barres"
+                        value={`${kpis.barcodeMissingCount} non renseigné`}
+                        subtitle={kpis.barcodeMissingRef ?? "—"}
+                        icon={<AlertOctagon className="w-3.5 h-3.5" />}
+                        iconColor="text-rose-600 dark:text-rose-400"
+                        iconBg="bg-rose-50 dark:bg-rose-950/40"
+                        isLoading={isBusy}
+                    />
                 </div>
 
-                <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                            Valeur Transférée
-                        </span>
-                        <div className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600">
-                            <DollarSign className="w-4 h-4" />
-                        </div>
+                {/* ─── Graphique ────────────────────────────────── */}
+                <div className="rounded-lg border border-border/60 bg-card p-3 shadow-2xs">
+                    <h3 className="text-[11px] font-semibold uppercase tracking-wider text-foreground">
+                        Répartition des réceptions par destination
+                    </h3>
+                    <p className="text-[10px] text-muted-foreground/70 mb-2">
+                        Valeur marchande ($) et pièces acheminées par point de vente
+                    </p>
+                    <div className="h-[210px] w-full">
+                        {isBusy && destinationChartData.length === 0 ? (
+                            <div className="h-full flex items-center justify-center">
+                                <div className="w-full max-w-md h-24 bg-muted rounded animate-pulse" />
+                            </div>
+                        ) : (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart
+                                    data={destinationChartData}
+                                    margin={{ top: 5, right: 10, left: -15, bottom: 0 }}
+                                >
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_GRID_COLOR} />
+                                    <XAxis
+                                        dataKey="name"
+                                        axisLine={false}
+                                        tickLine={false}
+                                        tick={{ fontSize: 10, fill: CHART_AXIS_COLOR, fontWeight: 600 }}
+                                    />
+                                    <YAxis
+                                        axisLine={false}
+                                        tickLine={false}
+                                        tick={{ fontSize: 10, fill: CHART_AXIS_COLOR }}
+                                    />
+                                    <Tooltip
+                                        contentStyle={tooltipContentStyle}
+                                        formatter={(v, name) => [
+                                            `${fmt(Number(v ?? 0))} ${name === "Valeur ($)" ? "$" : "pcs"}`,
+                                            name,
+                                        ]}
+                                    />
+                                    <Legend wrapperStyle={{ fontSize: "10px" }} />
+                                    <Bar dataKey="Valeur ($)" fill="var(--chart-1)" radius={[3, 3, 0, 0]} maxBarSize={20} />
+                                    <Bar dataKey="Prévu (pcs)" fill="var(--chart-3)" radius={[3, 3, 0, 0]} maxBarSize={20} />
+                                    <Bar dataKey="Expédié (pcs)" fill="var(--chart-4)" radius={[3, 3, 0, 0]} maxBarSize={20} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        )}
                     </div>
-                    <div className="mt-2 text-xl font-bold font-mono text-indigo-600">
-                        15 800 $
-                    </div>
-                    <p className="text-[10px] text-slate-500 mt-0.5">Marchandises sécurisées en transit</p>
                 </div>
 
-                <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                            Conformité Signature
-                        </span>
-                        <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600">
-                            <FileCheck className="w-4 h-4" />
-                        </div>
-                    </div>
-                    <div className="mt-2 text-xl font-bold font-mono text-emerald-600">
-                        80,0 %
-                    </div>
-                    <p className="text-[10px] text-slate-500 mt-0.5">4/5 conformes (1 anomalie LMB)</p>
-                </div>
-
-                <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                            Alerte Code-Barres
-                        </span>
-                        <div className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/50 text-rose-600">
-                            <AlertOctagon className="w-4 h-4" />
-                        </div>
-                    </div>
-                    <div className="mt-2 text-xl font-bold font-mono text-rose-600">
-                        1 Non Renseigné
-                    </div>
-                    <p className="text-[10px] text-slate-500 mt-0.5">TR-2026-0803 (Risque de perte)</p>
-                </div>
+                {/* ─── Tableau ──────────────────────────────────── */}
+                <ReportSection
+                    index={5}
+                    title="Contrôle des transferts mensuels · Validation codes-barres"
+                >
+                    <TransferControlTable data={transfers} onPreview={handlePreview} />
+                </ReportSection>
             </div>
 
-            {/* 3. Graphique : Valeur et Volume par Boutique Réceptrice */}
-            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white mb-1">
-                    Répartition des Réceptions par Destination
-                </h3>
-                <p className="text-[10px] text-slate-500 mb-3">
-                    Valeur marchande ($) et nombre de pièces acheminées par point de vente
-                </p>
-                <div className="h-[210px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={destinationChartData} margin={{ top: 5, right: 10, left: -15, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#64748b", fontWeight: "bold" }} />
-                            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#64748b" }} tickFormatter={(v) => `$${v}`} />
-                            <Tooltip
-                                contentStyle={{ borderRadius: "10px", border: "none", boxShadow: "0 8px 16px rgba(0,0,0,0.06)", fontSize: "11px" }}
-                                formatter={(v: any, name: any) => [
-                                    name === "Valeur ($)" ? `${Number(v).toLocaleString("fr-FR")} $` : `${v} pcs`,
-                                    name,
-                                ]}
-                            />
-                            <Legend wrapperStyle={{ fontSize: "10px" }} />
-                            <Bar dataKey="Valeur ($)" fill="#6366f1" radius={[3, 3, 0, 0]} maxBarSize={28} />
-                            <Bar dataKey="Articles (pcs)" fill="#0ea5e9" radius={[3, 3, 0, 0]} maxBarSize={28} />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
-            </div>
-
-            {/* 4. Le Tableau Matrice exact du Point 5 */}
-            <div className="space-y-2">
-                <div className="flex items-center gap-2 border-l-4 border-amber-500 pl-3">
-                    <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-slate-100">
-                        5. RAPPORT DE CONTRÔLE DES TRANSFERTS MENSUELS & VALIDATION CODES-BARRES
-                    </h2>
-                </div>
-                <TransferControlTable data={data} onPreview={handlePreview} />
-            </div>
-
-            {/* Modale de prévisualisation au clic */}
             <TransferPreviewDialog
                 transfer={selectedTransfer}
                 open={dialogOpen}

@@ -86,24 +86,34 @@ export interface ResolvedDateRange {
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");
-const toIso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const toIso = (d: Date) =>
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
 export function resolveDateRange(filters: ReportFilter): ResolvedDateRange {
     const { period, year, month } = filters;
-    // month peut être null → on utilise décembre comme fin de trimestre/année si null
-    const m = month ?? 12;
 
+    // ─── Fallbacks : mois / année courants ─────────────────────────────
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1; // 1-12
+
+    const effectiveYear =
+        Number.isFinite(year) && year > 2000 ? year : currentYear;
+    const m = month ?? currentMonth;
+
+    // ─── Court-circuit : période personnalisée ─────────────────────────
     if (period === "custom" && filters.from && filters.to) {
         return { from: filters.from, to: filters.to };
     }
 
+    // ─── Aujourd'hui ───────────────────────────────────────────────────
     if (period === "today") {
-        const d = toIso(new Date());
+        const d = toIso(now);
         return { from: d, to: d };
     }
 
+    // ─── Semaine courante (lundi → dimanche) ───────────────────────────
     if (period === "week") {
-        const now = new Date();
         const day = now.getDay() || 7; // lundi = 1, dimanche = 7
         const monday = new Date(now);
         monday.setDate(now.getDate() - (day - 1));
@@ -112,31 +122,38 @@ export function resolveDateRange(filters: ReportFilter): ResolvedDateRange {
         return { from: toIso(monday), to: toIso(sunday) };
     }
 
+    // ─── Mois ──────────────────────────────────────────────────────────
     if (period === "month") {
-        const from = new Date(year, m - 1, 1);
-        const to = new Date(year, m, 0); // dernier jour du mois
+        const from = new Date(effectiveYear, m - 1, 1);
+        const to = new Date(effectiveYear, m, 0); // dernier jour du mois
         return { from: toIso(from), to: toIso(to) };
     }
 
+    // ─── Mois précédent ────────────────────────────────────────────────
     if (period === "last_month") {
-        const from = new Date(year, m - 2, 1);
-        const to = new Date(year, m - 1, 0);
+        const from = new Date(effectiveYear, m - 2, 1);
+        const to = new Date(effectiveYear, m - 1, 0);
         return { from: toIso(from), to: toIso(to) };
     }
 
+    // ─── Trimestre ─────────────────────────────────────────────────────
     if (period === "quarter") {
         const qStartMonth = Math.floor((m - 1) / 3) * 3 + 1;
-        const from = new Date(year, qStartMonth - 1, 1);
-        const to = new Date(year, qStartMonth + 2, 0);
+        const from = new Date(effectiveYear, qStartMonth - 1, 1);
+        const to = new Date(effectiveYear, qStartMonth + 2, 0);
         return { from: toIso(from), to: toIso(to) };
     }
 
+    // ─── Année ─────────────────────────────────────────────────────────
     if (period === "year") {
-        return { from: `${year}-01-01`, to: `${year}-12-31` };
+        return {
+            from: `${effectiveYear}-01-01`,
+            to: `${effectiveYear}-12-31`,
+        };
     }
 
-    // Fallback : mois courant
-    const from = new Date(year, m - 1, 1);
-    const to = new Date(year, m, 0);
+    // ─── Fallback : mois courant ───────────────────────────────────────
+    const from = new Date(effectiveYear, m - 1, 1);
+    const to = new Date(effectiveYear, m, 0);
     return { from: toIso(from), to: toIso(to) };
 }

@@ -1,27 +1,36 @@
 // app/ceo-report/operations/purchases/purchase-dispatch-client.tsx
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import DashboardHeader from "@/components/new-ui/layout/dashboard-header";
+import ReportPageHeader from "../../_components/report-page-header";
+import GlobalFilters from "../../_components/global-filters";
+import { ReportSection } from "../../_components/report-section";
+import { parseFilters } from "../../_lib/filters";
 import PurchaseDispatchKpiGrid from "./_components/purchase-dispatch-kpi-grid";
 import PurchaseDispatchAnalytics from "./_components/purchase-dispatch-analytics";
 import PurchaseDispatchMatrixTable from "./_components/purchase-dispatch-matrix-table";
 import { usePurchaseDispatch } from "./_lib/hooks/use-purchase-dispatch";
 
+// Fallback stable hors render (évite la réallocation à chaque render)
+const FALLBACK_KPIS = {
+    poAmountTotal: 0,
+    categoriesCount: 0,
+    receivedPbcTotal: 0,
+    receptionRate: 0,
+    transferredTotal: 0,
+    transferRate: 0,
+    reliquatPbcTotal: 0,
+} as const;
+
 export default function PurchaseDispatchClient() {
-    const { data, isLoading, isFetching, refetch, dataUpdatedAt } = usePurchaseDispatch();
+    const searchParams = useSearchParams();
+    const filters = parseFilters(Object.fromEntries(searchParams.entries()));
+
+    const { data, isLoading, isFetching, refetch, dataUpdatedAt } =
+        usePurchaseDispatch();
 
     const isBusy = isLoading || isFetching;
-
-    const fallbackKpis = {
-        poAmountTotal: 0,
-        categoriesCount: 0,
-        receivedPbcTotal: 0,
-        receptionRate: 0,
-        transferredTotal: 0,
-        transferRate: 0,
-        reliquatPbcTotal: 0,
-    };
 
     const handleRefresh = async () => {
         try {
@@ -33,43 +42,40 @@ export default function PurchaseDispatchClient() {
     };
 
     return (
-        <div className="space-y-6">
-            {/* 1. Header Global avec boutons de date et Actualiser */}
-            <DashboardHeader
+        <div>
+            <ReportPageHeader
                 title="Suivi des Achats PO & Dispatch Boutiques"
-                subtitle="Pilotage des commandes fournisseurs, réceptions au central P.BC et dispatch aux points de vente"
-                badgeLabel="Live Odoo"
-                isLoading={isBusy}
+                subtitle="Commandes fournisseurs, réceptions central P.BC et dispatch aux points de vente"
+                badge={{ label: "Live Odoo", tone: "emerald" }}
                 lastUpdatedAt={dataUpdatedAt ? new Date(dataUpdatedAt) : null}
+                isLoading={isBusy}
                 onRefresh={handleRefresh}
-                onExport={(fmt) => toast(`Export ${fmt} en cours...`)}
-            />
+            >
+                <GlobalFilters filters={filters} compact />
+            </ReportPageHeader>
 
-            {/* 2. 4 KPIs Découplés */}
-            <PurchaseDispatchKpiGrid
-                data={data?.kpis || fallbackKpis}
-                isLoading={isBusy}
-            />
-
-            {/* 3. Graphiques Découplés */}
-            <PurchaseDispatchAnalytics
-                funnelData={data?.funnelData || []}
-                storeShares={data?.storeShares || []}
-                totalTransferred={data?.kpis?.transferredTotal || 0}
-                isLoading={isBusy}
-            />
-
-            {/* 4. Tableau Point 4 Branché avec Skeletons */}
-            <div className="space-y-2">
-                <div className="flex items-center gap-2 border-l-4 border-amber-500 pl-3">
-                    <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-slate-100">
-                        4. SUIVI DES ACHATS PO : COMMANDES, RÉCEPTIONS P.BC & TRANSFERTS ENVOYÉS AUX BOUTIQUES
-                    </h2>
-                </div>
-                <PurchaseDispatchMatrixTable
-                    data={data?.tableRows || []}
+            <div className="p-4 sm:p-5 space-y-4">
+                <PurchaseDispatchKpiGrid
+                    data={data?.kpis ?? FALLBACK_KPIS}
                     isLoading={isBusy}
                 />
+
+                <PurchaseDispatchAnalytics
+                    funnelData={data?.funnelData ?? []}
+                    storeShares={data?.storeShares ?? []}
+                    totalTransferred={data?.kpis?.transferredTotal ?? 0}
+                    isLoading={isBusy}
+                />
+
+                <ReportSection
+                    index={4}
+                    title="Suivi des achats PO · Commandes · Réceptions P.BC · Transferts boutiques"
+                >
+                    <PurchaseDispatchMatrixTable
+                        data={data?.tableRows ?? []}
+                        isLoading={isBusy}
+                    />
+                </ReportSection>
             </div>
         </div>
     );

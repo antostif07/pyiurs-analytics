@@ -26,7 +26,8 @@ import { useSalesMatrix } from "../sales/_lib/use-sales-matrix";
 import { useCustomerSegmentation } from "../customers/_lib/hooks/use-customer-segmentation";
 import { usePurchaseDispatch } from "../operations/purchases/_lib/hooks/use-purchase-dispatch";
 import { useStockKpis } from "../stock/_lib/hooks/use-stock-kpis";
-import TransferControlTable from "../operations/_components/transfer-control-table.tsx";
+import TransferControlTable from "../operations/transfers/_components/transfer-control-table.tsx";
+import { useTransfers } from "../operations/transfers/_lib/hooks/use-transfers";
 
 type Props = { data: ExecutiveCockpitData };
 
@@ -42,6 +43,7 @@ export default function ExecutiveCockpit({ data }: Props) {
     const { data: customerData, isLoading: isCustomerLoading } = useCustomerSegmentation();
     const { data: purchaseData, isLoading: isPurchaseLoading } = usePurchaseDispatch();
     const { data: stockData, isLoading: isStockLoading } = useStockKpis();
+    const { data: transfersData, isLoading: isTransfersLoading } = useTransfers();
 
     // `data` (props RSC) reste disponible pour de futurs usages
     // (ex: bandeau alertes server-side). Non consommé pour l'instant.
@@ -106,7 +108,9 @@ export default function ExecutiveCockpit({ data }: Props) {
                     title="Contrôle des transferts"
                     href="/ceo-report/operations/transfers"
                 >
-                    <TransferControlTable />
+                    <TransferControlTable
+                        data={transfersData?.transfers ?? []}
+                    />
                 </ReportSection>
 
                 <ReportSection
