@@ -1,8 +1,15 @@
 // app/finance/expenses/_lib/filters.ts
 
-import type { ExpensesFilter } from "./types";
+import type { ExpenseState, ExpensesFilter } from "./types";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const VALID_STATES: ExpenseState[] = [
+    "draft",
+    "reported",
+    "approved",
+    "done",
+    "refused",
+];
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const toIso = (d: Date) =>
@@ -15,6 +22,7 @@ export function getDefaultFilters(): ExpensesFilter {
         to: today,
         categoryIds: [],
         companyId: null,
+        state: null,
     };
 }
 
@@ -29,6 +37,7 @@ export function parseExpensesFilters(raw: Raw): ExpensesFilter {
     const to = one(raw.to);
     const categoriesRaw = one(raw.categories);
     const companyRaw = one(raw.company);
+    const stateRaw = one(raw.state);
 
     const categoryIds = categoriesRaw
         ? categoriesRaw
@@ -39,6 +48,11 @@ export function parseExpensesFilters(raw: Raw): ExpensesFilter {
 
     const companyId = companyRaw ? Number(companyRaw) : null;
 
+    const state: ExpenseState | null =
+        stateRaw && VALID_STATES.includes(stateRaw as ExpenseState)
+            ? (stateRaw as ExpenseState)
+            : null;
+
     return {
         from: from && ISO_DATE.test(from) ? from : defaults.from,
         to: to && ISO_DATE.test(to) ? to : defaults.to,
@@ -47,6 +61,7 @@ export function parseExpensesFilters(raw: Raw): ExpensesFilter {
             companyId !== null && Number.isFinite(companyId) && companyId > 0
                 ? companyId
                 : null,
+        state,
     };
 }
 
@@ -54,11 +69,8 @@ export function serializeExpensesFilters(f: ExpensesFilter): URLSearchParams {
     const sp = new URLSearchParams();
     sp.set("from", f.from);
     sp.set("to", f.to);
-    if (f.categoryIds.length > 0) {
-        sp.set("categories", f.categoryIds.join(","));
-    }
-    if (f.companyId !== null) {
-        sp.set("company", String(f.companyId));
-    }
+    if (f.categoryIds.length > 0) sp.set("categories", f.categoryIds.join(","));
+    if (f.companyId !== null) sp.set("company", String(f.companyId));
+    if (f.state !== null) sp.set("state", f.state);
     return sp;
 }

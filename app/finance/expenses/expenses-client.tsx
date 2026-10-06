@@ -106,6 +106,7 @@ export default function ExpensesClient() {
                     categories={categories}
                     companyId={filters.companyId}
                     companies={data?.companies ?? []}
+                    state={filters.state}
                 />
             </ReportPageHeader>
 

@@ -11,9 +11,9 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Clock, Image as ImageIcon, Trash2, Upload } from "lucide-react";
+import { CheckCircle2, Clock, FileEdit, Image as ImageIcon, Send, Trash2, Upload, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { ExpenseRow } from "../_lib/types";
+import type { ExpenseRow, ExpenseState } from "../_lib/types";
 
 const fmt = (n: number) => n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -22,6 +22,50 @@ interface ExpensesTableProps {
     onValidate: (expense: ExpenseRow) => void;
     onUnvalidate: (expense: ExpenseRow) => void;
     onViewPhoto: (url: string) => void;
+}
+
+type BadgeTone = "emerald" | "amber" | "rose" | "sky" | "violet" | "neutral";
+
+const STATE_META: Record<
+    ExpenseState,
+    { label: string; tone: BadgeTone; Icon: typeof CheckCircle2 }
+> = {
+    draft: { label: "Brouillon", tone: "neutral", Icon: FileEdit },
+    reported: { label: "Soumis", tone: "amber", Icon: Send },
+    approved: { label: "Approuvé", tone: "sky", Icon: CheckCircle2 },
+    done: { label: "Payé", tone: "emerald", Icon: CheckCircle2 },
+    refused: { label: "Refusé", tone: "rose", Icon: XCircle },
+};
+
+const BADGE_TONE_CLASSES: Record<BadgeTone, string> = {
+    emerald:
+        "text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200/60 dark:border-emerald-800/60",
+    amber:
+        "text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border-amber-200/60 dark:border-amber-800/60",
+    rose:
+        "text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border-rose-200/60 dark:border-rose-800/60",
+    sky:
+        "text-sky-700 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/40 border-sky-200/60 dark:border-sky-800/60",
+    violet:
+        "text-violet-700 dark:text-violet-400 bg-violet-50 dark:bg-violet-950/40 border-violet-200/60 dark:border-violet-800/60",
+    neutral: "text-muted-foreground bg-muted/40 border-border/60",
+};
+
+function ExpenseStateBadge({ state }: { state: ExpenseState }) {
+    const meta = STATE_META[state] ?? STATE_META.draft;
+    const { Icon } = meta;
+    return (
+        <Badge
+            variant="outline"
+            className={cn(
+                "h-5 px-1.5 text-[10px] font-semibold border gap-1",
+                BADGE_TONE_CLASSES[meta.tone],
+            )}
+        >
+            <Icon className="w-2.5 h-2.5" />
+            {meta.label}
+        </Badge>
+    );
 }
 
 const HEADER_BG = "bg-slate-900 dark:bg-slate-950 hover:bg-slate-900 dark:hover:bg-slate-950";
@@ -90,6 +134,13 @@ export default function ExpensesTable({
                         </span>
                     );
                 },
+            },
+            {
+                accessorKey: "state",
+                header: () => "Statut Odoo",
+                cell: (info) => (
+                    <ExpenseStateBadge state={info.getValue() as ExpenseState} />
+                ),
             },
             {
                 id: "status",

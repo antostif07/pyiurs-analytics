@@ -3,7 +3,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
-import { Building2, CalendarIcon, Check, Filter, Loader2 } from "lucide-react";
+import { Activity, Building2, CalendarIcon, Check, Filter, Loader2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
@@ -14,7 +14,15 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
-import type { ExpenseCategory, ExpenseCompany } from "../_lib/types";
+import type { ExpenseCategory, ExpenseCompany, ExpenseState } from "../_lib/types";
+
+const STATE_OPTIONS: Array<{ value: ExpenseState; label: string }> = [
+    { value: "draft", label: "Brouillon" },
+    { value: "reported", label: "Soumis" },
+    { value: "approved", label: "Approuvé" },
+    { value: "done", label: "Payé" },
+    { value: "refused", label: "Refusé" },
+];
 
 interface ExpensesFiltersProps {
     from: string;
@@ -23,6 +31,7 @@ interface ExpensesFiltersProps {
     categories: ExpenseCategory[];
     companyId: number | null;
     companies: ExpenseCompany[];
+    state: ExpenseState | null;   // ⬅️ nouveau
 }
 
 const selectClass =
@@ -35,6 +44,7 @@ export default function ExpensesFilters({
     categories,
     companyId,
     companies,
+    state
 }: ExpensesFiltersProps) {
     const router = useRouter();
     const pathname = usePathname();
@@ -65,6 +75,13 @@ export default function ExpensesFilters({
         const next = new URLSearchParams(searchParams.toString());
         if (value === "all") next.delete("company");
         else next.set("company", value);
+        updateUrl(next);
+    };
+
+    const handleStateChange = (value: string) => {
+        const next = new URLSearchParams(searchParams.toString());
+        if (value === "all") next.delete("state");
+        else next.set("state", value);
         updateUrl(next);
     };
 
@@ -136,6 +153,26 @@ export default function ExpensesFilters({
                     {companies.map((c) => (
                         <SelectItem key={c.id} value={String(c.id)} className="text-xs">
                             {c.name}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+
+            <Select
+                value={state ?? "all"}
+                onValueChange={handleStateChange}
+            >
+                <SelectTrigger className={cn(selectClass, "w-[140px]")}>
+                    <Activity className="w-3 h-3 text-muted-foreground shrink-0" />
+                    <SelectValue placeholder="Tous statuts" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="all" className="text-xs">
+                        Tous statuts
+                    </SelectItem>
+                    {STATE_OPTIONS.map((s) => (
+                        <SelectItem key={s.value} value={s.value} className="text-xs">
+                            {s.label}
                         </SelectItem>
                     ))}
                 </SelectContent>

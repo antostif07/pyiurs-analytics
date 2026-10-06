@@ -1,34 +1,36 @@
 // app/finance/expenses/_lib/types.ts
 
+export type ExpenseState =
+    | "draft"      // Brouillon
+    | "reported"   // Soumis / en attente d'approbation
+    | "approved"   // Approuvé par le manager
+    | "done"       // Payé / remboursé
+    | "refused";   // Refusé
+
 /**
  * Ligne `hr.expense` Odoo enrichie de la validation Supabase.
  * Toutes les données Odoo sont en lecture seule côté app.
  */
 export interface ExpenseRow {
-    // ── Odoo hr.expense ────────────────────────────────────────────────
     odooExpenseId: number;
-    name: string;                    // libellé / description
-    date: string;                    // ISO yyyy-MM-dd
-    employeeName: string;            // hr.employee.name
-    categoryId: number;              // product_id (id)
-    categoryName: string;            // product_id.name (affichée comme catégorie)
+    name: string;
+    date: string;
+    employeeName: string;
+    categoryId: number;
+    categoryName: string;
     quantity: number;
     unitAmount: number;
     totalAmount: number;
-    currency: string;                // "USD" / "CDF"
-    state: string;                   // draft | reported | approved | done | refused
+    currency: string;
+    /** Statut Odoo — typé strictement */
+    state: ExpenseState;
 
-    // ── Supabase expense_validations (jointure) ───────────────────────
     isValidated: boolean;
-
-    /** Autorisation (obligatoire) — URL signée */
     validationPhotoUrl: string | null;
-    /** Preuve (optionnelle) — URL signée */
     proofPhotoUrl: string | null;
-
     validationNotes: string | null;
     validatedAt: string | null;
-    validatedBy: string | null;    // profiles.full_name
+    validatedBy: string | null;
 }
 
 /** Liste des catégories (= product_id distincts) pour le filtre */
@@ -62,14 +64,14 @@ export interface ExpensesFilter {
     from: string;
     to: string;
     categoryIds: number[];
-    /** null = toutes les companies */
     companyId: number | null;
+    /** null = tous les statuts */
+    state: ExpenseState | null;
 }
 
 export interface ExpensesReportData {
     kpis: ExpensesKpis;
     expenses: ExpenseRow[];
     categories: ExpenseCategory[];
-    /** Companies disponibles pour le filtre */
     companies: ExpenseCompany[];
 }

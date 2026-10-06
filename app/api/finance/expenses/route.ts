@@ -11,10 +11,26 @@ import type {
     ExpenseCompany,
     ExpensesKpis,
     ExpensesReportData,
+    ExpenseState,
 } from "@/app/finance/expenses/_lib/types";
 
 export const dynamic = "force-dynamic";
 
+const VALID_STATES: ExpenseState[] = [
+    "draft",
+    "reported",
+    "approved",
+    "done",
+    "refused",
+];
+
+function narrowExpenseState(state: string | undefined): ExpenseState {
+    if (state && VALID_STATES.includes(state as ExpenseState)) {
+        return state as ExpenseState;
+    }
+    // Fallback défensif si Odoo introduit un nouveau statut
+    return "draft";
+}
 // ─────────────────────────────────────────────────────────────────────────
 // Cache module-level — mapping companies depuis Supabase shops
 // ─────────────────────────────────────────────────────────────────────────
@@ -119,6 +135,9 @@ export async function GET(request: NextRequest) {
                 : null,
             filters.companyId !== null
                 ? ["company_id", "=", filters.companyId]
+                : null,
+            filters.state !== null
+                ? ["state", "=", filters.state]
                 : null,
         );
 
@@ -245,26 +264,23 @@ export async function GET(request: NextRequest) {
                 odooExpenseId: e.id,
                 name: e.name,
                 date: formatOdooDate(e.date),
-                employeeName: Array.isArray(e.employee_id)
-                    ? e.employee_id[1]
-                    : "—",
+                employeeName: Array.isArray(e.employee_id) ? e.employee_id[1] : "—",
                 categoryId: Array.isArray(e.product_id) ? e.product_id[0] : 0,
-                categoryName: Array.isArray(e.product_id)
-                    ? e.product_id[1]
-                    : "—",
+                categoryName: Array.isArray(e.product_id) ? e.product_id[1] : "—",
                 quantity: qty,
                 unitAmount: unit,
                 totalAmount: total,
                 currency: Array.isArray(e.currency_id) ? e.currency_id[1] : "USD",
-                state: e.state,
+                state: narrowExpenseState(e.state),   // ← narrow
                 isValidated: !!v,
                 validationPhotoUrl: v?.photoUrl ?? null,
-                proofPhotoUrl: v?.proofUrl ?? null,        // ⬅️ nouveau
+                proofPhotoUrl: v?.proofUrl ?? null,
                 validationNotes: v?.notes ?? null,
                 validatedAt: v?.validatedAt ?? null,
                 validatedBy: v?.validatedBy ?? null,
             };
         });
+
 
         // ─── 5. Catégories uniques ────────────────────────────────────
         const categoriesMap = new Map<number, ExpenseCategory>();
