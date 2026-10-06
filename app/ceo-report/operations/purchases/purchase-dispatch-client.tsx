@@ -3,9 +3,9 @@
 
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import ReportPageHeader from "../../_components/report-page-header";
+import ReportPageHeader from "../../../../components/new-ui/layout/report-page-header";
 import GlobalFilters from "../../_components/global-filters";
-import { ReportSection } from "../../_components/report-section";
+import { ReportSection } from "../../../../components/new-ui/layout/report-section";
 import { parseFilters } from "../../_lib/filters";
 import PurchaseDispatchKpiGrid from "./_components/purchase-dispatch-kpi-grid";
 import PurchaseDispatchAnalytics from "./_components/purchase-dispatch-analytics";

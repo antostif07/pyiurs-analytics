@@ -10,9 +10,9 @@ import {
     ResponsiveContainer, Legend,
 } from "recharts";
 
-import ReportPageHeader from "../../_components/report-page-header";
+import ReportPageHeader from "../../../../components/new-ui/layout/report-page-header";
 import GlobalFilters from "../../_components/global-filters";
-import { ReportSection } from "../../_components/report-section";
+import { ReportSection } from "../../../../components/new-ui/layout/report-section";
 import CeoKpiCard from "../../_components/ceo-kpi-card";
 import { parseFilters } from "../../_lib/filters";
 

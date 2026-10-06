@@ -2,9 +2,9 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import ReportPageHeader from "./report-page-header";
+import ReportPageHeader from "../../../components/new-ui/layout/report-page-header";
 import GlobalFilters from "./global-filters";
-import { ReportSection } from "./report-section";
+import { ReportSection } from "../../../components/new-ui/layout/report-section";
 import { parseFilters } from "../_lib/filters";
 import type { ExecutiveCockpitData } from "../_lib/data/executive-cockpit";
 import type { ReportFilter } from "../_lib/types/reports";

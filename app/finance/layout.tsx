@@ -1,82 +1,57 @@
-"use client";
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import AppSidebar from "../../components/new-ui/layout/app-sidebar";
-import ReportTopbar from "../../components/new-ui/layout/app-topbar";
-import { NAV_GROUPS } from "./config";
+// app/finance/layout.tsx
+import { redirect } from "next/navigation";
+import { headers } from "next/headers";
+import type { Metadata } from "next";
+import { getServerAuth } from "@/lib/supabase/server";
+import { isFinanceRole } from "@/lib/auth/roles";
+import FinanceShell from "./finance-shell";
 
-type Role = "admin" | "manager" | "staff";
+export const metadata: Metadata = {
+  title: {
+    default: "Finance | Pyiurs",
+    template: "%s | Finance",
+  },
+  description:
+    "Pilotage financier : trésorerie, revenus, dépenses, épargne, comptabilité et rapports.",
+  robots: { index: false, follow: false },
+};
 
-export default function Layout({ children }: { children: React.ReactNode }) {
-  const [collapsed, setCollapsed] = useState(false);
-  const [dark, setDark] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const role: Role = "admin";
+// Session-dépendant → jamais statique.
+export const dynamic = "force-dynamic";
 
-  const handleToggleDark = () => {
-    setDark((d) => {
-      document.documentElement.classList.toggle("dark", !d);
-      return !d;
-    });
-  };
+/**
+ * Récupère le pathname courant (posé par proxy.ts via `x-pathname`).
+ * Fallback sur /finance si le middleware n'est pas encore configuré.
+ */
+async function resolveCurrentPath(): Promise<string> {
+  const h = await headers();
+  return h.get("x-pathname") ?? "/finance";
+}
 
-  return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      {/* Desktop sidebar */}
-      <div className="hidden md:flex h-full">
-        <AppSidebar
-          mainPath="/finance"
-          groups={NAV_GROUPS}
-          role={role}
-          collapsed={collapsed}
-          onCollapse={setCollapsed}
-        />
-      </div>
+export default async function FinanceLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const auth = await getServerAuth();
 
-      {/* Mobile sidebar drawer */}
-      <AnimatePresence>
-        {mobileOpen && (
-          <>
-            {/* Backdrop */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              onClick={() => setMobileOpen(false)}
-              className="fixed inset-0 bg-black/40 z-40 md:hidden"
-            />
-            {/* Drawer */}
-            <motion.div
-              initial={{ x: -280 }}
-              animate={{ x: 0 }}
-              exit={{ x: -280 }}
-              transition={{ duration: 0.25, ease: "easeInOut" }}
-              className="fixed left-0 top-0 bottom-0 w-64 z-50 md:hidden"
-            >
-              <AppSidebar
-                groups={NAV_GROUPS}
-                mainPath="/finance"
-                role={role}
-                collapsed={false}
-                onCollapse={() => setMobileOpen(false)}
-              />
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+  // 1. Auth
+  if (!auth.user) {
+    const next = await resolveCurrentPath();
+    redirect(`/login?next=${encodeURIComponent(next)}`);
+  }
 
-      {/* Right side: topbar + content */}
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-        <ReportTopbar
-          dark={dark}
-          onToggleDark={handleToggleDark}
-          onMenuOpen={() => setMobileOpen(true)}
-        />
-        <main className="flex-1 overflow-y-auto bg-background">
-          {children}
-        </main>
-      </div>
-    </div>
-  );
+  // 2. Profil obligatoire
+  if (!auth.profile) {
+    redirect("/unauthorized?reason=missing_profile");
+  }
+
+  // 3. Rôle autorisé
+  const { role } = auth.profile;
+  if (!isFinanceRole(role)) {
+    redirect("/unauthorized?reason=insufficient_permissions");
+  }
+
+  // 4. Rendu — seul le rôle est nécessaire au Shell
+  return <FinanceShell role={role}>{children}</FinanceShell>;
 }
