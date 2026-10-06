@@ -18,9 +18,11 @@ import type { ExpenseCategory, ExpenseCompany, ExpenseState } from "../_lib/type
 
 const STATE_OPTIONS: Array<{ value: ExpenseState; label: string }> = [
     { value: "draft", label: "Brouillon" },
-    { value: "reported", label: "Soumis" },
+    { value: "submitted", label: "Soumis" },
     { value: "approved", label: "Approuvé" },
-    { value: "done", label: "Payé" },
+    { value: "posted", label: "Comptabilisé" },
+    { value: "in_payment", label: "En cours" },
+    { value: "paid", label: "Payé" },
     { value: "refused", label: "Refusé" },
 ];
 

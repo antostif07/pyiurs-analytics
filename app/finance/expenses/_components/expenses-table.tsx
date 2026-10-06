@@ -31,10 +31,12 @@ const STATE_META: Record<
     { label: string; tone: BadgeTone; Icon: typeof CheckCircle2 }
 > = {
     draft: { label: "Brouillon", tone: "neutral", Icon: FileEdit },
-    reported: { label: "Soumis", tone: "amber", Icon: Send },
+    submitted: { label: "Soumis", tone: "amber", Icon: Send },
     approved: { label: "Approuvé", tone: "sky", Icon: CheckCircle2 },
-    done: { label: "Payé", tone: "emerald", Icon: CheckCircle2 },
+    paid: { label: "Payé", tone: "emerald", Icon: CheckCircle2 },
     refused: { label: "Refusé", tone: "rose", Icon: XCircle },
+    posted: { label: "Payé", tone: "emerald", Icon: CheckCircle2 },
+    in_payment: { label: "Payé", tone: "emerald", Icon: CheckCircle2 },
 };
 
 const BADGE_TONE_CLASSES: Record<BadgeTone, string> = {

@@ -2,9 +2,11 @@
 
 export type ExpenseState =
     | "draft"      // Brouillon
-    | "reported"   // Soumis / en attente d'approbation
+    | "submitted"   // Soumis / en attente d'approbation
     | "approved"   // Approuvé par le manager
-    | "done"       // Payé / remboursé
+    | "posted"       // Payé / remboursé
+    | "in_payment"
+    | "paid"
     | "refused";   // Refusé
 
 /**

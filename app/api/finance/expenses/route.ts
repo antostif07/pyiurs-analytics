@@ -18,9 +18,10 @@ export const dynamic = "force-dynamic";
 
 const VALID_STATES: ExpenseState[] = [
     "draft",
-    "reported",
+    "posted",
     "approved",
-    "done",
+    "in_payment",
+    "paid",
     "refused",
 ];
 

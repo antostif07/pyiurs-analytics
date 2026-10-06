@@ -5,9 +5,11 @@ import type { ExpenseState, ExpensesFilter } from "./types";
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const VALID_STATES: ExpenseState[] = [
     "draft",
-    "reported",
+    "submitted",
     "approved",
-    "done",
+    "posted",
+    "in_payment",
+    "paid",
     "refused",
 ];
 
