@@ -5,24 +5,24 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 interface ValidateArgs {
     odooExpenseId: number;
-    file: File;
+    validationFile: File;
+    proofFile?: File;
     notes?: string;
 }
 
 export function useValidateExpense() {
     const qc = useQueryClient();
-
     return useMutation({
-        mutationFn: async ({ odooExpenseId, file, notes }: ValidateArgs) => {
+        mutationFn: async ({ odooExpenseId, validationFile, proofFile, notes }: ValidateArgs) => {
             const fd = new FormData();
-            fd.append("file", file);
+            fd.append("validationFile", validationFile);
+            if (proofFile) fd.append("proofFile", proofFile);
             if (notes) fd.append("notes", notes);
 
             const res = await fetch(
                 `/api/finance/expenses/${odooExpenseId}/validate`,
                 { method: "POST", body: fd },
             );
-
             if (!res.ok) {
                 const body = await res.json().catch(() => ({}));
                 throw new Error(body.error ?? "Échec de la validation");

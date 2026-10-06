@@ -58,12 +58,17 @@ export default function ExpensesClient() {
         toast.success("Dépenses actualisées");
     };
 
-    const handleSubmitValidation = async (file: File, notes?: string) => {
+    const handleSubmitValidation = async (
+        validationFile: File,
+        proofFile?: File,
+        notes?: string,
+    ) => {
         if (!dialogExpense) return;
         try {
             await validateMutation.mutateAsync({
                 odooExpenseId: dialogExpense.odooExpenseId,
-                file,
+                validationFile,
+                proofFile,
                 notes,
             });
             toast.success("Dépense validée");

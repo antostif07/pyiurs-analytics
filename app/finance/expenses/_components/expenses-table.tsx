@@ -116,8 +116,8 @@ export default function ExpensesTable({
                 },
             },
             {
-                id: "photo",
-                header: () => "Photo",
+                id: "authPhoto",
+                header: () => "Autorisation",
                 cell: (info) => {
                     const row = info.row.original;
                     if (!row.isValidated || !row.validationPhotoUrl) {
@@ -128,6 +128,26 @@ export default function ExpensesTable({
                             type="button"
                             onClick={() => onViewPhoto(row.validationPhotoUrl!)}
                             className="inline-flex items-center gap-1 text-sky-600 hover:text-sky-700 dark:text-sky-400 text-[10px] font-semibold"
+                        >
+                            <ImageIcon className="w-3 h-3" />
+                            Voir
+                        </button>
+                    );
+                },
+            },
+            {
+                id: "proofPhoto",
+                header: () => "Preuve",
+                cell: (info) => {
+                    const row = info.row.original;
+                    if (!row.isValidated || !row.proofPhotoUrl) {
+                        return <span className="text-muted-foreground/40">—</span>;
+                    }
+                    return (
+                        <button
+                            type="button"
+                            onClick={() => onViewPhoto(row.proofPhotoUrl!)}
+                            className="inline-flex items-center gap-1 text-violet-600 hover:text-violet-700 dark:text-violet-400 text-[10px] font-semibold"
                         >
                             <ImageIcon className="w-3 h-3" />
                             Voir

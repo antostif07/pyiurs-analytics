@@ -16,7 +16,7 @@ interface PageProps {
 async function getEnhancedUsers(search?: string, role?: string): Promise<EnhancedUser[]> {
   // Vérifier que l'utilisateur connecté est admin
   const { user, profile } = await getServerAuth();
-  
+
   if (!user || profile?.role !== 'admin') {
     console.log('❌ Accès refusé - Rôle:', profile?.role);
     redirect('/');
@@ -93,19 +93,19 @@ async function getEnhancedUsers(search?: string, role?: string): Promise<Enhance
   }
 }
 
-async function getPOSConfig(): Promise<{records: POSConfig[]}> {
+async function getPOSConfig(): Promise<{ records: POSConfig[] }> {
   try {
     const res = await fetch(
       `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/pos.config?fields=id,name`,
-      { 
+      {
         next: { revalidate: 3600 }
       }
     );
-    
+
     if (!res.ok) {
       throw new Error(`Erreur API: ${res.status}`);
     }
-    
+
     return await res.json();
   } catch (error) {
     console.error('Erreur getPOSConfig:', error);
@@ -117,15 +117,15 @@ async function getCompanies() {
   try {
     const res = await fetch(
       `${process.env.NEXT_PUBLIC_BASE_URL}/api/odoo/res.company?fields=id,name`,
-      { 
+      {
         next: { revalidate: 3600 }
       }
     );
-    
+
     if (!res.ok) {
       throw new Error(`Erreur API: ${res.status}`);
     }
-    
+
     return await res.json();
   } catch (error) {
     console.error('Erreur getPOSConfig:', error);
@@ -134,53 +134,24 @@ async function getCompanies() {
 }
 
 export default async function UsersPage({ searchParams }: PageProps) {
-  // Vérifier l'authentification et les permissions
-  const { user, profile } = await getServerAuth();
-  
-  if (!user) {
-    redirect('/login');
-  }
-  
-  if (profile?.role !== 'admin') {
-    console.log('Accès refusé à /users - Rôle:', profile?.role);
-    redirect('/');
-  }
-
+  // ⬇️ Auth garantie par layout.tsx
   const params = await searchParams;
   const search = params.search || undefined;
   const role = params.role || undefined;
 
-  try {
-    const [users, shops, companies] = await Promise.all([
-      getEnhancedUsers(search, role),
-      getPOSConfig(),
-      getCompanies()
-    ]);
+  const [users, shops, companies] = await Promise.all([
+    getEnhancedUsers(search, role),
+    getPOSConfig(),
+    getCompanies(),
+  ]);
 
-    return (
-      <UsersClient
-        initialUsers={users}
-        shops={shops.records}
-        companies={companies.records}
-        search={search}
-        roleFilter={role}
-      />
-    );
-  } catch (error) {
-    console.error('❌ Erreur dans UsersPage:', error);
-    
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-6xl mb-4">❌</div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-            Erreur
-          </h1>
-          <p className="text-gray-600 dark:text-gray-300">
-            {error instanceof Error ? error.message : 'Une erreur est survenue lors du chargement des utilisateurs'}
-          </p>
-        </div>
-      </div>
-    );
-  }
+  return (
+    <UsersClient
+      initialUsers={users}
+      shops={shops.records}
+      companies={companies.records}
+      search={search}
+      roleFilter={role}
+    />
+  );
 }

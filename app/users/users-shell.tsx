@@ -1,4 +1,4 @@
-// app/finance/finance-shell.tsx
+// app/users/users-shell.tsx
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -7,26 +7,21 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "next-themes";
 import AppSidebar from "@/components/new-ui/layout/app-sidebar";
 import AppTopbar from "@/components/new-ui/layout/app-topbar";
-import type { FinanceRole } from "@/lib/auth/roles";
-import { NAV_GROUPS } from "./config";
+import { USERS_NAV_GROUPS, USERS_BASE_PATH } from "./config";
 
-type ShellRole = FinanceRole | "controller";
-
-export interface FinanceShellProps {
-    role: ShellRole;
+export interface UsersShellProps {
     children: React.ReactNode;
 }
 
-const SIDEBAR_STORAGE_KEY = "retail_sidebar_finance_collapsed";
-const MAIN_PATH = "/finance";
+const SIDEBAR_STORAGE_KEY = "retail_sidebar_users_collapsed";
 
-export default function FinanceShell({ role, children }: FinanceShellProps) {
+export default function UsersShell({ children }: UsersShellProps) {
     const pathname = usePathname();
     const [collapsed, setCollapsed] = useState<boolean>(false);
     const [mobileOpen, setMobileOpen] = useState<boolean>(false);
     const [mounted, setMounted] = useState<boolean>(false);
 
-    // 1. Hydratation sécurisée (localStorage après mount, pas au SSR)
+    // 1. Hydratation sécurisée (localStorage après mount)
     useEffect(() => {
         setMounted(true);
         try {
@@ -37,12 +32,12 @@ export default function FinanceShell({ role, children }: FinanceShellProps) {
         }
     }, []);
 
-    // 2. Fermeture auto du drawer mobile à chaque navigation
+    // 2. Fermeture du drawer mobile à chaque navigation
     useEffect(() => {
         setMobileOpen(false);
     }, [pathname]);
 
-    // 3. Thème — via next-themes (monté au Root Layout)
+    // 3. Thème — next-themes (monté au Root Layout)
     const { resolvedTheme, setTheme } = useTheme();
     const isDarkMode = mounted ? resolvedTheme === "dark" : false;
 
@@ -53,7 +48,10 @@ export default function FinanceShell({ role, children }: FinanceShellProps) {
     const handleCollapse = useCallback((isCollapsed: boolean) => {
         setCollapsed(isCollapsed);
         try {
-            localStorage.setItem(SIDEBAR_STORAGE_KEY, JSON.stringify(isCollapsed));
+            localStorage.setItem(
+                SIDEBAR_STORAGE_KEY,
+                JSON.stringify(isCollapsed),
+            );
         } catch {
             /* ignore */
         }
@@ -68,7 +66,7 @@ export default function FinanceShell({ role, children }: FinanceShellProps) {
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, [mobileOpen]);
 
-    // 5. Blocage scroll body en mode mobile drawer
+    // 5. Blocage scroll body en mode mobile
     useEffect(() => {
         document.body.style.overflow = mobileOpen ? "hidden" : "";
         return () => {
@@ -81,9 +79,9 @@ export default function FinanceShell({ role, children }: FinanceShellProps) {
             {/* Sidebar Desktop */}
             <aside className="hidden md:flex h-full shrink-0 border-r border-border/40">
                 <AppSidebar
-                    mainPath={MAIN_PATH}
-                    groups={NAV_GROUPS}
-                    role={role}
+                    mainPath={USERS_BASE_PATH}
+                    groups={USERS_NAV_GROUPS}
+                    role="admin"
                     collapsed={collapsed}
                     onCollapse={handleCollapse}
                 />
@@ -96,7 +94,7 @@ export default function FinanceShell({ role, children }: FinanceShellProps) {
                         className="fixed inset-0 z-50 md:hidden"
                         role="dialog"
                         aria-modal="true"
-                        aria-label="Navigation Finance"
+                        aria-label="Navigation Administration"
                     >
                         <motion.div
                             initial={{ opacity: 0 }}
@@ -114,9 +112,9 @@ export default function FinanceShell({ role, children }: FinanceShellProps) {
                             className="absolute left-0 top-0 bottom-0 w-72 bg-card border-r border-border shadow-2xl"
                         >
                             <AppSidebar
-                                mainPath={MAIN_PATH}
-                                groups={NAV_GROUPS}
-                                role={role}
+                                mainPath={USERS_BASE_PATH}
+                                groups={USERS_NAV_GROUPS}
+                                role="admin"
                                 collapsed={false}
                                 onCollapse={() => setMobileOpen(false)}
                             />
@@ -131,7 +129,7 @@ export default function FinanceShell({ role, children }: FinanceShellProps) {
                     dark={isDarkMode}
                     onToggleDark={handleToggleDark}
                     onMenuOpen={() => setMobileOpen(true)}
-                    groups={NAV_GROUPS}
+                    groups={USERS_NAV_GROUPS}
                 />
                 <main className="flex-1 overflow-y-auto bg-background/50 scroll-smooth">
                     <div className="mx-auto max-w-[1600px]">{children}</div>

@@ -1,16 +1,56 @@
 // app/users/components/users.client.tsx
-'use client'
+"use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
-import { useState } from "react";
-import { POSConfig } from "../types/pos";
-import { CreateUserModal } from "./components/create-user-modal";
-import { ResCompany } from "../types/odoo";
-import { EditUserModal } from "./components/edit-user-modal";
-import { UserRole } from "@/lib/constants";
+import {
+  Plus,
+  Search,
+  Pencil,
+  Trash2,
+  Users as UsersIcon,
+  ShieldCheck,
+} from "lucide-react";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getPaginationRowModel,
+  flexRender,
+  type ColumnDef,
+} from "@tanstack/react-table";
 
+import ReportPageHeader from "@/components/new-ui/layout/report-page-header";
+import { ReportSection } from "@/components/new-ui/layout/report-section";
+import { DataTablePagination } from "@/components/new-ui/table/data-table-pagination";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+
+import { CreateUserModal } from "./components/create-user-modal";
+import { EditUserModal } from "./components/edit-user-modal";
+import type { POSConfig } from "../types/pos";
+import type { ResCompany } from "../types/odoo";
+import type { UserRole } from "@/lib/constants";
+
+// ─────────────────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────────────────
 
 export interface EnhancedUser {
   id: string;
@@ -19,7 +59,7 @@ export interface EnhancedUser {
   role: UserRole;
   assigned_shops: string[];
   assigned_companies: number[];
-  shop_access_type: 'all' | 'specific';
+  shop_access_type: "all" | "specific";
   avatar_url?: string;
   created_at: string;
   updated_at: string;
@@ -38,330 +78,451 @@ interface UsersClientProps {
   roleFilter?: string;
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Constants
+// ─────────────────────────────────────────────────────────────────────────
+
+const HEADER_BG =
+  "bg-slate-900 dark:bg-slate-950 hover:bg-slate-900 dark:hover:bg-slate-950";
+
+type BadgeTone = "emerald" | "amber" | "rose" | "sky" | "violet" | "neutral";
+
+const ROLE_TONE: Record<string, BadgeTone> = {
+  admin: "rose",
+  manager: "sky",
+  financier: "emerald",
+  controller: "violet",
+  "inventory-manager": "amber",
+  inventory_manager: "amber",
+  user: "neutral",
+};
+
+const ROLE_LABEL: Record<string, string> = {
+  admin: "Administrateur",
+  manager: "Manager",
+  financier: "Financier",
+  controller: "Contrôleur",
+  "inventory-manager": "Gestionnaire Stock",
+  inventory_manager: "Gestionnaire Stock",
+  user: "Utilisateur",
+};
+
+const BADGE_TONE_CLASSES: Record<BadgeTone, string> = {
+  emerald:
+    "text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200/60 dark:border-emerald-800/60",
+  amber:
+    "text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border-amber-200/60 dark:border-amber-800/60",
+  rose:
+    "text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border-rose-200/60 dark:border-rose-800/60",
+  sky:
+    "text-sky-700 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/40 border-sky-200/60 dark:border-sky-800/60",
+  violet:
+    "text-violet-700 dark:text-violet-400 bg-violet-50 dark:bg-violet-950/40 border-violet-200/60 dark:border-violet-800/60",
+  neutral: "text-muted-foreground bg-muted/40 border-border/60",
+};
+
+const PAGE_SIZE_DEFAULT = 25;
+
+// ─────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────
+
+function formatDate(iso: string | undefined): string {
+  if (!iso) return "Jamais";
+  return new Date(iso).toLocaleDateString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+function RoleBadge({ role }: { role: string }) {
+  const tone = ROLE_TONE[role] ?? "neutral";
+  const label = ROLE_LABEL[role] ?? role;
+  return (
+    <Badge
+      variant="outline"
+      className={cn(
+        "h-5 px-1.5 text-[10px] font-semibold border",
+        BADGE_TONE_CLASSES[tone],
+      )}
+    >
+      {label}
+    </Badge>
+  );
+}
+
+function useDebounced<T>(value: T, delay = 350): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(id);
+  }, [value, delay]);
+  return debounced;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Component
+// ─────────────────────────────────────────────────────────────────────────
+
 export default function UsersClient({
   initialUsers: users,
   shops,
   companies,
   search,
-  roleFilter
+  roleFilter,
 }: UsersClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<EnhancedUser | null>(null);
+  const [searchInput, setSearchInput] = useState(search ?? "");
 
-  const handleFilterChange = (updates: { search?: string; role?: string }) => {
-    const params = new URLSearchParams(searchParams.toString());
+  const debouncedSearch = useDebounced(searchInput, 350);
 
-    Object.entries(updates).forEach(([key, value]) => {
-      if (value === undefined || value === '') {
-        params.delete(key);
-      } else {
-        params.set(key, value);
-      }
-    });
+  // ─── Sync URL quand la recherche déboundée change ───────────────
+  const pushFilter = useCallback(
+    (updates: { search?: string; role?: string }) => {
+      const params = new URLSearchParams(searchParams.toString());
 
-    router.push(`?${params.toString()}`, { scroll: false });
-  };
+      Object.entries(updates).forEach(([key, value]) => {
+        if (value === undefined || value === "" || value === "all") {
+          params.delete(key);
+        } else {
+          params.set(key, value);
+        }
+      });
 
-  const handleSearch = (value: string) => {
-    handleFilterChange({ search: value });
-  };
+      const qs = params.toString();
+      router.push(qs ? `?${qs}` : "?", { scroll: false });
+    },
+    [router, searchParams],
+  );
+
+  useEffect(() => {
+    if ((search ?? "") === debouncedSearch) return;
+    pushFilter({ search: debouncedSearch });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch]);
 
   const handleRoleFilter = (value: string) => {
-    handleFilterChange({ role: value === 'all' ? undefined : value });
+    pushFilter({ role: value });
   };
 
-  const getRoleBadgeColor = (role: string) => {
-    switch (role) {
-      case 'admin':
-        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
-      case 'manager':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
-      case 'financier':
-        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
-      default:
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
-    }
+  const handleUserChanged = () => {
+    router.refresh();
   };
 
-  const getRoleDisplayName = (role: UserRole) => {
-    switch (role) {
-      case 'admin':
-        return 'Administrateur';
-      case 'manager':
-        return 'Manager';
-      case 'financier':
-        return 'Financier';
-      case 'inventory-manager':
-        return "Gestionnaire de Stock"
-      default:
-        return 'Utilisateur';
-    }
-  };
+  // ─── Columns ────────────────────────────────────────────────────
+  const columns = useMemo<ColumnDef<EnhancedUser>[]>(
+    () => [
+      {
+        accessorKey: "full_name",
+        header: () => "Utilisateur",
+        cell: (info) => {
+          const user = info.row.original;
+          return (
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-7 h-7 rounded-full bg-sky-500 flex items-center justify-center text-white text-[11px] font-semibold shrink-0">
+                {(user.full_name || user.email || "?")
+                  .charAt(0)
+                  .toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold text-foreground truncate">
+                  {user.full_name || "Non renseigné"}
+                </div>
+                <div className="text-[10px] text-muted-foreground/70 truncate">
+                  {user.email}
+                </div>
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "role",
+        header: () => "Rôle",
+        cell: (info) => <RoleBadge role={info.getValue() as string} />,
+      },
+      {
+        id: "shopAccess",
+        header: () => "Accès boutiques",
+        cell: (info) => {
+          const user = info.row.original;
+          return user.shop_access_type === "all" ? (
+            <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+              Toutes
+            </span>
+          ) : (
+            <span className="text-muted-foreground">
+              {user.assigned_shops?.length ?? 0} boutique
+              {(user.assigned_shops?.length ?? 0) > 1 ? "s" : ""}
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: "created_at",
+        header: () => "Créé le",
+        cell: (info) => (
+          <span className="text-muted-foreground tabular-nums">
+            {formatDate(info.getValue() as string)}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "last_sign_in_at",
+        header: () => "Dernière connexion",
+        cell: (info) => {
+          const v = info.getValue() as string | undefined;
+          return v ? (
+            <span className="text-muted-foreground tabular-nums">
+              {formatDate(v)}
+            </span>
+          ) : (
+            <span className="text-muted-foreground/50 italic">Jamais</span>
+          );
+        },
+      },
+      {
+        id: "actions",
+        header: () => "Actions",
+        cell: (info) => {
+          const user = info.row.original;
+          return (
+            <div className="flex items-center justify-end gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setEditingUser(user)}
+                className="h-6 px-2 text-[10px] gap-1 border-border/80 hover:bg-accent/60"
+              >
+                <Pencil className="w-3 h-3" />
+                Modifier
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (
+                    confirm(
+                      "Êtes-vous sûr de vouloir supprimer cet utilisateur ?",
+                    )
+                  ) {
+                    // TODO: suppression
+                  }
+                }}
+                className="h-6 px-2 text-[10px] gap-1 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+              >
+                <Trash2 className="w-3 h-3" />
+              </Button>
+            </div>
+          );
+        },
+      },
+    ],
+    [],
+  );
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('fr-FR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-  };
+  // ─── Table instance ─────────────────────────────────────────────
+  const table = useReactTable({
+    data: users,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    initialState: {
+      pagination: { pageSize: PAGE_SIZE_DEFAULT },
+    },
+  });
 
-  const handleUserCreated = () => {
-    router.refresh() // Rafraîchir les données serveur
-  }
+  const totalCount = users.length;
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
-      {/* Header */}
-      <div className="border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-        <div className="container mx-auto px-6 py-8">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center space-x-4">
-              <Link
-                href="/"
-                className="inline-flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors duration-200"
-              >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-                Retour
-              </Link>
+    <div>
+      <ReportPageHeader
+        title="Gestion des Utilisateurs"
+        subtitle="Comptes, rôles et accès boutiques"
+        badge={{ label: "Administration", tone: "violet" }}
+      >
+        <div className="flex flex-wrap items-center gap-1.5">
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground/60 pointer-events-none" />
+            <Input
+              type="text"
+              placeholder="Rechercher..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              className="h-7 w-56 pl-7 text-[11.5px] bg-secondary/60"
+            />
+          </div>
+
+          <Select
+            value={roleFilter ?? "all"}
+            onValueChange={handleRoleFilter}
+          >
+            <SelectTrigger className="h-7 w-40 text-[11.5px] bg-secondary/60 rounded-lg">
+              <SelectValue placeholder="Tous les rôles" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all" className="text-xs">
+                Tous les rôles
+              </SelectItem>
+              <SelectItem value="admin" className="text-xs">
+                Administrateur
+              </SelectItem>
+              <SelectItem value="manager" className="text-xs">
+                Manager
+              </SelectItem>
+              <SelectItem value="financier" className="text-xs">
+                Financier
+              </SelectItem>
+              <SelectItem value="controller" className="text-xs">
+                Contrôleur
+              </SelectItem>
+              <SelectItem value="inventory-manager" className="text-xs">
+                Gestionnaire Stock
+              </SelectItem>
+              <SelectItem value="user" className="text-xs">
+                Utilisateur
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </ReportPageHeader>
+
+      <div className="p-4 sm:p-5 space-y-4">
+        {/* Info bar */}
+        <div className="flex flex-wrap items-center gap-3 text-[11px]">
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <UsersIcon className="w-3.5 h-3.5" />
+            <span className="font-semibold text-foreground tabular-nums">
+              {totalCount}
+            </span>
+            <span>utilisateur{totalCount > 1 ? "s" : ""}</span>
+          </div>
+          {(search || roleFilter) && (
+            <div className="flex items-center gap-1.5 text-muted-foreground">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>filtres actifs</span>
             </div>
-            <div>
-              <h1 className="text-3xl lg:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                Gestion des Utilisateurs
-              </h1>
-              <p className="text-gray-600 dark:text-gray-300 mt-2">
-                Créez et gérez les accès utilisateurs de votre organisation
+          )}
+        </div>
+
+        <ReportSection
+          index={1}
+          title="Liste des utilisateurs"
+          actions={
+            <Button
+              size="sm"
+              onClick={() => setIsCreateModalOpen(true)}
+              className="h-7 px-2.5 text-[11px] gap-1.5 bg-sky-600 hover:bg-sky-700 text-white"
+            >
+              <Plus className="w-3 h-3" />
+              Nouvel utilisateur
+            </Button>
+          }
+        >
+          {users.length === 0 ? (
+            <div className="rounded-lg border border-border/60 bg-card shadow-2xs p-8 text-center">
+              <UsersIcon className="w-6 h-6 mx-auto text-muted-foreground/40" />
+              <h3 className="text-[12px] font-semibold text-foreground mt-2">
+                {search
+                  ? "Aucun utilisateur trouvé"
+                  : "Aucun utilisateur"}
+              </h3>
+              <p className="text-[11px] text-muted-foreground/70 mt-0.5">
+                {search
+                  ? "Aucun résultat ne correspond à votre recherche."
+                  : "Commencez par créer votre premier utilisateur."}
               </p>
             </div>
+          ) : (
+            <div className="rounded-lg border border-border/60 bg-card shadow-2xs overflow-hidden">
+              <div className="overflow-x-auto">
+                <Table className="w-full text-[11px]">
+                  <TableHeader className={HEADER_BG}>
+                    {table.getHeaderGroups().map((hg) => (
+                      <TableRow
+                        key={hg.id}
+                        className={cn("border-none", HEADER_BG)}
+                      >
+                        {hg.headers.map((header, idx) => (
+                          <TableHead
+                            key={header.id}
+                            className={cn(
+                              "py-2 px-3 text-[10px] font-semibold text-white uppercase tracking-wider h-auto",
+                              idx === 0 && "text-left min-w-[220px]",
+                              idx === hg.headers.length - 1 &&
+                              "text-right min-w-[140px]",
+                              idx > 0 &&
+                              idx < hg.headers.length - 1 &&
+                              "text-center min-w-[110px]",
+                              HEADER_BG,
+                            )}
+                          >
+                            {flexRender(
+                              header.column.columnDef.header,
+                              header.getContext(),
+                            )}
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </TableHeader>
 
-            <div className="mt-4 lg:mt-0">
-              <div className="bg-white dark:bg-slate-700 rounded-xl p-4 border border-gray-200 dark:border-slate-600">
-                <p className="text-sm text-gray-600 dark:text-gray-400">Utilisateurs actifs</p>
-                <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {users.length} utilisateurs
-                </p>
+                  <TableBody className="divide-y divide-border/40">
+                    {table.getRowModel().rows.map((row) => (
+                      <TableRow
+                        key={row.id}
+                        className="hover:bg-accent/30 transition-colors border-b border-border/40"
+                      >
+                        {row.getVisibleCells().map((cell, idx) => (
+                          <TableCell
+                            key={cell.id}
+                            className={cn(
+                              "py-2 px-3",
+                              idx === 0 && "text-left",
+                              idx ===
+                              row.getVisibleCells().length -
+                              1 && "text-right",
+                              idx > 0 &&
+                              idx <
+                              row.getVisibleCells()
+                                .length -
+                              1 &&
+                              "text-center",
+                            )}
+                          >
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext(),
+                            )}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
+
+              {/* Pagination */}
+              <DataTablePagination
+                table={table}
+                totalRows={users.length}
+                rowLabel="utilisateur"
+              />
             </div>
-          </div>
-        </div>
+          )}
+        </ReportSection>
       </div>
 
-      {/* Main Content */}
-      <div className="container mx-auto px-6 py-8">
-        {/* Filtres et Actions */}
-        <Card className="mb-8">
-          <CardContent className="p-6">
-            <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
-              {/* Filtres */}
-              <div className="flex flex-col sm:flex-row gap-4 items-center flex-1">
-                {/* Recherche */}
-                <div className="relative flex-1 min-w-64">
-                  <input
-                    type="text"
-                    placeholder="Rechercher un utilisateur..."
-                    value={search || ''}
-                    onChange={(e) => handleSearch(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  />
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <span className="text-gray-400">🔍</span>
-                  </div>
-                </div>
-
-                {/* Filtre par rôle */}
-                <select
-                  value={roleFilter || 'all'}
-                  onChange={(e) => handleRoleFilter(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white min-w-32"
-                >
-                  <option value="all">Tous les rôles</option>
-                  <option value="admin">Administrateurs</option>
-                  <option value="manager">Managers</option>
-                  <option value="financier">Financiers</option>
-                  <option value="inventory-manager">Gestionnaire Stock</option>
-                  <option value="user">Utilisateurs</option>
-                </select>
-              </div>
-
-              {/* Bouton d'action */}
-              <button
-                onClick={() => setIsCreateModalOpen(true)}
-                className="px-6 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors duration-200 font-medium flex items-center space-x-2"
-              >
-                <span>+</span>
-                <span>Nouvel utilisateur</span>
-              </button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Tableau des utilisateurs */}
-        <Card className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
-          <CardHeader className="bg-gray-50 dark:bg-slate-700/50 border-b border-gray-200 dark:border-slate-700">
-            <CardTitle className="text-gray-900 dark:text-white flex items-center justify-between">
-              <span>Liste des Utilisateurs</span>
-              <span className="text-sm font-normal text-gray-500 dark:text-gray-400">
-                {users.length} utilisateur(s) trouvé(s)
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-700/30">
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-900 dark:text-white min-w-48">
-                      Utilisateur
-                    </th>
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-900 dark:text-white min-w-32">
-                      Rôle
-                    </th>
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-900 dark:text-white min-w-40">
-                      Accès Boutiques
-                    </th>
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-900 dark:text-white min-w-32">
-                      Date de création
-                    </th>
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-900 dark:text-white min-w-24">
-                      Dernière connexion
-                    </th>
-                    <th className="text-right py-4 px-6 text-sm font-semibold text-gray-900 dark:text-white min-w-32">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-slate-700">
-                  {users.map((user) => (
-                    <tr
-                      key={user.id}
-                      className="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors duration-150 group"
-                    >
-                      <td className="py-4 px-6">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-medium">
-                            {user.email?.charAt(0).toUpperCase()}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="text-sm font-semibold text-gray-900 dark:text-white truncate">
-                              {user.full_name || 'Non renseigné'}
-                            </div>
-                            <div className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                              {user.email}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-4 px-6">
-                        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getRoleBadgeColor(user.role)}`}>
-                          {getRoleDisplayName(user.role)}
-                        </span>
-                      </td>
-                      <td className="py-4 px-6">
-                        <div className="text-sm text-gray-900 dark:text-white">
-                          {user.shop_access_type === 'all' ? (
-                            <span className="text-green-600 dark:text-green-400">Toutes les boutiques</span>
-                          ) : (
-                            <span>{user.assigned_shops.length} boutique(s)</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-4 px-6 text-sm text-gray-900 dark:text-white">
-                        {formatDate(user.created_at)}
-                      </td>
-                      <td className="py-4 px-6 text-sm text-gray-500 dark:text-gray-400">
-                        {user.last_sign_in_at ? formatDate(user.last_sign_in_at) : 'Jamais'}
-                      </td>
-                      <td className="py-4 px-6 text-right">
-                        <div className="flex items-center justify-end space-x-2">
-                          <button
-                            onClick={() => setEditingUser(user)}
-                            className="px-3 py-1 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors duration-200"
-                          >
-                            Modifier
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
-                                // Implémentez la suppression ici
-                              }
-                            }}
-                            className="px-3 py-1 text-sm bg-red-500 hover:bg-red-600 text-white rounded transition-colors duration-200"
-                          >
-                            Supprimer
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {/* État vide */}
-              {users.length === 0 && (
-                <div className="text-center py-12">
-                  <div className="text-4xl mb-4">👥</div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                    {search ? "Aucun utilisateur trouvé" : "Aucun utilisateur"}
-                  </h3>
-                  <p className="text-gray-600 dark:text-gray-300 max-w-md mx-auto">
-                    {search
-                      ? "Aucun utilisateur ne correspond à votre recherche."
-                      : "Commencez par créer votre premier utilisateur."
-                    }
-                  </p>
-                  {!search && (
-                    <button
-                      onClick={() => setIsCreateModalOpen(true)}
-                      className="mt-4 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
-                    >
-                      Créer un utilisateur
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Modal de création (à implémenter) */}
-      {isCreateModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 max-w-md w-full">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Créer un nouvel utilisateur
-            </h3>
-            <p className="text-gray-600 dark:text-gray-300 mb-4">
-              Fonctionnalité à implémenter - Intégration avec l&apos;authentification Supabase
-            </p>
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => setIsCreateModalOpen(false)}
-                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={() => {
-                  // Implémentez la création d'utilisateur ici
-                  setIsCreateModalOpen(false);
-                }}
-                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
-              >
-                Créer
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Modales */}
       <CreateUserModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        onUserCreated={handleUserCreated}
+        onUserCreated={handleUserChanged}
         shops={shops}
         companies={companies}
       />
@@ -370,11 +531,11 @@ export default function UsersClient({
           user={editingUser}
           isOpen={!!editingUser}
           onClose={() => setEditingUser(null)}
-          onUserUpdated={handleUserCreated}
+          onUserUpdated={handleUserChanged}
           shops={shops}
           companies={companies}
         />
       )}
-    </main>
+    </div>
   );
 }

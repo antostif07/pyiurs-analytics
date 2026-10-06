@@ -163,7 +163,7 @@ export async function GET(request: NextRequest) {
         const { data: validations, error: vErr } = await supabase
             .from("expense_validations")
             .select(
-                "odoo_expense_id, validation_photo_path, notes, validated_at, validated_by",
+                "odoo_expense_id, validation_photo_path, proof_photo_path, notes, validated_at, validated_by",
             )
             .in("odoo_expense_id", expenseIds);
 
@@ -190,15 +190,17 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        const photoPaths = (validations ?? [])
-            .map((v) => v.validation_photo_path)
-            .filter(Boolean);
+        // Collecter TOUS les paths à signer (autorisation + preuve)
+        const allPaths = (validations ?? []).flatMap((v) => [
+            v.validation_photo_path,
+            v.proof_photo_path,
+        ]).filter((p): p is string => typeof p === "string" && p.length > 0);
 
         const signedUrlByPath = new Map<string, string>();
-        if (photoPaths.length > 0) {
+        if (allPaths.length > 0) {
             const { data: signed } = await supabase.storage
                 .from("expense-validations")
-                .createSignedUrls(photoPaths, 60 * 60);
+                .createSignedUrls(allPaths, 60 * 60);
 
             for (const s of signed ?? []) {
                 if (s.signedUrl && s.path) {
@@ -211,6 +213,7 @@ export async function GET(request: NextRequest) {
             number,
             {
                 photoUrl: string | null;
+                proofUrl: string | null;
                 notes: string | null;
                 validatedAt: string;
                 validatedBy: string | null;
@@ -220,6 +223,9 @@ export async function GET(request: NextRequest) {
         for (const v of validations ?? []) {
             validationMap.set(v.odoo_expense_id, {
                 photoUrl: signedUrlByPath.get(v.validation_photo_path) ?? null,
+                proofUrl: v.proof_photo_path
+                    ? signedUrlByPath.get(v.proof_photo_path) ?? null
+                    : null,
                 notes: v.notes ?? null,
                 validatedAt: v.validated_at,
                 validatedBy: v.validated_by
@@ -253,6 +259,7 @@ export async function GET(request: NextRequest) {
                 state: e.state,
                 isValidated: !!v,
                 validationPhotoUrl: v?.photoUrl ?? null,
+                proofPhotoUrl: v?.proofUrl ?? null,        // ⬅️ nouveau
                 validationNotes: v?.notes ?? null,
                 validatedAt: v?.validatedAt ?? null,
                 validatedBy: v?.validatedBy ?? null,

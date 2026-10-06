@@ -44,7 +44,14 @@ export const CDF_DENOMINATIONS: Denomination[] = [
 ];
 
 // ✅ Aligné strictement sur la contrainte de clé CHECK PostgreSQL : profiles_role_check
-export type UserRole = "admin" | "manager" | "financier" | "user" | "inventory-manager" | "inventory_manager";
+export type UserRole =
+  | "admin"
+  | "manager"
+  | "financier"
+  | "user"
+  | "inventory-manager"
+  | "inventory_manager"
+  | "controller";
 
 export interface AppModule {
   id: string;
@@ -113,7 +120,7 @@ export const MODULES_CONFIG: AppModule[] = [
     icon: Banknote,
     color: "bg-emerald-600",
     category: "finance",
-    permissions: ["admin", "manager", "financier"],
+    permissions: ["admin", "manager", "financier", "controller"],
     isNew: true,
     order: 0
   },

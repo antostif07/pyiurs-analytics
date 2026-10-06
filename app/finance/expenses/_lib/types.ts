@@ -19,11 +19,16 @@ export interface ExpenseRow {
     state: string;                   // draft | reported | approved | done | refused
 
     // ── Supabase expense_validations (jointure) ───────────────────────
-    isValidated: boolean;            // true si une ligne existe
+    isValidated: boolean;
+
+    /** Autorisation (obligatoire) — URL signée */
     validationPhotoUrl: string | null;
+    /** Preuve (optionnelle) — URL signée */
+    proofPhotoUrl: string | null;
+
     validationNotes: string | null;
-    validatedAt: string | null;      // ISO
-    validatedBy: string | null;      // profiles.full_name
+    validatedAt: string | null;
+    validatedBy: string | null;    // profiles.full_name
 }
 
 /** Liste des catégories (= product_id distincts) pour le filtre */

@@ -13,6 +13,8 @@ const ALLOWED_MIME = [
     "application/pdf",
 ];
 
+const ALLOWED_ROLES = ["admin", "financier", "controller"];
+
 interface RouteParams {
     params: Promise<{ id: string }>;
 }
@@ -26,12 +28,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             return NextResponse.json({ error: "ID invalide" }, { status: 400 });
         }
 
-        // ─── Auth + rôle ───────────────────────────────────────────────
+        // Auth + rôle
         const supabase = await createClient();
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-            return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-        }
+        if (!user) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
 
         const { data: profile } = await supabase
             .from("profiles")
@@ -39,72 +39,71 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             .eq("id", user.id)
             .single();
 
-        if (!profile || !["admin", "financier"].includes(profile.role ?? "")) {
-            return NextResponse.json(
-                { error: "Permissions insuffisantes" },
-                { status: 403 },
-            );
+        if (!profile || !ALLOWED_ROLES.includes(profile.role ?? "")) {
+            return NextResponse.json({ error: "Permissions insuffisantes" }, { status: 403 });
         }
 
-        // ─── Parse form ────────────────────────────────────────────────
+        // Parse form : validationFile (requis) + proofFile (optionnel)
         const formData = await request.formData();
-        const file = formData.get("file") as File | null;
+        const validationFile = formData.get("validationFile") as File | null;
+        const proofFile = formData.get("proofFile") as File | null;
         const notes = (formData.get("notes") as string | null) || null;
 
-        if (!file) {
-            return NextResponse.json({ error: "Fichier manquant" }, { status: 400 });
+        if (!validationFile) {
+            return NextResponse.json({ error: "Photo d'autorisation manquante" }, { status: 400 });
         }
 
-        if (file.size > MAX_SIZE) {
-            return NextResponse.json(
-                { error: `Fichier trop lourd (max ${MAX_SIZE / 1024 / 1024} MB)` },
-                { status: 400 },
-            );
+        if (validationFile.size > MAX_SIZE) {
+            return NextResponse.json({ error: "Autorisation : fichier trop lourd (max 5 Mo)" }, { status: 400 });
+        }
+        if (!ALLOWED_MIME.includes(validationFile.type)) {
+            return NextResponse.json({ error: "Autorisation : format non autorisé" }, { status: 400 });
         }
 
-        if (!ALLOWED_MIME.includes(file.type)) {
-            return NextResponse.json(
-                { error: "Type de fichier non autorisé (JPEG, PNG, WebP, PDF)" },
-                { status: 400 },
-            );
+        if (proofFile) {
+            if (proofFile.size > MAX_SIZE) {
+                return NextResponse.json({ error: "Preuve : fichier trop lourd (max 5 Mo)" }, { status: 400 });
+            }
+            if (!ALLOWED_MIME.includes(proofFile.type)) {
+                return NextResponse.json({ error: "Preuve : format non autorisé" }, { status: 400 });
+            }
         }
 
-        // ─── Supprimer l'ancienne photo si elle existe ─────────────────
+        // Récupérer l'existant
         const { data: previous } = await supabase
             .from("expense_validations")
-            .select("validation_photo_path")
+            .select("validation_photo_path, proof_photo_path")
             .eq("odoo_expense_id", odooExpenseId)
             .maybeSingle();
 
-        // ─── Upload Storage ────────────────────────────────────────────
-        const ext = file.name.split(".").pop()?.toLowerCase() ?? "bin";
-        const safeExt = ext.replace(/[^a-z0-9]/g, "").slice(0, 5);
-        const path = `${odooExpenseId}/${Date.now()}.${safeExt}`;
-
-        const arrayBuffer = await file.arrayBuffer();
-
-        const { error: uploadErr } = await supabase.storage
-            .from(BUCKET)
-            .upload(path, arrayBuffer, {
-                contentType: file.type,
-                upsert: false,
-            });
-
-        if (uploadErr) {
-            console.error("[EXPENSES_API] upload error:", uploadErr.message);
-            return NextResponse.json(
-                { error: "Échec de l'upload" },
-                { status: 500 },
-            );
+        // Upload autorisation
+        const validationPath = await uploadFile(
+            supabase, odooExpenseId, validationFile, "auth",
+        );
+        if (!validationPath) {
+            return NextResponse.json({ error: "Échec upload autorisation" }, { status: 500 });
         }
 
-        // ─── Upsert validation ─────────────────────────────────────────
+        // Upload preuve (optionnel)
+        let proofPath: string | null = previous?.proof_photo_path ?? null;
+        if (proofFile) {
+            const uploaded = await uploadFile(supabase, odooExpenseId, proofFile, "proof");
+            if (!uploaded) {
+                // rollback autorisation
+                await supabase.storage.from(BUCKET).remove([validationPath]);
+                return NextResponse.json({ error: "Échec upload preuve" }, { status: 500 });
+            }
+            proofPath = uploaded;
+        }
+
+        // Upsert
         const { error: upsertErr } = await supabase
             .from("expense_validations")
             .upsert(
                 {
                     odoo_expense_id: odooExpenseId,
-                    validation_photo_path: path,
+                    validation_photo_path: validationPath,
+                    proof_photo_path: proofPath,
                     notes,
                     validated_at: new Date().toISOString(),
                     validated_by: user.id,
@@ -113,30 +112,53 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             );
 
         if (upsertErr) {
-            // Rollback du fichier uploadé
-            await supabase.storage.from(BUCKET).remove([path]);
-            console.error("[EXPENSES_API] upsert error:", upsertErr.message);
-            return NextResponse.json(
-                { error: "Échec de l'enregistrement" },
-                { status: 500 },
-            );
+            // rollback des uploads de cette requête
+            const toRemove = [validationPath];
+            if (proofFile && proofPath) toRemove.push(proofPath);
+            await supabase.storage.from(BUCKET).remove(toRemove);
+            return NextResponse.json({ error: "Échec enregistrement" }, { status: 500 });
         }
 
-        // ─── Cleanup ancien fichier (après upsert réussi) ─────────────
+        // Cleanup anciens fichiers
+        const cleanup: string[] = [];
+        if (previous?.validation_photo_path && previous.validation_photo_path !== validationPath) {
+            cleanup.push(previous.validation_photo_path);
+        }
         if (
-            previous?.validation_photo_path &&
-            previous.validation_photo_path !== path
+            previous?.proof_photo_path &&
+            previous.proof_photo_path !== proofPath &&
+            proofFile    // on ne supprime l'ancien proof QUE si on l'a remplacé
         ) {
-            await supabase.storage
-                .from(BUCKET)
-                .remove([previous.validation_photo_path]);
+            cleanup.push(previous.proof_photo_path);
+        }
+        if (cleanup.length > 0) {
+            await supabase.storage.from(BUCKET).remove(cleanup);
         }
 
-        return NextResponse.json({ success: true, path });
+        return NextResponse.json({ success: true });
     } catch (error) {
-        console.error("[EXPENSES_API] POST validate error:", error);
+        console.error("[EXPENSES_API] POST validate:", error);
         return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
     }
+}
+
+// Helper
+async function uploadFile(
+    supabase: Awaited<ReturnType<typeof createClient>>,
+    odooExpenseId: number,
+    file: File,
+    kind: "auth" | "proof",
+): Promise<string | null> {
+    const ext = file.name.split(".").pop()?.toLowerCase() ?? "bin";
+    const safeExt = ext.replace(/[^a-z0-9]/g, "").slice(0, 5);
+    const path = `${odooExpenseId}/${kind}-${Date.now()}.${safeExt}`;
+
+    const buf = await file.arrayBuffer();
+    const { error } = await supabase.storage
+        .from(BUCKET)
+        .upload(path, buf, { contentType: file.type, upsert: false });
+
+    return error ? null : path;
 }
 
 export async function DELETE(_request: NextRequest, { params }: RouteParams) {
@@ -170,33 +192,21 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
         // Récupérer le path avant delete
         const { data: existing } = await supabase
             .from("expense_validations")
-            .select("validation_photo_path")
+            .select("validation_photo_path, proof_photo_path")
             .eq("odoo_expense_id", odooExpenseId)
             .maybeSingle();
 
-        if (!existing) {
-            return NextResponse.json({ success: true }); // idempotent
-        }
+        if (!existing) return NextResponse.json({ success: true });
 
-        // Delete DB
-        const { error: delErr } = await supabase
+        await supabase
             .from("expense_validations")
             .delete()
             .eq("odoo_expense_id", odooExpenseId);
 
-        if (delErr) {
-            console.error("[EXPENSES_API] delete error:", delErr.message);
-            return NextResponse.json(
-                { error: "Échec de la suppression" },
-                { status: 500 },
-            );
-        }
-
-        // Delete Storage (best effort)
-        if (existing.validation_photo_path) {
-            await supabase.storage
-                .from(BUCKET)
-                .remove([existing.validation_photo_path]);
+        const paths = [existing.validation_photo_path, existing.proof_photo_path]
+            .filter((p): p is string => typeof p === "string");
+        if (paths.length > 0) {
+            await supabase.storage.from(BUCKET).remove(paths);
         }
 
         return NextResponse.json({ success: true });
