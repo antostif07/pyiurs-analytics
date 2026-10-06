@@ -1,3 +1,4 @@
+// app/revenue/config.ts
 import { NavGroup } from "@/components/new-ui/layout/app-sidebar";
 import {
   Banknote,
@@ -12,6 +13,19 @@ import {
   Store,
   Target,
 } from "lucide-react";
+import type { UserRole } from "@/lib/constants";
+
+/** Rôles full access (exclut explicitement controller) */
+const FULL: UserRole[] = ["admin", "manager", "financier"];
+/** Accès incluant les vendeurs */
+const WITH_USER: UserRole[] = ["admin", "manager", "financier", "user"];
+/** Item RedSup accessible au controller */
+const REDSUP_ACCESS: UserRole[] = [
+  "admin",
+  "manager",
+  "financier",
+  "controller",
+];
 
 export const NAV_GROUPS: NavGroup[] = [
   {
@@ -23,28 +37,30 @@ export const NAV_GROUPS: NavGroup[] = [
         label: "Vue d'ensemble",
         icon: Banknote,
         path: "/revenue",
-        roles: ["admin", "manager", "financier"], // Restreint aux profils stratégiques
+        roles: FULL,
       },
       {
         id: "arpu",
         label: "ARPU & Segments",
         icon: Wallet,
         path: "/revenue/arpu",
+        roles: FULL,
       },
-      // {
-      //   id: "retail-kpis",
-      //   label: "Panier Moyen & KPIs",
-      //   icon: ShoppingBag,
-      //   path: "/revenue/kpis",
-      //   roles: ["admin", "manager", "financier"],
-      // },
       {
         id: "budgets-management",
         label: "Gestion des Budgets",
         icon: Target,
         path: "/revenue/budgets",
-        roles: ["admin", "manager", "financier"],
-      }
+        roles: FULL,
+      },
+      {
+        id: "invoices-redsup",
+        label: "Factures RedSup",
+        icon: Sparkles,
+        path: "/revenue/invoices-redsup",
+        badge: "Nouveau",
+        roles: REDSUP_ACCESS,
+      },
     ],
   },
   {
@@ -54,29 +70,30 @@ export const NAV_GROUPS: NavGroup[] = [
       {
         id: "performance-femme",
         label: "Performance Femme",
-        icon: Layers, // Évoque la superposition de vêtements / prêt-à-porter
+        icon: Layers,
         path: "/revenue/performance-femme",
-        roles: ["admin", "manager", "financier", "user"], // Accessible aux vendeurs concernés
+        roles: WITH_USER,
       },
       {
         id: "performance-enfant",
         label: "Performance Enfant",
-        icon: Baby, // ✅ NOUVEAU : Alignement sur votre segment Mode Kids
+        icon: Baby,
         path: "/revenue/performance-enfant",
-        roles: ["admin", "manager", "financier", "user"],
+        roles: WITH_USER,
       },
       {
         id: "performance-beauty",
         label: "Performance Beauté",
-        icon: Sparkles, // Évoque l'esthétique et le soin cosmétique
+        icon: Sparkles,
         path: "/revenue/performance-beauty",
-        roles: ["admin", "manager", "financier", "user"],
+        roles: WITH_USER,
       },
       {
         id: "performance-polog",
         label: "Performance POLOG",
         icon: TrendingUp,
-        path: "/revenue/performance-polog"
+        path: "/revenue/performance-polog",
+        roles: FULL, // ⬅️ explicite maintenant
       },
     ],
   },
@@ -89,15 +106,15 @@ export const NAV_GROUPS: NavGroup[] = [
         label: "Ventes par Boutique",
         icon: Store,
         path: "/revenue/performance-stores",
-        roles: ["admin", "manager", "financier"],
+        roles: FULL,
       },
       {
         id: "performance-associates",
         label: "Ventes par Conseiller",
-        icon: Users, // Évoque l'équipe de vente en boutique
+        icon: Users,
         path: "/revenue/performance-associates",
-        roles: ["admin", "manager", "financier"], // Strictement pour le calcul des commissions
-      }
+        roles: FULL,
+      },
     ],
   },
   {
@@ -109,8 +126,8 @@ export const NAV_GROUPS: NavGroup[] = [
         label: "Rentabilité Fournisseurs",
         icon: Building2,
         path: "/revenue/performance-suppliers",
-        roles: ["admin", "manager", "financier"],
-      }
+        roles: FULL,
+      },
     ],
   },
 ];

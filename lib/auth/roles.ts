@@ -50,3 +50,27 @@ export const CONTROLLER_ALLOWED_PATHS = ["/finance/expenses"] as const;
 export function canAccessFinance(role: unknown): boolean {
     return isFinanceRole(role) || role === CONTROLLER_ROLE;
 }
+
+export const REVENUE_ROLES = [
+    "admin",
+    "manager",
+    "financier",
+] as const satisfies readonly UserRole[]
+
+export type RevenueRole = (typeof REVENUE_ROLES)[number]
+
+export function isRevenueRole(role: unknown): role is RevenueRole {
+    return (
+        typeof role === "string" &&
+        (REVENUE_ROLES as readonly string[]).includes(role)
+    )
+}
+
+
+/**
+ * Chemins autorisés pour le rôle controller dans /revenue.
+ * Un seul module : les factures RedSup.
+ */
+export const CONTROLLER_REVENUE_ALLOWED_PATHS = [
+    "/revenue/invoices-redsup",
+] as const

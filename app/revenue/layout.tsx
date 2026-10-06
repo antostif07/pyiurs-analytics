@@ -1,86 +1,76 @@
-'use client';
+// app/revenue/layout.tsx
+import { redirect } from "next/navigation";
+import { headers } from "next/headers";
+import type { Metadata } from "next";
+import { getServerAuth } from "@/lib/supabase/server";
+import {
+  isRevenueRole,
+  CONTROLLER_ROLE,
+  CONTROLLER_REVENUE_ALLOWED_PATHS,
+} from "@/lib/auth/roles";
+import RevenueShell from "./revenue-shell";
 
-import { useState } from "react";
-import AppSidebar from "@/components/new-ui/layout/app-sidebar";
-import { NAV_GROUPS } from "./config";
-import { AnimatePresence, motion } from "framer-motion";
-import AppTopbar from "@/components/new-ui/layout/app-topbar";
-import { useAuth } from "@/contexts/AuthContext";
-import { useTheme } from "next-themes";
-import { UserRole } from "@/lib/constants";
+export const metadata: Metadata = {
+  title: {
+    default: "Revenue | Pyiurs",
+    template: "%s | Revenue",
+  },
+  description:
+    "Pilotage des revenus : synthèse, performance par segment, boutiques et conseillers.",
+  robots: { index: false, follow: false },
+};
 
-export default function RevenueLayout({
+// Session-dépendant → jamais statique.
+export const dynamic = "force-dynamic";
+
+async function resolveCurrentPath(): Promise<string> {
+  const h = await headers();
+  return h.get("x-pathname") ?? "/revenue";
+}
+
+export default async function RevenueLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const auth = await getServerAuth();
 
-  const { theme, setTheme } = useTheme();
-  const isDarkMode = theme === "dark";
-  const handleToggleDark = () => setTheme(isDarkMode ? "light" : "dark");
+  // 1. Auth
+  if (!auth.user) {
+    const next = await resolveCurrentPath();
+    redirect(`/login?next=${encodeURIComponent(next)}`);
+  }
 
-  const { profile } = useAuth();
-  const userRole = (profile?.role as UserRole) ?? "user";
+  // 2. Profil obligatoire
+  if (!auth.profile) {
+    redirect("/unauthorized?reason=missing_profile");
+  }
 
-  return (
-    <div className="flex h-screen bg-background overflow-hidden transition-colors duration-150">
+  const { role } = auth.profile;
 
-      <div className="hidden md:flex h-full">
-        <AppSidebar
-          role={userRole} // ✅ Injecté dynamiquement
-          collapsed={collapsed}
-          onCollapse={setCollapsed}
-          groups={NAV_GROUPS}
-          mainPath={"/revenue"}
-        />
-      </div>
+  // 3. Cas spécial : controller (accès restreint à /revenue/invoices-redsup)
+  if (role === CONTROLLER_ROLE) {
+    const path = await resolveCurrentPath();
 
-      {/* Sidebar Mobile Tiroir (Drawer) */}
-      <AnimatePresence>
-        {mobileOpen && (
-          <>
-            {/* Arrière-plan flouté interactif pour fermeture */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              onClick={() => setMobileOpen(false)}
-              className="fixed inset-0 bg-black/40 z-40 md:hidden"
-            />
-            {/* Conteneur coulissant */}
-            <motion.div
-              initial={{ x: -280 }}
-              animate={{ x: 0 }}
-              exit={{ x: -280 }}
-              transition={{ duration: 0.25, ease: "easeInOut" }}
-              className="fixed left-0 top-0 bottom-0 w-64 z-50 md:hidden"
-            >
-              <AppSidebar
-                groups={NAV_GROUPS}
-                mainPath="/revenue"
-                role={userRole} // ✅ Injecté dynamiquement
-                collapsed={false}
-                onCollapse={() => setMobileOpen(false)}
-              />
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+    // Redirection racine → page autorisée
+    if (path === "/revenue" || path === "/revenue/") {
+      redirect("/revenue/invoices-redsup");
+    }
 
-      {/* Conteneur principal de droite */}
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-        <AppTopbar
-          dark={isDarkMode}
-          onToggleDark={handleToggleDark}
-          onMenuOpen={() => setMobileOpen(true)}
-        />
-        <main className="flex-1 overflow-y-auto bg-background p-6 sm:p-8">
-          {children}
-        </main>
-      </div>
-    </div>
-  );
+    const allowed = CONTROLLER_REVENUE_ALLOWED_PATHS.some((p) =>
+      path.startsWith(p),
+    );
+    if (!allowed) {
+      redirect("/unauthorized?reason=insufficient_permissions");
+    }
+
+    return <RevenueShell role={role}>{children}</RevenueShell>;
+  }
+
+  // 4. Rôles revenue complets
+  if (!isRevenueRole(role)) {
+    redirect("/unauthorized?reason=insufficient_permissions");
+  }
+
+  return <RevenueShell role={role}>{children}</RevenueShell>;
 }
