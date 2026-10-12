@@ -7,23 +7,34 @@ export interface RedsupLine {
     qty: number;
     unitPrice: number;
     subtotal: number;
+    /** true si le nom du produit contient "redsup" (insensible casse) */
+    isRedsup: boolean;
 }
 
 /** Une POS order contenant au moins un produit RedSup */
 export interface RedsupInvoiceRow {
     odooOrderId: number;
-    orderName: string;      // pos.order.name (ex: "Order 00042-001-0012")
-    date: string;           // yyyy-MM-dd
-    partnerName: string;    // partenaire client
-    posName: string;        // session_id.config_id.name (nom du POS)
-    state: string;          // pos.order.state
-    // Agrégats sur les lignes RedSup uniquement
+    orderName: string;
+    date: string;
+    partnerName: string;
+    posName: string;
+    state: string;
+
+    // ── Totaux RedSup (affichés dans le tableau principal) ────────────────
     totalRedsupAmount: number;
     totalRedsupQty: number;
-    lineCount: number;
-    // Lignes RedSup détaillées (pour le dialog "voir tous les articles")
-    lines: RedsupLine[];
-    // Supabase redsup_validations
+    lineCount: number;         // nombre de lignes RedSup
+
+    // ── Totaux globaux de la commande ─────────────────────────────────────
+    totalOrderAmount: number;  // ⬅️ NOUVEAU — somme de TOUTES les lignes
+    totalOrderQty: number;     // ⬅️ NOUVEAU — quantité totale
+    totalOrderLines: number;   // ⬅️ NOUVEAU — nb total de lignes
+
+    // ── Lignes ────────────────────────────────────────────────────────────
+    lines: RedsupLine[];       // ⬅️ conservé (déjà filtré RedSup)
+    allLines: RedsupLine[];    // ⬅️ NOUVEAU — toutes les lignes (avec flag isRedsup)
+
+    // ── Supabase ──────────────────────────────────────────────────────────
     isValidated: boolean;
     validationPhotoUrl: string | null;
     validatedAt: string | null;

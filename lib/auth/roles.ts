@@ -41,7 +41,10 @@ export function isFinanceRole(role: unknown): role is FinanceRole {
 export const CONTROLLER_ROLE = "controller" as const;
 
 /** Chemins autorisés pour le rôle controller (préfixes) */
-export const CONTROLLER_ALLOWED_PATHS = ["/finance/expenses"] as const;
+export const CONTROLLER_ALLOWED_PATHS = [
+    "/finance/expenses",
+    "/finance/loyalty",
+] as const;
 
 /**
  * Rôle global d'accès /finance = admin/manager/financier OU controller.
@@ -74,3 +77,11 @@ export function isRevenueRole(role: unknown): role is RevenueRole {
 export const CONTROLLER_REVENUE_ALLOWED_PATHS = [
     "/revenue/invoices-redsup",
 ] as const
+
+/**
+ * Chemins autorisés pour le rôle controller dans /finance.
+ */
+export const CONTROLLER_FINANCE_ALLOWED_PATHS = [
+    "/finance/expenses",
+    "/finance/loyalty",
+] as const;

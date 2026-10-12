@@ -80,8 +80,7 @@ export async function GET(request: NextRequest) {
         );
         const redsupProductIds = redsupProducts.map((p) => p.id);
 
-        // ─── 2. Lignes POS contenant ces produits ─────────────────────
-        const lines = await odooClient.searchRead<{
+        const redsupLines = await odooClient.searchRead<{
             id: number;
             order_id: [number, string] | false;
             product_id: [number, string] | false;
@@ -105,21 +104,20 @@ export async function GET(request: NextRequest) {
             limit: 5000,
         });
 
-        if (lines.length === 0) {
+        if (redsupLines.length === 0) {
             return NextResponse.json(EMPTY_PAYLOAD);
         }
 
-        // ─── 3. Récupérer les POS orders uniques ──────────────────────
+        // ─── 3. IDs des commandes concernées ────────────────────────────────
         const orderIds = [
             ...new Set(
-                lines
-                    .map((l) =>
-                        Array.isArray(l.order_id) ? l.order_id[0] : null,
-                    )
+                redsupLines
+                    .map((l) => (Array.isArray(l.order_id) ? l.order_id[0] : null))
                     .filter((v): v is number => v !== null),
             ),
         ];
 
+        // ─── 4. Récupérer les POS orders ────────────────────────────────────
         const orders = await odooClient.searchRead<{
             id: number;
             name: string;
@@ -135,25 +133,55 @@ export async function GET(request: NextRequest) {
 
         const orderById = new Map(orders.map((o) => [o.id, o]));
 
-        // ─── 4. Agréger les lignes par order ──────────────────────────
-        const linesByOrder = new Map<number, RedsupLine[]>();
-        for (const l of lines) {
+        // ─── 5. Récupérer TOUTES les lignes de ces commandes ────────────────
+        // (en un seul appel, pas de N+1)
+        const allLinesRaw = await odooClient.searchRead<{
+            id: number;
+            order_id: [number, string] | false;
+            product_id: [number, string] | false;
+            qty: number;
+            price_unit: number;
+            price_subtotal_incl: number;
+        }>("pos.order.line", {
+            domain: [["order_id", "in", orderIds]],
+            fields: [
+                "order_id",
+                "product_id",
+                "qty",
+                "price_unit",
+                "price_subtotal_incl",
+            ],
+            limit: 20000,
+        });
+
+        // Set des ids RedSup pour lookup O(1)
+        const redsupIdSet = new Set(redsupProductIds);
+
+        // Grouper toutes les lignes par order_id
+        const allLinesByOrder = new Map<number, RedsupLine[]>();
+        for (const l of allLinesRaw) {
             const orderId = Array.isArray(l.order_id) ? l.order_id[0] : 0;
             const productId = Array.isArray(l.product_id) ? l.product_id[0] : 0;
             if (!orderId || !productId) continue;
 
-            const list = linesByOrder.get(orderId) ?? [];
+            const productName = Array.isArray(l.product_id) ? l.product_id[1] : "—";
+            const isRedsup =
+                redsupIdSet.has(productId) ||
+                productName.toLowerCase().includes(REDSUP_MATCH);
+
+            const list = allLinesByOrder.get(orderId) ?? [];
             list.push({
                 productId,
-                productName: productNameById.get(productId) ?? "—",
+                productName,
                 qty: Number(l.qty ?? 0),
                 unitPrice: Number(l.price_unit ?? 0),
                 subtotal: Number(l.price_subtotal_incl ?? 0),
+                isRedsup,
             });
-            linesByOrder.set(orderId, list);
+            allLinesByOrder.set(orderId, list);
         }
 
-        // ─── 5. Jointure Supabase validations ─────────────────────────
+        // ─── 6. Jointure Supabase validations ───────────────────────────────
         const supabase = await createClient();
 
         const { data: validations, error: vErr } = await supabase
@@ -164,13 +192,9 @@ export async function GET(request: NextRequest) {
             .in("odoo_order_id", orderIds);
 
         if (vErr) {
-            console.warn(
-                "[REDSUP_API] validations fetch failed:",
-                vErr.message,
-            );
+            console.warn("[REDSUP_API] validations fetch failed:", vErr.message);
         }
 
-        // Noms des valideurs
         const validatorIds = [
             ...new Set(
                 (validations ?? [])
@@ -190,7 +214,6 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        // Signed URLs
         const photoPaths = (validations ?? [])
             .map((v) => v.validation_photo_path)
             .filter(Boolean);
@@ -219,8 +242,7 @@ export async function GET(request: NextRequest) {
 
         for (const v of validations ?? []) {
             validationMap.set(v.odoo_order_id, {
-                photoUrl:
-                    signedUrlByPath.get(v.validation_photo_path) ?? null,
+                photoUrl: signedUrlByPath.get(v.validation_photo_path) ?? null,
                 validatedAt: v.validated_at,
                 validatedBy: v.validated_by
                     ? nameById.get(v.validated_by) ?? "—"
@@ -228,16 +250,23 @@ export async function GET(request: NextRequest) {
             });
         }
 
-        // ─── 6. Construire les invoices ───────────────────────────────
+        // ─── 7. Construire les invoices ─────────────────────────────────────
         const invoices: RedsupInvoiceRow[] = [];
 
-        for (const [orderId, orderLines] of linesByOrder.entries()) {
+        for (const [orderId, orderAllLines] of allLinesByOrder.entries()) {
             const order = orderById.get(orderId);
             if (!order) continue;
 
+            const redsupLines = orderAllLines.filter((l) => l.isRedsup);
+            // Sécurité : si aucune ligne RedSup (ne devrait pas arriver ici),
+            // on skip cette commande (car elle ne serait pas remontée)
+            if (redsupLines.length === 0) continue;
+
             const v = validationMap.get(orderId);
-            const total = orderLines.reduce((s, l) => s + l.subtotal, 0);
-            const qty = orderLines.reduce((s, l) => s + l.qty, 0);
+            const redsupTotal = redsupLines.reduce((s, l) => s + l.subtotal, 0);
+            const redsupQty = redsupLines.reduce((s, l) => s + l.qty, 0);
+            const orderTotal = orderAllLines.reduce((s, l) => s + l.subtotal, 0);
+            const orderQty = orderAllLines.reduce((s, l) => s + l.qty, 0);
 
             invoices.push({
                 odooOrderId: orderId,
@@ -250,10 +279,18 @@ export async function GET(request: NextRequest) {
                     ? order.session_id[1]
                     : "—",
                 state: order.state,
-                totalRedsupAmount: total,
-                totalRedsupQty: qty,
-                lineCount: orderLines.length,
-                lines: orderLines,
+
+                totalRedsupAmount: redsupTotal,
+                totalRedsupQty: redsupQty,
+                lineCount: redsupLines.length,
+
+                totalOrderAmount: orderTotal,
+                totalOrderQty: orderQty,
+                totalOrderLines: orderAllLines.length,
+
+                lines: redsupLines,
+                allLines: orderAllLines,
+
                 isValidated: !!v,
                 validationPhotoUrl: v?.photoUrl ?? null,
                 validatedAt: v?.validatedAt ?? null,
@@ -264,7 +301,7 @@ export async function GET(request: NextRequest) {
         // Tri par date décroissante
         invoices.sort((a, b) => (a.date < b.date ? 1 : -1));
 
-        // ─── 7. Filtre statut local ───────────────────────────────────
+        // ─── 8. Filtre statut local ─────────────────────────────────────────
         const filtered =
             filters.state === "all"
                 ? invoices

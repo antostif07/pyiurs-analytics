@@ -17,6 +17,7 @@ import {
   LibraryBig,
   CreditCard,
   Building2,
+  Coins,
 } from "lucide-react";
 
 const FULL_ACCESS: UserRole[] = ["admin", "manager", "financier"];
@@ -61,6 +62,14 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: Receipt,
         path: "/finance/invoices",
         roles: FULL_ACCESS,
+      },
+      {
+        id: "loyalty",
+        label: "Points de Fidélité",
+        icon: Coins,   // de lucide-react
+        path: "/finance/loyalty",
+        badge: "Nouveau",
+        roles: ["admin", "manager", "financier", "controller"],
       },
     ],
   },
