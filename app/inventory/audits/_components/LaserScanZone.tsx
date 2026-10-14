@@ -25,22 +25,24 @@ export const LaserScanZone = React.memo(function LaserScanZone({
     onSubmit,
 }: Props) {
     return (
-        <div className="bg-card border-2 border-primary/30 rounded-2xl p-4 shadow-xs space-y-2">
+        <div className="bg-card border-2 border-primary/40 rounded-lg p-3 sm:p-4 shadow-xs space-y-2">
             <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
-                    <ScanLine className="w-4 h-4 text-primary animate-pulse" /> Scan Pistolet Laser (Unitaire Strict)
+                <label className="text-[11px] font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <ScanLine className="w-3.5 h-3.5 text-primary animate-pulse" />
+                    <span className="hidden sm:inline">Scan pistolet laser · unitaire strict</span>
+                    <span className="sm:hidden">Scanner</span>
                 </label>
                 <button
                     type="button"
                     onClick={() => setSoundEnabled(!soundEnabled)}
-                    className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer"
+                    className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer"
                 >
                     {soundEnabled ? (
-                        <Volume2 className="w-3.5 h-3.5 text-emerald-600" />
+                        <Volume2 className="w-3 h-3 text-emerald-600" />
                     ) : (
-                        <VolumeX className="w-3.5 h-3.5 text-muted-foreground" />
+                        <VolumeX className="w-3 h-3" />
                     )}
-                    <span className="text-[10px]">{soundEnabled ? "Bip On" : "Bip Off"}</span>
+                    <span>{soundEnabled ? "Bip On" : "Bip Off"}</span>
                 </button>
             </div>
 
@@ -48,18 +50,22 @@ export const LaserScanZone = React.memo(function LaserScanZone({
                 <Input
                     ref={inputRef}
                     type="text"
-                    placeholder="Scannez le code-barres unitaire..."
+                    placeholder="Scannez le code-barres..."
                     value={barcodeInput}
                     onChange={(e) => setBarcodeInput(e.target.value)}
                     disabled={isScanning}
-                    className="h-11 rounded-xl bg-muted/20 border-input font-mono text-sm text-foreground focus:ring-2 focus:ring-primary pl-4 font-bold"
+                    className="h-10 rounded-lg bg-muted/20 border-border/60 font-mono text-[12px] font-semibold pl-3"
                 />
                 <Button
                     type="submit"
                     disabled={isScanning || !barcodeInput.trim()}
-                    className="h-11 px-6 rounded-xl font-bold text-xs bg-primary text-primary-foreground cursor-pointer"
+                    className="h-10 px-4 rounded-lg font-semibold text-[11px] bg-primary"
                 >
-                    {isScanning ? <Loader2 className="w-4 h-4 animate-spin" /> : "Flash (1/1)"}
+                    {isScanning ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                        "Flash"
+                    )}
                 </Button>
             </form>
         </div>

@@ -43,9 +43,9 @@ export function KpiDashboard({
     return (
         <div className="space-y-3">
             {/* GRILLE KPIS 6 CARTES */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
                 {/* 1. ARTICLES SCANNÉS */}
-                <div className="p-3.5 bg-card border border-border rounded-2xl flex items-center gap-3 shadow-xs">
+                <div className="p-2.5 sm:p-3 bg-card border border-border/60 rounded-lg flex items-center gap-2.5 shadow-2xs">
                     <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 shrink-0">
                         <CheckCircle2 className="w-4 h-4 stroke-[2]" />
                     </div>
@@ -60,7 +60,7 @@ export function KpiDashboard({
                 </div>
 
                 {/* 2. RESTE À SCANNER */}
-                <div className="p-3.5 bg-card border border-border rounded-2xl flex items-center gap-3 shadow-xs">
+                <div className="p-2.5 sm:p-3 bg-card border border-border/60 rounded-lg flex items-center gap-2.5 shadow-2xs">
                     <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 shrink-0">
                         <Package className="w-4 h-4 stroke-[2]" />
                     </div>
@@ -73,7 +73,7 @@ export function KpiDashboard({
                 </div>
 
                 {/* 3. VENDUS AILLEURS (-1) */}
-                <div className="p-3.5 bg-card border border-border rounded-2xl flex items-center gap-3 shadow-xs">
+                <div className="p-2.5 sm:p-3 bg-card border border-border/60 rounded-lg flex items-center gap-2.5 shadow-2xs">
                     <div className="p-2 rounded-xl bg-purple-500/10 text-purple-600 shrink-0">
                         <AlertTriangle className="w-4 h-4 stroke-[2]" />
                     </div>
@@ -86,7 +86,7 @@ export function KpiDashboard({
                 </div>
 
                 {/* 4. VALEUR DES PRODUITS TROUVÉS / SCANNÉS ($) */}
-                <div className="p-3.5 bg-card border border-border rounded-2xl flex items-center gap-3 shadow-xs">
+                <div className="p-2.5 sm:p-3 bg-card border border-border/60 rounded-lg flex items-center gap-2.5 shadow-2xs">
                     <div className="p-2 rounded-xl bg-blue-500/10 text-blue-600 shrink-0">
                         <DollarSign className="w-4 h-4 stroke-[2]" />
                     </div>
@@ -101,7 +101,7 @@ export function KpiDashboard({
                 </div>
 
                 {/* 5. VALEUR TOTALE DU PÉRIMÈTRE ($) */}
-                <div className="p-3.5 bg-card border border-border rounded-2xl flex items-center gap-3 shadow-xs">
+                <div className="p-2.5 sm:p-3 bg-card border border-border rounded-2xl flex items-center gap-3 shadow-xs">
                     <div className="p-2 rounded-xl bg-muted text-foreground shrink-0">
                         <Boxes className="w-4 h-4 stroke-[2]" />
                     </div>
@@ -116,7 +116,7 @@ export function KpiDashboard({
                 </div>
 
                 {/* 6. DÉMARQUE / ÉCART VALEUR ($) */}
-                <div className="p-3.5 bg-card border border-border rounded-2xl flex items-center gap-3 shadow-xs">
+                <div className="p-2.5 sm:p-3 bg-card border border-border rounded-2xl flex items-center gap-3 shadow-xs">
                     <div
                         className={cn(
                             "p-2 rounded-xl shrink-0",
@@ -142,7 +142,7 @@ export function KpiDashboard({
             </div>
 
             {/* BARRE DE PROGRESSION */}
-            <div className="w-full bg-muted/30 h-2 rounded-full overflow-hidden border border-border/40">
+            <div className="w-full bg-muted/30 h-1.5 rounded-full overflow-hidden">
                 <div
                     className="bg-emerald-500 h-full transition-all duration-300"
                     style={{ width: `${Math.min(100, Math.max(0, progressPercent))}%` }}

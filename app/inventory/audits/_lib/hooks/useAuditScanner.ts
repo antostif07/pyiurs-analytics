@@ -1,15 +1,25 @@
+// app/inventory/audits/[id]/_lib/hooks/useAuditScanner.ts (ou l'emplacement actuel)
 "use client";
 
 import { useRef, useCallback, useState } from "react";
 import { playScanSound } from "../../_lib/utils/sound-effects";
-import { recordBarcodeScanAction } from "../../_lib/audits-actions";
-import { StockAuditItem } from "../../_lib/types";
+import type { StockAuditItem } from "../../_lib/types";
 import { toast } from "sonner";
+
+interface ScanApiResponse {
+    success: boolean;
+    item?: StockAuditItem;
+    isUnexpected?: boolean;
+    isDuplicate?: boolean;
+    isUnknown?: boolean;
+    error?: string;
+    message?: string;
+}
 
 export function useAuditScanner(
     auditId: string,
     isReadOnly: boolean,
-    onScanSuccess: (cleanCode: string, item: StockAuditItem) => void
+    onScanSuccess: (cleanCode: string, item: StockAuditItem) => void,
 ) {
     const inputRef = useRef<HTMLInputElement>(null);
     const [barcodeInput, setBarcodeInput] = useState("");
@@ -34,38 +44,62 @@ export function useAuditScanner(
 
             setIsScanning(true);
             try {
-                const result = await recordBarcodeScanAction(auditId, cleanCode);
+                // ✅ Appel HTTP au lieu de Server Action
+                const res = await fetch(
+                    `/api/inventory/audits/${auditId}/scan`,
+                    {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ barcode: cleanCode }),
+                    },
+                );
+
+                const result: ScanApiResponse = await res.json();
+
                 setBarcodeInput("");
 
                 if (result.success && result.item) {
                     if (soundEnabled) playScanSound("success");
 
                     if (result.isUnexpected) {
-                        toast.warning(result.message || `Produit inattendu ajouté : ${cleanCode}`, {
-                            duration: 4000,
-                        });
+                        toast.warning(
+                            result.message ||
+                            `Produit inattendu ajouté : ${cleanCode}`,
+                            { duration: 4000 },
+                        );
                     } else {
                         toast.success(`Scanné (1/1) : ${cleanCode}`);
                     }
 
-                    // Cast sécurisé vers StockAuditItem
-                    onScanSuccess(cleanCode, result.item as StockAuditItem);
+                    onScanSuccess(cleanCode, result.item);
                 } else if (result.isDuplicate) {
                     if (soundEnabled) playScanSound("error");
-                    toast.warning(result.error);
+                    toast.warning(result.error ?? "Doublon détecté");
                 } else {
                     if (soundEnabled) playScanSound("error");
-                    toast.error(result.error || "Erreur lors du scan.");
+                    toast.error(result.error ?? "Erreur lors du scan.");
                 }
             } catch (err) {
                 if (soundEnabled) playScanSound("error");
-                toast.error(err instanceof Error ? err.message : "Erreur réseau lors du scan.");
+                toast.error(
+                    err instanceof Error
+                        ? err.message
+                        : "Erreur réseau lors du scan.",
+                );
             } finally {
                 setIsScanning(false);
                 requestAnimationFrame(() => enforceFocus());
             }
         },
-        [barcodeInput, isReadOnly, isScanning, soundEnabled, auditId, onScanSuccess, enforceFocus]
+        [
+            barcodeInput,
+            isReadOnly,
+            isScanning,
+            soundEnabled,
+            auditId,
+            onScanSuccess,
+            enforceFocus,
+        ],
     );
 
     return {

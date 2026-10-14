@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { Search, X, Filter, RotateCcw, SlidersHorizontal, Tag, Building2, Package, AlertTriangle } from "lucide-react";
+import { Search, X, Filter, RotateCcw, SlidersHorizontal, Tag, Building2, Package, AlertTriangle, CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { ExtendedAuditFilters, StockAuditItem } from "../_lib/types";
 import { getPosCategoryIds, getPosCategoryNames, getSoldLocations } from "../_lib/helpers";
 import { PosCategoryFilter, PosCategoryOption } from "./PosCategoryFilter";
+import { DateRangePicker } from "./date-range-picker";
 
 interface AuditTableFiltersProps {
     filters: ExtendedAuditFilters;
@@ -143,6 +144,8 @@ export function AuditTableFilters({
         if (filters.foundElsewhereFilter !== "all") n++;
         if (filters.cosmeticFilter !== "all") n++;
         if (filters.posCategoryFilter.length > 0) n++;
+        if (filters.createdDateFrom || filters.createdDateTo) n++;
+        if (filters.receptionDateFrom || filters.receptionDateTo) n++;
         return n;
     }, [filters]);
 
@@ -479,6 +482,48 @@ export function AuditTableFilters({
                                         </SelectContent>
                                     </Select>
                                 </div>
+
+                                {/* ═══ Date de création produit ═══ */}
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                        <CalendarIcon className="w-3 h-3 text-violet-500" />
+                                        Date de création produit
+                                    </label>
+                                    <DateRangePicker
+                                        value={{
+                                            from: filters.createdDateFrom,
+                                            to: filters.createdDateTo,
+                                        }}
+                                        onChange={(v) => {
+                                            onFilterChange((prev) => ({
+                                                ...prev,
+                                                createdDateFrom: v.from,
+                                                createdDateTo: v.to,
+                                            }));
+                                        }}
+                                    />
+                                </div>
+
+                                {/* ═══ Date de réception ═══ */}
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                        <CalendarIcon className="w-3 h-3 text-emerald-500" />
+                                        Date de réception
+                                    </label>
+                                    <DateRangePicker
+                                        value={{
+                                            from: filters.receptionDateFrom,
+                                            to: filters.receptionDateTo,
+                                        }}
+                                        onChange={(v) => {
+                                            onFilterChange((prev) => ({
+                                                ...prev,
+                                                receptionDateFrom: v.from,
+                                                receptionDateTo: v.to,
+                                            }));
+                                        }}
+                                    />
+                                </div>
                             </div>
 
                             {/* Footer du popover */}
@@ -577,8 +622,8 @@ export function AuditTableFilters({
                     {filters.cosmeticFilter !== "all" && (
                         <FilterChip
                             label={`Type: ${filters.cosmeticFilter === "cosmetic"
-                                    ? "Cosmétiques [COS]"
-                                    : "Génériques"
+                                ? "Cosmétiques [COS]"
+                                : "Génériques"
                                 }`}
                             tone="pink"
                             onRemove={() => updateFilter("cosmeticFilter", "all")}
@@ -588,16 +633,44 @@ export function AuditTableFilters({
                     {filters.theoreticalStockFilter !== "all" && (
                         <FilterChip
                             label={`Stock ${{
-                                    one: "= 1",
-                                    zero: "= 0",
-                                    greater_than_one: "> 1",
-                                    negative: "< 0",
-                                }[filters.theoreticalStockFilter] ?? ""
+                                one: "= 1",
+                                zero: "= 0",
+                                greater_than_one: "> 1",
+                                negative: "< 0",
+                            }[filters.theoreticalStockFilter] ?? ""
                                 }`}
                             tone="amber"
                             onRemove={() =>
                                 updateFilter("theoreticalStockFilter", "all")
                             }
+                        />
+                    )}
+
+                    {(filters.createdDateFrom || filters.createdDateTo) && (
+                        <FilterChip
+                            label={`Créé: ${filters.createdDateFrom ?? "…"} → ${filters.createdDateTo ?? "…"}`}
+                            tone="neutral"
+                            onRemove={() => {
+                                onFilterChange((prev) => ({
+                                    ...prev,
+                                    createdDateFrom: null,
+                                    createdDateTo: null,
+                                }));
+                            }}
+                        />
+                    )}
+
+                    {(filters.receptionDateFrom || filters.receptionDateTo) && (
+                        <FilterChip
+                            label={`Réception: ${filters.receptionDateFrom ?? "…"} → ${filters.receptionDateTo ?? "…"}`}
+                            tone="emerald"
+                            onRemove={() => {
+                                onFilterChange((prev) => ({
+                                    ...prev,
+                                    receptionDateFrom: null,
+                                    receptionDateTo: null,
+                                }));
+                            }}
                         />
                     )}
 

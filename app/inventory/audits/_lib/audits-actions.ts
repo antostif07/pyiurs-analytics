@@ -18,7 +18,7 @@ import {
 } from "./types";
 import { Json } from "@/lib/supabase/database.types";
 import { extractOdooMany2oneName, toJson } from "./helpers";
-import { resolvePositiveLocationsForProducts, resolveUnitCost } from "./audits-actions-helpers";
+import { resolveListPrice, resolvePositiveLocationsForProducts, resolveReceptionDatesByProduct, resolveUnitCost } from "./audits-actions-helpers";
 
 /**
  * Brouillon local d'un item d'audit — utilise les types métier (SoldLocation[],
@@ -40,6 +40,8 @@ type AuditItemDraft = {
     unit_cost: number;
     pos_category_ids: number[];
     pos_category_names: string[];
+    reception_date: string | null;
+    list_price: number;
 };
 
 /* ──────────────────────────────────────────────────────────────────── */
@@ -194,13 +196,14 @@ async function updateAuditTotals(supabase: SupabaseClient, auditId: string) {
 }
 
 /* ════════════════════════════════════════════════════════════════════ */
-/* 1. CRÉATION D'AUDIT — transactionnelle + POS categories              */
+/* 1. CRÉATION D'AUDIT — transactionnelle + POS categories + reception */
 /* ════════════════════════════════════════════════════════════════════ */
 export async function createAuditSessionAction(
     shopIds: string[],
     departments: string[],
     notes?: string,
-    auditDate?: string
+    auditDate?: string,
+    purchaseOrderIds?: number[],   // ⬅️ NOUVEAU
 ) {
     try {
         const supabase = await createClient();
@@ -208,11 +211,14 @@ export async function createAuditSessionAction(
         const userId = user?.id ?? null;
 
         const cleanShopIds = (shopIds || []).filter(
-            (id): id is string => typeof id === "string" && id.trim().length > 0
+            (id): id is string => typeof id === "string" && id.trim().length > 0,
         );
 
         if (cleanShopIds.length === 0) {
-            return { success: false, error: "Veuillez sélectionner au moins une boutique valide." };
+            return {
+                success: false,
+                error: "Veuillez sélectionner au moins une boutique valide.",
+            };
         }
 
         /* ─── Boutiques ─── */
@@ -230,7 +236,10 @@ export async function createAuditSessionAction(
             ...new Set(
                 shops
                     .map((s) => s.odoo_company_id)
-                    .filter((id): id is number => typeof id === "number" && id > 0)
+                    .filter(
+                        (id): id is number =>
+                            typeof id === "number" && id > 0,
+                    ),
             ),
         ];
 
@@ -242,45 +251,67 @@ export async function createAuditSessionAction(
         }
 
         /* ─── Métadonnées audit ─── */
-        const departmentLabel = departments.length > 0 ? departments.join(", ") : "Tous";
+        const departmentLabel =
+            departments.length > 0 ? departments.join(", ") : "Tous";
         const selectedDate = auditDate ? new Date(auditDate) : new Date();
         const todayStr = new Date().toISOString().split("T")[0];
         const isHistorical = !!auditDate && auditDate !== todayStr;
 
-        const datePrefix = selectedDate.toISOString().slice(0, 7).replace("-", "");
+        const datePrefix = selectedDate
+            .toISOString()
+            .slice(0, 7)
+            .replace("-", "");
         const randomSuffix = Math.floor(1000 + Math.random() * 9000);
         const reference = `AUD-${datePrefix}-${randomSuffix}`;
 
         const notesFinal = notes
-            ? isHistorical ? `[Historique du ${auditDate}] ${notes}` : notes
-            : isHistorical ? `[Historique du ${auditDate}]` : null;
+            ? isHistorical
+                ? `[Historique du ${auditDate}] ${notes}`
+                : notes
+            : isHistorical
+                ? `[Historique du ${auditDate}]`
+                : null;
 
         const auditDateStr = selectedDate.toISOString().split("T")[0];
 
         /* ─── Appels Odoo séquentiels (jamais Promise.all sur Odoo JSON-RPC) ─── */
 
         // A. Quants positifs de la société cible
-        const positiveQuants = await odooClient.searchRead<OdooQuant>("stock.quant", {
-            domain: [
-                ["company_id", "in", odooCompanyIds],
-                ["location_id.usage", "=", "internal"],
-                ["quantity", ">", 0],
-            ],
-            fields: ["product_id", "location_id", "quantity"],
-            limit: 25000,
-        });
+        const positiveQuants = await odooClient.searchRead<OdooQuant>(
+            "stock.quant",
+            {
+                domain: [
+                    ["company_id", "in", odooCompanyIds],
+                    ["location_id.usage", "=", "internal"],
+                    ["quantity", ">", 0],
+                ],
+                fields: ["product_id", "location_id", "quantity"],
+                limit: 25000,
+            },
+        );
 
         // B. Quants négatifs (toutes compagnies du groupe)
-        const negativeQuants = await odooClient.searchRead<OdooQuant>("stock.quant", {
-            domain: [
-                ["location_id.usage", "=", "internal"],
-                ["quantity", "<", 0],
-            ],
-            fields: ["product_id", "location_id", "quantity", "company_id"],
-            limit: 25000,
-        });
+        const negativeQuants = await odooClient.searchRead<OdooQuant>(
+            "stock.quant",
+            {
+                domain: [
+                    ["location_id.usage", "=", "internal"],
+                    ["quantity", "<", 0],
+                ],
+                fields: [
+                    "product_id",
+                    "location_id",
+                    "quantity",
+                    "company_id",
+                ],
+                limit: 25000,
+            },
+        );
 
-        const productQuantMap = new Map<number, Array<{ locationName: string; quantity: number }>>();
+        const productQuantMap = new Map<
+            number,
+            Array<{ locationName: string; quantity: number }>
+        >();
         const soldLocationsMap = new Map<number, SoldLocation[]>();
 
         /* ═══════════════════════════════════════════════════════════════
@@ -291,14 +322,17 @@ export async function createAuditSessionAction(
         /* ─── Quants positifs (company ciblée) ─── */
         (positiveQuants || []).forEach((q) => {
             const pid = Array.isArray(q.product_id) ? q.product_id[0] : null;
-            const locId = Array.isArray(q.location_id) ? q.location_id[0] : null;
-            const locName = Array.isArray(q.location_id) ? q.location_id[1] : null;
+            const locId = Array.isArray(q.location_id)
+                ? q.location_id[0]
+                : null;
+            const locName = Array.isArray(q.location_id)
+                ? q.location_id[1]
+                : null;
 
-            /* Validation stricte */
             if (typeof pid !== "number" || pid <= 0) {
                 console.warn(
                     "[CREATE_AUDIT] Quant positif ignoré — product_id invalide :",
-                    JSON.stringify(q)
+                    JSON.stringify(q),
                 );
                 return;
             }
@@ -310,7 +344,7 @@ export async function createAuditSessionAction(
             ) {
                 console.warn(
                     `[CREATE_AUDIT] Quant positif ignoré — location_id invalide (product ${pid}) :`,
-                    JSON.stringify(q)
+                    JSON.stringify(q),
                 );
                 return;
             }
@@ -319,19 +353,25 @@ export async function createAuditSessionAction(
             if (qty <= 0) return;
 
             if (!productQuantMap.has(pid)) productQuantMap.set(pid, []);
-            productQuantMap.get(pid)!.push({ locationName: locName.trim(), quantity: qty });
+            productQuantMap
+                .get(pid)!
+                .push({ locationName: locName.trim(), quantity: qty });
         });
 
         /* ─── Quants négatifs (toutes companies) ─── */
         (negativeQuants || []).forEach((q) => {
             const pid = Array.isArray(q.product_id) ? q.product_id[0] : null;
-            const locId = Array.isArray(q.location_id) ? q.location_id[0] : null;
-            const locName = Array.isArray(q.location_id) ? q.location_id[1] : null;
+            const locId = Array.isArray(q.location_id)
+                ? q.location_id[0]
+                : null;
+            const locName = Array.isArray(q.location_id)
+                ? q.location_id[1]
+                : null;
 
             if (typeof pid !== "number" || pid <= 0) {
                 console.warn(
                     "[CREATE_AUDIT] Quant négatif ignoré — product_id invalide :",
-                    JSON.stringify(q)
+                    JSON.stringify(q),
                 );
                 return;
             }
@@ -343,7 +383,7 @@ export async function createAuditSessionAction(
             ) {
                 console.warn(
                     `[CREATE_AUDIT] Quant négatif ignoré — location_id invalide (product ${pid}) :`,
-                    JSON.stringify(q)
+                    JSON.stringify(q),
                 );
                 return;
             }
@@ -355,22 +395,62 @@ export async function createAuditSessionAction(
             }
         });
 
-        const uniqueProductIds = Array.from(
-            new Set([...productQuantMap.keys(), ...soldLocationsMap.keys()])
+        const rawProductIds = Array.from(
+            new Set([...productQuantMap.keys(), ...soldLocationsMap.keys()]),
         );
+
+        /* ─── Filtre par commandes fournisseurs (si spécifié) ─── */
+        let uniqueProductIds = rawProductIds;
+
+        if (purchaseOrderIds && purchaseOrderIds.length > 0) {
+            try {
+                const poLines = await odooClient.searchRead<{
+                    product_id: [number, string] | false;
+                }>("purchase.order.line", {
+                    domain: [["order_id", "in", purchaseOrderIds]],
+                    fields: ["product_id"],
+                    limit: 50000,
+                });
+
+                const allowedProductIds = new Set<number>();
+                for (const line of poLines) {
+                    if (Array.isArray(line.product_id)) {
+                        allowedProductIds.add(line.product_id[0]);
+                    }
+                }
+
+                uniqueProductIds = rawProductIds.filter((id) =>
+                    allowedProductIds.has(id),
+                );
+
+                console.log(
+                    `[CREATE_AUDIT] Filtre PO : ${uniqueProductIds.length}/${rawProductIds.length} produits conservés ` +
+                    `(PO ids: ${purchaseOrderIds.join(", ")})`,
+                );
+            } catch (err) {
+                console.error(
+                    "[CREATE_AUDIT] Filtre PO échoué, fallback sur tous les produits :",
+                    err,
+                );
+                uniqueProductIds = rawProductIds;
+            }
+        }
 
         /* ─── Cas vide : pas de stock Odoo → audit vide mais valide ─── */
         if (uniqueProductIds.length === 0) {
-            const { data: auditId, error: rpcError } = await supabase.rpc("create_audit_session", {
-                p_reference: reference,
-                p_shop_id: cleanShopIds[0],
-                p_shop_name: shopNames,
-                p_department: departmentLabel,
-                p_notes: notesFinal || "",
-                p_created_by: userId || "",
-                p_audit_date: auditDateStr,
-                p_items: [] as unknown as Json,
-            });
+            const { data: auditId, error: rpcError } = await supabase.rpc(
+                "create_audit_session",
+                {
+                    p_reference: reference,
+                    p_shop_id: cleanShopIds[0],
+                    p_shop_name: shopNames,
+                    p_department: departmentLabel,
+                    p_notes: notesFinal || "",
+                    p_created_by: userId || "",
+                    p_audit_date: auditDateStr,
+                    p_items: [] as unknown as Json,
+                },
+            );
             if (rpcError) throw new Error(rpcError.message);
 
             revalidatePath("/inventory/audits");
@@ -389,23 +469,33 @@ export async function createAuditSessionAction(
             ["available_in_pos", "=", true],
         ];
 
-        const isAllSelected = departments.includes("Tous") || departments.length === 0;
+        const isAllSelected =
+            departments.includes("Tous") || departments.length === 0;
         if (!isAllSelected) {
             productDomain.push(["x_studio_segment", "in", departments]);
         }
 
-        const products = await odooClient.searchRead<OdooProduct>("product.product", {
-            domain: productDomain,
-            fields: [
-                "id", "name", "barcode", "default_code", "hs_code",
-                "standard_price", "list_price",
-                "create_date", "x_studio_segment",
-                "x_studio_many2one_field_21bvh",
-                "x_studio_many2one_field_Arl5D",
-                "pos_categ_ids",
-            ],
-            limit: uniqueProductIds.length,
-        });
+        const products = await odooClient.searchRead<OdooProduct>(
+            "product.product",
+            {
+                domain: productDomain,
+                fields: [
+                    "id",
+                    "name",
+                    "barcode",
+                    "default_code",
+                    "hs_code",
+                    "standard_price",
+                    "list_price",
+                    "create_date",
+                    "x_studio_segment",
+                    "x_studio_many2one_field_21bvh",
+                    "x_studio_many2one_field_Arl5D",
+                    "pos_categ_ids",
+                ],
+                limit: uniqueProductIds.length,
+            },
+        );
 
         /* ─── Résolution POS categories (1 seul appel Odoo) ─── */
         const allCategIds = new Set<number>();
@@ -416,7 +506,27 @@ export async function createAuditSessionAction(
                 });
             }
         });
-        const categNameMap = await resolvePosCategoryNames(Array.from(allCategIds));
+        const categNameMap = await resolvePosCategoryNames(
+            Array.from(allCategIds),
+        );
+
+        /* ═══════════════════════════════════════════════════════════════
+           Résolution de la date de réception (1 read_group Odoo batched)
+           Source : stock.move done vers emplacement interne.
+           ═══════════════════════════════════════════════════════════════ */
+        const receptionDateByProduct = new Map<number, string>();
+        try {
+            const resolved = await resolveReceptionDatesByProduct(
+                uniqueProductIds,
+            );
+            resolved.forEach((v, k) => receptionDateByProduct.set(k, v));
+            console.log(
+                `[RECEPTION_DATE] ${receptionDateByProduct.size}/${uniqueProductIds.length} produits avec date résolue`,
+            );
+        } catch (err) {
+            console.error("[RECEPTION_DATE_ERROR]", err);
+            /* On continue sans reception_date — fallback null */
+        }
 
         /* ─── Construction du snapshot ─── */
         const barcodeMap = new Map<string, AuditItemDraft>();
@@ -433,34 +543,47 @@ export async function createAuditSessionAction(
             /* ═══════════════════════════════════════════════════════
                RÈGLE MÉTIER — Un produit DOIT avoir au moins une location.
                - quantList vide ET soldLocs vide → BUG Odoo → on skip.
-               - quantList non vide → location réelle (source).
-               - quantList vide MAIS soldLocs non vide → produit
-                 uniquement détecté en négatif ailleurs. On le garde
-                 avec supplier_ref = "—" (pas de localisation source).
                ═══════════════════════════════════════════════════════ */
             if (quantList.length === 0 && soldLocs.length === 0) {
                 skippedNoLocation++;
                 console.warn(
-                    "[CREATE_AUDIT] Produit ignoré — aucune location valide (ni positive ni négative) :",
+                    "[CREATE_AUDIT] Produit ignoré — aucune location valide :",
                     JSON.stringify({
                         productId: p.id,
                         barcode: p.barcode,
                         name: p.name,
-                    })
+                    }),
                 );
                 return;
             }
 
-            const totalQty = quantList.reduce((sum, q) => sum + q.quantity, 0);
-            const locations = [...new Set(quantList.map((q) => q.locationName))].join(", ");
+            const totalQty = quantList.reduce(
+                (sum, q) => sum + q.quantity,
+                0,
+            );
+            const locations = [
+                ...new Set(quantList.map((q) => q.locationName)),
+            ].join(", ");
 
-            const brandVal = extractOdooMany2oneName(p.x_studio_many2one_field_21bvh, "N/A");
-            const colorVal = extractOdooMany2oneName(p.x_studio_many2one_field_Arl5D, "N/A");
+            const brandVal = extractOdooMany2oneName(
+                p.x_studio_many2one_field_21bvh,
+                "N/A",
+            );
+            const colorVal = extractOdooMany2oneName(
+                p.x_studio_many2one_field_Arl5D,
+                "N/A",
+            );
 
             const categIds = Array.isArray(p.pos_categ_ids)
-                ? p.pos_categ_ids.filter((id): id is number => Number.isInteger(id))
+                ? p.pos_categ_ids.filter((id): id is number =>
+                    Number.isInteger(id),
+                )
                 : [];
-            const categNames = categIds.map((id) => categNameMap.get(id) ?? `#${id}`);
+            const categNames = categIds.map(
+                (id) => categNameMap.get(id) ?? `#${id}`,
+            );
+
+            const receptionDate = receptionDateByProduct.get(p.id) ?? null;
 
             const existing = barcodeMap.get(barcodeVal);
 
@@ -470,7 +593,11 @@ export async function createAuditSessionAction(
 
                 if (soldLocs.length > 0) {
                     soldLocs.forEach((sl) => {
-                        if (!existing.sold_locations.some((el) => el.id === sl.id)) {
+                        if (
+                            !existing.sold_locations.some(
+                                (el) => el.id === sl.id,
+                            )
+                        ) {
                             existing.sold_locations.push(sl);
                         }
                     });
@@ -482,33 +609,54 @@ export async function createAuditSessionAction(
                         .split(", ")
                         .filter(Boolean);
                     const newLocs = locations.split(", ").filter(Boolean);
-                    const merged = [...new Set([...existingLocs, ...newLocs])].join(", ");
+                    const merged = [
+                        ...new Set([...existingLocs, ...newLocs]),
+                    ].join(", ");
                     existing.supplier_ref = merged;
                 }
 
                 existing.pos_category_ids = Array.from(
-                    new Set([...existing.pos_category_ids, ...categIds])
+                    new Set([...existing.pos_category_ids, ...categIds]),
                 );
                 existing.pos_category_names = Array.from(
-                    new Set([...existing.pos_category_names, ...categNames])
+                    new Set([
+                        ...existing.pos_category_names,
+                        ...categNames,
+                    ]),
                 );
+
+                /* Reception : garder la plus récente */
+                if (
+                    receptionDate &&
+                    (!existing.reception_date ||
+                        receptionDate > existing.reception_date)
+                ) {
+                    existing.reception_date = receptionDate;
+                }
             } else {
                 barcodeMap.set(barcodeVal, {
                     odoo_product_id: p.id,
                     product_name: p.name,
                     internal_barcode: barcodeVal,
-                    /* "—" si le produit n'a QUE des locations négatives (pas de stock source) */
                     supplier_ref: locations || "—",
-                    hs_code: typeof p.hs_code === "string" && p.hs_code ? p.hs_code : "N/A",
+                    hs_code:
+                        typeof p.hs_code === "string" && p.hs_code
+                            ? p.hs_code
+                            : "N/A",
                     brand: brandVal,
                     color: colorVal,
-                    odoo_create_date: typeof p.create_date === "string" ? p.create_date : null,
+                    odoo_create_date:
+                        typeof p.create_date === "string"
+                            ? p.create_date
+                            : null,
                     sold_locations: [...soldLocs],
                     theoretical_qty: totalQty,
                     counted_qty: 0,
                     unit_cost: resolveUnitCost(p),
                     pos_category_ids: categIds,
                     pos_category_names: categNames,
+                    reception_date: receptionDate,
+                    list_price: resolveListPrice(p),
                 });
             }
         });
@@ -517,44 +665,45 @@ export async function createAuditSessionAction(
 
         if (skippedNoLocation > 0) {
             console.warn(
-                `[CREATE_AUDIT] ${skippedNoLocation} produit(s) ignoré(s) — aucune location valide.`
+                `[CREATE_AUDIT] ${skippedNoLocation} produit(s) ignoré(s) — aucune location valide.`,
             );
         }
 
         /* ─── Appel RPC transactionnel (audit + items en 1 TX) ─── */
-        const { data: auditId, error: rpcError } = await supabase.rpc("create_audit_session", {
-            p_reference: reference,
-            p_shop_id: cleanShopIds[0],
-            p_shop_name: shopNames,
-            p_department: departmentLabel,
-            p_notes: notesFinal || "",
-            p_created_by: userId || "",
-            p_audit_date: auditDateStr,
-            p_items: snapshotItems as unknown as Json,
-        });
+        const { data: auditId, error: rpcError } = await supabase.rpc(
+            "create_audit_session",
+            {
+                p_reference: reference,
+                p_shop_id: cleanShopIds[0],
+                p_shop_name: shopNames,
+                p_department: departmentLabel,
+                p_notes: notesFinal || "",
+                p_created_by: userId || "",
+                p_audit_date: auditDateStr,
+                p_items: snapshotItems as unknown as Json,
+            },
+        );
 
         if (rpcError) throw new Error(rpcError.message);
 
         revalidatePath("/inventory/audits");
         return { success: true, auditId, reference };
-
     } catch (err: unknown) {
         console.error("[CREATE_AUDIT_ERROR]", err);
         return {
             success: false,
-            error: err instanceof Error ? err.message : "Erreur de création d'audit.",
+            error:
+                err instanceof Error
+                    ? err.message
+                    : "Erreur de création d'audit.",
         };
     }
 }
 
 /* ════════════════════════════════════════════════════════════════════ */
 /* 2. SYNCHRONISATION DES MÉTADONNÉES + EMPLACEMENTS NÉGATIFS           */
-/*    - Ne recalcule PAS theoretical_qty ni counted_qty                 */
-/*    - Ne touche PAS aux scans déjà effectués                         */
-/*    - Ne touche PAS à supplier_ref (immuable après création)         */
-/*    - Batch via RPC SQL atomique (update par id, valeurs par item)   */
+/*    + DATE DE RÉCEPTION                                               */
 /* ════════════════════════════════════════════════════════════════════ */
-
 export async function syncAuditStockSnapshotAction(auditId: string) {
     try {
         const supabase = await createClient();
@@ -573,7 +722,8 @@ export async function syncAuditStockSnapshotAction(auditId: string) {
         if (audit.status === "validated" || audit.status === "completed") {
             return {
                 success: false,
-                error: "Un audit clôturé et verrouillé ne peut plus être synchronisé.",
+                error:
+                    "Un audit clôturé et verrouillé ne peut plus être synchronisé.",
             };
         }
 
@@ -596,25 +746,28 @@ export async function syncAuditStockSnapshotAction(auditId: string) {
         }
 
         /* ─── 3. Récupération des quants négatifs (toutes compagnies) ─── */
-        const negativeQuants = await odooClient.searchRead<OdooQuant>("stock.quant", {
-            domain: [
-                ["location_id.usage", "=", "internal"],
-                ["quantity", "<", 0],
-            ],
-            fields: ["product_id", "location_id", "quantity"],
-            limit: 25000,
-        });
+        const negativeQuants = await odooClient.searchRead<OdooQuant>(
+            "stock.quant",
+            {
+                domain: [
+                    ["location_id.usage", "=", "internal"],
+                    ["quantity", "<", 0],
+                ],
+                fields: ["product_id", "location_id", "quantity"],
+                limit: 25000,
+            },
+        );
 
         const soldLocationsMap = new Map<number, SoldLocation[]>();
 
-        /* ═══════════════════════════════════════════════════════════════
-           VALIDATION STRICTE — Même règle que createAuditSessionAction.
-           Un quant négatif sans location valide est un BUG Odoo → ignoré.
-           ═══════════════════════════════════════════════════════════════ */
         (negativeQuants || []).forEach((q) => {
             const pid = Array.isArray(q.product_id) ? q.product_id[0] : null;
-            const locId = Array.isArray(q.location_id) ? q.location_id[0] : null;
-            const locName = Array.isArray(q.location_id) ? q.location_id[1] : null;
+            const locId = Array.isArray(q.location_id)
+                ? q.location_id[0]
+                : null;
+            const locName = Array.isArray(q.location_id)
+                ? q.location_id[1]
+                : null;
 
             if (typeof pid !== "number" || pid <= 0) return;
             if (
@@ -625,7 +778,7 @@ export async function syncAuditStockSnapshotAction(auditId: string) {
             ) {
                 console.warn(
                     `[SYNC] Quant négatif ignoré — location_id invalide (product ${pid}) :`,
-                    JSON.stringify(q)
+                    JSON.stringify(q),
                 );
                 return;
             }
@@ -639,20 +792,29 @@ export async function syncAuditStockSnapshotAction(auditId: string) {
 
         /* ─── 4. Récupération des produits Odoo concernés ─── */
         const productIds = Array.from(
-            new Set(existingItems.map((i) => i.odoo_product_id))
+            new Set(existingItems.map((i) => i.odoo_product_id)),
         );
 
-        const products = await odooClient.searchRead<OdooProduct>("product.product", {
-            domain: [["id", "in", productIds]],
-            fields: [
-                "id", "name", "barcode", "default_code", "hs_code",
-                "standard_price", "create_date", "list_price",
-                "x_studio_many2one_field_21bvh",
-                "x_studio_many2one_field_Arl5D",
-                "pos_categ_ids",
-            ],
-            limit: productIds.length,
-        });
+        const products = await odooClient.searchRead<OdooProduct>(
+            "product.product",
+            {
+                domain: [["id", "in", productIds]],
+                fields: [
+                    "id",
+                    "name",
+                    "barcode",
+                    "default_code",
+                    "hs_code",
+                    "standard_price",
+                    "create_date",
+                    "list_price",
+                    "x_studio_many2one_field_21bvh",
+                    "x_studio_many2one_field_Arl5D",
+                    "pos_categ_ids",
+                ],
+                limit: productIds.length,
+            },
+        );
 
         const productInfoMap = new Map<number, OdooProduct>();
         (products || []).forEach((p) => productInfoMap.set(p.id, p));
@@ -666,9 +828,24 @@ export async function syncAuditStockSnapshotAction(auditId: string) {
                 });
             }
         });
-        const categNameMap = await resolvePosCategoryNames(Array.from(allCategIds));
+        const categNameMap = await resolvePosCategoryNames(
+            Array.from(allCategIds),
+        );
 
-        /* ─── 5bis. Résolution des emplacements positifs pour les HORS PÉRIMÈTRE ─── */
+        /* ─── 5bis. Date de réception (1 read_group Odoo) ─── */
+        const receptionDateByProduct = new Map<number, string>();
+        try {
+            const resolved = await resolveReceptionDatesByProduct(productIds);
+            resolved.forEach((v, k) => receptionDateByProduct.set(k, v));
+            console.log(
+                `[RECEPTION_DATE_SYNC] ${receptionDateByProduct.size}/${productIds.length} produits avec date résolue`,
+            );
+        } catch (err) {
+            console.error("[RECEPTION_DATE_SYNC_ERROR]", err);
+            /* On continue sans reception_date */
+        }
+
+        /* ─── 5ter. Résolution des emplacements positifs pour HORS PÉRIMÈTRE ─── */
         const unexpectedProductIds = existingItems
             .filter((i) => (i.theoretical_qty ?? 0) === 0)
             .map((i) => i.odoo_product_id);
@@ -677,12 +854,12 @@ export async function syncAuditStockSnapshotAction(auditId: string) {
 
         if (unexpectedProductIds.length > 0) {
             try {
-                foundLocationsByProduct = await resolvePositiveLocationsForProducts(
-                    unexpectedProductIds
-                );
+                foundLocationsByProduct =
+                    await resolvePositiveLocationsForProducts(
+                        unexpectedProductIds,
+                    );
             } catch (err) {
                 console.error("[SYNC_FOUND_LOCATIONS_ERROR]", err);
-                /* On continue sans bloquer le sync — found_locations restera vide */
             }
         }
 
@@ -694,24 +871,30 @@ export async function syncAuditStockSnapshotAction(auditId: string) {
 
             const brandVal = extractOdooMany2oneName(
                 prodInfo?.x_studio_many2one_field_21bvh,
-                "N/A"
+                "N/A",
             );
             const colorVal = extractOdooMany2oneName(
                 prodInfo?.x_studio_many2one_field_Arl5D,
-                "N/A"
+                "N/A",
             );
 
             const categIds = Array.isArray(prodInfo?.pos_categ_ids)
-                ? prodInfo!.pos_categ_ids!.filter((id): id is number => Number.isInteger(id))
+                ? prodInfo!.pos_categ_ids!.filter((id): id is number =>
+                    Number.isInteger(id),
+                )
                 : [];
-            const categNames = categIds.map((id) => categNameMap.get(id) ?? `#${id}`);
+            const categNames = categIds.map(
+                (id) => categNameMap.get(id) ?? `#${id}`,
+            );
 
             return {
                 id: item.id,
                 sold_locations: soldLocs,
-                found_locations: foundLocationsByProduct.get(pid) ?? [],
+                found_locations:
+                    foundLocationsByProduct.get(pid) ?? [],
                 hs_code:
-                    typeof prodInfo?.hs_code === "string" && prodInfo.hs_code
+                    typeof prodInfo?.hs_code === "string" &&
+                        prodInfo.hs_code
                         ? prodInfo.hs_code
                         : "N/A",
                 brand: brandVal,
@@ -723,10 +906,12 @@ export async function syncAuditStockSnapshotAction(auditId: string) {
                 unit_cost: prodInfo ? resolveUnitCost(prodInfo) : 0,
                 pos_category_ids: categIds,
                 pos_category_names: categNames,
+                reception_date: receptionDateByProduct.get(pid) ?? null,
+                list_price: prodInfo ? resolveListPrice(prodInfo) : 0,
             };
         });
 
-        /* ─── 7. Envoi batché via RPC SQL (chaque item garde ses valeurs) ─── */
+        /* ─── 7. Envoi batché via RPC SQL ─── */
         const batchSize = 500;
         let syncedCount = 0;
 
@@ -735,16 +920,16 @@ export async function syncAuditStockSnapshotAction(auditId: string) {
 
             const { data: affected, error: rpcError } = await supabase.rpc(
                 "sync_audit_items_batch",
-                { p_items: batch as unknown as Json }
+                { p_items: batch as unknown as Json },
             );
 
             if (rpcError) {
                 console.error("[SYNC_RPC_ERROR]", rpcError);
-                // On continue avec les batches suivants (résilience partielle)
                 continue;
             }
 
-            syncedCount += typeof affected === "number" ? affected : batch.length;
+            syncedCount +=
+                typeof affected === "number" ? affected : batch.length;
         }
 
         revalidatePath(`/inventory/audits/${auditId}`);
@@ -754,7 +939,6 @@ export async function syncAuditStockSnapshotAction(auditId: string) {
             message: `${syncedCount} article(s) resynchronisé(s) depuis Odoo.`,
             syncedCount,
         };
-
     } catch (err: unknown) {
         console.error("[SYNC_SNAPSHOT_ERROR]", err);
         return {

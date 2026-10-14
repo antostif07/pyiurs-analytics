@@ -44,6 +44,42 @@ import { FoundLocationsBadges } from "./found-location-badges";
 import { useAuditFilteredExport } from "../_lib/hooks/useAuditFilteredExport";
 import { getSoldLocations, hasSoldElsewhere, matchesAnyPosCategory } from "../_lib/helpers";
 
+/**
+ * Debounce un callback. Retourne une fonction stable qui reporte
+ * l'exécution réelle de `delay` ms après le dernier appel.
+ *
+ * Le cleanup annule le timer en cours au démontage pour éviter
+ * les `setState` après unmount côté parent.
+ */
+function useDebouncedCallback<T extends (...args: never[]) => void>(
+    callback: T,
+    delay: number,
+): T {
+    const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+    const callbackRef = React.useRef(callback);
+
+    // Toujours utiliser la version la plus récente du callback
+    React.useEffect(() => {
+        callbackRef.current = callback;
+    }, [callback]);
+
+    React.useEffect(() => {
+        return () => {
+            if (timerRef.current) clearTimeout(timerRef.current);
+        };
+    }, []);
+
+    return React.useCallback(
+        ((...args: Parameters<T>) => {
+            if (timerRef.current) clearTimeout(timerRef.current);
+            timerRef.current = setTimeout(() => {
+                callbackRef.current(...args);
+            }, delay);
+        }) as T,
+        [delay],
+    );
+}
+
 const formatUSD = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
         style: "currency",
@@ -117,7 +153,11 @@ const INITIAL_FILTERS: ExtendedAuditFilters = {
     specificSoldLocationFilter: "all",
     posCategoryFilter: [],
     foundElsewhereFilter: "all",
-    cosmeticFilter: "all"
+    cosmeticFilter: "all",
+    createdDateFrom: null,        // ⬅️
+    createdDateTo: null,          // ⬅️
+    receptionDateFrom: null,      // ⬅️
+    receptionDateTo: null,        // ⬅️
 };
 
 export function AuditDataTable({
@@ -218,6 +258,24 @@ export function AuditDataTable({
             if (filters.theoreticalStockFilter === "zero" && theo !== 0) return false;
             if (filters.theoreticalStockFilter === "greater_than_one" && theo <= 1) return false;
             if (filters.theoreticalStockFilter === "negative" && theo >= 0) return false;
+
+            /* Date de création produit */
+            if (filters.createdDateFrom || filters.createdDateTo) {
+                const createdIso = (item as { odoo_create_date?: string | null }).odoo_create_date;
+                if (!createdIso) return false;
+                const d = createdIso.split("T")[0];
+                if (filters.createdDateFrom && d < filters.createdDateFrom) return false;
+                if (filters.createdDateTo && d > filters.createdDateTo) return false;
+            }
+
+            /* Date de réception */
+            if (filters.receptionDateFrom || filters.receptionDateTo) {
+                const receptionIso = (item as { reception_date?: string | null }).reception_date;
+                if (!receptionIso) return false;
+                const d = receptionIso.split("T")[0];
+                if (filters.receptionDateFrom && d < filters.receptionDateFrom) return false;
+                if (filters.receptionDateTo && d > filters.receptionDateTo) return false;
+            }
 
             /* 6. Vendus Ailleurs (-1) */
             const soldLocs = getSoldLocations(item);
@@ -390,6 +448,31 @@ export function AuditDataTable({
                         {row.original.supplier_ref || "Stock Principal"}
                     </span>
                 ),
+            },
+            {
+                id: "reception_date",
+                accessorFn: (row) => (row as { reception_date?: string | null }).reception_date ?? "",
+                header: ({ column }) => (
+                    <ColumnHeader column={column} title="Réception" align="center" />
+                ),
+                cell: ({ row }) => {
+                    const iso = (row.original as { reception_date?: string | null }).reception_date;
+                    if (!iso) {
+                        return (
+                            <div className="text-center text-[10px] text-muted-foreground/50 italic">
+                                —
+                            </div>
+                        );
+                    }
+                    return (
+                        <div className="text-center text-[10px] text-muted-foreground tabular-nums">
+                            <span className="flex items-center justify-center gap-1">
+                                <Calendar className="w-2.5 h-2.5" />
+                                {format(new Date(iso), "dd MMM yy", { locale: fr })}
+                            </span>
+                        </div>
+                    );
+                },
             },
             {
                 id: "sold_locations",
@@ -625,9 +708,20 @@ export function AuditDataTable({
         getPaginationRowModel: getPaginationRowModel(),
     });
 
+    /** Notification parent débouncée — évite de recalculer les KPIs
+ *  à chaque scan quand 15k+ items sont en mémoire. */
+    const notifyFilteredChange = useDebouncedCallback(
+        (data: StockAuditItem[]) => {
+            onFilteredChange?.(data);
+        },
+        500,
+    );
+
+    // Effet réactif aux items ET filtres : change de données → debounce
     useEffect(() => {
-        onFilteredChange?.(filteredData);
-    }, [filteredData, onFilteredChange]);
+        if (!onFilteredChange) return;
+        notifyFilteredChange(filteredData);
+    }, [filteredData, notifyFilteredChange, onFilteredChange]);
 
     return (
         <div className="space-y-3">

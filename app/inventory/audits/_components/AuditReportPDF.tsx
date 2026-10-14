@@ -7,12 +7,22 @@ import {
     Text,
     View,
     StyleSheet,
+    Image,
 } from '@react-pdf/renderer';
 import {
     StockAudit,
     StockAuditItem,
 } from '@/app/inventory/audits/_lib/types';
-import { aggregateByPosCategory, getFoundLocations, getPosCategoryIds, getSoldLocations, hasSoldElsewhere } from '../_lib/helpers';
+import {
+    aggregateByPosCategory,
+    getFoundLocations,
+    getPosCategoryIds,
+    getSoldLocations,
+    hasSoldElsewhere,
+    resolveProductImageUrl,
+} from '../_lib/helpers';
+
+const MAX_ROWS_WITH_IMAGES = 200;
 
 const styles = StyleSheet.create({
     page: {
@@ -88,6 +98,7 @@ const styles = StyleSheet.create({
         color: '#64748B',
         textTransform: 'uppercase',
         marginBottom: 2,
+        textAlign: 'center',
     },
     kpiValue: {
         fontSize: 10,
@@ -98,6 +109,11 @@ const styles = StyleSheet.create({
         fontSize: 10,
         fontFamily: 'Helvetica-Bold',
         color: '#E11D48',
+    },
+    kpiValueSell: {
+        fontSize: 10,
+        fontFamily: 'Helvetica-Bold',
+        color: '#7C3AED',
     },
     infoRow: {
         flexDirection: 'row',
@@ -149,7 +165,7 @@ const styles = StyleSheet.create({
     },
     tableHeaderCell: {
         color: '#FFFFFF',
-        fontSize: 6.5,
+        fontSize: 6,
         fontFamily: 'Helvetica-Bold',
         textTransform: 'uppercase',
     },
@@ -184,6 +200,11 @@ const styles = StyleSheet.create({
         fontSize: 6.5,
         fontFamily: 'Helvetica-Bold',
         color: '#E11D48',
+    },
+    tableCellSell: {
+        fontSize: 6.5,
+        fontFamily: 'Helvetica-Bold',
+        color: '#7C3AED',
     },
     tableCellGain: {
         fontSize: 6.5,
@@ -220,14 +241,23 @@ const styles = StyleSheet.create({
         fontStyle: 'italic',
     },
 
-    /* ─── Colonnes du tableau des écarts (page 1) ─── */
-    colBarcode: { width: '20%' },
-    colProduct: { width: '36%' },
-    colLocation: { width: '16%' },
-    colTheo: { width: '7%', textAlign: 'center' },
-    colCounted: { width: '7%', textAlign: 'center' },
-    colDiff: { width: '7%', textAlign: 'center' },
-    colCost: { width: '7%', textAlign: 'right' },
+    /* ════════════════════════════════════════════════════════════
+       Colonnes du tableau des écarts (page 1)
+       Rebalancement pour intégrer "P.V." et "Impact Vente ($)".
+       Total = 5+14+23+11+5+5+5+10+9+13 = 100 %
+       ════════════════════════════════════════════════════════════ */
+    colImage: { width: '5%', alignItems: 'center', justifyContent: 'center' },
+    colBarcode: { width: '14%' },
+    colProduct: { width: '23%' },
+    colLocation: { width: '11%' },
+    colTheo: { width: '5%', textAlign: 'center' },
+    colCounted: { width: '5%', textAlign: 'center' },
+    colDiff: { width: '5%', textAlign: 'center' },
+    colCost: { width: '10%', textAlign: 'right' },       // Impact Achat ($)
+    colListPrice: { width: '9%', textAlign: 'right' },    // Prix de vente ($)
+    colSellImpact: { width: '13%', textAlign: 'right' },  // Impact Vente ($)
+
+    /* Colonnes legacy (utilisées ailleurs) */
     colProductWide: { width: '30%' },
     colLocWide: { width: '30%' },
     colQtySmall: { width: '10%', textAlign: 'center' },
@@ -235,7 +265,6 @@ const styles = StyleSheet.create({
 
     /* ─── Colonnes du tableau POS (page 2) ─── */
     posColCategory: { width: '30%' },
-    // posColId: { width: '8%', textAlign: 'center' },
     posColTotal: { width: '11%', textAlign: 'center' },
     posColScanned: { width: '11%', textAlign: 'center' },
     posColRemaining: { width: '11%', textAlign: 'center' },
@@ -298,6 +327,17 @@ const styles = StyleSheet.create({
         color: '#64748B',
         fontFamily: 'Helvetica-Bold',
     },
+    productImage: {
+        width: 22,
+        height: 22,
+        objectFit: 'cover',
+        borderRadius: 2,
+    },
+    imagePlaceholder: {
+        fontSize: 6,
+        color: '#CBD5E1',
+        textAlign: 'center',
+    },
 });
 
 
@@ -319,17 +359,23 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
         }).format(val);
     };
 
+    /** Résolution robuste du list_price (0 si absent) */
+    const getListPrice = (item: StockAuditItem): number =>
+        Number((item as { list_price?: number | null }).list_price) || 0;
+
     const totalItems = items.length;
     const scannedItems = items.filter((i) => (i.counted_qty || 0) === 1).length;
     const remainingItems = totalItems - scannedItems;
 
     let totalDiffQty = 0;
-    let totalDiffValue = 0;
+    let totalDiffValue = 0;      // Impact basé sur le coût (unit_cost)
+    let totalSellImpact = 0;     // Impact basé sur le prix de vente (list_price)
 
     items.forEach((item) => {
         const diff = (item.counted_qty || 0) - (item.theoretical_qty || 0);
         totalDiffQty += diff;
         totalDiffValue += diff * (Number(item.unit_cost) || 0);
+        totalSellImpact += diff * getListPrice(item);
     });
 
     /* Filtrage anomalies (page 1) — max 300 lignes */
@@ -340,12 +386,13 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
         })
         .slice(0, 300);
 
+    const showImages = discrepancyItems.length <= MAX_ROWS_WITH_IMAGES;
+
     /* Agrégation POS (page 2) */
     const posAggregates = aggregateByPosCategory(items);
     const hasPosData = posAggregates.some((a) => a.id !== null);
     const distinctPosCount = posAggregates.filter((a) => a.id !== null).length;
 
-    /* Totaux de la synthèse POS (pour ligne TOTAL) */
     const posTotals = posAggregates.reduce(
         (acc, agg) => ({
             totalItems: acc.totalItems + agg.totalItems,
@@ -365,21 +412,17 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
         }
     );
 
-    /* Produits vendus ailleurs (sold_locations non vide) */
     const soldElsewhereItems = items.filter((item) => hasSoldElsewhere(item));
-
     const soldElsewhereQty = soldElsewhereItems.length;
     const soldElsewhereValue = soldElsewhereItems.reduce(
         (acc, i) => acc + (Number(i.unit_cost) || 0),
         0
     );
 
-    /* Produits hors périmètre (theoretical_qty = 0 + scanné) */
     const unexpectedItems = items.filter(
         (item) =>
             (item.theoretical_qty ?? 0) === 0 && (item.counted_qty ?? 0) === 1
     );
-
     const unexpectedQty = unexpectedItems.length;
     const unexpectedValue = unexpectedItems.reduce(
         (acc, i) => acc + (Number(i.unit_cost) || 0),
@@ -410,7 +453,9 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                         <Text style={styles.reportTitle}>
                             Rapport Officiel de Démarque &amp; Écarts
                         </Text>
-                        <Text style={styles.metaText}>Référence Audit : {audit.reference}</Text>
+                        <Text style={styles.metaText}>
+                            Référence Audit : {audit.reference}
+                        </Text>
                     </View>
                     <View style={styles.badge}>
                         <Text style={styles.badgeText}>
@@ -426,12 +471,16 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                 {/* METADATA */}
                 <View style={styles.infoRow}>
                     <View style={styles.infoCol}>
-                        <Text style={styles.infoLabel}>Boutique / Point de vente :</Text>
+                        <Text style={styles.infoLabel}>
+                            Boutique / Point de vente :
+                        </Text>
                         <Text style={styles.infoValue}>{audit.shop_name}</Text>
                     </View>
                     <View style={styles.infoCol}>
                         <Text style={styles.infoLabel}>Périmètre :</Text>
-                        <Text style={styles.infoValue}>{audit.department || 'Tous'}</Text>
+                        <Text style={styles.infoValue}>
+                            {audit.department || 'Tous'}
+                        </Text>
                     </View>
                     <View style={styles.infoCol}>
                         <Text style={styles.infoLabel}>Date d&apos;Audit :</Text>
@@ -439,7 +488,7 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                     </View>
                 </View>
 
-                {/* KPI GLOBAL */}
+                {/* KPI GLOBAL — 6 boîtes */}
                 <View style={styles.kpiGrid}>
                     <View style={styles.kpiBox}>
                         <Text style={styles.kpiLabel}>Total Référencés</Text>
@@ -450,19 +499,43 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                         <Text style={styles.kpiValue}>{scannedItems}</Text>
                     </View>
                     <View style={styles.kpiBox}>
-                        <Text style={styles.kpiLabel}>Non Scannés (Manquants)</Text>
+                        <Text style={styles.kpiLabel}>Manquants</Text>
                         <Text style={styles.kpiValue}>{remainingItems}</Text>
                     </View>
                     <View style={styles.kpiBox}>
-                        <Text style={styles.kpiLabel}>Écart Qté Global</Text>
-                        <Text style={totalDiffQty < 0 ? styles.kpiValueLoss : styles.kpiValue}>
+                        <Text style={styles.kpiLabel}>Écart Qté</Text>
+                        <Text
+                            style={
+                                totalDiffQty < 0
+                                    ? styles.kpiValueLoss
+                                    : styles.kpiValue
+                            }
+                        >
                             {totalDiffQty}
                         </Text>
                     </View>
                     <View style={styles.kpiBox}>
-                        <Text style={styles.kpiLabel}>Démarque Totale ($)</Text>
-                        <Text style={totalDiffValue < 0 ? styles.kpiValueLoss : styles.kpiValue}>
+                        <Text style={styles.kpiLabel}>Démarque Coût ($)</Text>
+                        <Text
+                            style={
+                                totalDiffValue < 0
+                                    ? styles.kpiValueLoss
+                                    : styles.kpiValue
+                            }
+                        >
                             {formatUSD(totalDiffValue)}
+                        </Text>
+                    </View>
+                    <View style={styles.kpiBox}>
+                        <Text style={styles.kpiLabel}>CA Perdu ($)</Text>
+                        <Text
+                            style={
+                                totalSellImpact < 0
+                                    ? styles.kpiValueSell
+                                    : styles.kpiValue
+                            }
+                        >
+                            {formatUSD(totalSellImpact)}
                         </Text>
                     </View>
                 </View>
@@ -473,8 +546,18 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                     {discrepancyItems.length} lignes d&apos;anomalies)
                 </Text>
 
+                {!showImages && discrepancyItems.length > MAX_ROWS_WITH_IMAGES && (
+                    <Text style={styles.sectionNote}>
+                        Images désactivées au-delà de {MAX_ROWS_WITH_IMAGES} lignes
+                        pour préserver la performance de génération.
+                    </Text>
+                )}
+
                 <View style={styles.table}>
                     <View style={styles.tableHeader} fixed>
+                        <Text style={[styles.tableHeaderCell, styles.colImage]}>
+                            Img
+                        </Text>
                         <Text style={[styles.tableHeaderCell, styles.colBarcode]}>
                             Code-barres
                         </Text>
@@ -484,13 +567,27 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                         <Text style={[styles.tableHeaderCell, styles.colLocation]}>
                             Emplacement
                         </Text>
-                        <Text style={[styles.tableHeaderCell, styles.colTheo]}>Théo.</Text>
+                        <Text style={[styles.tableHeaderCell, styles.colTheo]}>
+                            Théo.
+                        </Text>
                         <Text style={[styles.tableHeaderCell, styles.colCounted]}>
                             Compté
                         </Text>
-                        <Text style={[styles.tableHeaderCell, styles.colDiff]}>Écart</Text>
+                        <Text style={[styles.tableHeaderCell, styles.colDiff]}>
+                            Écart
+                        </Text>
                         <Text style={[styles.tableHeaderCell, styles.colCost]}>
-                            Impact ($)
+                            Impact Achat ($)
+                        </Text>
+                        <Text
+                            style={[styles.tableHeaderCell, styles.colListPrice]}
+                        >
+                            P.V. ($)
+                        </Text>
+                        <Text
+                            style={[styles.tableHeaderCell, styles.colSellImpact]}
+                        >
+                            Impact Vente ($)
                         </Text>
                     </View>
 
@@ -499,11 +596,15 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                             <Text
                                 style={[
                                     styles.tableCell,
-                                    { width: '100%', textAlign: 'center', paddingVertical: 10 },
+                                    {
+                                        width: '100%',
+                                        textAlign: 'center',
+                                        paddingVertical: 10,
+                                    },
                                 ]}
                             >
-                                🎉 Aucun écart détecté ! L&apos;inventaire physique est à 100%
-                                conforme au stock Odoo.
+                                🎉 Aucun écart détecté ! L&apos;inventaire physique
+                                est à 100% conforme au stock Odoo.
                             </Text>
                         </View>
                     ) : (
@@ -511,17 +612,43 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                             const counted = item.counted_qty ?? 0;
                             const theoretical = item.theoretical_qty ?? 0;
                             const diff = counted - theoretical;
-                            const impact = diff * (Number(item.unit_cost) || 0);
+                            const unitCost = Number(item.unit_cost) || 0;
+                            const listPrice = getListPrice(item);
+                            const costImpact = diff * unitCost;
+                            const sellImpact = diff * listPrice;
+
+                            const imageUrl = showImages
+                                ? resolveProductImageUrl(item.hs_code, item.color)
+                                : null;
 
                             return (
                                 <View
                                     key={item.id || index}
                                     style={[
                                         styles.tableRow,
-                                        index % 2 === 1 ? styles.tableRowZebra : {},
+                                        index % 2 === 1
+                                            ? styles.tableRowZebra
+                                            : {},
                                     ]}
                                     wrap={false}
                                 >
+                                    {/* Image */}
+                                    <View style={styles.colImage}>
+                                        {imageUrl ? (
+                                            <Image
+                                                src={imageUrl}
+                                                style={styles.productImage}
+                                            />
+                                        ) : (
+                                            <Text
+                                                style={styles.imagePlaceholder}
+                                            >
+                                                {showImages ? '—' : ''}
+                                            </Text>
+                                        )}
+                                    </View>
+
+                                    {/* Code-barres */}
                                     <Text
                                         style={[
                                             styles.tableCellBold,
@@ -530,28 +657,71 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                                     >
                                         {item.internal_barcode}
                                     </Text>
-                                    <Text style={[styles.tableCell, styles.colProduct]}>
+
+                                    {/* Produit */}
+                                    <Text
+                                        style={[
+                                            styles.tableCell,
+                                            styles.colProduct,
+                                        ]}
+                                    >
                                         {item.product_name}
                                     </Text>
-                                    <Text style={[styles.tableCell, styles.colLocation]}>
+
+                                    {/* Emplacement */}
+                                    <Text
+                                        style={[
+                                            styles.tableCell,
+                                            styles.colLocation,
+                                        ]}
+                                    >
                                         {(() => {
-                                            const soldLocs = getSoldLocations(item);
-                                            const foundLocs = getFoundLocations(item);
+                                            const soldLocs =
+                                                getSoldLocations(item);
+                                            const foundLocs =
+                                                getFoundLocations(item);
                                             if (soldLocs.length > 0) {
-                                                return `Vendu: ${soldLocs.map((l) => l.name).join(", ")}`;
+                                                return `Vendu: ${soldLocs
+                                                    .map((l) => l.name)
+                                                    .join(', ')}`;
                                             }
-                                            if ((item.theoretical_qty ?? 0) === 0 && foundLocs.length > 0) {
-                                                return `Trouvé: ${foundLocs.map((l) => l.name).join(", ")}`;
+                                            if (
+                                                (item.theoretical_qty ?? 0) ===
+                                                0 &&
+                                                foundLocs.length > 0
+                                            ) {
+                                                return `Trouvé: ${foundLocs
+                                                    .map((l) => l.name)
+                                                    .join(', ')}`;
                                             }
-                                            return item.supplier_ref || 'Stock Principal';
+                                            return (
+                                                item.supplier_ref ||
+                                                'Stock Principal'
+                                            );
                                         })()}
                                     </Text>
-                                    <Text style={[styles.tableCell, styles.colTheo]}>
+
+                                    {/* Théo */}
+                                    <Text
+                                        style={[
+                                            styles.tableCell,
+                                            styles.colTheo,
+                                        ]}
+                                    >
                                         {theoretical}
                                     </Text>
-                                    <Text style={[styles.tableCellBold, styles.colCounted]}>
+
+                                    {/* Compté */}
+                                    <Text
+                                        style={[
+                                            styles.tableCellBold,
+                                            styles.colCounted,
+                                        ]}
+                                    >
                                         {counted}
                                     </Text>
+
+                                    {/* Écart Qté */}
                                     <Text
                                         style={[
                                             diff < 0
@@ -562,6 +732,8 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                                     >
                                         {diff > 0 ? `+${diff}` : diff}
                                     </Text>
+
+                                    {/* Impact Achat ($) */}
                                     <Text
                                         style={[
                                             diff < 0
@@ -570,7 +742,33 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                                             styles.colCost,
                                         ]}
                                     >
-                                        {formatUSD(impact)}
+                                        {formatUSD(costImpact)}
+                                    </Text>
+
+                                    {/* Prix de Vente ($) */}
+                                    <Text
+                                        style={[
+                                            styles.tableCell,
+                                            styles.colListPrice,
+                                        ]}
+                                    >
+                                        {listPrice > 0
+                                            ? formatUSD(listPrice)
+                                            : '—'}
+                                    </Text>
+
+                                    {/* Impact Vente ($) */}
+                                    <Text
+                                        style={[
+                                            diff < 0
+                                                ? styles.tableCellSell
+                                                : styles.tableCell,
+                                            styles.colSellImpact,
+                                        ]}
+                                    >
+                                        {listPrice > 0
+                                            ? formatUSD(sellImpact)
+                                            : '—'}
                                     </Text>
                                 </View>
                             );
@@ -578,7 +776,7 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                     )}
                 </View>
 
-                {/* SIGNATURES (page 1 uniquement) */}
+                {/* SIGNATURES */}
                 <View style={styles.signatureBlock} wrap={false}>
                     <View style={styles.signatureBox}>
                         <Text style={styles.signatureTitle}>
@@ -610,7 +808,6 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
             {/* ═══════════════════════════════════════════════════════ */}
             {hasPosData && (
                 <Page size="A4" style={styles.page}>
-                    {/* EN-TÊTE */}
                     <View style={styles.header}>
                         <View>
                             <Text style={styles.brandName}>
@@ -620,24 +817,29 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                                 Annexe • Synthèse par Catégorie POS
                             </Text>
                             <Text style={styles.metaText}>
-                                Référence Audit : {audit.reference} • {audit.shop_name}
+                                Référence Audit : {audit.reference} •{' '}
+                                {audit.shop_name}
                             </Text>
                         </View>
                         <View style={styles.badge}>
                             <Text style={styles.badgeText}>
-                                {distinctPosCount} CATÉGORIE{distinctPosCount > 1 ? 'S' : ''}
+                                {distinctPosCount} CATÉGORIE
+                                {distinctPosCount > 1 ? 'S' : ''}
                             </Text>
                         </View>
                     </View>
 
-                    {/* KPI POS GLOBAUX */}
                     <View style={styles.kpiGrid}>
                         <View style={styles.kpiBox}>
                             <Text style={styles.kpiLabel}>Catégories POS</Text>
-                            <Text style={styles.kpiValue}>{distinctPosCount}</Text>
+                            <Text style={styles.kpiValue}>
+                                {distinctPosCount}
+                            </Text>
                         </View>
                         <View style={styles.kpiBox}>
-                            <Text style={styles.kpiLabel}>Items Catégorisés</Text>
+                            <Text style={styles.kpiLabel}>
+                                Items Catégorisés
+                            </Text>
                             <Text style={styles.kpiValue}>
                                 {
                                     items.filter(
@@ -647,7 +849,9 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                             </Text>
                         </View>
                         <View style={styles.kpiBox}>
-                            <Text style={styles.kpiLabel}>Items Non Catégorisés</Text>
+                            <Text style={styles.kpiLabel}>
+                                Items Non Catégorisés
+                            </Text>
                             <Text style={styles.kpiValue}>
                                 {
                                     items.filter(
@@ -669,7 +873,9 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                             </Text>
                         </View>
                         <View style={styles.kpiBox}>
-                            <Text style={styles.kpiLabel}>Démarque Totale ($)</Text>
+                            <Text style={styles.kpiLabel}>
+                                Démarque Coût ($)
+                            </Text>
                             <Text
                                 style={
                                     totalDiffValue < 0
@@ -680,16 +886,27 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                                 {formatUSD(totalDiffValue)}
                             </Text>
                         </View>
+                        <View style={styles.kpiBox}>
+                            <Text style={styles.kpiLabel}>CA Perdu ($)</Text>
+                            <Text
+                                style={
+                                    totalSellImpact < 0
+                                        ? styles.kpiValueSell
+                                        : styles.kpiValue
+                                }
+                            >
+                                {formatUSD(totalSellImpact)}
+                            </Text>
+                        </View>
                     </View>
 
-                    {/* NOTE EXPLICATIVE */}
                     <Text style={styles.sectionNote}>
-                        Les items appartenant à plusieurs catégories POS sont comptés dans
-                        chacune d&apos;elles. La somme des « Total Articles » peut donc
-                        dépasser le nombre réel d&apos;items de l&apos;audit.
+                        Les items appartenant à plusieurs catégories POS sont
+                        comptés dans chacune d&apos;elles. La somme des « Total
+                        Articles » peut donc dépasser le nombre réel
+                        d&apos;items de l&apos;audit.
                     </Text>
 
-                    {/* TABLEAU SYNTHÈSE POS */}
                     <Text style={styles.sectionTitle}>
                         Répartition des Écarts par Catégorie POS
                     </Text>
@@ -697,33 +914,58 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                     <View style={styles.table}>
                         <View style={styles.tableHeader} fixed>
                             <Text
-                                style={[styles.tableHeaderCell, styles.posColCategory]}
+                                style={[
+                                    styles.tableHeaderCell,
+                                    styles.posColCategory,
+                                ]}
                             >
                                 Catégorie POS
                             </Text>
-                            <Text style={[styles.tableHeaderCell, styles.posColTotal]}>
+                            <Text
+                                style={[
+                                    styles.tableHeaderCell,
+                                    styles.posColTotal,
+                                ]}
+                            >
                                 Total
                             </Text>
                             <Text
-                                style={[styles.tableHeaderCell, styles.posColScanned]}
+                                style={[
+                                    styles.tableHeaderCell,
+                                    styles.posColScanned,
+                                ]}
                             >
                                 Scannés
                             </Text>
                             <Text
-                                style={[styles.tableHeaderCell, styles.posColRemaining]}
+                                style={[
+                                    styles.tableHeaderCell,
+                                    styles.posColRemaining,
+                                ]}
                             >
                                 Restants
                             </Text>
-                            <Text style={[styles.tableHeaderCell, styles.posColSold]}>
+                            <Text
+                                style={[
+                                    styles.tableHeaderCell,
+                                    styles.posColSold,
+                                ]}
+                            >
                                 Vendus (-1)
                             </Text>
                             <Text
-                                style={[styles.tableHeaderCell, styles.posColDiffQty]}
+                                style={[
+                                    styles.tableHeaderCell,
+                                    styles.posColDiffQty,
+                                ]}
                             >
                                 Écart Qté
                             </Text>
                             <Text
-                                style={[styles.tableHeaderCell, styles.posColDiffValue]}
+                                style={[
+                                    styles.tableHeaderCell,
+                                    styles.posColDiffValue,
+                                ]}
                             >
                                 Écart ($)
                             </Text>
@@ -733,7 +975,8 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                             const progress =
                                 agg.totalItems > 0
                                     ? Math.round(
-                                        (agg.scannedItems / agg.totalItems) * 100
+                                        (agg.scannedItems / agg.totalItems) *
+                                        100
                                     )
                                     : 0;
                             const isUncategorized = agg.id === null;
@@ -743,7 +986,9 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                                     key={`pos-${agg.id ?? 'uncat'}`}
                                     style={[
                                         styles.tableRow,
-                                        index % 2 === 1 ? styles.tableRowZebra : {},
+                                        index % 2 === 1
+                                            ? styles.tableRowZebra
+                                            : {},
                                     ]}
                                     wrap={false}
                                 >
@@ -757,7 +1002,6 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                                         >
                                             {agg.name}
                                         </Text>
-                                        {/* Barre de progression visuelle */}
                                         <View style={styles.posProgressWrap}>
                                             <View
                                                 style={[
@@ -827,18 +1071,23 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                             );
                         })}
 
-                        {/* LIGNE TOTAL */}
                         <View
                             style={[styles.tableRow, styles.tableRowTotal]}
                             wrap={false}
                         >
                             <Text
-                                style={[styles.tableCellBold, styles.posColCategory]}
+                                style={[
+                                    styles.tableCellBold,
+                                    styles.posColCategory,
+                                ]}
                             >
                                 TOTAL GÉNÉRAL
                             </Text>
                             <Text
-                                style={[styles.tableCellBold, styles.posColTotal]}
+                                style={[
+                                    styles.tableCellBold,
+                                    styles.posColTotal,
+                                ]}
                             >
                                 {posTotals.totalItems}
                             </Text>
@@ -906,6 +1155,7 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                     </View>
                 </Page>
             )}
+
             {/* ═══════════════════════════════════════════════════════ */}
             {/* PAGE 3 — PRODUITS VENDUS AILLEURS                      */}
             {/* ═══════════════════════════════════════════════════════ */}
@@ -913,41 +1163,55 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                 <Page size="A4" style={styles.page}>
                     <View style={styles.header}>
                         <View>
-                            <Text style={styles.brandName}>Pyiurs Enterprise</Text>
+                            <Text style={styles.brandName}>
+                                Pyiurs Enterprise
+                            </Text>
                             <Text style={styles.reportTitle}>
                                 Annexe • Produits Vendus Ailleurs
                             </Text>
                             <Text style={styles.metaText}>
-                                Référence Audit : {audit.reference} • {audit.shop_name}
+                                Référence Audit : {audit.reference} •{' '}
+                                {audit.shop_name}
                             </Text>
                         </View>
                         <View style={styles.badge}>
                             <Text style={styles.badgeText}>
-                                {soldElsewhereQty} PRODUIT{soldElsewhereQty > 1 ? 'S' : ''}
+                                {soldElsewhereQty} PRODUIT
+                                {soldElsewhereQty > 1 ? 'S' : ''}
                             </Text>
                         </View>
                     </View>
 
-                    {/* KPI */}
                     <View style={styles.kpiGrid}>
                         <View style={styles.kpiBox}>
                             <Text style={styles.kpiLabel}>Total Produits</Text>
-                            <Text style={styles.kpiValue}>{soldElsewhereQty}</Text>
+                            <Text style={styles.kpiValue}>
+                                {soldElsewhereQty}
+                            </Text>
                         </View>
                         <View style={styles.kpiBox}>
-                            <Text style={styles.kpiLabel}>Quantité Totale</Text>
-                            <Text style={styles.kpiValue}>{soldElsewhereQty}</Text>
+                            <Text style={styles.kpiLabel}>
+                                Quantité Totale
+                            </Text>
+                            <Text style={styles.kpiValue}>
+                                {soldElsewhereQty}
+                            </Text>
                         </View>
                         <View style={styles.kpiBox}>
-                            <Text style={styles.kpiLabel}>Valeur Estimée ($)</Text>
-                            <Text style={styles.kpiValue}>{formatUSD(soldElsewhereValue)}</Text>
+                            <Text style={styles.kpiLabel}>
+                                Valeur Estimée ($)
+                            </Text>
+                            <Text style={styles.kpiValue}>
+                                {formatUSD(soldElsewhereValue)}
+                            </Text>
                         </View>
                     </View>
 
                     <Text style={styles.sectionNote}>
-                        Ces produits ont été détectés dans un ou plusieurs emplacements
-                        négatifs (stocks -1) dans Odoo. Un transfert depuis notre stock
-                        vers chaque emplacement est requis.
+                        Ces produits ont été détectés dans un ou plusieurs
+                        emplacements négatifs (stocks -1) dans Odoo. Un
+                        transfert depuis notre stock vers chaque emplacement est
+                        requis.
                     </Text>
 
                     <Text style={styles.sectionTitle}>
@@ -956,19 +1220,35 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
 
                     <View style={styles.table}>
                         <View style={styles.tableHeader} fixed>
-                            <Text style={[styles.tableHeaderCell, { width: '18%' }]}>
+                            <Text
+                                style={[styles.tableHeaderCell, { width: '18%' }]}
+                            >
                                 Code-barres
                             </Text>
-                            <Text style={[styles.tableHeaderCell, { width: '30%' }]}>
+                            <Text
+                                style={[styles.tableHeaderCell, { width: '30%' }]}
+                            >
                                 Produit
                             </Text>
-                            <Text style={[styles.tableHeaderCell, { width: '34%' }]}>
+                            <Text
+                                style={[styles.tableHeaderCell, { width: '34%' }]}
+                            >
                                 Emplacements Vendus (-1)
                             </Text>
-                            <Text style={[styles.tableHeaderCell, { width: '10%', textAlign: 'center' }]}>
+                            <Text
+                                style={[
+                                    styles.tableHeaderCell,
+                                    { width: '10%', textAlign: 'center' },
+                                ]}
+                            >
                                 Qté
                             </Text>
-                            <Text style={[styles.tableHeaderCell, { width: '8%', textAlign: 'right' }]}>
+                            <Text
+                                style={[
+                                    styles.tableHeaderCell,
+                                    { width: '8%', textAlign: 'right' },
+                                ]}
+                            >
                                 Coût
                             </Text>
                         </View>
@@ -981,17 +1261,34 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                                     key={item.id || index}
                                     style={[
                                         styles.tableRow,
-                                        index % 2 === 1 ? styles.tableRowZebra : {},
+                                        index % 2 === 1
+                                            ? styles.tableRowZebra
+                                            : {},
                                     ]}
                                     wrap={false}
                                 >
-                                    <Text style={[styles.tableCellBold, { width: '18%' }]}>
+                                    <Text
+                                        style={[
+                                            styles.tableCellBold,
+                                            { width: '18%' },
+                                        ]}
+                                    >
                                         {item.internal_barcode}
                                     </Text>
-                                    <Text style={[styles.tableCell, { width: '30%' }]}>
+                                    <Text
+                                        style={[
+                                            styles.tableCell,
+                                            { width: '30%' },
+                                        ]}
+                                    >
                                         {item.product_name}
                                     </Text>
-                                    <Text style={[styles.tableCell, { width: '34%' }]}>
+                                    <Text
+                                        style={[
+                                            styles.tableCell,
+                                            { width: '34%' },
+                                        ]}
+                                    >
                                         {soldLocs
                                             .map((l) => `[${l.id}] ${l.name}`)
                                             .join(', ')}
@@ -999,7 +1296,10 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                                     <Text
                                         style={[
                                             styles.tableCellBold,
-                                            { width: '10%', textAlign: 'center' },
+                                            {
+                                                width: '10%',
+                                                textAlign: 'center',
+                                            },
                                         ]}
                                     >
                                         {soldLocs.length}
@@ -1007,7 +1307,10 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                                     <Text
                                         style={[
                                             styles.tableCell,
-                                            { width: '8%', textAlign: 'right' },
+                                            {
+                                                width: '8%',
+                                                textAlign: 'right',
+                                            },
                                         ]}
                                     >
                                         {formatUSD(cost)}
@@ -1030,6 +1333,7 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                     </View>
                 </Page>
             )}
+
             {/* ═══════════════════════════════════════════════════════ */}
             {/* PAGE 4 — PRODUITS HORS PÉRIMÈTRE                       */}
             {/* ═══════════════════════════════════════════════════════ */}
@@ -1037,42 +1341,55 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                 <Page size="A4" style={styles.page}>
                     <View style={styles.header}>
                         <View>
-                            <Text style={styles.brandName}>Pyiurs Enterprise</Text>
+                            <Text style={styles.brandName}>
+                                Pyiurs Enterprise
+                            </Text>
                             <Text style={styles.reportTitle}>
                                 Annexe • Produits Hors Périmètre
                             </Text>
                             <Text style={styles.metaText}>
-                                Référence Audit : {audit.reference} • {audit.shop_name}
+                                Référence Audit : {audit.reference} •{' '}
+                                {audit.shop_name}
                             </Text>
                         </View>
                         <View style={styles.badge}>
                             <Text style={styles.badgeText}>
-                                {unexpectedQty} PRODUIT{unexpectedQty > 1 ? 'S' : ''}
+                                {unexpectedQty} PRODUIT
+                                {unexpectedQty > 1 ? 'S' : ''}
                             </Text>
                         </View>
                     </View>
 
-                    {/* KPI */}
                     <View style={styles.kpiGrid}>
                         <View style={styles.kpiBox}>
                             <Text style={styles.kpiLabel}>Total Produits</Text>
-                            <Text style={styles.kpiValue}>{unexpectedQty}</Text>
+                            <Text style={styles.kpiValue}>
+                                {unexpectedQty}
+                            </Text>
                         </View>
                         <View style={styles.kpiBox}>
-                            <Text style={styles.kpiLabel}>Quantité Totale</Text>
-                            <Text style={styles.kpiValue}>{unexpectedQty}</Text>
+                            <Text style={styles.kpiLabel}>
+                                Quantité Totale
+                            </Text>
+                            <Text style={styles.kpiValue}>
+                                {unexpectedQty}
+                            </Text>
                         </View>
                         <View style={styles.kpiBox}>
-                            <Text style={styles.kpiLabel}>Valeur Estimée ($)</Text>
-                            <Text style={styles.kpiValue}>{formatUSD(unexpectedValue)}</Text>
+                            <Text style={styles.kpiLabel}>
+                                Valeur Estimée ($)
+                            </Text>
+                            <Text style={styles.kpiValue}>
+                                {formatUSD(unexpectedValue)}
+                            </Text>
                         </View>
                     </View>
 
                     <Text style={styles.sectionNote}>
-                        Ces produits ont été physiquement trouvés lors de l&apos;audit mais
-                        n&apos;étaient pas dans le stock théorique de la boutique. Une
-                        intégration au stock Odoo est requise (source : emplacements
-                        positifs détectés).
+                        Ces produits ont été physiquement trouvés lors de
+                        l&apos;audit mais n&apos;étaient pas dans le stock
+                        théorique de la boutique. Une intégration au stock Odoo
+                        est requise (source : emplacements positifs détectés).
                     </Text>
 
                     <Text style={styles.sectionTitle}>
@@ -1081,19 +1398,35 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
 
                     <View style={styles.table}>
                         <View style={styles.tableHeader} fixed>
-                            <Text style={[styles.tableHeaderCell, { width: '18%' }]}>
+                            <Text
+                                style={[styles.tableHeaderCell, { width: '18%' }]}
+                            >
                                 Code-barres
                             </Text>
-                            <Text style={[styles.tableHeaderCell, { width: '30%' }]}>
+                            <Text
+                                style={[styles.tableHeaderCell, { width: '30%' }]}
+                            >
                                 Produit
                             </Text>
-                            <Text style={[styles.tableHeaderCell, { width: '34%' }]}>
+                            <Text
+                                style={[styles.tableHeaderCell, { width: '34%' }]}
+                            >
                                 Trouvé Dans (Stock Positif)
                             </Text>
-                            <Text style={[styles.tableHeaderCell, { width: '10%', textAlign: 'center' }]}>
+                            <Text
+                                style={[
+                                    styles.tableHeaderCell,
+                                    { width: '10%', textAlign: 'center' },
+                                ]}
+                            >
                                 Qté
                             </Text>
-                            <Text style={[styles.tableHeaderCell, { width: '8%', textAlign: 'right' }]}>
+                            <Text
+                                style={[
+                                    styles.tableHeaderCell,
+                                    { width: '8%', textAlign: 'right' },
+                                ]}
+                            >
                                 Coût
                             </Text>
                         </View>
@@ -1106,17 +1439,34 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                                     key={item.id || index}
                                     style={[
                                         styles.tableRow,
-                                        index % 2 === 1 ? styles.tableRowZebra : {},
+                                        index % 2 === 1
+                                            ? styles.tableRowZebra
+                                            : {},
                                     ]}
                                     wrap={false}
                                 >
-                                    <Text style={[styles.tableCellBold, { width: '18%' }]}>
+                                    <Text
+                                        style={[
+                                            styles.tableCellBold,
+                                            { width: '18%' },
+                                        ]}
+                                    >
                                         {item.internal_barcode}
                                     </Text>
-                                    <Text style={[styles.tableCell, { width: '30%' }]}>
+                                    <Text
+                                        style={[
+                                            styles.tableCell,
+                                            { width: '30%' },
+                                        ]}
+                                    >
                                         {item.product_name}
                                     </Text>
-                                    <Text style={[styles.tableCell, { width: '34%' }]}>
+                                    <Text
+                                        style={[
+                                            styles.tableCell,
+                                            { width: '34%' },
+                                        ]}
+                                    >
                                         {foundLocs.length > 0
                                             ? foundLocs
                                                 .map(
@@ -1129,7 +1479,10 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                                     <Text
                                         style={[
                                             styles.tableCellBold,
-                                            { width: '10%', textAlign: 'center' },
+                                            {
+                                                width: '10%',
+                                                textAlign: 'center',
+                                            },
                                         ]}
                                     >
                                         {item.counted_qty ?? 1}
@@ -1137,7 +1490,10 @@ export const AuditReportPDF: React.FC<AuditReportPDFProps> = ({ audit, items }) 
                                     <Text
                                         style={[
                                             styles.tableCell,
-                                            { width: '8%', textAlign: 'right' },
+                                            {
+                                                width: '8%',
+                                                textAlign: 'right',
+                                            },
                                         ]}
                                     >
                                         {formatUSD(cost)}

@@ -277,3 +277,52 @@ export const hasSoldElsewhere = (item: StockAuditItem): boolean => {
 export const isItemScanned = (item: StockAuditItem): boolean => {
     return (item.counted_qty ?? 0) === 1;
 };
+
+/* ═══════════════════════════════════════════════════════════════════ */
+/* IMAGES PRODUITS — URL dérivée de (hs_code, color)                  */
+/* ═══════════════════════════════════════════════════════════════════ */
+
+/**
+ * Valeurs de hs_code considérées comme "non exploitables" pour l'image.
+ */
+const INVALID_HS_CODES = new Set([
+    "n/a",
+    "na",
+    "inattendu",
+    "—",
+    "",
+]);
+
+/**
+ * Construit l'URL de l'image d'un produit à partir de son code HS et de sa couleur.
+ *
+ * Format : `${NEXT_PUBLIC_IMAGES_DIR}/${hsCode}_${colorSlug}.jpg`
+ * Ex :
+ *   - hsCode "512",  color "Bleu"       → .../512_Bleu.jpg
+ *   - hsCode "512",  color "Bleu Ciel"  → .../512_Bleu_Ciel.jpg
+ *
+ * Retourne null si les valeurs ne permettent pas de construire une URL fiable.
+ */
+export function resolveProductImageUrl(
+    hsCode: string | null | undefined,
+    color: string | null | undefined,
+): string | null {
+    if (!hsCode || !color) return null;
+
+    const cleanHs = hsCode.trim();
+    const cleanColor = color.trim();
+
+    if (INVALID_HS_CODES.has(cleanHs.toLowerCase())) return null;
+    if (!cleanColor || cleanColor.toLowerCase() === "n/a") return null;
+
+    // Normalisation couleur : espaces multiples → underscore
+    const colorSlug = cleanColor.replace(/\s+/g, "_");
+
+    const baseUrl = (process.env.FTP_REMOTE_DIR ?? "").replace(
+        /\/+$/,
+        "",
+    );
+    if (!baseUrl) return null;
+
+    return `https://${baseUrl}/${cleanHs}_${colorSlug}.jpg`;
+}

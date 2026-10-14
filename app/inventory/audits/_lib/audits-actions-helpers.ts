@@ -245,3 +245,61 @@ export async function resolvePositiveLocationsForProducts(
 
     return map;
 }
+
+/**
+ * Résout la date de réception la plus récente de chaque produit
+ * via les mouvements de stock Odoo.
+ *
+ * Un seul read_group pour N produits → pas de N+1.
+ *
+ * Sémantique : MAX(date) des stock.move done vers un emplacement interne.
+ * Fallback : si aucun move (rare), on retourne null → filtré côté UI.
+ */
+export async function resolveReceptionDatesByProduct(
+    productIds: number[],
+): Promise<Map<number, string>> {
+    const map = new Map<number, string>();
+    if (productIds.length === 0) return map;
+
+    // read_group renvoie `date` (pas `date:max`) comme clé
+    const groups = await odooClient.readGroup<{
+        product_id: [number, string] | false;
+        date: string | false;
+    }>("stock.move", {
+        domain: [
+            ["product_id", "in", productIds],
+            ["location_dest_id.usage", "=", "internal"],
+            ["state", "=", "done"],
+        ],
+        fields: ["date:max"],
+        groupby: ["product_id"],
+        lazy: false,
+    });
+
+    for (const g of groups) {
+        const pid = Array.isArray(g.product_id) ? g.product_id[0] : null;
+        if (!pid) continue;
+        if (typeof g.date === "string" && g.date.trim()) {
+            map.set(pid, g.date);
+        }
+    }
+
+    return map;
+}
+
+/**
+ * Résout le prix public affiché pour un audit.
+ *
+ * Règle métier :
+ *  - Segment Beauty → list_price Odoo tel quel
+ *  - Autres segments → list_price × 1.25 (majoration commerciale)
+ *  - list_price manquant ou ≤ 0 → 0
+ */
+export function resolveListPrice(product: OdooProduct): number {
+    const raw = Number(product.list_price ?? 0);
+    if (!Number.isFinite(raw) || raw <= 0) return 0;
+
+    const segment = ((product.x_studio_segment as String) ?? "").trim().toLowerCase();
+    if (segment === "beauty") return raw;
+    return raw * 1.25;
+}

@@ -43,6 +43,7 @@ export interface OdooQuant {
     product_id: [number, string];
     location_id: [number, string];
     quantity: number;
+    in_date: string | false;
     company_id?: [number, string] | false | null;
 }
 
@@ -176,6 +177,7 @@ export interface FoundLocation {
 export type SyncItemPatch = {
     id: string;
     sold_locations: SoldLocation[];
+    found_locations: FoundLocation[];
     hs_code: string;
     brand: string;
     color: string;
@@ -183,6 +185,8 @@ export type SyncItemPatch = {
     unit_cost: number;
     pos_category_ids: number[];
     pos_category_names: string[];
+    reception_date: string | null;
+    list_price: number;   // ⬅️ NOUVEAU
 };
 
 /** Filtres étendus pour l'audit table */
@@ -197,6 +201,10 @@ export interface ExtendedAuditFilters {
     posCategoryFilter: number[];
     foundElsewhereFilter: "all" | "yes" | "no";
     cosmeticFilter: "all" | "cosmetic" | "generic";
+    createdDateFrom: string | null;
+    createdDateTo: string | null;
+    receptionDateFrom: string | null;
+    receptionDateTo: string | null;
 }
 
 export interface AuditStats {

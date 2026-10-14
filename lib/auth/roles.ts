@@ -1,27 +1,33 @@
-// @/lib/auth/roles.ts
-import type { UserRole } from '@/lib/constants'
+// lib/auth/roles.ts
+import type { UserRole } from "@/lib/constants";
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Executive (CEO Report)
+// ═══════════════════════════════════════════════════════════════════════════
 
-export const EXECUTIVE_ROLES = ['admin'] as const satisfies readonly UserRole[]
+/**
+ * Rôles autorisés à consulter /ceo-report.
+ * Aligné sur MODULES_CONFIG["ceo-report"].permissions → ["admin"]
+ */
+export const EXECUTIVE_ROLES = ["admin"] as const satisfies readonly UserRole[];
 
-export type ExecutiveRole = (typeof EXECUTIVE_ROLES)[number]
+export type ExecutiveRole = (typeof EXECUTIVE_ROLES)[number];
 
 export function isExecutiveRole(role: unknown): role is ExecutiveRole {
     return (
-        typeof role === 'string' &&
+        typeof role === "string" &&
         (EXECUTIVE_ROLES as readonly string[]).includes(role)
-    )
+    );
 }
 
-/**
- * Rôles "voient tout le groupe sans filtre boutique".
- * V1 : admin uniquement.
- */
 export function isGroupWideRole(role: ExecutiveRole): boolean {
-    return role === 'admin'
+    return role === "admin";
 }
 
-/** Rôles ayant accès complet au module /finance */
+// ═══════════════════════════════════════════════════════════════════════════
+// Finance
+// ═══════════════════════════════════════════════════════════════════════════
+
 export const FINANCE_ROLES = [
     "admin",
     "manager",
@@ -37,46 +43,52 @@ export function isFinanceRole(role: unknown): role is FinanceRole {
     );
 }
 
-/** Le rôle controller a un accès restreint à /finance/expenses uniquement */
-export const CONTROLLER_ROLE = "controller" as const;
-
-/** Chemins autorisés pour le rôle controller (préfixes) */
-export const CONTROLLER_ALLOWED_PATHS = [
-    "/finance/expenses",
-    "/finance/loyalty",
-] as const;
-
-/**
- * Rôle global d'accès /finance = admin/manager/financier OU controller.
- * Note : le controller est filtré ensuite par path dans layout.tsx.
- */
-export function canAccessFinance(role: unknown): boolean {
-    return isFinanceRole(role) || role === CONTROLLER_ROLE;
-}
+// ═══════════════════════════════════════════════════════════════════════════
+// Revenue
+// ═══════════════════════════════════════════════════════════════════════════
 
 export const REVENUE_ROLES = [
     "admin",
     "manager",
     "financier",
-] as const satisfies readonly UserRole[]
+] as const satisfies readonly UserRole[];
 
-export type RevenueRole = (typeof REVENUE_ROLES)[number]
+export type RevenueRole = (typeof REVENUE_ROLES)[number];
 
 export function isRevenueRole(role: unknown): role is RevenueRole {
     return (
         typeof role === "string" &&
         (REVENUE_ROLES as readonly string[]).includes(role)
-    )
+    );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Inventory
+// ═══════════════════════════════════════════════════════════════════════════
 
-/**
- * Chemins autorisés pour le rôle controller dans /revenue.
- * Un seul module : les factures RedSup.
- */
-export const CONTROLLER_REVENUE_ALLOWED_PATHS = [
-    "/revenue/invoices-redsup",
-] as const
+export const INVENTORY_ROLES = [
+    "admin",
+    "manager",
+    "inventory_manager",
+    "inventory-manager",
+    "financier",
+    "user",
+] as const satisfies readonly UserRole[];
+
+export type InventoryRole = (typeof INVENTORY_ROLES)[number];
+
+export function isInventoryRole(role: unknown): role is InventoryRole {
+    return (
+        typeof role === "string" &&
+        (INVENTORY_ROLES as readonly string[]).includes(role)
+    );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Controller — rôle restreint
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const CONTROLLER_ROLE = "controller" as const;
 
 /**
  * Chemins autorisés pour le rôle controller dans /finance.
@@ -85,3 +97,16 @@ export const CONTROLLER_FINANCE_ALLOWED_PATHS = [
     "/finance/expenses",
     "/finance/loyalty",
 ] as const;
+
+/**
+ * Chemins autorisés pour le rôle controller dans /revenue.
+ */
+export const CONTROLLER_REVENUE_ALLOWED_PATHS = [
+    "/revenue/invoices-redsup",
+] as const;
+
+/**
+ * Rétrocompatibilité : ancienne constante utilisée avant le split
+ * finance/revenue. Peut être supprimée une fois tous les layouts migrés.
+ */
+export const CONTROLLER_ALLOWED_PATHS = CONTROLLER_FINANCE_ALLOWED_PATHS;

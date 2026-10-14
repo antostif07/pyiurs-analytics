@@ -1,26 +1,52 @@
+// app/inventory/audits/[id]/audit-scanner-client.tsx
 "use client";
 
-import React, { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Store } from "lucide-react";
+import { Download, FileSpreadsheet, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import Link from "next/link";
+
+import ReportPageHeader from "@/components/new-ui/layout/report-page-header";
+import { Button } from "@/components/ui/button";
 import {
-    StockAudit,
-    StockAuditItem,
-} from "../_lib/types";
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+import type { StockAudit, StockAuditItem } from "../_lib/types";
 import { ActionBar } from "../_components/ActionBar";
+import { AuditDataTable } from "../_components/AuditDataTable";
+import { KpiDashboard } from "../_components/KpiDashboard";
+import { LaserScanZone } from "../_components/LaserScanZone";
 import { forceMarkItemAsFoundAction } from "../_lib/reconcile-actions";
 import { syncAuditStockSnapshotAction } from "../_lib/audits-actions";
 import { useAuditItems } from "../_lib/hooks/useAuditItems";
-import { AuditDataTable } from "../_components/AuditDataTable";
 import { useAuditScanner } from "../_lib/hooks/useAuditScanner";
 import { useAuditImport } from "../_lib/hooks/useAuditImport";
 import { useAuditExport } from "../_lib/hooks/useAuditExport";
-import { StatusBadge } from "../_components/StatusBadge";
-import { LaserScanZone } from "../_components/LaserScanZone";
-import { KpiDashboard } from "../_components/KpiDashboard";
 import { computeAuditStats } from "../_lib/helpers";
+
+// ─────────────────────────────────────────────────────────────────────────
+// Mapping statut → badge
+// ─────────────────────────────────────────────────────────────────────────
+
+type BadgeTone = "emerald" | "amber" | "rose" | "sky" | "violet" | "neutral";
+
+const STATUS_META: Record<
+    string,
+    { label: string; tone: BadgeTone }
+> = {
+    draft: { label: "Brouillon", tone: "neutral" },
+    in_progress: { label: "Scan en cours", tone: "amber" },
+    completed: { label: "À valider", tone: "sky" },
+    validated: { label: "Validé & verrouillé", tone: "emerald" },
+};
+
+// ─────────────────────────────────────────────────────────────────────────
 
 interface Props {
     audit: StockAudit;
@@ -30,8 +56,9 @@ interface Props {
 export function AuditScannerClient({ audit, initialItems }: Props) {
     const router = useRouter();
     const isReadOnly = audit.status === "validated";
+    const statusMeta = STATUS_META[audit.status] ?? STATUS_META.draft;
 
-    /* ─── Source de vérité : tous les items de l'audit ─── */
+    /* ─── Source de vérité : tous les items ─── */
     const {
         items,
         setItems,
@@ -40,32 +67,23 @@ export function AuditScannerClient({ audit, initialItems }: Props) {
         scannedItemsCount,
         remainingItemsCount,
         soldElsewhereCount,
-        totalDiffValue,
-        scannedValuation,
-        totalValuation,
-        progressPercent,
     } = useAuditItems(initialItems);
 
-    /* ─── State pour les items filtrés (remontés par AuditDataTable) ─── */
     const [filteredItems, setFilteredItems] = useState<StockAuditItem[]>(items);
 
-    /* Quand les items bruts changent (scan, sync, import), reset le filtre */
     useEffect(() => {
         setFilteredItems(items);
     }, [items]);
 
-    /* Callback stable pour recevoir les items filtrés du tableau */
     const handleFilteredChange = useCallback((filtered: StockAuditItem[]) => {
         setFilteredItems(filtered);
     }, []);
 
-    /* KPIs recalculés à partir des items FILTRÉS */
     const filteredStats = useMemo(
         () => computeAuditStats(filteredItems),
-        [filteredItems]
+        [filteredItems],
     );
 
-    /* Est-ce qu'un filtre est actif ? (pour l'indicateur visuel) */
     const isFiltered = filteredItems.length !== items.length;
 
     /* ─── Scan unitaire ─── */
@@ -73,7 +91,7 @@ export function AuditScannerClient({ audit, initialItems }: Props) {
         (cleanCode: string, scannedItem: StockAuditItem) => {
             setItems((prev) => {
                 const exists = prev.some(
-                    (i) => i.internal_barcode.toUpperCase() === cleanCode
+                    (i) => i.internal_barcode.toUpperCase() === cleanCode,
                 );
                 if (exists) {
                     return prev.map((i) =>
@@ -83,16 +101,16 @@ export function AuditScannerClient({ audit, initialItems }: Props) {
                                 counted_qty: 1,
                                 scanned_at: new Date().toISOString(),
                             }
-                            : i
+                            : i,
                     );
                 }
                 return [scannedItem, ...prev];
             });
         },
-        [setItems]
+        [setItems],
     );
 
-    /* ─── Hooks spécialisés ─── */
+    /* ─── Hooks ─── */
     const {
         inputRef,
         barcodeInput,
@@ -105,14 +123,17 @@ export function AuditScannerClient({ audit, initialItems }: Props) {
 
     const { processExcel, importProgress } = useAuditImport(
         audit.id,
-        router.refresh
+        router.refresh,
     );
-    const { handleExportExcel, handleExportPDF, isGeneratingPDF } =
-        useAuditExport(audit, items);
+    const {
+        handleExportExcel,
+        handleExportPDF,
+        isGeneratingPDF,
+        isGeneratingExcel,
+    } = useAuditExport(audit, items, filteredItems);
 
-    /* ─── États locaux ─── */
     const [actionProcessingId, setActionProcessingId] = useState<string | null>(
-        null
+        null,
     );
     const [isSyncingOdoo, setIsSyncingOdoo] = useState(false);
 
@@ -124,11 +145,11 @@ export function AuditScannerClient({ audit, initialItems }: Props) {
                 const res = await forceMarkItemAsFoundAction(
                     audit.id,
                     item.id,
-                    "Article physique validé sans étiquette"
+                    "Article physique validé sans étiquette",
                 );
                 if (res.success) {
                     toast.success(
-                        `Article '${item.product_name}' déclaré scanné (1/1) !`
+                        `Article '${item.product_name}' déclaré scanné (1/1)`,
                     );
                     updateItemOptimistic(item.id, (i) => ({
                         ...i,
@@ -140,13 +161,13 @@ export function AuditScannerClient({ audit, initialItems }: Props) {
                 }
             } catch (err) {
                 toast.error(
-                    err instanceof Error ? err.message : "Erreur réseau."
+                    err instanceof Error ? err.message : "Erreur réseau.",
                 );
             } finally {
                 setActionProcessingId(null);
             }
         },
-        [audit.id, updateItemOptimistic]
+        [audit.id, updateItemOptimistic],
     );
 
     const handleSyncOdoo = useCallback(async () => {
@@ -156,7 +177,7 @@ export function AuditScannerClient({ audit, initialItems }: Props) {
         try {
             const res = await syncAuditStockSnapshotAction(audit.id);
             if (res.success) {
-                toast.success(res.message || "Resynchronisation réussie !");
+                toast.success(res.message || "Resynchronisation réussie");
                 router.refresh();
             } else {
                 toast.error(res.error || "Échec de la resynchronisation.");
@@ -169,111 +190,163 @@ export function AuditScannerClient({ audit, initialItems }: Props) {
     }, [audit.id, isSyncingOdoo, router]);
 
     return (
-        <div className="space-y-6 pb-12 animate-in fade-in duration-300">
-            {/* EN-TÊTE ET BARRE D'ACTIONS */}
-            <div className="border-b border-border pb-3 flex flex-col lg:flex-row justify-between lg:items-center gap-3">
-                <div className="min-w-0">
-                    <Link
-                        href="/inventory/audits"
-                        className="inline-flex items-center gap-1 text-muted-foreground hover:text-primary text-[10px] font-bold uppercase tracking-wider mb-1 transition-colors"
-                    >
-                        <ArrowLeft size={11} /> Retour aux audits
-                    </Link>
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <h1 className="text-lg sm:text-xl font-bold text-foreground font-mono uppercase leading-tight">
-                            {audit.reference}
-                        </h1>
-                        <StatusBadge
-                            isReadOnly={isReadOnly}
-                            isCompleted={audit.status === "completed"}
-                        />
-                    </div>
-                    <div className="text-[11px] text-muted-foreground font-light mt-0.5 flex items-center gap-1.5 flex-wrap">
-                        <span className="flex items-center gap-1 font-semibold text-foreground">
-                            <Store className="w-3 h-3 text-primary" />
-                            {audit.shop_name}
-                        </span>
-                        <span className="text-muted-foreground/50">•</span>
-                        <span>
-                            Périmètre :{" "}
-                            <strong className="text-foreground">
-                                {audit.department || "Tous"}
-                            </strong>
-                        </span>
-                    </div>
+        <div>
+            {/* ══════════════ HEADER ══════════════ */}
+            <ReportPageHeader
+                title={audit.reference}
+                subtitle={`${audit.shop_name} · Périmètre : ${audit.department || "Tous"}`}
+                badge={{ label: statusMeta.label, tone: statusMeta.tone }}
+                isLoading={isSyncingOdoo}
+                onRefresh={!isReadOnly ? handleSyncOdoo : undefined}
+                extraActions={
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                size="sm"
+                                disabled={
+                                    isGeneratingPDF ||
+                                    isGeneratingExcel ||
+                                    items.length === 0
+                                }
+                                className="h-7 px-2.5 text-[11px] gap-1.5 bg-sky-600 hover:bg-sky-700 text-white"
+                            >
+                                {isGeneratingPDF || isGeneratingExcel ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                    <Download className="w-3 h-3" />
+                                )}
+                                {isGeneratingPDF || isGeneratingExcel
+                                    ? "Génération..."
+                                    : "Exporter"}
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                            align="end"
+                            className="w-56 p-1 rounded-lg shadow-xl"
+                        >
+                            <DropdownMenuLabel className="text-[9px] font-semibold uppercase text-muted-foreground px-2 py-1 tracking-wider">
+                                Vue filtrée ({filteredItems.length})
+                            </DropdownMenuLabel>
+                            <DropdownMenuItem
+                                onClick={() => handleExportExcel("filtered")}
+                                disabled={isGeneratingExcel || filteredItems.length === 0}
+                                className="text-xs py-1.5 cursor-pointer gap-2"
+                            >
+                                <FileSpreadsheet className="w-3 h-3 text-muted-foreground" />
+                                Excel — Vue filtrée
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                onClick={() => handleExportPDF("filtered")}
+                                disabled={isGeneratingPDF || filteredItems.length === 0}
+                                className="text-xs py-1.5 cursor-pointer gap-2"
+                            >
+                                {isGeneratingPDF ? (
+                                    <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+                                ) : (
+                                    <FileText className="w-3 h-3 text-muted-foreground" />
+                                )}
+                                PDF — Vue filtrée
+                            </DropdownMenuItem>
+
+                            <DropdownMenuSeparator />
+
+                            <DropdownMenuLabel className="text-[9px] font-semibold uppercase text-muted-foreground px-2 py-1 tracking-wider">
+                                Audit complet ({items.length})
+                            </DropdownMenuLabel>
+                            <DropdownMenuItem
+                                onClick={() => handleExportExcel("all")}
+                                disabled={isGeneratingExcel}
+                                className="text-xs py-1.5 cursor-pointer gap-2"
+                            >
+                                <FileSpreadsheet className="w-3 h-3 text-muted-foreground" />
+                                Excel — Audit complet
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                onClick={() => handleExportPDF("all")}
+                                disabled={isGeneratingPDF}
+                                className="text-xs py-1.5 cursor-pointer gap-2"
+                            >
+                                {isGeneratingPDF ? (
+                                    <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+                                ) : (
+                                    <FileText className="w-3 h-3 text-muted-foreground" />
+                                )}
+                                PDF — Audit complet
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                }
+            />
+
+            <div className="p-3 sm:p-4 md:p-5 space-y-3 sm:space-y-4 pb-12">
+                {/* ══════════════ ACTIONS SECONDAIRES ══════════════ */}
+                {!isReadOnly && (
+                    <ActionBar
+                        isReadOnly={isReadOnly}
+                        auditId={audit.id}
+                        auditReference={audit.reference}
+                        onImport={processExcel}
+                        isImporting={importProgress.isImporting}
+                        importProgress={importProgress}
+                        remainingItemsCount={remainingItemsCount}
+                        totalItemsCount={totalItemsCount}
+                    />
+                )}
+
+                {/* ══════════════ SCANNER ══════════════ */}
+                {!isReadOnly && (
+                    <LaserScanZone
+                        inputRef={inputRef}
+                        barcodeInput={barcodeInput}
+                        setBarcodeInput={setBarcodeInput}
+                        isScanning={isScanning}
+                        soundEnabled={soundEnabled}
+                        setSoundEnabled={setSoundEnabled}
+                        onSubmit={handleScanSubmit}
+                    />
+                )}
+
+                {/* ══════════════ KPIs ══════════════ */}
+                <div className="space-y-2">
+                    {isFiltered && (
+                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary font-bold uppercase tracking-wider">
+                                KPIs filtrés
+                            </span>
+                            <span>
+                                {filteredItems.length} / {totalItemsCount}{" "}
+                                articles visibles
+                            </span>
+                        </div>
+                    )}
+                    <KpiDashboard
+                        scanned={filteredStats.scannedItemsCount}
+                        total={filteredStats.totalItemsCount}
+                        remaining={filteredStats.remainingItemsCount}
+                        soldElsewhere={filteredStats.soldElsewhereCount}
+                        totalDiffValue={filteredStats.totalDiffValue}
+                        scannedValuation={filteredStats.scannedValuation}
+                        totalValuation={filteredStats.totalValuation}
+                        progressPercent={filteredStats.progressPercent}
+                    />
                 </div>
 
-                <ActionBar
+                {/* ══════════════ TABLE ══════════════ */}
+                <AuditDataTable
+                    audit={audit}
+                    items={items}
                     isReadOnly={isReadOnly}
-                    auditId={audit.id}
-                    auditReference={audit.reference}
-                    onSyncOdoo={handleSyncOdoo}
-                    isSyncingOdoo={isSyncingOdoo}
-                    onExportExcel={handleExportExcel}
-                    onExportPDF={handleExportPDF}
-                    onImport={processExcel}
-                    isGeneratingPDF={isGeneratingPDF}
-                    isImporting={importProgress.isImporting}
-                    importProgress={importProgress}
-                    /* ⚠️ COMPTEURS GLOBAUX — les actions s'appliquent à TOUS les items */
-                    remainingItemsCount={remainingItemsCount}
-                    totalItemsCount={totalItemsCount}
+                    actionProcessingId={actionProcessingId}
+                    onForceMarkFound={handleForceMarkFound}
+                    onFilteredChange={handleFilteredChange}
+                    counts={{
+                        all: totalItemsCount,
+                        scanned: scannedItemsCount,
+                        remaining: remainingItemsCount,
+                        sold_elsewhere: soldElsewhereCount,
+                    }}
                 />
             </div>
-
-            {/* ZONE DU PISTOLET LASER */}
-            {!isReadOnly && (
-                <LaserScanZone
-                    inputRef={inputRef}
-                    barcodeInput={barcodeInput}
-                    setBarcodeInput={setBarcodeInput}
-                    isScanning={isScanning}
-                    soundEnabled={soundEnabled}
-                    setSoundEnabled={setSoundEnabled}
-                    onSubmit={handleScanSubmit}
-                />
-            )}
-
-            {/* DASHBOARD KPIs — réactifs aux filtres */}
-            <div className="space-y-2">
-                {isFiltered && (
-                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary font-bold uppercase tracking-wider">
-                            KPIs filtrés
-                        </span>
-                        <span>
-                            {filteredItems.length} / {totalItemsCount} articles
-                            visibles selon les filtres actifs
-                        </span>
-                    </div>
-                )}
-                <KpiDashboard
-                    scanned={filteredStats.scannedItemsCount}
-                    total={filteredStats.totalItemsCount}
-                    remaining={filteredStats.remainingItemsCount}
-                    soldElsewhere={filteredStats.soldElsewhereCount}
-                    totalDiffValue={filteredStats.totalDiffValue}
-                    scannedValuation={filteredStats.scannedValuation}
-                    totalValuation={filteredStats.totalValuation}
-                    progressPercent={filteredStats.progressPercent}
-                />
-            </div>
-
-            {/* TABLEAU DES ARTICLES */}
-            <AuditDataTable
-                audit={audit}
-                items={items}
-                isReadOnly={isReadOnly}
-                actionProcessingId={actionProcessingId}
-                onForceMarkFound={handleForceMarkFound}
-                onFilteredChange={handleFilteredChange}
-                counts={{
-                    all: totalItemsCount,
-                    scanned: scannedItemsCount,
-                    remaining: remainingItemsCount,
-                    sold_elsewhere: soldElsewhereCount,
-                }}
-            />
         </div>
     );
 }

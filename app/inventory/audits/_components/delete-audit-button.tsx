@@ -1,3 +1,4 @@
+// app/inventory/audits/_components/delete-audit-button.tsx
 "use client";
 
 import { useState } from "react";
@@ -15,27 +16,31 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Trash2, Loader2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
-import { deleteAuditSessionAction } from "../_lib/audits-actions";
+import { useDeleteAudit } from "../_lib/hooks/use-audit-mutations";
 
 interface DeleteAuditButtonProps {
     auditId: string;
     reference: string;
 }
 
-export function DeleteAuditButton({ auditId, reference }: DeleteAuditButtonProps) {
+export function DeleteAuditButton({
+    auditId,
+    reference,
+}: DeleteAuditButtonProps) {
     const [open, setOpen] = useState(false);
-    const [loading, setLoading] = useState(false);
+    const deleteMutation = useDeleteAudit();
 
-    const handleDelete = async () => {
-        setLoading(true);
-        const result = await deleteAuditSessionAction(auditId);
-        setLoading(false);
+    const handleDelete = async (e: React.MouseEvent) => {
+        e.preventDefault(); // garde le dialog ouvert pendant l'appel
 
-        if (result.success) {
-            toast.success(`Session d'audit ${reference} supprimée.`);
+        try {
+            await deleteMutation.mutateAsync(auditId);
+            toast.success(`Session ${reference} supprimée`);
             setOpen(false);
-        } else {
-            toast.error(result.error || "Échec de la suppression.");
+        } catch (err) {
+            toast.error(
+                err instanceof Error ? err.message : "Échec de la suppression",
+            );
         }
     };
 
@@ -45,45 +50,50 @@ export function DeleteAuditButton({ auditId, reference }: DeleteAuditButtonProps
                 <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer"
+                    className="h-6 w-6 p-0 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-md"
                     title="Supprimer cet audit"
                 >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-3 h-3" />
                 </Button>
             </AlertDialogTrigger>
 
-            <AlertDialogContent className="bg-card text-card-foreground border-border rounded-2xl max-w-md">
-                <AlertDialogHeader>
-                    <div className="flex items-center gap-2 text-destructive mb-1">
-                        <AlertTriangle className="w-5 h-5 shrink-0" />
-                        <AlertDialogTitle className="text-base font-bold">
-                            Supprimer l'Audit {reference} ?
+            <AlertDialogContent className="rounded-xl border-border/60 bg-card p-0 shadow-2xl gap-0 max-w-md">
+                <AlertDialogHeader className="px-5 pt-5 pb-3 border-b border-border/60">
+                    <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 mb-1">
+                        <AlertTriangle className="w-4 h-4 shrink-0" />
+                        <AlertDialogTitle className="text-[15px] font-semibold tracking-tight">
+                            Supprimer l&apos;audit {reference} ?
                         </AlertDialogTitle>
                     </div>
-                    <AlertDialogDescription className="text-xs text-muted-foreground font-light leading-relaxed">
-                        Cette action est irréversible. Toutes les lignes d'inventaire scannées et la démarque associée à cette session seront définitivement effacées de la base de données.
+                    <AlertDialogDescription className="text-[11px] text-muted-foreground/80 leading-relaxed">
+                        Cette action est <strong>irréversible</strong>. Toutes
+                        les lignes d&apos;inventaire scannées et la démarque
+                        associée à cette session seront définitivement effacées.
                     </AlertDialogDescription>
                 </AlertDialogHeader>
 
-                <AlertDialogFooter className="gap-2 pt-2">
-                    <AlertDialogCancel className="h-9 rounded-xl text-xs cursor-pointer">
+                <AlertDialogFooter className="px-5 py-3 gap-2 sm:gap-2">
+                    <AlertDialogCancel
+                        className="h-7 px-3 text-[11px]"
+                        disabled={deleteMutation.isPending}
+                    >
                         Annuler
                     </AlertDialogCancel>
                     <AlertDialogAction
-                        onClick={(e) => {
-                            e.preventDefault(); // Empêche la fermeture prématurée avant la fin de l'action asynchrone
-                            handleDelete();
-                        }}
-                        disabled={loading}
-                        className="h-9 rounded-xl text-xs font-semibold bg-destructive text-destructive-foreground hover:bg-destructive/90 cursor-pointer"
+                        onClick={handleDelete}
+                        disabled={deleteMutation.isPending}
+                        className="h-7 px-3 text-[11px] font-semibold gap-1.5 bg-rose-600 text-white hover:bg-rose-700"
                     >
-                        {loading ? (
+                        {deleteMutation.isPending ? (
                             <>
-                                <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
-                                Suppression...
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                                Suppression…
                             </>
                         ) : (
-                            "Confirmer la suppression"
+                            <>
+                                <Trash2 className="w-3 h-3" />
+                                Supprimer
+                            </>
                         )}
                     </AlertDialogAction>
                 </AlertDialogFooter>

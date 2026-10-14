@@ -59,3 +59,12 @@ export interface ClotureVenteCloseProps {
   existingClosure?: ClotureDataView | null
   isReadOnly?: boolean
 }
+
+export interface OdooQuant {
+  id: number;
+  product_id: [number, string];
+  location_id: [number, string];
+  quantity: number;
+  in_date: string | false;   // ⬅️ NOUVEAU
+  company_id?: [number, string] | false | null;
+}
