@@ -326,3 +326,7 @@ export function resolveProductImageUrl(
 
     return `https://${baseUrl}/${cleanHs}_${colorSlug}.jpg`;
 }
+
+/** Résolution robuste du list_price (0 si absent) */
+export const getListPrice = (item: StockAuditItem): number =>
+    Number((item as { list_price?: number | null }).list_price) || 0;

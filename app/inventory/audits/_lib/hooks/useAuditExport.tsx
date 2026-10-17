@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import type { StockAudit, StockAuditItem } from "../types";
 import {
     aggregateByPosCategory,
+    getListPrice,
     getPosCategoryNames,
     getSoldLocations,
     hasSoldElsewhere,
@@ -75,13 +76,13 @@ export function useAuditExport(
 
                 let totalDiffQty = 0;
                 let totalDiffValue = 0;
+                let totalSellImpact = 0;
+
                 items.forEach((item) => {
-                    const diff =
-                        (item.counted_qty ?? 0) -
-                        (item.theoretical_qty ?? 0);
+                    const diff = (item.counted_qty ?? 0) - (item.theoretical_qty ?? 0);
                     totalDiffQty += diff;
-                    totalDiffValue +=
-                        diff * (Number(item.unit_cost) || 0);
+                    totalDiffValue += diff * (Number(item.unit_cost) || 0);
+                    totalSellImpact += diff * getListPrice(item);
                 });
 
                 const posAggregates = aggregateByPosCategory(items);
@@ -125,6 +126,7 @@ export function useAuditExport(
                     ["Taux de Progression", `${progressPercent}%`],
                     ["Écart Quantité Total", totalDiffQty],
                     ["Démarque Globale ($ USD)", formatUSD(totalDiffValue)],
+                    ["CA Perdu (Prix Vente) ($ USD)", formatUSD(totalSellImpact)],
                     [""],
                     ["RÉPARTITION PAR CATÉGORIE POS"],
                     ["Nb Catégories POS Distinctes", distinctPosCategories],
@@ -147,22 +149,19 @@ export function useAuditExport(
                     const counted = i.counted_qty ?? 0;
                     const theoretical = i.theoretical_qty ?? 0;
                     const cost = Number(i.unit_cost) || 0;
+                    const listPrice = getListPrice(i);       // ⬅️ NOUVEAU
                     const diff = counted - theoretical;
-                    const impact = diff * cost;
+                    const costImpact = diff * cost;
+                    const sellImpact = diff * listPrice;     // ⬅️ NOUVEAU
 
                     const soldLocs = getSoldLocations(i);
                     const soldLocsStr =
                         soldLocs.length > 0
-                            ? soldLocs
-                                .map((l) => `[${l.id}] ${l.name}`)
-                                .join(", ")
+                            ? soldLocs.map((l) => `[${l.id}] ${l.name}`).join(", ")
                             : "Aucun";
 
                     const categNames = getPosCategoryNames(i);
-                    const categStr =
-                        categNames.length > 0
-                            ? categNames.join(", ")
-                            : "—";
+                    const categStr = categNames.length > 0 ? categNames.join(", ") : "—";
 
                     return {
                         "Code-barres Unitaire": i.internal_barcode,
@@ -174,34 +173,37 @@ export function useAuditExport(
                         "Date Création Odoo": i.odoo_create_date
                             ? i.odoo_create_date.slice(0, 10)
                             : "—",
-                        "Emplacement Origine Odoo":
-                            i.supplier_ref || "Stock Principal",
+                        "Emplacement Origine Odoo": i.supplier_ref || "Stock Principal",
                         "Vendu Dans Emplacement (-1)": soldLocsStr,
                         "Stock Théorique Odoo": theoretical,
                         "Compté Physique": counted,
                         "Écart Quantité": diff,
                         "Coût Unitaire ($)": cost,
-                        "Impact / Démarque ($)": impact,
+                        "Impact Achat ($)": costImpact,           // ⬅️ renommé
+                        "Prix Vente ($)": listPrice,              // ⬅️ NOUVEAU
+                        "Impact Vente ($)": sellImpact,           // ⬅️ NOUVEAU
                     };
                 });
 
                 const wsProducts =
                     XLSX.utils.json_to_sheet(productsData);
                 wsProducts["!cols"] = [
-                    { wch: 22 },
-                    { wch: 40 },
-                    { wch: 20 },
-                    { wch: 18 },
-                    { wch: 30 },
-                    { wch: 16 },
-                    { wch: 18 },
-                    { wch: 25 },
-                    { wch: 30 },
-                    { wch: 18 },
-                    { wch: 16 },
-                    { wch: 14 },
-                    { wch: 16 },
-                    { wch: 20 },
+                    { wch: 22 },   // Code-barres
+                    { wch: 40 },   // Produit
+                    { wch: 20 },   // Marque
+                    { wch: 18 },   // Couleur
+                    { wch: 30 },   // Catégories POS
+                    { wch: 16 },   // HS Code
+                    { wch: 18 },   // Date Création
+                    { wch: 25 },   // Emplacement Origine
+                    { wch: 30 },   // Vendu Dans
+                    { wch: 18 },   // Stock Théorique
+                    { wch: 16 },   // Compté
+                    { wch: 14 },   // Écart Qté
+                    { wch: 16 },   // Coût
+                    { wch: 18 },   // Impact Achat
+                    { wch: 16 },   // Prix Vente
+                    { wch: 18 },   // Impact Vente
                 ];
                 const detailSheetName = isFilteredView
                     ? "Détail Vue Filtrée"

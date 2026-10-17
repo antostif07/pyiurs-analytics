@@ -42,7 +42,7 @@ import { SoldLocationsBadges } from "./SoldLocationsBadges";
 import { PosSummaryPanel } from "./category-pos-summary-panel";
 import { FoundLocationsBadges } from "./found-location-badges";
 import { useAuditFilteredExport } from "../_lib/hooks/useAuditFilteredExport";
-import { getSoldLocations, hasSoldElsewhere, matchesAnyPosCategory } from "../_lib/helpers";
+import { getListPrice, getSoldLocations, hasSoldElsewhere, matchesAnyPosCategory } from "../_lib/helpers";
 
 /**
  * Debounce un callback. Retourne une fonction stable qui reporte
@@ -635,21 +635,91 @@ export function AuditDataTable({
                     return diff * (Number(row.unit_cost) || 0);
                 },
                 header: ({ column }) => (
-                    <ColumnHeader column={column} title="Impact ($)" align="right" />
+                    <ColumnHeader
+                        column={column}
+                        title="Impact Achat ($)"
+                        align="right"
+                    />
                 ),
                 cell: ({ row }) => {
                     const item = row.original;
-                    const diff = (item.counted_qty || 0) - (item.theoretical_qty || 0);
+                    const diff =
+                        (item.counted_qty || 0) - (item.theoretical_qty || 0);
                     const impact = diff * (Number(item.unit_cost) || 0);
 
                     return (
                         <div className="text-right font-mono font-bold">
                             <span
                                 className={cn(
-                                    diff < 0 ? "text-rose-600" : "text-muted-foreground/60"
+                                    diff < 0
+                                        ? "text-rose-600 dark:text-rose-400"
+                                        : "text-muted-foreground/60",
                                 )}
                             >
                                 {formatUSD(impact)}
+                            </span>
+                        </div>
+                    );
+                },
+            },
+            {
+                id: "list_price",
+                accessorFn: (row) => getListPrice(row),
+                header: ({ column }) => (
+                    <ColumnHeader column={column} title="P.V. ($)" align="right" />
+                ),
+                cell: ({ row }) => {
+                    const pv = getListPrice(row.original);
+                    return (
+                        <div className="text-right font-mono text-[11px]">
+                            {pv > 0 ? (
+                                <span className="text-muted-foreground">
+                                    {formatUSD(pv)}
+                                </span>
+                            ) : (
+                                <span className="text-muted-foreground/40">—</span>
+                            )}
+                        </div>
+                    );
+                },
+            },
+            {
+                id: "sell_impact",
+                accessorFn: (row) => {
+                    const diff =
+                        (row.counted_qty || 0) - (row.theoretical_qty || 0);
+                    return diff * getListPrice(row);
+                },
+                header: ({ column }) => (
+                    <ColumnHeader
+                        column={column}
+                        title="Impact Vente ($)"
+                        align="right"
+                    />
+                ),
+                cell: ({ row }) => {
+                    const item = row.original;
+                    const diff =
+                        (item.counted_qty || 0) - (item.theoretical_qty || 0);
+                    const pv = getListPrice(item);
+
+                    if (pv <= 0) {
+                        return (
+                            <div className="text-right text-muted-foreground/40">—</div>
+                        );
+                    }
+
+                    const sellImpact = diff * pv;
+                    return (
+                        <div className="text-right font-mono font-bold">
+                            <span
+                                className={cn(
+                                    diff < 0
+                                        ? "text-violet-600 dark:text-violet-400"
+                                        : "text-muted-foreground/60",
+                                )}
+                            >
+                                {formatUSD(sellImpact)}
                             </span>
                         </div>
                     );
