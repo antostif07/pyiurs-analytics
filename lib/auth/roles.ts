@@ -110,3 +110,12 @@ export const CONTROLLER_REVENUE_ALLOWED_PATHS = [
  * finance/revenue. Peut être supprimée une fois tous les layouts migrés.
  */
 export const CONTROLLER_ALLOWED_PATHS = CONTROLLER_FINANCE_ALLOWED_PATHS;
+
+export const SETTINGS_ROLES = ["admin"] as const satisfies readonly UserRole[]
+export type SettingsRole = (typeof SETTINGS_ROLES)[number]
+export function isSettingsRole(role: unknown): role is SettingsRole {
+    return (
+        typeof role === "string" &&
+        (SETTINGS_ROLES as readonly string[]).includes(role)
+    )
+}
