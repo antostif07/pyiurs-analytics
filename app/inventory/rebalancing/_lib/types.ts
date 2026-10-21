@@ -17,13 +17,13 @@ export interface RebalancingRow {
     barcode: string | null;
     locationId: number;
     locationName: string;
+    locationCompleteName: string | null;   // ⬅️ NOUVEAU
     shopId: string | null;
     shopName: string | null;
     quantity: number;
     unitCost: number;
     listPrice: number;
     value: number;
-    /** Sources positives possibles (où le produit existe en stock) */
     sources: RebalancingSource[];
 }
 
