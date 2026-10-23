@@ -16,7 +16,6 @@ import StockMovementMatrixTable from "../stock/_components/stock-movement-matrix
 import PurchaseDispatchMatrixTable from "../operations/purchases/_components/purchase-dispatch-matrix-table";
 import PurchaseAuditFinanceTable from "../finance/_components/purchase-audit-finance-table";
 import StoreStockAuditSizesTable from "../stock/_components/store-stock-audit-sizes-table";
-import LeaseHrMatrixTable from "../hr/_components/lease-hr-matrix-table";
 import CashOpexMatrixTable from "../cash/_components/cash-opex-matrix-table";
 
 // ─── Hooks data (client) ────────────────────────────────────────────────
@@ -28,6 +27,8 @@ import { usePurchaseDispatch } from "../operations/purchases/_lib/hooks/use-purc
 import { useStockKpis } from "../stock/_lib/hooks/use-stock-kpis";
 import TransferControlTable from "../operations/transfers/_components/transfer-control-table.tsx";
 import { useTransfers } from "../operations/transfers/_lib/hooks/use-transfers";
+import LeaseMatrixTable from "../hr/_components/lease-matrix-table";
+import { useHr } from "../hr/_lib/hooks/use-hr";
 
 type Props = { data: ExecutiveCockpitData };
 
@@ -44,6 +45,7 @@ export default function ExecutiveCockpit({ data }: Props) {
     const { data: purchaseData, isLoading: isPurchaseLoading } = usePurchaseDispatch();
     const { data: stockData, isLoading: isStockLoading } = useStockKpis();
     const { data: transfersData, isLoading: isTransfersLoading } = useTransfers();
+    const { data: hrData, isLoading: isHrLoading, error: hrError } = useHr();
 
     // `data` (props RSC) reste disponible pour de futurs usages
     // (ex: bandeau alertes server-side). Non consommé pour l'instant.
@@ -145,7 +147,7 @@ export default function ExecutiveCockpit({ data }: Props) {
                     title="Immobilier · Fiscalité · RH"
                     href="/ceo-report/hr"
                 >
-                    <LeaseHrMatrixTable />
+                    <LeaseMatrixTable rows={hrData?.leases ?? []} />
                 </ReportSection>
             </div>
         </div>

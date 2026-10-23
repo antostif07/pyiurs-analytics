@@ -1,19 +1,15 @@
 // app/ceo-report/hr/page.tsx
-import { Suspense } from "react";
-import { DashboardSkeleton } from "@/components/new-ui/layout/skeletons";
+import type { Metadata } from "next";
 import HrClient from "./hr-client";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = {
+export const metadata: Metadata = {
     title: "Ressources Humaines & Baux Commerciaux | Rapport DG",
-    description: "Suivi de la masse salariale, effectifs, compteurs de congés et échéancier des loyers.",
+    description:
+        "Suivi de la masse salariale, effectifs, compteurs de congés et échéancier des loyers.",
 };
 
 export default function HrPage() {
-    return (
-        <Suspense fallback={<DashboardSkeleton />}>
-            <HrClient />
-        </Suspense>
-    );
+    return <HrClient />;
 }
