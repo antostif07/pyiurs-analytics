@@ -1,30 +1,36 @@
-import { Suspense } from "react";
-import { Metadata } from "next";
-import { DashboardSkeleton } from "@/components/new-ui/layout/skeletons";
+// app/inventory/page.tsx
+import type { Metadata } from "next";
+import { createClient } from "@/lib/supabase/server";
 import StockDashboardClient from "./stock-dashboard-client";
-import { getInventoryMetadata } from "./_lib/actions/inventory-actions";
 
 export const metadata: Metadata = {
-  title: "Vue d'ensemble Stocks | Pyiurs Analytics",
-  description: "Tableau de bord de suivi des stocks, valorisation et alertes de rupture en temps réel.",
+  title: "Vue d'ensemble Stocks | Pyiurs",
+  description:
+    "Valorisation consolidée du stock : valeur vente, valeur coût et alertes.",
 };
 
-export default async function InventoryPage() {
-  let initialMetadata = null;
+export const dynamic = "force-dynamic";
 
-  try {
-    initialMetadata = await getInventoryMetadata();
-  } catch (error) {
-    console.error("[INVENTORY_PAGE_ERROR] Erreur récupération métadonnées Odoo:", error);
+export default async function InventoryPage() {
+  const supabase = await createClient();
+
+  const { data: shops, error } = await supabase
+    .from("shops")
+    .select("id, name, odoo_company_id")
+    .not("odoo_company_id", "is", null)
+    .order("name");
+
+  if (error) {
+    console.warn("[INVENTORY_PAGE] shops fetch failed:", error.message);
   }
 
-  return (
-    <div className="text-foreground min-h-screen bg-background transition-colors duration-150">
-      <div className="max-w-[1600px] mx-auto space-y-6">
-        <Suspense fallback={<DashboardSkeleton />}>
-          <StockDashboardClient initialMetadata={initialMetadata} />
-        </Suspense>
-      </div>
-    </div>
-  );
+  const companies = (shops ?? [])
+    .filter((s) => s.odoo_company_id != null)
+    .map((s) => ({
+      id: s.id,
+      name: s.name,
+      odooCompanyId: s.odoo_company_id as number,
+    }));
+
+  return <StockDashboardClient companies={companies} />;
 }

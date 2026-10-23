@@ -1,107 +1,138 @@
+// app/inventory/_components/kpi-grid.tsx
 "use client";
 
-import { motion } from "framer-motion";
-import { Boxes, Package, Truck, ShoppingCart, AlertCircle, Inbox } from "lucide-react";
-import KpiCard from "./kpi-card";
+import { AlertCircle, ArrowDownRight, ArrowUpRight, Boxes, TrendingUp } from "lucide-react";
+import CeoKpiCard from "@/app/ceo-report/_components/ceo-kpi-card";
 import { KpiSkeleton } from "@/components/new-ui/layout/skeletons";
-import { useStockKpis } from "@/app/inventory/_lib/hooks/use-stock-kpis";
-import { useInventory } from "@/app/inventory/_lib/hooks/use-inventory";
-import { StockDashboardFilters } from "../stock-dashboard-client";
+import { useInventoryOverview } from "../_lib/hooks/use-inventory-overview";
+import { cn } from "@/lib/utils";
 
-interface KpiGridProps {
-  filters?: StockDashboardFilters;
-}
+const fmtMoney = (n: number) =>
+  n.toLocaleString("fr-FR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }) + " $";
 
-export default function KpiGrid({ filters }: KpiGridProps) {
-  // ✅ 1. Connexion directe aux filtres pour rafraîchir la clé de requête TanStack Query
-  const { data, isLoading: isKpiLoading, isError } = useStockKpis(filters);
-  const { isLoading: isMetadataLoading } = useInventory();
+const fmtInt = (n: number) => n.toLocaleString("fr-FR");
+const fmtPct = (n: number) => `${n.toFixed(1)} %`;
 
-  if (isMetadataLoading || isKpiLoading) {
-    return <KpiSkeleton />;
-  }
+export default function KpiGrid() {
+  const { data, isLoading, isError } = useInventoryOverview();
 
-  if (isError) {
+  if (isLoading) return <KpiSkeleton />;
+
+  if (isError || !data) {
     return (
-      <div className="flex items-center gap-3 p-4 rounded-2xl bg-destructive/10 text-destructive border border-destructive/20 text-xs">
+      <div className="rounded-lg border border-rose-200/60 dark:border-rose-800/60 bg-rose-50 dark:bg-rose-950/30 p-4 flex items-center gap-2 text-[11px] text-rose-700 dark:text-rose-400">
         <AlertCircle className="w-4 h-4 shrink-0" />
-        <p className="font-medium">
-          Erreur lors de la récupération des flux de stock depuis Odoo. Veuillez actualiser.
-        </p>
+        Erreur lors du chargement des KPIs stock.
       </div>
     );
   }
 
-  // État vide si aucune boutique n'est sélectionnée
-  if (!data) {
-    return (
-      <div className="p-8 text-center border-2 border-dashed rounded-2xl border-border bg-card">
-        <Inbox className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2 stroke-[1.5]" />
-        <p className="text-muted-foreground text-xs font-light">
-          Sélectionnez au moins une boutique physique pour afficher les indicateurs de stock.
-        </p>
-      </div>
-    );
-  }
-
-  // ✅ 2. Données des 4 cartes stratégiques de flux de stock
-  const kpiData = [
-    {
-      title: "Stock à l'Ouverture",
-      value: (data.openingStock || 0).toLocaleString("fr-FR"),
-      subValue: data.openingValue ? `$${data.openingValue.toLocaleString("en-US")}` : undefined,
-      trend: data.openingTrend ?? 0,
-      icon: <Package className="w-4 h-4 text-primary" />,
-      iconBg: "bg-primary/10 text-primary",
-      sparkData: data.openingSpark || data.salesSpark || [],
-      sparkColor: "var(--primary)",
-      trendLabel: "au début de la période",
-    },
-    {
-      title: "Réceptions Centralisées (BC)",
-      value: `+${(data.qtyReceived || 0).toLocaleString("fr-FR")}`,
-      subValue: data.receivedValue ? `$${data.receivedValue.toLocaleString("en-US")}` : undefined,
-      trend: data.receivedTrend ?? 0,
-      icon: <Truck className="w-4 h-4 text-emerald-600" />,
-      iconBg: "bg-emerald-500/10 text-emerald-600",
-      sparkData: data.receivedSpark || [],
-      sparkColor: "#10b981",
-      trendLabel: "depuis centrale PB-BC",
-    },
-    {
-      title: "Ventes POS / Sorties",
-      value: `-${(data.qtySold || 0).toLocaleString("fr-FR")}`,
-      subValue: data.soldValue ? `$${data.soldValue.toLocaleString("en-US")}` : undefined,
-      trend: data.salesTrend ?? 0,
-      icon: <ShoppingCart className="w-4 h-4 text-rose-600" />,
-      iconBg: "bg-rose-500/10 text-rose-600",
-      sparkData: data.salesSpark || [],
-      sparkColor: "#f43f5e",
-      trendLabel: "sorties caisses boutiques",
-    },
-    {
-      title: "Stock Restant Actuel",
-      value: (data.closingStock || 0).toLocaleString("fr-FR"),
-      subValue: data.closingValue ? `$${data.closingValue.toLocaleString("en-US")}` : undefined,
-      trend: data.closingTrend ?? 0,
-      icon: <Boxes className="w-4 h-4 text-sky-600" />,
-      iconBg: "bg-sky-500/10 text-sky-600",
-      sparkData: data.closingSpark || data.salesSpark || [],
-      sparkColor: "#0284c7",
-      trendLabel: "physique en magasin",
-    },
-  ];
+  const { opening, closing, movements } = data;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2 }}
-      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
-    >
-      {kpiData.map((kpi, i) => (
-        <KpiCard key={kpi.title} {...kpi} index={i} />
-      ))}
-    </motion.div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* 1. Stock Ouverture */}
+      <CeoKpiCard
+        label="Stock Ouverture"
+        value={`${fmtInt(opening.totalUnits)} pcs`}
+        subtitle={
+          <span className="flex flex-wrap items-center gap-1">
+            <span>{fmtInt(opening.productCount)} produits</span>
+            <span className="opacity-40">·</span>
+            <span className="text-sky-700 dark:text-sky-400">
+              {fmtMoney(opening.saleValue)} vente
+            </span>
+            <span className="opacity-40">·</span>
+            <span className="text-amber-700 dark:text-amber-400">
+              {fmtMoney(opening.costValue)} coût
+            </span>
+          </span>
+        }
+        icon={<Boxes className="w-3.5 h-3.5" />}
+        iconColor="text-violet-600 dark:text-violet-400"
+        iconBg="bg-violet-50 dark:bg-violet-950/40"
+      />
+
+      {/* 2. Stock Fermeture */}
+      <CeoKpiCard
+        label="Stock Fermeture"
+        value={`${fmtInt(closing.totalUnits)} pcs`}
+        subtitle={
+          <span className="flex flex-wrap items-center gap-1">
+            <span>{fmtInt(closing.productCount)} produits</span>
+            <span className="opacity-40">·</span>
+            <span className="text-sky-700 dark:text-sky-400">
+              {fmtMoney(closing.saleValue)} vente
+            </span>
+            <span className="opacity-40">·</span>
+            <span className="text-amber-700 dark:text-amber-400">
+              {fmtMoney(closing.costValue)} coût
+            </span>
+          </span>
+        }
+        icon={<Boxes className="w-3.5 h-3.5" />}
+        iconColor="text-sky-600 dark:text-sky-400"
+        iconBg="bg-sky-50 dark:bg-sky-950/40"
+      />
+
+      {/* 3. Mouvements */}
+      <CeoKpiCard
+        label="Mouvements de la période"
+        value={`+${fmtInt(movements.receivedUnits)} / −${fmtInt(movements.soldUnits)}`}
+        subtitle={
+          <span
+            className={cn(
+              "flex items-center gap-1",
+              movements.netVariation >= 0
+                ? "text-emerald-700 dark:text-emerald-400"
+                : "text-rose-700 dark:text-rose-400",
+            )}
+          >
+            {movements.netVariation >= 0 ? (
+              <ArrowUpRight className="w-2.5 h-2.5" />
+            ) : (
+              <ArrowDownRight className="w-2.5 h-2.5" />
+            )}
+            Variation nette :{" "}
+            <strong>
+              {movements.netVariation > 0 ? "+" : ""}
+              {fmtInt(movements.netVariation)} pcs
+            </strong>
+          </span>
+        }
+        icon={<TrendingUp className="w-3.5 h-3.5" />}
+        iconColor="text-emerald-600 dark:text-emerald-400"
+        iconBg="bg-emerald-50 dark:bg-emerald-950/40"
+      />
+
+      {/* 4. Marge potentielle (sur fermeture) */}
+      <CeoKpiCard
+        label="Marge potentielle"
+        value={fmtMoney(closing.marginValue)}
+        subtitle={
+          <span className="flex flex-wrap items-center gap-1">
+            <span>{fmtPct(closing.marginRate)} du CA</span>
+            <span className="opacity-40">·</span>
+            <span className="text-sky-700 dark:text-sky-400">
+              {fmtMoney(closing.saleValue)} CA potentiel
+            </span>
+          </span>
+        }
+        icon={<TrendingUp className="w-3.5 h-3.5" />}
+        iconColor={
+          closing.marginValue >= 0
+            ? "text-emerald-600 dark:text-emerald-400"
+            : "text-rose-600 dark:text-rose-400"
+        }
+        iconBg={
+          closing.marginValue >= 0
+            ? "bg-emerald-50 dark:bg-emerald-950/40"
+            : "bg-rose-50 dark:bg-rose-950/40"
+        }
+      />
+    </div>
   );
 }

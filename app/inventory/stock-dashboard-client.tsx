@@ -1,108 +1,121 @@
+// app/inventory/stock-dashboard-client.tsx
 "use client";
 
-import { useState, useMemo } from "react";
-import { DateRange } from "react-day-picker";
-import { subDays } from "date-fns";
+import { useMemo } from "react";
+import { useSearchParams } from "next/navigation";
+import type { DateRange } from "react-day-picker";
 
-// Sections spécialisées du Dashboard
-import DashboardHeader from "./_components/dashboard-header";
-import DashboardToolbar from "./_components/dashboard-toolbar";
+import ReportPageHeader from "@/components/new-ui/layout/report-page-header";
+import { ReportSection } from "@/components/new-ui/layout/report-section";
+
+import InventoryFilters from "./_components/inventory-filters";
 import KpiGrid from "./_components/kpi-grid";
-import StockTable from "./_components/stock-table";
 import AnalyticsSection from "./_components/analytics-section";
 import AlertsPanel from "./_components/alerts-panel";
 import AiInsightsPanel from "./_components/ai-insights-panel";
-import { InventoryItem } from "./_lib/types";
+import StockTable from "./_components/stock-table";
 
+import {
+  parseInventoryFilters,
+  toDateRange,
+} from "./_lib/filters";
+
+/**
+ * Interface conservée pour compatibilité avec les sous-composants
+ * (KpiGrid, AnalyticsSection, AlertsPanel, AiInsightsPanel, StockTable).
+ * Sera dépréciée au fur et à mesure de leur migration vers les routes API.
+ */
 export interface StockDashboardFilters {
-  selectedShops: string[]; // IDs des boutiques sélectionnées
+  selectedShops: string[];
   segment: "Tous" | "Femme" | "Beauty" | "Enfant";
   dateRange: DateRange | undefined;
   searchQuery: string;
   compareMode: boolean;
 }
 
-interface StockDashboardClientProps {
-  initialMetadata?: InventoryItem | null;
+interface CompanyOption {
+  id: string;
+  name: string;
+  odooCompanyId: number;
 }
 
-export default function StockDashboardClient({ initialMetadata }: StockDashboardClientProps) {
+interface StockDashboardClientProps {
+  companies: CompanyOption[];
+}
 
-  // 1. Initialisation défensive des boutiques
-  const defaultWarehouses = useMemo(() => {
-    return initialMetadata?.warehouses || [];
-  }, [initialMetadata]);
-
-  // 2. États de filtrage partagés du tableau de bord
-  const [selectedShops, setSelectedShops] = useState<string[]>(
-    defaultWarehouses.map((w) => String(w.id))
+export default function StockDashboardClient({
+  companies,
+}: StockDashboardClientProps) {
+  const searchParams = useSearchParams();
+  const filters = parseInventoryFilters(
+    Object.fromEntries(searchParams.entries()),
   );
 
-  const [selectedSegment, setSelectedSegment] = useState<"Tous" | "Femme" | "Beauty" | "Enfant">("Tous");
+  /**
+   * Reconstruit l'ancien objet `StockDashboardFilters` à partir de l'URL.
+   * Les sous-composants continuent de fonctionner sans modification.
+   */
+  const legacyFilters: StockDashboardFilters = useMemo(() => {
+    const allCompanyIds = companies.map((c) => c.odooCompanyId);
+    const selectedShops =
+      filters.companyId !== null
+        ? [String(filters.companyId)]
+        : allCompanyIds.map(String);
 
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: subDays(new Date(), 30),
-    to: new Date(),
-  });
-
-  const [searchQuery, setSearchQuery] = useState("");
-  const [compareMode, setCompareMode] = useState(false);
-
-  // Objet de filtres mémorisé transmis aux sous-composants
-  const filters: StockDashboardFilters = useMemo(() => ({
-    selectedShops,
-    segment: selectedSegment,
-    dateRange,
-    searchQuery,
-    compareMode,
-  }), [selectedShops, selectedSegment, dateRange, searchQuery, compareMode]);
+    return {
+      selectedShops,
+      segment: filters.segment,
+      dateRange: toDateRange(filters),
+      searchQuery: filters.search,
+      compareMode: filters.compare,
+    };
+  }, [filters, companies]);
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
+    <div>
+      <ReportPageHeader
+        title="Vue d'ensemble Stocks"
+        subtitle="Valorisation consolidée du stock physique"
+        badge={{ label: "Stock", tone: "violet" }}
+      >
+        <InventoryFilters
+          filters={filters}
+          companies={companies}
+        />
+      </ReportPageHeader>
 
-      {/* 1. EN-TÊTE AVEC BOUTON D'EXPORT */}
-      <DashboardHeader
-        filters={filters}
-        onExport={(format) => {
-          console.log(`[EXPORT] Déclenchement de l'export ${format}`);
-        }}
-      />
+      <div className="p-4 sm:p-5 space-y-4">
+        <ReportSection index={1} title="Indicateurs clés">
+          <KpiGrid />
+        </ReportSection>
 
-      {/* 2. BARRE D'OUTILS ET DE FILTRES (Boutiques, Segments, Période) */}
-      <DashboardToolbar
-        warehouses={defaultWarehouses}
-        segments={["Tous", "Femme", "Beauty", "Enfant"]}
-        selectedSegment={selectedSegment}
-        onSegmentChange={setSelectedSegment}
-        selectedShops={selectedShops}
-        onShopsChange={setSelectedShops}
-        dateRange={dateRange}
-        onDateRangeChange={setDateRange}
-        compareMode={compareMode}
-        onCompareModeChange={setCompareMode}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-      />
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-start">
+          <div className="xl:col-span-2">
+            <ReportSection
+              index={2}
+              title="Analytiques"
+            >
+              <AnalyticsSection />
+            </ReportSection>
+          </div>
 
-      {/* 3. CARTES KPIS EN TEMPS RÉEL (Gère son propre useQuery TanStack) */}
-      <KpiGrid filters={filters} />
-
-      {/* 4. SECTION CENTRALE : ANALYTIQUES ET ALERTES */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
-        {/* Graphiques de rotation et mouvements de stock */}
-        <div className="xl:col-span-2">
-          <AnalyticsSection filters={filters} />
+          <div className="space-y-4">
+            <ReportSection index={3} title="Alertes">
+              <AlertsPanel filters={legacyFilters} />
+            </ReportSection>
+            <ReportSection
+              index={4}
+              title="Insights IA"
+            >
+              <AiInsightsPanel filters={legacyFilters} />
+            </ReportSection>
+          </div>
         </div>
 
-        {/* Panneau d'Alertes Ruptures & Recommandations Intelligentes */}
-        <div className="space-y-6">
-          <AlertsPanel filters={filters} />
-          <AiInsightsPanel filters={filters} />
-        </div>
+        <ReportSection index={5} title="Détail des articles">
+          <StockTable />
+        </ReportSection>
       </div>
-
-      {/* 5. TABLEAU DE STOCK DÉTAILLÉ (Avec pagination et recherche TanStack Table) */}
-      <StockTable filters={filters} />
     </div>
   );
 }

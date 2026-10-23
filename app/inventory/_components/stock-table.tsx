@@ -1,406 +1,362 @@
+// app/inventory/_components/stock-table.tsx
 "use client";
 
-import { useState, useMemo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useMemo } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
-  ChevronDown,
-  ChevronRight,
-  Search,
-  ArrowUpDown,
-  AlertTriangle,
-  PackageX,
-  TrendingUp,
-  Boxes,
-  Loader2,
-  ChevronLeft
-} from "lucide-react";
+  useReactTable,
+  getCoreRowModel,
+  flexRender,
+  type ColumnDef,
+  type SortingState,
+} from "@tanstack/react-table";
 import {
   Table,
   TableBody,
   TableCell,
-  TableFooter,
   TableHead,
   TableHeader,
-  TableRow
+  TableRow,
 } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  AlertCircle,
+  Package,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
-import { StockDashboardFilters } from "../stock-dashboard-client";
-import { useStockTable } from "../_lib/hooks/use-stock-table";
-import { StockTableRow } from "../_lib/actions/inventory-stock-table";
+import { DataTablePagination } from "@/components/new-ui/table/data-table-pagination";
+import { useInventoryItems } from "../_lib/hooks/use-inventory-items";
+import type { InventoryItemRow } from "../_lib/types";
 
-interface StockTableProps {
-  filters?: StockDashboardFilters;
-}
+const HEADER_BG =
+  "bg-slate-900 dark:bg-slate-950 hover:bg-slate-900 dark:hover:bg-slate-950";
 
-const formatUSD = (amount: number) => {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
+const fmtMoney = (n: number) =>
+  n.toLocaleString("fr-FR", {
+    minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(amount);
-};
+  }) + " $";
 
-export default function StockTable({ filters }: StockTableProps) {
-  // ✅ 1. Connexion au Hook TanStack Query Odoo
-  const { data: stockItems = [], isLoading, isError } = useStockTable(filters);
+const fmtInt = (n: number) => n.toLocaleString("fr-FR");
 
-  const [search, setSearch] = useState("");
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const [sortKey, setSortKey] = useState<keyof StockTableRow>("currentStock");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+type SortId =
+  | "saleValue"
+  | "quantity"
+  | "marginValue"
+  | "productName";
 
-  // Pagination locale
-  const [page, setPage] = useState(1);
-  const pageSize = 15;
+export default function StockTable() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
-  // Filtrage et Tri en mémoire (0 ms)
-  const filtered = useMemo(() => {
-    return stockItems
-      .filter((r) =>
-        r.product.toLowerCase().includes(search.toLowerCase()) ||
-        r.category.toLowerCase().includes(search.toLowerCase()) ||
-        r.barcode.toLowerCase().includes(search.toLowerCase()) ||
-        r.hsCode.toLowerCase().includes(search.toLowerCase())
-      )
-      .sort((a, b) => {
-        const valA = a[sortKey];
-        const valB = b[sortKey];
-        if (typeof valA === "number" && typeof valB === "number") {
-          return sortDir === "desc" ? valB - valA : valA - valB;
-        }
-        return sortDir === "desc"
-          ? String(valB).localeCompare(String(valA))
-          : String(valA).localeCompare(String(valB));
-      });
-  }, [stockItems, search, sortKey, sortDir]);
+  const { data, isLoading, isError } = useInventoryItems();
 
-  // Découpage pagination
-  const totalPages = Math.ceil(filtered.length / pageSize) || 1;
-  const paginatedData = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, page]);
+  const items = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const page = data?.page ?? 1;
+  const pageSize = data?.pageSize ?? 25;
 
-  const toggleRow = (id: string) => {
-    setExpandedRows((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
+  const sortParam = searchParams.get("sort") ?? "saleValue_desc";
+
+  const sorting: SortingState = useMemo(() => {
+    const [id, dir] = sortParam.split("_");
+    if (!id) return [];
+    return [{ id, desc: dir === "desc" }];
+  }, [sortParam]);
+
+  const updateUrl = (updates: Record<string, string | null>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [k, v] of Object.entries(updates)) {
+      if (v === null || v === "") params.delete(k);
+      else params.set(k, v);
+    }
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, {
+      scroll: false,
     });
   };
 
-  const handleSort = (key: keyof StockTableRow) => {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+  const handleSortingChange = (updater: any) => {
+    const next: SortingState =
+      typeof updater === "function" ? updater(sorting) : updater;
+    if (next.length === 0) {
+      updateUrl({ sort: null });
     } else {
-      setSortKey(key);
-      setSortDir("desc");
+      const { id, desc } = next[0];
+      updateUrl({ sort: `${id}_${desc ? "desc" : "asc"}` });
     }
   };
 
-  const totalCurrentStock = filtered.reduce((s, r) => s + r.currentStock, 0);
-  const totalStockValue = filtered.reduce((s, r) => s + r.stockValue, 0);
+  const columns = useMemo<ColumnDef<InventoryItemRow>[]>(
+    () => [
+      {
+        accessorKey: "barcode",
+        header: () => "Code-barres",
+        enableSorting: false,
+        cell: (info) => (
+          <span className="font-mono text-[10.5px] tabular-nums text-muted-foreground">
+            {(info.getValue() as string | null) ?? "—"}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "productName",
+        header: () => "Produit",
+        enableSorting: true,
+        cell: (info) => {
+          const row = info.row.original;
+          return (
+            <div className="flex flex-col min-w-0">
+              <span
+                className="text-[11px] font-medium text-foreground truncate max-w-[280px]"
+                title={row.productName}
+              >
+                {row.productName}
+              </span>
+              <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                {row.brand && (
+                  <Badge
+                    variant="outline"
+                    className="h-4 px-1 text-[9px] font-normal text-muted-foreground bg-muted/20 border-border/60"
+                  >
+                    {row.brand}
+                  </Badge>
+                )}
+                {row.color && (
+                  <Badge
+                    variant="outline"
+                    className="h-4 px-1 text-[9px] font-normal text-muted-foreground bg-muted/20 border-border/60"
+                  >
+                    {row.color}
+                  </Badge>
+                )}
+                {row.segment && (
+                  <Badge
+                    variant="outline"
+                    className="h-4 px-1 text-[9px] font-normal border-primary/30 bg-primary/5 text-primary/90"
+                  >
+                    {row.segment}
+                  </Badge>
+                )}
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "quantity",
+        header: () => "Qté",
+        enableSorting: true,
+        cell: (info) => {
+          const qty = info.getValue() as number;
+          return (
+            <span
+              className={cn(
+                "font-mono tabular-nums font-semibold",
+                qty < 0
+                  ? "text-rose-600 dark:text-rose-400"
+                  : qty === 0
+                    ? "text-muted-foreground/50"
+                    : "text-foreground",
+              )}
+            >
+              {fmtInt(qty)}
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: "costValue",
+        header: () => "Valeur coût",
+        enableSorting: false,
+        cell: (info) => (
+          <span className="font-mono tabular-nums text-[10.5px] text-amber-700 dark:text-amber-400">
+            {fmtMoney(info.getValue() as number)}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "saleValue",
+        header: () => "Valeur vente",
+        enableSorting: true,
+        cell: (info) => (
+          <span className="font-mono tabular-nums font-semibold text-[10.5px] text-sky-700 dark:text-sky-400">
+            {fmtMoney(info.getValue() as number)}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "marginValue",
+        header: () => "Marge",
+        enableSorting: true,
+        cell: (info) => {
+          const v = info.getValue() as number;
+          return (
+            <span
+              className={cn(
+                "font-mono tabular-nums font-semibold text-[10.5px]",
+                v >= 0
+                  ? "text-emerald-700 dark:text-emerald-400"
+                  : "text-rose-700 dark:text-rose-400",
+              )}
+            >
+              {fmtMoney(v)}
+            </span>
+          );
+        },
+      },
+    ],
+    [],
+  );
+
+  const table = useReactTable({
+    data: items,
+    columns,
+    state: { sorting },
+    onSortingChange: handleSortingChange,
+    getCoreRowModel: getCoreRowModel(),
+    manualSorting: true,
+    manualPagination: true,
+    pageCount: Math.max(1, Math.ceil(total / pageSize)),
+    onPaginationChange: (updater) => {
+      const current = { pageIndex: page - 1, pageSize };
+      const next =
+        typeof updater === "function" ? updater(current) : updater;
+      updateUrl({
+        page: String(next.pageIndex + 1),
+        pageSize: String(next.pageSize),
+      });
+    },
+  });
+
+  if (isError) {
+    return (
+      <div className="rounded-lg border border-rose-200/60 dark:border-rose-800/60 bg-rose-50 dark:bg-rose-950/30 p-4 flex items-center gap-2 text-[11px] text-rose-700 dark:text-rose-400">
+        <AlertCircle className="w-4 h-4 shrink-0" />
+        Erreur de chargement de la table.
+      </div>
+    );
+  }
+
+  if (isLoading && items.length === 0) {
+    return (
+      <div className="rounded-lg border border-border/60 bg-card p-6 text-center">
+        <p className="text-[11px] text-muted-foreground/60 italic animate-pulse">
+          Chargement des articles…
+        </p>
+      </div>
+    );
+  }
+
+  if (!isLoading && items.length === 0) {
+    return (
+      <div className="rounded-lg border border-border/60 border-dashed bg-card p-8 text-center">
+        <Package className="mx-auto w-6 h-6 text-muted-foreground/40" />
+        <h3 className="text-[12px] font-semibold text-foreground mt-2">
+          Aucun article
+        </h3>
+        <p className="text-[11px] text-muted-foreground/70 mt-0.5">
+          Aucun produit en stock sur ce périmètre.
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 15 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-      className="bg-card text-card-foreground border border-border rounded-2xl shadow-xs overflow-hidden transition-colors"
-    >
-      {/* 1. EN-TÊTE DU TABLEAU */}
-      <div className="p-4 sm:p-5 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/20">
-        <div>
-          <div className="flex items-center gap-2">
-            <Boxes className="w-4 h-4 text-primary" />
-            <h3 className="text-xs font-bold text-foreground uppercase tracking-wider">
-              Inventaire Détaillé des Produits
-            </h3>
-            <Badge variant="outline" className="text-[9px] font-mono border-primary/30 text-primary">
-              {filtered.length} Références
-            </Badge>
-          </div>
-          <p className="text-[10px] text-muted-foreground font-light mt-0.5">
-            Suivi des quantités physiques, valeurs de stock et flux d'entrées/sorties Odoo.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <div className="relative w-full sm:w-60">
-            <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-muted-foreground/60" />
-            <Input
-              placeholder="Filtrer nom, code, HS..."
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-              className="pl-8 h-9 text-xs bg-muted/20 border-input rounded-xl focus:ring-1 focus:ring-primary"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* 2. TABLEAU DES STOCKS */}
-      <div className="overflow-x-auto scrollbar-thin">
-        <Table className="w-full text-left text-[10px] border-collapse">
-          <TableHeader className="bg-muted/40 border-b border-border text-muted-foreground">
-            <TableRow className="hover:bg-transparent border-none">
-              <TableHead className="w-8 px-2 py-2.5" />
-
-              <TableHead className="px-3 py-2.5 uppercase text-[8px] tracking-wider font-bold">
-                <button onClick={() => handleSort("product")} className="inline-flex items-center gap-1 hover:text-foreground outline-none">
-                  <span>Article / Segment</span>
-                  <ArrowUpDown size={9} className={sortKey === "product" ? "text-primary opacity-100" : "opacity-30"} />
-                </button>
-              </TableHead>
-
-              <TableHead className="px-3 py-2.5 uppercase text-[8px] tracking-wider font-bold text-right">
-                <button onClick={() => handleSort("openingStock")} className="inline-flex items-center gap-1 hover:text-foreground outline-none justify-end w-full">
-                  <span>Ouverture</span>
-                  <ArrowUpDown size={9} className={sortKey === "openingStock" ? "text-primary opacity-100" : "opacity-30"} />
-                </button>
-              </TableHead>
-
-              <TableHead className="px-3 py-2.5 uppercase text-[8px] tracking-wider font-bold text-right text-emerald-600">
-                <button onClick={() => handleSort("incomingStock")} className="inline-flex items-center gap-1 hover:text-foreground outline-none justify-end w-full">
-                  <span>Entrées (+)</span>
-                  <ArrowUpDown size={9} className={sortKey === "incomingStock" ? "text-primary opacity-100" : "opacity-30"} />
-                </button>
-              </TableHead>
-
-              <TableHead className="px-3 py-2.5 uppercase text-[8px] tracking-wider font-bold text-right text-rose-600">
-                <button onClick={() => handleSort("outgoingStock")} className="inline-flex items-center gap-1 hover:text-foreground outline-none justify-end w-full">
-                  <span>Sorties (-)</span>
-                  <ArrowUpDown size={9} className={sortKey === "outgoingStock" ? "text-primary opacity-100" : "opacity-30"} />
-                </button>
-              </TableHead>
-
-              <TableHead className="px-3 py-2.5 uppercase text-[8px] tracking-wider font-bold text-right">
-                <button onClick={() => handleSort("currentStock")} className="inline-flex items-center gap-1 hover:text-foreground outline-none justify-end w-full">
-                  <span>Stock Actuel</span>
-                  <ArrowUpDown size={9} className={sortKey === "currentStock" ? "text-primary opacity-100" : "opacity-30"} />
-                </button>
-              </TableHead>
-
-              <TableHead className="px-3 py-2.5 uppercase text-[8px] tracking-wider font-bold text-right">
-                <button onClick={() => handleSort("stockValue")} className="inline-flex items-center gap-1 hover:text-foreground outline-none justify-end w-full">
-                  <span>Valeur ($)</span>
-                  <ArrowUpDown size={9} className={sortKey === "stockValue" ? "text-primary opacity-100" : "opacity-30"} />
-                </button>
-              </TableHead>
-
-              <TableHead className="px-3 py-2.5 uppercase text-[8px] tracking-wider font-bold text-center w-20">
-                Statut
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-
-          <TableBody className="divide-y divide-border/40 font-mono">
-            {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center py-16 text-muted-foreground font-sans">
-                  <Loader2 className="w-5 h-5 animate-spin mx-auto text-primary mb-2" />
-                  <span>Chargement des stocks Odoo en temps réel...</span>
-                </TableCell>
-              </TableRow>
-            ) : paginatedData.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center py-16 text-muted-foreground font-sans text-xs">
-                  Aucun article trouvé.
-                </TableCell>
-              </TableRow>
-            ) : (
-              paginatedData.map((item) => {
-                const isExpanded = expandedRows.has(item.id);
-
-                return (
-                  <>
-                    <TableRow
-                      key={item.id}
-                      onClick={() => toggleRow(item.id)}
+    <div className="rounded-lg border border-border/60 bg-card shadow-2xs overflow-hidden">
+      <div className="overflow-x-auto">
+        <Table className="w-full text-[11px]">
+          <TableHeader className={HEADER_BG}>
+            {table.getHeaderGroups().map((hg) => (
+              <TableRow
+                key={hg.id}
+                className={cn("border-none", HEADER_BG)}
+              >
+                {hg.headers.map((header, idx) => {
+                  const canSort =
+                    header.column.getCanSort();
+                  const sortDir =
+                    header.column.getIsSorted();
+                  return (
+                    <TableHead
+                      key={header.id}
                       className={cn(
-                        "hover:bg-muted/30 transition-colors cursor-pointer",
-                        isExpanded && "bg-muted/20"
+                        "py-2 px-3 text-[10px] font-semibold text-white uppercase tracking-wider h-auto",
+                        idx === 0 && "text-left min-w-[130px]",
+                        idx === 1 && "text-left min-w-[280px]",
+                        idx > 1 && "text-right min-w-[100px]",
                       )}
                     >
-                      {/* Chevron déroulant */}
-                      <TableCell className="px-2 py-2 text-muted-foreground">
-                        {isExpanded ? (
-                          <ChevronDown size={12} className="text-primary font-bold" />
-                        ) : (
-                          <ChevronRight size={12} className="text-muted-foreground/60" />
-                        )}
-                      </TableCell>
-
-                      {/* Article, Code-barres & Segment */}
-                      <TableCell className="px-3 py-2 font-sans">
-                        <div className="flex flex-col">
-                          <span className="font-bold text-foreground text-[11px] truncate max-w-[320px]" title={item.product}>
-                            {item.product}
-                          </span>
-                          <span className="text-[9px] text-muted-foreground font-mono mt-0.5">
-                            {item.barcode} • HS: {item.hsCode} • {item.segment}
-                          </span>
-                        </div>
-                      </TableCell>
-
-                      {/* Stock d'Ouverture */}
-                      <TableCell className="px-3 py-2 text-right text-muted-foreground">
-                        {item.openingStock.toLocaleString("fr-FR")}
-                      </TableCell>
-
-                      {/* Entrées / Réceptions */}
-                      <TableCell className="px-3 py-2 text-right font-medium text-emerald-600">
-                        {item.incomingStock > 0 ? `+${item.incomingStock.toLocaleString("fr-FR")}` : "—"}
-                      </TableCell>
-
-                      {/* Sorties / Ventes */}
-                      <TableCell className="px-3 py-2 text-right font-medium text-rose-600">
-                        {item.outgoingStock > 0 ? `-${item.outgoingStock.toLocaleString("fr-FR")}` : "—"}
-                      </TableCell>
-
-                      {/* Stock Actuel */}
-                      <TableCell className="px-3 py-2 text-right font-bold text-foreground text-[11px]">
-                        {item.currentStock.toLocaleString("fr-FR")}
-                      </TableCell>
-
-                      {/* Valeur Monétaire ($ USD) */}
-                      <TableCell className="px-3 py-2 text-right font-bold text-primary">
-                        {formatUSD(item.stockValue)}
-                      </TableCell>
-
-                      {/* Badge d'Alerte de Stock */}
-                      <TableCell className="px-3 py-2 text-center font-sans">
-                        {item.alert === "out_of_stock" && (
-                          <Badge className="bg-rose-500/10 text-rose-600 border border-rose-500/20 text-[8px] font-bold px-1.5 py-0">
-                            Rupture
-                          </Badge>
-                        )}
-                        {item.alert === "low" && (
-                          <Badge className="bg-amber-500/10 text-amber-600 border border-amber-500/20 text-[8px] font-bold px-1.5 py-0">
-                            Faible
-                          </Badge>
-                        )}
-                        {item.alert === "overstock" && (
-                          <Badge className="bg-sky-500/10 text-sky-600 border border-sky-500/20 text-[8px] font-bold px-1.5 py-0">
-                            Surstock
-                          </Badge>
-                        )}
-                        {item.alert === "healthy" && (
-                          <Badge className="bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 text-[8px] font-bold px-1.5 py-0">
-                            Sain
-                          </Badge>
-                        )}
-                      </TableCell>
-                    </TableRow>
-
-                    {/* Tiroir Déroulant : Historique des Flux Quotidiens */}
-                    {isExpanded && (
-                      <TableRow key={`hist-${item.id}`} className="bg-muted/10">
-                        <TableCell colSpan={8} className="p-3 pl-8">
-                          <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5 font-sans">
-                            Historique des 10 Derniers Jours de Mouvements
-                          </div>
-
-                          {item.history.length === 0 ? (
-                            <p className="text-[10px] text-muted-foreground italic font-light">
-                              Aucun mouvement de stock enregistré sur les 10 derniers jours.
-                            </p>
-                          ) : (
-                            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
-                              {item.history.map((h) => (
-                                <div
-                                  key={h.date}
-                                  className="min-w-[80px] bg-card border border-border rounded-xl p-2 text-center shadow-2xs"
-                                >
-                                  <div className="text-[9px] text-muted-foreground font-mono mb-1">{h.date}</div>
-                                  <div className="text-[10px] text-emerald-600 font-bold">+{h.incoming}</div>
-                                  <div className="text-[10px] text-rose-600 font-bold">-{h.outgoing}</div>
-                                </div>
-                              ))}
-                            </div>
+                      {canSort ? (
+                        <button
+                          type="button"
+                          onClick={header.column.getToggleSortingHandler()}
+                          className="inline-flex items-center gap-1 hover:text-white/80 transition-colors"
+                        >
+                          {flexRender(
+                            header.column
+                              .columnDef.header,
+                            header.getContext(),
                           )}
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </>
-                );
-              })
-            )}
-          </TableBody>
+                          {sortDir === "asc" ? (
+                            <ArrowUp className="w-2.5 h-2.5" />
+                          ) : sortDir === "desc" ? (
+                            <ArrowDown className="w-2.5 h-2.5" />
+                          ) : (
+                            <ArrowUpDown className="w-2.5 h-2.5 opacity-40" />
+                          )}
+                        </button>
+                      ) : (
+                        flexRender(
+                          header.column.columnDef
+                            .header,
+                          header.getContext(),
+                        )
+                      )}
+                    </TableHead>
+                  );
+                })}
+              </TableRow>
+            ))}
+          </TableHeader>
 
-          {/* PIED DE TABLEAU (TOTAUX) */}
-          <TableFooter className="bg-muted/60 border-t-2 border-border font-bold text-foreground">
-            <TableRow className="hover:bg-transparent border-none h-8">
-              <TableCell className="px-2" />
-              <TableCell className="px-3 py-2 uppercase text-[9px] font-extrabold">
-                Total Inventaire ({filtered.length} Réf.)
-              </TableCell>
-              <TableCell className="px-3 py-2 text-right text-muted-foreground font-mono">
-                {filtered.reduce((s, r) => s + r.openingStock, 0).toLocaleString("fr-FR")}
-              </TableCell>
-              <TableCell className="px-3 py-2 text-right text-emerald-600 font-mono">
-                +{filtered.reduce((s, r) => s + r.incomingStock, 0).toLocaleString("fr-FR")}
-              </TableCell>
-              <TableCell className="px-3 py-2 text-right text-rose-600 font-mono">
-                -{filtered.reduce((s, r) => s + r.outgoingStock, 0).toLocaleString("fr-FR")}
-              </TableCell>
-              <TableCell className="px-3 py-2 text-right text-foreground font-bold font-mono text-[11px]">
-                {totalCurrentStock.toLocaleString("fr-FR")}
-              </TableCell>
-              <TableCell className="px-3 py-2 text-right text-primary font-black font-mono text-[11px]">
-                {formatUSD(totalStockValue)}
-              </TableCell>
-              <TableCell className="px-3 py-2" />
-            </TableRow>
-          </TableFooter>
+          <TableBody className="divide-y divide-border/40">
+            {table.getRowModel().rows.map((row) => (
+              <TableRow
+                key={row.id}
+                className="hover:bg-accent/30 transition-colors border-b border-border/40"
+              >
+                {row.getVisibleCells().map((cell, idx) => (
+                  <TableCell
+                    key={cell.id}
+                    className={cn(
+                      "py-1.5 px-3",
+                      idx === 0 && "text-left",
+                      idx === 1 && "text-left",
+                      idx > 1 && "text-right",
+                    )}
+                  >
+                    {flexRender(
+                      cell.column.columnDef.cell,
+                      cell.getContext(),
+                    )}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
         </Table>
       </div>
 
-      {/* 3. PAGINATION SHADCN UI */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-3.5 bg-muted/20 border-t border-border">
-        <div className="text-[10px] text-muted-foreground font-light">
-          Affichage de{" "}
-          <strong className="text-foreground font-medium">
-            {(page - 1) * pageSize + 1}
-          </strong>{" "}
-          à{" "}
-          <strong className="text-foreground font-medium">
-            {Math.min(page * pageSize, filtered.length)}
-          </strong>{" "}
-          sur <strong className="text-foreground font-medium">{filtered.length}</strong> articles
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page === 1}
-            className="h-7 w-7 p-0 cursor-pointer"
-          >
-            <ChevronLeft className="w-3.5 h-3.5" />
-          </Button>
-
-          <span className="text-[10px] font-mono font-medium px-2">
-            Page {page} / {totalPages}
-          </span>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={page === totalPages}
-            className="h-7 w-7 p-0 cursor-pointer"
-          >
-            <ChevronRight className="w-3.5 h-3.5" />
-          </Button>
-        </div>
-      </div>
-    </motion.div>
+      <DataTablePagination
+        table={table}
+        totalRows={total}
+        rowLabel="article"
+      />
+    </div>
   );
 }
