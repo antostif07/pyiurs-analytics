@@ -10,9 +10,6 @@ export function useUser() {
       const { data: { user }, error } = await supabase.auth.getUser();
       if (error || !user) throw error;
 
-      console.log(user);
-
-
       // Optionnel : Récupérer des données extra depuis une table 'profiles'
       const { data: profile } = await supabase
         .from("profiles")

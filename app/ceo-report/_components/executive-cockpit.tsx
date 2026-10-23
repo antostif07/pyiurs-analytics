@@ -14,7 +14,6 @@ import SalesRevenueMatrixTable from "../sales/_components/sales-revenue-matrix-t
 import CustomerMatrixTable from "../customers/_components/customer-matrix-table";
 import StockMovementMatrixTable from "../stock/_components/stock-movement-matrix-table";
 import PurchaseDispatchMatrixTable from "../operations/purchases/_components/purchase-dispatch-matrix-table";
-import PurchaseAuditFinanceTable from "../finance/_components/purchase-audit-finance-table";
 import StoreStockAuditSizesTable from "../stock/_components/store-stock-audit-sizes-table";
 import CashOpexMatrixTable from "../cash/_components/cash-opex-matrix-table";
 
@@ -29,6 +28,8 @@ import TransferControlTable from "../operations/transfers/_components/transfer-c
 import { useTransfers } from "../operations/transfers/_lib/hooks/use-transfers";
 import LeaseMatrixTable from "../hr/_components/lease-matrix-table";
 import { useHr } from "../hr/_lib/hooks/use-hr";
+import { useFinance } from "../finance/_lib/hooks/use-finance";
+import PurchaseAuditFinanceTable from "../finance/_components/purchase-audit-finance-table";
 
 type Props = { data: ExecutiveCockpitData };
 
@@ -46,6 +47,7 @@ export default function ExecutiveCockpit({ data }: Props) {
     const { data: stockData, isLoading: isStockLoading } = useStockKpis();
     const { data: transfersData, isLoading: isTransfersLoading } = useTransfers();
     const { data: hrData, isLoading: isHrLoading, error: hrError } = useHr();
+    const { data: financeData, isLoading: isFinanceLoading, error: financeError } = useFinance();
 
     // `data` (props RSC) reste disponible pour de futurs usages
     // (ex: bandeau alertes server-side). Non consommé pour l'instant.
@@ -120,7 +122,12 @@ export default function ExecutiveCockpit({ data }: Props) {
                     title="Audit comptabilité achats & frais"
                     href="/ceo-report/finance"
                 >
-                    <PurchaseAuditFinanceTable />
+                    <PurchaseAuditFinanceTable
+                        rows={financeData?.auditRows ?? []}
+                        landedCosts={financeData?.landedCosts ?? []}
+                        totals={financeData?.auditTotals}
+                        landedTotal={financeData?.landedCostsTotal}
+                    />
                 </ReportSection>
 
                 <ReportSection

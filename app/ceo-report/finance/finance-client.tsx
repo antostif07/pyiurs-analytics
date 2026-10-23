@@ -1,193 +1,230 @@
 // app/ceo-report/finance/finance-client.tsx
 "use client";
 
-import { toast } from "sonner";
 import {
     Banknote,
     DollarSign,
     ShieldCheck,
     Percent,
+    Loader2,
+    Download,
+    Receipt,
 } from "lucide-react";
-import {
-    BarChart,
-    Bar,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ResponsiveContainer,
-    Legend,
-    PieChart,
-    Pie,
-    Cell,
-} from "recharts";
-import DashboardHeader from "@/app/revenue/arpu/_components/arpu-header";
-import PurchaseAuditFinanceTable from "./_components/purchase-audit-finance-table";
 
-const LANDED_COST_COLORS = ["#6366f1", "#0ea5e9", "#f59e0b"];
+import ReportPageHeader from "@/components/new-ui/layout/report-page-header";
+import { ReportSection } from "@/components/new-ui/layout/report-section";
+import CeoKpiCard from "@/app/ceo-report/_components/ceo-kpi-card";
+import { Button } from "@/components/ui/button";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+import PaymentComparisonChart from "./_components/payment-comparison-chart";
+import LandedCostsDonut from "./_components/landed-costs-donut";
+import PurchaseAuditFinanceTable from "./_components/purchase-audit-finance-table";
+import { useFinance } from "./_lib/hooks/use-finance";
+import { useExportFinance } from "./_lib/hooks/use-export-finance";
+
+const fmtMoney = (n: number) =>
+    n.toLocaleString("fr-FR", {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+    }) + " $";
 
 export default function FinanceAuditClient() {
-    // Graphique 1 : Facturé Odoo vs Décaissement Payé
-    const paymentComparisonData = [
-        { category: "Femme", "Facturé Odoo": 22000, "Décaissement Payé": 16000, "Reste à Payer": 6000 },
-        { category: "Kids", "Facturé Odoo": 6500, "Décaissement Payé": 6500, "Reste à Payer": 0 },
-        { category: "Beauty", "Facturé Odoo": 12000, "Décaissement Payé": 12000, "Reste à Payer": 0 },
-    ];
+    const { data, isLoading, error } = useFinance();
+    const { exportFinance, isExporting } = useExportFinance();
 
-    // Graphique 2 : Structure des frais d'approche logistiques (7 800 $)
-    const landedCostsShareData = [
-        { name: "Frets du mois", value: 3800, percent: "9,05%" },
-        { name: "Douanes & Dédouanement", value: 2900, percent: "6,90%" },
-        { name: "Transports sur achats", value: 1100, percent: "2,62%" },
-    ];
+    const kpis = data?.kpis;
+    const paymentComparison = data?.paymentComparison ?? [];
+    const landedCosts = data?.landedCosts ?? [];
+    const auditRows = data?.auditRows ?? [];
 
     return (
-        <div className="space-y-6">
-            {/* 1. Header de Contrôle & Synchronisation Odoo Compta */}
-            <DashboardHeader onExport={(fmt) => toast(`Export ${fmt} de l'audit comptable en cours...`)} />
+        <div>
+            {/* ══════════════ HEADER ══════════════ */}
+            <ReportPageHeader
+                title="Audit Comptabilité Achats & Frais Logistiques"
+                subtitle="Rapprochement des engagements Odoo, décaissements fournisseurs et frais d'approche"
+                badge={{ label: "Finance", tone: "amber" }}
+                isLoading={isLoading}
+                extraActions={
+                    data ? (
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                    size="sm"
+                                    disabled={isExporting}
+                                    className="h-7 px-2.5 text-[11px] gap-1.5 bg-sky-600 hover:bg-sky-700 text-white"
+                                >
+                                    {isExporting ? (
+                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                    ) : (
+                                        <Download className="w-3 h-3" />
+                                    )}
+                                    {isExporting ? "Export…" : "Exporter"}
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                                align="end"
+                                className="w-56 p-1 rounded-lg shadow-xl"
+                            >
+                                <DropdownMenuLabel className="text-[9px] font-semibold uppercase text-muted-foreground px-2 py-1 tracking-wider">
+                                    Format
+                                </DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                    disabled={isExporting}
+                                    onClick={() => exportFinance("XLSX")}
+                                    className="text-xs py-1.5 cursor-pointer"
+                                >
+                                    Excel (.xlsx)
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    disabled={isExporting}
+                                    onClick={() => exportFinance("CSV")}
+                                    className="text-xs py-1.5 cursor-pointer"
+                                >
+                                    CSV (données brutes)
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    disabled={isExporting}
+                                    onClick={() => exportFinance("PDF")}
+                                    className="text-xs py-1.5 cursor-pointer"
+                                >
+                                    PDF (rapport)
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    ) : undefined
+                }
+            />
 
-            {/* 2. 4 KPIs Financiers & Trésorerie */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* KPI 1 : Facturé Odoo */}
-                <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                            Total Facturé Odoo
-                        </span>
-                        <div className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/50 text-blue-600">
-                            <Banknote className="w-4 h-4" />
+            {/* ══════════════ CONTENU ══════════════ */}
+            <div className="p-4 sm:p-5 space-y-4">
+                {error ? (
+                    <div className="rounded-lg border border-rose-200/60 dark:border-rose-800/60 bg-rose-50 dark:bg-rose-950/30 p-4 text-center text-[11px] text-rose-700 dark:text-rose-400">
+                        Erreur :{" "}
+                        {error instanceof Error ? error.message : "Inconnue"}
+                    </div>
+                ) : isLoading ? (
+                    <div className="rounded-lg border border-border/60 bg-card p-8 text-center">
+                        <p className="text-[11px] text-muted-foreground/60 italic animate-pulse">
+                            Chargement de l'audit comptable…
+                        </p>
+                    </div>
+                ) : !data ? (
+                    <EmptyFinance />
+                ) : (
+                    <>
+                        {/* KPIs */}
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                            <CeoKpiCard
+                                label="Total facturé Odoo"
+                                value={fmtMoney(kpis?.invoicedOdoo ?? 0)}
+                                subtitle={`Sur ${fmtMoney(kpis?.poCommitted ?? 0)} engagés en PO`}
+                                icon={<Banknote className="w-3.5 h-3.5" />}
+                                iconColor="text-sky-600 dark:text-sky-400"
+                                iconBg="bg-sky-50 dark:bg-sky-950/40"
+                            />
+                            <CeoKpiCard
+                                label="Décaissements payés"
+                                value={fmtMoney(kpis?.paid ?? 0)}
+                                subtitle={`Reste à payer : ${fmtMoney(kpis?.remainingToPay ?? 0)} (${kpis?.remainingCategory ?? "—"})`}
+                                icon={<DollarSign className="w-3.5 h-3.5" />}
+                                iconColor="text-emerald-600 dark:text-emerald-400"
+                                iconBg="bg-emerald-50 dark:bg-emerald-950/40"
+                            />
+                            <CeoKpiCard
+                                label="Frais d'approche"
+                                value={fmtMoney(kpis?.landedCosts ?? 0)}
+                                subtitle={`+${(kpis?.landedCostsPercent ?? 0).toFixed(2).replace(".", ",")}% de surcoût sur les achats PO`}
+                                icon={<Percent className="w-3.5 h-3.5" />}
+                                iconColor="text-violet-600 dark:text-violet-400"
+                                iconBg="bg-violet-50 dark:bg-violet-950/40"
+                            />
+                            <CeoKpiCard
+                                label="Économie négociée"
+                                value={`-${fmtMoney(kpis?.negotiatedSavings ?? 0)}`}
+                                subtitle={`Demande prix (${Math.round((kpis?.priceRequest ?? 0) / 1000)}k$) vs Bon de commande (${Math.round((kpis?.poCommitted ?? 0) / 1000)}k$)`}
+                                icon={<ShieldCheck className="w-3.5 h-3.5" />}
+                                iconColor="text-emerald-600 dark:text-emerald-400"
+                                iconBg="bg-emerald-50 dark:bg-emerald-950/40"
+                            />
                         </div>
-                    </div>
-                    <div className="mt-2 text-xl font-bold font-mono text-slate-900 dark:text-white">
-                        40 500 $
-                    </div>
-                    <p className="text-[10px] text-slate-500 mt-0.5">Sur 42 000 $ engagés en PO</p>
-                </div>
 
-                {/* KPI 2 : Total Réellement Décaisé */}
-                <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                            Décaissements Payés
-                        </span>
-                        <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600">
-                            <DollarSign className="w-4 h-4" />
-                        </div>
-                    </div>
-                    <div className="mt-2 text-xl font-bold font-mono text-emerald-600">
-                        34 500 $
-                    </div>
-                    <p className="text-[10px] text-slate-500 mt-0.5">
-                        Reste à payer : <span className="font-bold text-amber-600">6 000 $</span> (Achats Femme)
-                    </p>
-                </div>
-
-                {/* KPI 3 : Coûts Logistiques d'Approche */}
-                <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                            Frais d'Approche
-                        </span>
-                        <div className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600">
-                            <Percent className="w-4 h-4" />
-                        </div>
-                    </div>
-                    <div className="mt-2 text-xl font-bold font-mono text-indigo-600">
-                        7 800 $
-                    </div>
-                    <p className="text-[10px] text-slate-500 mt-0.5">
-                        +18,57% de surcoût sur les achats PO
-                    </p>
-                </div>
-
-                {/* KPI 4 : Performance de Négociation Achat */}
-                <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                            Économie Négociée
-                        </span>
-                        <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600">
-                            <ShieldCheck className="w-4 h-4" />
-                        </div>
-                    </div>
-                    <div className="mt-2 text-xl font-bold font-mono text-emerald-600">
-                        -7 000 $
-                    </div>
-                    <p className="text-[10px] text-slate-500 mt-0.5">
-                        Demande prix (49k$) vs Bon de commande (42k$)
-                    </p>
-                </div>
-            </div>
-
-            {/* 3. Section Graphiques Financiers */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                {/* Facturé vs Payé */}
-                <div className="lg:col-span-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white mb-1">
-                        Rapprochement Facturation Odoo vs Trésorerie Décaisée
-                    </h3>
-                    <p className="text-[10px] text-slate-500 mb-3">
-                        Ventilation des montants facturés et des règlements par catégorie d'achat ($)
-                    </p>
-                    <div className="h-[210px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={paymentComparisonData} margin={{ top: 5, right: 10, left: -15, bottom: 0 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                <XAxis dataKey="category" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#64748b", fontWeight: "bold" }} />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#64748b" }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
-                                <Tooltip
-                                    contentStyle={{ borderRadius: "10px", border: "none", boxShadow: "0 8px 16px rgba(0,0,0,0.06)", fontSize: "11px" }}
-                                    formatter={(v: any) => [`${Number(v).toLocaleString("fr-FR")} $`]}
-                                />
-                                <Legend wrapperStyle={{ fontSize: "10px" }} />
-                                <Bar dataKey="Facturé Odoo" fill="#64748b" radius={[3, 3, 0, 0]} maxBarSize={22} />
-                                <Bar dataKey="Décaissement Payé" fill="#10b981" radius={[3, 3, 0, 0]} maxBarSize={22} />
-                                <Bar dataKey="Reste à Payer" fill="#f59e0b" radius={[3, 3, 0, 0]} maxBarSize={22} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
-
-                {/* Donut : Structure des Frais d'Approche (Landed Costs) */}
-                <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white mb-1">
-                        Frais d'Approche (7 800 $)
-                    </h3>
-                    <p className="text-[10px] text-slate-500 mb-2">Poids par poste logistique</p>
-
-                    <div className="h-[140px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie data={landedCostsShareData} cx="50%" cy="50%" innerRadius={35} outerRadius={55} paddingAngle={2} dataKey="value">
-                                    {landedCostsShareData.map((_, i) => (
-                                        <Cell key={i} fill={LANDED_COST_COLORS[i % LANDED_COST_COLORS.length]} />
-                                    ))}
-                                </Pie>
-                                <Tooltip formatter={(v: any) => [`${Number(v).toLocaleString("fr-FR")} $`]} />
-                            </PieChart>
-                        </ResponsiveContainer>
-                    </div>
-
-                    <div className="space-y-1.5 mt-2">
-                        {landedCostsShareData.map((s, i) => (
-                            <div key={s.name} className="flex items-center justify-between text-[10px]">
-                                <div className="flex items-center gap-1.5">
-                                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: LANDED_COST_COLORS[i % LANDED_COST_COLORS.length] }} />
-                                    <span className="text-slate-600 dark:text-slate-400 truncate max-w-[140px]">{s.name}</span>
-                                </div>
-                                <span className="font-mono font-bold text-slate-900 dark:text-white">
-                                    {s.value.toLocaleString("fr-FR")} $ ({s.percent})
-                                </span>
+                        {/* Graphiques */}
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                            <div className="lg:col-span-2">
+                                <ReportSection
+                                    index={1}
+                                    title="Rapprochement facturation Odoo vs trésorerie décaissée"
+                                >
+                                    <div className="rounded-lg border border-border/60 bg-card shadow-2xs p-3">
+                                        <p className="text-[10px] text-muted-foreground/70 mb-2">
+                                            Ventilation des montants facturés et des règlements par catégorie d'achat ($)
+                                        </p>
+                                        <PaymentComparisonChart
+                                            rows={paymentComparison}
+                                        />
+                                    </div>
+                                </ReportSection>
                             </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
 
-            {/* 4. Le Tableau Matrice exact du Point 6 */}
-            <div className="space-y-2">
-                <PurchaseAuditFinanceTable />
+                            <ReportSection
+                                index={2}
+                                title={`Frais d'approche (${fmtMoney(kpis?.landedCosts ?? 0)})`}
+                            >
+                                <div className="rounded-lg border border-border/60 bg-card shadow-2xs p-3">
+                                    <p className="text-[10px] text-muted-foreground/70 mb-2">
+                                        Poids par poste logistique
+                                    </p>
+                                    <LandedCostsDonut rows={landedCosts} />
+                                </div>
+                            </ReportSection>
+                        </div>
+
+                        {/* Tableau d'audit */}
+                        <ReportSection
+                            index={3}
+                            title="Matrice d'audit achats & frais logistiques"
+                        >
+                            <PurchaseAuditFinanceTable
+                                rows={auditRows}
+                                landedCosts={landedCosts}
+                                totals={data.auditTotals}
+                                landedTotal={data.landedCostsTotal}
+                            />
+                        </ReportSection>
+                    </>
+                )}
             </div>
+        </div>
+    );
+}
+
+/* ──────────────────────────────────────────────────────────── */
+/* État vide : aucune donnée d'audit disponible                 */
+/* ──────────────────────────────────────────────────────────── */
+
+function EmptyFinance() {
+    return (
+        <div className="rounded-lg border border-border/60 border-dashed bg-card shadow-2xs p-8 text-center">
+            <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-3">
+                <Receipt className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+            </div>
+            <h3 className="text-[13px] font-semibold text-foreground">
+                Aucune donnée d'audit disponible
+            </h3>
+            <p className="text-[11px] text-muted-foreground/70 mt-1 max-w-md mx-auto">
+                Les données comptables et logistiques ne sont pas encore
+                disponibles pour cet exercice.
+            </p>
         </div>
     );
 }
