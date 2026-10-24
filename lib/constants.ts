@@ -15,7 +15,8 @@ import {
   Banknote,
   ShoppingBag,
   BarChart3,
-  ScanBarcode
+  ScanBarcode,
+  Settings
 } from "lucide-react";
 
 export interface Denomination {
@@ -209,16 +210,6 @@ export const MODULES_CONFIG: AppModule[] = [
     category: "inventory"
   },
   {
-    id: "suivi-stock-femme",
-    name: "Suivi du Stock Femme",
-    description: "Contrôle des stocks de prêt-à-porter, chaussures et sacs.",
-    icon: Package,
-    color: "bg-yellow-500",
-    href: "/control-stock-femme",
-    permissions: ["admin", "manager", "user", "inventory-manager"],
-    category: "inventory"
-  },
-  {
     id: "suivi-epargne-femme",
     name: "Suivi Epargne Femme",
     description: "Suivi comptable de l'Épargne Segment Mode Femme.",
@@ -369,6 +360,19 @@ export const MODULES_CONFIG: AppModule[] = [
     color: "bg-rose-600",
     permissions: ["admin", "manager", "user", "financier"],
     category: "hr"
+  },
+  // ──── Paramètres (admin only) ────
+  {
+    id: "settings",
+    name: "Paramètres",
+    description:
+      "Configuration de l'application : rôles, permissions, modules et préférences globales.",
+    href: "/settings",
+    icon: Settings,
+    color: "bg-orange-600",
+    category: "admin",
+    permissions: ["admin"],
+    order: 99,
   },
 ];
 

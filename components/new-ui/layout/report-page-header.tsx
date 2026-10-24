@@ -82,9 +82,7 @@ export default function ReportPageHeader({
     const tone: BadgeTone = badge?.tone ?? "emerald";
 
     return (
-        <div
-            className={cn("sticky top-0 z-20", className)}
-        >
+        <div className={cn("sticky top-0 z-30 bg-background", className)}>
             <div className="border-b border-border bg-background">
                 <div className="px-4 sm:px-6 py-3 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
                     {/* ─── LEFT : Title + Subtitle + Badge + UpdatedAt ─── */}
@@ -204,8 +202,6 @@ export default function ReportPageHeader({
                     </div>
                 </div>
             </div>
-
-            <div className="h-2 bg-gradient-to-b from-background to-transparent pointer-events-none" />
         </div>
     );
 }

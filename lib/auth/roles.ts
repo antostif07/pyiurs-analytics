@@ -119,3 +119,26 @@ export function isSettingsRole(role: unknown): role is SettingsRole {
         (SETTINGS_ROLES as readonly string[]).includes(role)
     )
 }
+
+/**
+ * Rôles autorisés à accéder au suivi de stock par segment (Femme, Beauty…).
+ * Aligné sur INVENTORY_NAV_GROUPS["segments-stock-group"] → items stock-*
+ * Volontairement plus strict que INVENTORY_ROLES : exclut `financier`
+ * qui peut accéder à /inventory mais ne doit pas voir les données segment.
+ */
+export const STOCK_SEGMENT_ROLES = [
+    "admin",
+    "manager",
+    "inventory_manager",
+    "inventory-manager",
+    "user",
+] as const satisfies readonly InventoryRole[];
+
+export type StockSegmentRole = (typeof STOCK_SEGMENT_ROLES)[number];
+
+export function canAccessStockSegment(role: unknown): role is StockSegmentRole {
+    return (
+        typeof role === "string" &&
+        (STOCK_SEGMENT_ROLES as readonly string[]).includes(role)
+    );
+}
