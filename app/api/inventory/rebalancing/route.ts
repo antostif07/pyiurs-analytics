@@ -34,20 +34,22 @@ export async function GET(request: NextRequest) {
         }
 
         const { searchParams } = new URL(request.url);
-        const companyParam = searchParams.get("company");
-        const companyId = companyParam ? Number(companyParam) : null;
+        const shopId = searchParams.get("shop")?.trim();
 
-        if (!companyId || !Number.isFinite(companyId)) {
+        if (!shopId) {
             return NextResponse.json(
-                { error: "Company requise" },
+                { error: "Shop requise" },
                 { status: 400 },
             );
         }
 
-        const { rows, shopsWithoutLocations } = await fetchRebalancingData(
-            supabase,
-            companyId,
-        );
+        const {
+            rows,
+            shopsWithoutLocations,
+            odooCompanyId,
+            shopId: resolvedShopId,
+            shopName,
+        } = await fetchRebalancingData(supabase, shopId);
 
         const totals = {
             count: rows.length,
@@ -58,7 +60,9 @@ export async function GET(request: NextRequest) {
         };
 
         return NextResponse.json({
-            companyId,
+            shopId: resolvedShopId,
+            shopName,
+            odooCompanyId,
             rows,
             totals,
             shopsWithoutLocations,

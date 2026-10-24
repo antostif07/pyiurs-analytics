@@ -416,7 +416,7 @@ export async function GET(request: NextRequest) {
             standard_price: number;
             x_studio_segment: string | false;
         }>("product.product", {
-            domain: [["id", "in", productIds]],
+            domain: [["id", "in", productIds], ["active", "=", true]],
             fields: ["list_price", "standard_price", "x_studio_segment"],
             limit: productIds.length,
         });

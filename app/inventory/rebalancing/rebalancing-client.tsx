@@ -2,7 +2,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
     Scale,
     AlertTriangle,
@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import RebalancingFilters from "./_components/rebalancing-filters";
-import RebalancingTabs from "./_components/rebalancing-tabs";
+import RebalancingTabs, { TabSelection } from "./_components/rebalancing-tabs";
 import { parseRebalancingFilters } from "./_lib/filters";
 import { useRebalancing } from "./_lib/hooks/use-rebalancing";
 import { useExportRebalancing } from "./_lib/hooks/use-export-rebalancing";
@@ -50,16 +50,17 @@ export default function RebalancingClient({
     companies,
 }: RebalancingClientProps) {
     const searchParams = useSearchParams();
+    const [activeTab, setActiveTab] = useState<TabSelection>({ kind: "all" });
     const filters = parseRebalancingFilters(
         Object.fromEntries(searchParams.entries()),
     );
 
     const selectedCompany =
         filters.companyId !== null
-            ? companies.find(
-                (c) => c.odooCompanyId === filters.companyId,
-            ) ?? null
+            ? companies.find((c) => c.id === filters.companyId) ?? null
             : null;
+
+    const selectedOdooCompanyId = selectedCompany?.odooCompanyId ?? null;
 
     const { data, isLoading, error } = useRebalancing(filters.companyId);
 
@@ -69,9 +70,13 @@ export default function RebalancingClient({
 
     const { exportExcel, isExporting } = useExportRebalancing();
 
+    const handleTabChange = useCallback((sel: TabSelection) => {
+        setActiveTab(sel);
+    }, []);
+
     // Classification client-side pour les compteurs d'export
     const exportCounts = useMemo(() => {
-        if (filters.companyId === null) {
+        if (selectedOdooCompanyId === null) {
             return { internalCount: 0, saleCount: 0 };
         }
         const internalKeys = new Set<string>();
@@ -80,17 +85,26 @@ export default function RebalancingClient({
         for (const row of rows) {
             if (row.sources.length === 0) continue;
             const src = row.sources[0];
-            if (src.companyId === filters.companyId) {
+            if (src.companyId === selectedOdooCompanyId) {
                 internalKeys.add(`${src.locationId}|${row.locationId}`);
             } else {
-                saleKeys.add(`${src.companyId}|${filters.companyId}`);
+                saleKeys.add(`${src.companyId}|${selectedOdooCompanyId}`);
             }
         }
         return {
             internalCount: internalKeys.size,
             saleCount: saleKeys.size,
         };
-    }, [rows, filters.companyId]);
+    }, [rows, selectedOdooCompanyId]);
+
+    const showInternalExport =
+        activeTab.kind === "all" || activeTab.kind === "internal";
+    const showInterCompanyExport =
+        activeTab.kind === "all" || activeTab.kind === "inter_company";
+    const canExport =
+        activeTab.kind !== "no-source" &&
+        selectedCompany !== null &&
+        rows.length > 0;
 
     return (
         <div>
@@ -101,7 +115,7 @@ export default function RebalancingClient({
                 badge={{ label: "Stock", tone: "violet" }}
                 isLoading={isLoading}
                 extraActions={
-                    selectedCompany && rows.length > 0 ? (
+                    canExport && selectedCompany ? (
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button
@@ -125,54 +139,59 @@ export default function RebalancingClient({
                                     Format Excel
                                 </DropdownMenuLabel>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                    disabled={
-                                        isExporting ||
-                                        exportCounts.internalCount === 0
-                                    }
-                                    onClick={() =>
-                                        filters.companyId !== null &&
-                                        exportExcel(
-                                            filters.companyId,
-                                            "internal",
-                                        )
-                                    }
-                                    className="text-xs py-1.5 cursor-pointer gap-2"
-                                >
-                                    <Truck className="w-3 h-3 text-muted-foreground" />
-                                    <div className="flex flex-col">
-                                        <span>Transferts internes</span>
-                                        <span className="text-[10px] text-muted-foreground/60">
-                                            {exportCounts.internalCount}{" "}
-                                            picking
-                                            {exportCounts.internalCount > 1
-                                                ? "s"
-                                                : ""}
-                                        </span>
-                                    </div>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                    disabled={
-                                        isExporting ||
-                                        exportCounts.saleCount === 0
-                                    }
-                                    onClick={() =>
-                                        filters.companyId !== null &&
-                                        exportExcel(
-                                            filters.companyId,
-                                            "inter_company",
-                                        )
-                                    }
-                                    className="text-xs py-1.5 cursor-pointer gap-2"
-                                >
-                                    <FileSpreadsheet className="w-3 h-3 text-muted-foreground" />
-                                    <div className="flex flex-col">
-                                        <span>Ventes inter-company</span>
-                                        <span className="text-[10px] text-muted-foreground/60">
-                                            {exportCounts.saleCount} SO
-                                        </span>
-                                    </div>
-                                </DropdownMenuItem>
+
+                                {showInternalExport && (
+                                    <DropdownMenuItem
+                                        disabled={isExporting || exportCounts.internalCount === 0}
+                                        onClick={() =>
+                                            exportExcel(
+                                                selectedCompany.id,
+                                                "internal",
+                                                activeTab.kind !== "all"
+                                                    ? activeTab.locationId ?? null
+                                                    : null,
+                                            )
+                                        }
+                                        className="text-xs py-1.5 cursor-pointer gap-2"
+                                    >
+                                        <Truck className="w-3 h-3 text-muted-foreground" />
+                                        <div className="flex flex-col">
+                                            <span>Transferts internes</span>
+                                            <span className="text-[10px] text-muted-foreground/60">
+                                                {activeTab.kind === "internal"
+                                                    ? "Tab actif · source filtrée"
+                                                    : `${exportCounts.internalCount} picking${exportCounts.internalCount > 1 ? "s" : ""
+                                                    }`}
+                                            </span>
+                                        </div>
+                                    </DropdownMenuItem>
+                                )}
+
+                                {showInterCompanyExport && (
+                                    <DropdownMenuItem
+                                        disabled={isExporting || exportCounts.saleCount === 0}
+                                        onClick={() =>
+                                            exportExcel(
+                                                selectedCompany.id,
+                                                "inter_company",
+                                                activeTab.kind !== "all"
+                                                    ? activeTab.locationId ?? null
+                                                    : null,
+                                            )
+                                        }
+                                        className="text-xs py-1.5 cursor-pointer gap-2"
+                                    >
+                                        <FileSpreadsheet className="w-3 h-3 text-muted-foreground" />
+                                        <div className="flex flex-col">
+                                            <span>Ventes inter-company</span>
+                                            <span className="text-[10px] text-muted-foreground/60">
+                                                {activeTab.kind === "inter_company"
+                                                    ? "Tab actif · source filtrée"
+                                                    : `${exportCounts.saleCount} SO`}
+                                            </span>
+                                        </div>
+                                    </DropdownMenuItem>
+                                )}
                             </DropdownMenuContent>
                         </DropdownMenu>
                     ) : undefined
@@ -294,7 +313,11 @@ export default function RebalancingClient({
                                     index={1}
                                     title={`Déséquilibres · ${selectedCompany.name}`}
                                 >
-                                    <RebalancingTabs rows={rows} />
+                                    <RebalancingTabs
+                                        rows={rows}
+                                        odooCompanyId={selectedCompany.odooCompanyId}
+                                        onTabChange={handleTabChange}
+                                    />
                                 </ReportSection>
                             </>
                         )}

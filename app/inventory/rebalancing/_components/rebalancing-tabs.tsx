@@ -1,7 +1,7 @@
 // app/inventory/rebalancing/_components/rebalancing-tabs.tsx
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertCircle, Scale } from "lucide-react";
 import { cn } from "@/lib/utils";
 import RebalancingTable from "./rebalancing-table";
@@ -9,6 +9,8 @@ import type { RebalancingRow, RebalancingSource } from "../_lib/types";
 
 interface Props {
     rows: RebalancingRow[];
+    odooCompanyId: number;
+    onTabChange?: (selection: TabSelection) => void;
 }
 
 interface SourceGroup {
@@ -21,9 +23,19 @@ interface SourceGroup {
     rows: RebalancingRow[];
 }
 
+export type TabSelection =
+    | { kind: "all" }
+    | { kind: "no-source" }
+    | { kind: "internal"; locationId: number }
+    | { kind: "inter_company"; locationId: number };
+
 type TabKey = "all" | "no-source" | `loc:${number}`;
 
-export default function RebalancingTabs({ rows }: Props) {
+export default function RebalancingTabs({
+    rows,
+    odooCompanyId,
+    onTabChange,
+}: Props) {
     const [activeTab, setActiveTab] = useState<TabKey>("all");
 
     /* ─── Groupement par source PRIORITAIRE ──────────────────── */
@@ -82,7 +94,26 @@ export default function RebalancingTabs({ rows }: Props) {
         return group?.rows ?? [];
     }, [activeTab, withSource, grouped]);
 
-    /* ─── Rendu ──────────────────────────────────────────────── */
+    const computeSelection = useCallback(
+        (tab: TabKey): TabSelection => {
+            if (tab === "all") return { kind: "all" };
+            if (tab === "no-source") return { kind: "no-source" };
+            const locId = Number(tab.replace("loc:", ""));
+            const group = grouped.sources.find((g) => g.locationId === locId);
+            const primary = group?.rows[0]?.sources[0];
+            const kind: "internal" | "inter_company" =
+                primary && primary.companyId !== odooCompanyId
+                    ? "inter_company"
+                    : "internal";
+            return { kind, locationId: locId };
+        },
+        [grouped, odooCompanyId],
+    );
+
+    useEffect(() => {
+        onTabChange?.(computeSelection(activeTab));
+    }, [activeTab, computeSelection, onTabChange]);
+
     return (
         <div className="space-y-3">
             {/* Tab bar */}

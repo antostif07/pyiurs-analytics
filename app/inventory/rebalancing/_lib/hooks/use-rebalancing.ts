@@ -4,15 +4,15 @@
 import { useQuery } from "@tanstack/react-query";
 import type { RebalancingResponse } from "../types";
 
-export function useRebalancing(companyId: number | null) {
+export function useRebalancing(shopId: string | null) {
     return useQuery<RebalancingResponse>({
-        queryKey: ["inventory-rebalancing", companyId],
+        queryKey: ["inventory-rebalancing", shopId],
         queryFn: async ({ signal }) => {
-            if (companyId === null) {
-                throw new Error("Company requise");
+            if (shopId === null) {
+                throw new Error("Shop requise");
             }
             const res = await fetch(
-                `/api/inventory/rebalancing?company=${companyId}`,
+                `/api/inventory/rebalancing?shop=${encodeURIComponent(shopId)}`,
                 { signal },
             );
             if (!res.ok) {
@@ -22,7 +22,7 @@ export function useRebalancing(companyId: number | null) {
             }
             return res.json();
         },
-        enabled: companyId !== null,
+        enabled: shopId !== null,
         staleTime: 60 * 1000,
         refetchOnWindowFocus: false,
     });

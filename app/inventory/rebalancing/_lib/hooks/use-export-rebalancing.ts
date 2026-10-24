@@ -10,12 +10,16 @@ export function useExportRebalancing() {
     const [isExporting, setIsExporting] = useState(false);
 
     const exportExcel = useCallback(
-        async (companyId: number, type: ExportType) => {
+        async (shopId: string, type: ExportType, locationId?: number | null,) => {
             if (isExporting) return;
             setIsExporting(true);
             try {
+                const params = new URLSearchParams({ shop: shopId, type });
+                if (locationId != null) {
+                    params.set("location", String(locationId));
+                }
                 const res = await fetch(
-                    `/api/inventory/rebalancing/export?company=${companyId}&type=${type}`,
+                    `/api/inventory/rebalancing/export?${params.toString()}`,
                 );
 
                 if (!res.ok) {

@@ -16,7 +16,7 @@ import type { RebalancingCompany } from "../_lib/types";
 
 interface RebalancingFiltersProps {
     companies: RebalancingCompany[];
-    currentCompanyId: number | null;
+    currentCompanyId: string | null;
 }
 
 const selectClass =
@@ -52,16 +52,10 @@ export default function RebalancingFilters({
             )}
         >
             <Select
-                value={
-                    currentCompanyId !== null
-                        ? String(currentCompanyId)
-                        : "all"
-                }
+                value={currentCompanyId ?? "all"}
                 onValueChange={handleChange}
             >
-                <SelectTrigger
-                    className={cn(selectClass, "w-[200px]")}
-                >
+                <SelectTrigger className={cn(selectClass, "w-[200px]")}>
                     <Building2 className="w-3 h-3 text-muted-foreground shrink-0" />
                     <SelectValue placeholder="Sélectionner une compagnie" />
                 </SelectTrigger>
@@ -72,7 +66,7 @@ export default function RebalancingFilters({
                     {companies.map((c) => (
                         <SelectItem
                             key={c.id}
-                            value={String(c.odooCompanyId)}
+                            value={c.id}
                             className="text-xs"
                         >
                             {c.name}

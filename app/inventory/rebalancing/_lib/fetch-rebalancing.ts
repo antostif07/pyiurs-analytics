@@ -9,6 +9,7 @@ import type {
 interface ShopWithLocations {
     id: string;
     name: string;
+    odoo_company_id: number | null;
     shop_locations: Array<{
         id: string;
         odoo_location_id: number;
@@ -20,6 +21,9 @@ interface ShopWithLocations {
 export interface RebalancingData {
     rows: RebalancingRow[];
     shopsWithoutLocations: { id: string; name: string }[];
+    odooCompanyId: number;
+    shopId: string;
+    shopName: string;
 }
 
 async function fetchLocationMeta(ids: number[]) {
@@ -53,16 +57,39 @@ async function fetchLocationMeta(ids: number[]) {
 
 export async function fetchRebalancingData(
     supabase: SupabaseClient,
-    companyId: number,
+    shopId: string,
 ): Promise<RebalancingData> {
-    // ─── Shops + locations ──────────────────────────────────────
+    // ─── 1. Selected shop (pour récupérer son odoo_company_id) ──
+    const { data: selectedShops, error: shopErr } = await supabase
+        .from("shops")
+        .select("id, name, odoo_company_id")
+        .eq("id", shopId)
+        .limit(1);
+
+    if (shopErr) throw new Error(shopErr.message);
+
+    const selectedShop = (selectedShops ?? [])[0];
+    if (!selectedShop) {
+        throw new Error(`Shop introuvable: ${shopId}`);
+    }
+    if (selectedShop.odoo_company_id == null) {
+        throw new Error(
+            `Shop ${selectedShop.name} n'a pas de odoo_company_id configuré`,
+        );
+    }
+
+    const odooCompanyId = selectedShop.odoo_company_id;
+
+    // ─── 2. Toutes les boutiques + locations de la MÊME compagnie
+    //        (utile pour identifier les sources et lister les shops
+    //         sans emplacement, mais les négatifs seront scopés) ──
     const { data: shops, error: shopsErr } = await supabase
         .from("shops")
         .select(`
-            id, name,
+            id, name, odoo_company_id,
             shop_locations ( id, odoo_location_id, odoo_location_name, is_active )
         `)
-        .eq("odoo_company_id", companyId);
+        .eq("odoo_company_id", odooCompanyId);
 
     if (shopsErr) throw new Error(shopsErr.message);
 
@@ -76,15 +103,19 @@ export async function fetchRebalancingData(
         .filter((s) => s.locations.length === 0)
         .map((s) => ({ id: s.id, name: s.name }));
 
+    // Locations du shop sélectionné → pour les NÉGATIFS uniquement
+    const selectedShopEntry = shopsWithLocations.find((s) => s.id === shopId);
+    const selectedLocationIds: number[] =
+        selectedShopEntry?.locations.map((l) => l.odoo_location_id) ?? [];
+
+    // Map location → shop pour TOUTES les boutiques de la compagnie
+    // (utile pour tagger correctement les sources internes)
     const locationToShop = new Map<
         number,
         { shopId: string; shopName: string }
     >();
-    const allLocationIds: number[] = [];
-
     for (const shop of shopsWithLocations) {
         for (const loc of shop.locations) {
-            allLocationIds.push(loc.odoo_location_id);
             locationToShop.set(loc.odoo_location_id, {
                 shopId: shop.id,
                 shopName: shop.name,
@@ -92,11 +123,17 @@ export async function fetchRebalancingData(
         }
     }
 
-    if (allLocationIds.length === 0) {
-        return { rows: [], shopsWithoutLocations };
+    if (selectedLocationIds.length === 0) {
+        return {
+            rows: [],
+            shopsWithoutLocations,
+            odooCompanyId,
+            shopId: selectedShop.id,
+            shopName: selectedShop.name,
+        };
     }
 
-    // ─── Quants négatifs ────────────────────────────────────────
+    // ─── 3. Négatifs = SEULEMENT les locations du shop sélectionné ──
     const quants = await odooClient.searchRead<{
         id: number;
         product_id: [number, string] | false;
@@ -104,8 +141,9 @@ export async function fetchRebalancingData(
         quantity: number;
     }>("stock.quant", {
         domain: [
-            ["location_id", "in", allLocationIds],
+            ["location_id", "in", selectedLocationIds],
             ["quantity", "<", 0],
+            ["product_id.active", "=", true],
         ],
         fields: ["product_id", "location_id", "quantity"],
         limit: 5000,
@@ -113,10 +151,16 @@ export async function fetchRebalancingData(
     });
 
     if (quants.length === 0) {
-        return { rows: [], shopsWithoutLocations };
+        return {
+            rows: [],
+            shopsWithoutLocations,
+            odooCompanyId,
+            shopId: selectedShop.id,
+            shopName: selectedShop.name,
+        };
     }
 
-    // ─── Produits + locations (batch) ───────────────────────────
+    // ─── 4. Produits + locations (batch, inchangé) ─────────────
     const productIds = [
         ...new Set(
             quants
@@ -156,7 +200,7 @@ export async function fetchRebalancingData(
 
     const productMap = new Map(products.map((p) => [p.id, p]));
 
-    // ─── Sources positives ──────────────────────────────────────
+    // ─── 5. Sources positives (inchangé — toutes compagnies) ────
     const positiveQuants = await odooClient.searchRead<{
         id: number;
         product_id: [number, string] | false;
@@ -224,7 +268,6 @@ export async function fetchRebalancingData(
         sourcesByProduct.set(productId, list);
     }
 
-    // Tri : configured d'abord, puis qty desc
     for (const [, list] of sourcesByProduct) {
         list.sort((a, b) => {
             if (a.isConfigured !== b.isConfigured) {
@@ -234,14 +277,11 @@ export async function fetchRebalancingData(
         });
     }
 
-    // ─── Mapping final ──────────────────────────────────────────
+    // ─── 6. Mapping final (inchangé) ────────────────────────────
     const rows: RebalancingRow[] = [];
 
     for (const q of quants) {
-        if (
-            !Array.isArray(q.product_id) ||
-            !Array.isArray(q.location_id)
-        ) {
+        if (!Array.isArray(q.product_id) || !Array.isArray(q.location_id)) {
             continue;
         }
 
@@ -257,8 +297,7 @@ export async function fetchRebalancingData(
         const prodInfo = productMap.get(productId);
         const destLoc = destLocMeta.get(locationId);
 
-        const rawBarcode =
-            prodInfo?.barcode || prodInfo?.default_code || null;
+        const rawBarcode = prodInfo?.barcode || prodInfo?.default_code || null;
         const barcode =
             typeof rawBarcode === "string" && rawBarcode.trim()
                 ? rawBarcode.trim()
@@ -291,5 +330,11 @@ export async function fetchRebalancingData(
         });
     }
 
-    return { rows, shopsWithoutLocations };
+    return {
+        rows,
+        shopsWithoutLocations,
+        odooCompanyId,
+        shopId: selectedShop.id,
+        shopName: selectedShop.name,
+    };
 }

@@ -1,32 +1,31 @@
 // app/inventory/rebalancing/_lib/filters.ts
 
 export interface RebalancingFilters {
-    /** Odoo company_id sélectionné (null = aucune sélection) */
-    companyId: number | null;
+    companyId: string | null;
 }
 
-type Raw = Record<string, string | string[] | undefined>;
-const one = (v: string | string[] | undefined): string | undefined =>
-    Array.isArray(v) ? v[0] : v;
+const UUID_RE =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function getDefaultFilters(): RebalancingFilters {
     return { companyId: null };
 }
 
-export function parseRebalancingFilters(raw: Raw): RebalancingFilters {
-    const companyRaw = one(raw.company);
-    const id = companyRaw ? Number(companyRaw) : null;
-
-    return {
-        companyId:
-            id !== null && Number.isFinite(id) && id > 0 ? id : null,
-    };
+export function parseRebalancingFilters(
+    params: Record<string, string | undefined>,
+): RebalancingFilters {
+    const company = params.company?.trim();
+    // Seul un UUID valide est accepté (rétrocompat : les anciens
+    // `?company=<odoo_id>` sont ignorés → l'utilisateur re-sélectionne).
+    const companyId =
+        company && UUID_RE.test(company) ? company : null;
+    return { companyId };
 }
 
 export function serializeRebalancingFilters(
     f: RebalancingFilters,
 ): URLSearchParams {
     const sp = new URLSearchParams();
-    if (f.companyId !== null) sp.set("company", String(f.companyId));
+    if (f.companyId !== null) sp.set("company", f.companyId);
     return sp;
 }

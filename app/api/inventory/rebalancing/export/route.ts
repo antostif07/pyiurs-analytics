@@ -55,13 +55,17 @@ export async function GET(request: NextRequest) {
 
         // ─── Params ──────────────────────────────────────────────
         const { searchParams } = new URL(request.url);
-        const companyParam = searchParams.get("company");
+        const shopId = searchParams.get("shop")?.trim();
         const typeParam = searchParams.get("type");
+        const locationParam = searchParams.get("location");         // ← nouveau
+        const filterLocationId =
+            locationParam !== null && locationParam.trim() !== ""
+                ? Number(locationParam)
+                : null;
 
-        const companyId = companyParam ? Number(companyParam) : null;
-        if (!companyId || !Number.isFinite(companyId)) {
+        if (!shopId) {
             return NextResponse.json(
-                { error: "Company requise" },
+                { error: "Shop requise" },
                 { status: 400 },
             );
         }
@@ -73,20 +77,49 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        // ─── Fetch + classify ────────────────────────────────────
-        const { rows } = await fetchRebalancingData(supabase, companyId);
-        const classified = classifyRows(rows, companyId);
+        if (
+            filterLocationId !== null &&
+            (!Number.isFinite(filterLocationId) || filterLocationId <= 0)
+        ) {
+            return NextResponse.json(
+                { error: "location invalide (ID numérique attendu)" },
+                { status: 400 },
+            );
+        }
 
-        // ─── Nom de la company dest ──────────────────────────────
+        // ─── Fetch + classify ────────────────────────────────────
+        const { rows: allRows, odooCompanyId } =
+            await fetchRebalancingData(supabase, shopId);
+        const rows =
+            filterLocationId !== null
+                ? allRows.filter(
+                    (r) => r.sources[0]?.locationId === filterLocationId,
+                )
+                : allRows;
+
+        if (rows.length === 0) {
+            return NextResponse.json(
+                {
+                    error:
+                        "Aucun produit à exporter pour ce filtre (tab sélectionné vide)",
+                },
+                { status: 400 },
+            );
+        }
+
+        const classified = classifyRows(rows, odooCompanyId);
+
+        // ─── Nom de la company dest (via odoo) ──────────────────
         const destCompanies = await odooClient.searchRead<{
             id: number;
             name: string;
         }>("res.company", {
-            domain: [["id", "=", companyId]],
+            domain: [["id", "=", odooCompanyId]],
             fields: ["name"],
             limit: 1,
         });
-        const destCompanyName = destCompanies[0]?.name ?? `Company ${companyId}`;
+        const destCompanyName =
+            destCompanies[0]?.name ?? `Company ${odooCompanyId}`;
 
         /* ═══════════════════════════════════════════════════════════
          * EXPORT INTERNAL (stock.picking — move_line_ids)
@@ -156,10 +189,7 @@ export async function GET(request: NextRequest) {
                 type: "buffer",
                 bookType: "xlsx",
             });
-            const filename = buildInternalFilename(
-                destCompanyName,
-                groups,
-            );
+            const filename = buildInternalFilename(destCompanyName, groups);
 
             return new NextResponse(buffer, {
                 status: 200,

@@ -311,7 +311,7 @@ export async function GET(request: NextRequest) {
             x_studio_many2one_field_21bvh: [number, string] | false;
             x_studio_many2one_field_Arl5D: [number, string] | false;
         }>("product.product", {
-            domain: [["id", "in", productIds]],
+            domain: [["id", "in", productIds], ["active", "=", true]],
             fields: [
                 "name",
                 "barcode",

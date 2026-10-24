@@ -287,36 +287,36 @@ export async function GET(request: NextRequest) {
                 : [];
 
         // ─── Flow (from → to) ──────────────────────────────────
-        const [incomingPeriod, outgoingPeriod] = await Promise.all([
-            odooClient.readGroup<{ "date:day"?: string; product_uom_qty: number }>(
-                "stock.move",
-                {
-                    domain: [
-                        ...baseIncoming,
-                        ...exclusionDomain,
-                        ["date", ">=", fromDate],
-                        ["date", "<=", toDate],
-                    ],
-                    fields: ["product_uom_qty:sum"],
-                    groupby: ["date:day"],
-                    lazy: false,
-                },
-            ),
-            odooClient.readGroup<{ "date:day"?: string; product_uom_qty: number }>(
-                "stock.move",
-                {
-                    domain: [
-                        ...baseOutgoing,
-                        ...exclusionDomain,
-                        ["date", ">=", fromDate],
-                        ["date", "<=", toDate],
-                    ],
-                    fields: ["product_uom_qty:sum"],
-                    groupby: ["date:day"],
-                    lazy: false,
-                },
-            ),
-        ]);
+        const incomingPeriod = await odooClient.readGroup<{ "date:day"?: string; product_uom_qty: number }>(
+            "stock.move",
+            {
+                domain: [
+                    ...baseIncoming,
+                    ...exclusionDomain,
+                    ["date", ">=", fromDate],
+                    ["date", "<=", toDate],
+                ],
+                fields: ["product_uom_qty:sum"],
+                groupby: ["date:day"],
+                lazy: false,
+            },
+        );
+
+        const outgoingPeriod = await odooClient.readGroup<{ "date:day"?: string; product_uom_qty: number }>(
+            "stock.move",
+            {
+                domain: [
+                    ...baseOutgoing,
+                    ...exclusionDomain,
+                    ["date", ">=", fromDate],
+                    ["date", "<=", toDate],
+                ],
+                fields: ["product_uom_qty:sum"],
+                groupby: ["date:day"],
+                lazy: false,
+            },
+        );
+
 
         const incomingByDay = toMapByDay(incomingPeriod);
         const outgoingByDay = toMapByDay(outgoingPeriod);
@@ -346,36 +346,35 @@ export async function GET(request: NextRequest) {
         const heatmapFrom = `${isoDate(heatmapStart)} 00:00:00`;
         const heatmapTo = `${isoDate(today)} 23:59:59`;
 
-        const [incomingHeat, outgoingHeat] = await Promise.all([
-            odooClient.readGroup<{ "date:day"?: string; product_uom_qty: number }>(
-                "stock.move",
-                {
-                    domain: [
-                        ...baseIncoming,
-                        ...exclusionDomain,
-                        ["date", ">=", heatmapFrom],
-                        ["date", "<=", heatmapTo],
-                    ],
-                    fields: ["product_uom_qty:sum"],
-                    groupby: ["date:day"],
-                    lazy: false,
-                },
-            ),
-            odooClient.readGroup<{ "date:day"?: string; product_uom_qty: number }>(
-                "stock.move",
-                {
-                    domain: [
-                        ...baseOutgoing,
-                        ...exclusionDomain,
-                        ["date", ">=", heatmapFrom],
-                        ["date", "<=", heatmapTo],
-                    ],
-                    fields: ["product_uom_qty:sum"],
-                    groupby: ["date:day"],
-                    lazy: false,
-                },
-            ),
-        ]);
+        const incomingHeat = await odooClient.readGroup<{ "date:day"?: string; product_uom_qty: number }>(
+            "stock.move",
+            {
+                domain: [
+                    ...baseIncoming,
+                    ...exclusionDomain,
+                    ["date", ">=", heatmapFrom],
+                    ["date", "<=", heatmapTo],
+                ],
+                fields: ["product_uom_qty:sum"],
+                groupby: ["date:day"],
+                lazy: false,
+            },
+        );
+
+        const outgoingHeat = await odooClient.readGroup<{ "date:day"?: string; product_uom_qty: number }>(
+            "stock.move",
+            {
+                domain: [
+                    ...baseOutgoing,
+                    ...exclusionDomain,
+                    ["date", ">=", heatmapFrom],
+                    ["date", "<=", heatmapTo],
+                ],
+                fields: ["product_uom_qty:sum"],
+                groupby: ["date:day"],
+                lazy: false,
+            },
+        )
 
         const incomingHeatMap = toMapByDay(incomingHeat);
         const outgoingHeatMap = toMapByDay(outgoingHeat);
@@ -442,6 +441,7 @@ export async function GET(request: NextRequest) {
                 domain: [
                     ["id", "in", productIds],
                     ["x_studio_segment", "=", segment],
+                    ["active", "=", true],
                 ],
                 fields: ["x_studio_segment"],
                 limit: productIds.length,

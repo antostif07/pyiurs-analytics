@@ -36,9 +36,17 @@ export interface RebalancingTotals {
 }
 
 export interface RebalancingResponse {
-    companyId: number;
+    shopId: string;
+    shopName: string;
+    odooCompanyId: number;
     rows: RebalancingRow[];
-    totals?: RebalancingTotals;
+    totals: {
+        count: number;
+        totalQty: number;
+        totalValue: number;
+        withSource: number;
+        lostCount: number;
+    };
     shopsWithoutLocations: { id: string; name: string }[];
 }
 
