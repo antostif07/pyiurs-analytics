@@ -15,6 +15,11 @@ import { calculateLastSaleDate, calculateReplenishmentMetrics, calculateSalesLas
 import { PurchaseOrderLine } from "@/app/types/purchase";
 import { POSOrderLine } from "@/app/types/pos";
 import { StockQuant } from "@/app/types/stock";
+import { processBatchesSequentially, safeSearchRead } from "@/lib/odoo/odoo-safe";
+
+const STOCK_CACHE_TTL_MS = 5 * 60 * 1000;
+let cachedStockData: { data: StockBeautyData; timestamp: number } | null = null;
+let inflightPromise: Promise<StockBeautyData> | null = null;
 
 const extractCategoryName = (categId: unknown): string => {
     if (Array.isArray(categId) && categId.length > 1) {
@@ -30,7 +35,7 @@ async function getProducts(): Promise<OdooProductTemplate[]> {
     let offset = 0;
     let allProducts: OdooProductTemplate[] = [];
     while (true) {
-        const batch = await odooJsonClient.searchRead<OdooProductTemplate>(
+        const batch = await safeSearchRead<OdooProductTemplate>(
             "product.template",
             {
                 domain: [
@@ -59,6 +64,7 @@ async function getProducts(): Promise<OdooProductTemplate[]> {
         allProducts = allProducts.concat(batch);
         if (batch.length < pageSize) break;
         offset += pageSize;
+        await new Promise((r) => setTimeout(r, 300)); // petit délai entre pages
     }
     return allProducts;
 }
@@ -76,21 +82,21 @@ async function getStockQuantsForProducts(
         for (let i = 0; i < productIds.length; i += BATCH_SIZE) {
             batches.push(productIds.slice(i, i + BATCH_SIZE));
         }
-        const allResults: StockQuant[] = [];
-        for (const batch of batches) {
-            const res = await odooJsonClient.searchRead<StockQuant>(
-                "stock.quant",
-                {
+
+        const allResults = await processBatchesSequentially(
+            batches,
+            async (batch) => {
+                return await safeSearchRead<StockQuant>("stock.quant", {
                     domain: [
                         ["product_id", "in", batch],
                         ["location_id", "in", locationIds],
                     ],
                     fields: "id,product_id,location_id,quantity".split(","),
-                },
-            );
-            allResults.push(...res);
-        }
-        return { success: true, records: allResults };
+                });
+            },
+        );
+
+        return { success: true, records: allResults.flat() };
     } catch (error) {
         console.error("❌ stock.quant fetch error:", error);
         return { records: [], success: false };
@@ -98,14 +104,18 @@ async function getStockQuantsForProducts(
 }
 
 async function getPurchaseOrderLines() {
-    const res = await odooJsonClient.searchRead("purchase.order.line", {
+    const res = await safeSearchRead("purchase.order.line", {
         domain: [
             ["partner_id", "not ilike", "pb - bc"],
             ["partner_id", "not ilike", "pb - 24"],
             ["partner_id", "not ilike", "pb - mto"],
             ["partner_id", "not ilike", "pb - lmb"],
             ["partner_id", "not ilike", "pb - ktm"],
-            ["partner_id", "not in", [24099, 23705, 1, 23706, 23707, 23708, 27862]],
+            [
+                "partner_id",
+                "not in",
+                [24099, 23705, 1, 23706, 23707, 23708, 27862],
+            ],
         ],
         fields: [
             "id",
@@ -128,15 +138,18 @@ async function getPOSOrderLines(productIds: number[]): Promise<POSOrderLine[]> {
         for (let i = 0; i < productIds.length; i += BATCH_SIZE) {
             batches.push(productIds.slice(i, i + BATCH_SIZE));
         }
-        const allResults: POSOrderLine[] = [];
-        for (const batch of batches) {
-            const result = (await odooJsonClient.searchRead("pos.order.line", {
-                domain: [["product_id", "in", batch]],
-                fields: ["id", "qty", "product_id", "create_date"],
-            })) as POSOrderLine[];
-            allResults.push(...result);
-        }
-        return allResults;
+
+        const allResults = await processBatchesSequentially(
+            batches,
+            async (batch) => {
+                return (await safeSearchRead("pos.order.line", {
+                    domain: [["product_id", "in", batch]],
+                    fields: ["id", "qty", "product_id", "create_date"],
+                })) as POSOrderLine[];
+            },
+        );
+
+        return allResults.flat();
     } catch (error) {
         console.error("❌ pos.order.line fetch error:", error);
         return [];
@@ -144,192 +157,228 @@ async function getPOSOrderLines(productIds: number[]): Promise<POSOrderLine[]> {
 }
 
 export async function fetchAndProcessStockData(): Promise<StockBeautyData> {
-    // 1. Config Supabase
-    const locationConfig = await getShopLocations();
-    const shopLocationIds = locationConfig.locations.map((l) => l.odooLocationId);
+    const now = Date.now();
+    if (cachedStockData && now - cachedStockData.timestamp < STOCK_CACHE_TTL_MS) {
+        return cachedStockData.data;
+    }
+    if (inflightPromise) return inflightPromise;
 
-    // 2. Odoo fetch
-    const products = await getProducts();
-    const categoryMap = new Map<number, string>();
-    products.forEach((p) => categoryMap.set(p.id, extractCategoryName(p.categ_id)));
+    inflightPromise = (async () => {
+        try {
+            const locationConfig = await getShopLocations();
+            const shopLocationIds = locationConfig.locations.map(
+                (l) => l.odooLocationId,
+            );
 
-    const allProductIds = products
-        .map((p) => p.product_variant_id?.[0])
-        .filter((id): id is number => id !== undefined);
-    const productsData = products.map((p) => mapOdooProductLocal(p));
+            const products = await getProducts();
+            const categoryMap = new Map<number, string>();
+            products.forEach((p) =>
+                categoryMap.set(p.id, extractCategoryName(p.categ_id)),
+            );
 
-    const purchaseOrderLines = await getPurchaseOrderLines();
-    const posOrderLines = await getPOSOrderLines(allProductIds);
-    const stockQuants = await getStockQuantsForProducts(
-        allProductIds,
-        shopLocationIds,
-    );
+            const allProductIds = products
+                .map((p) => p.product_variant_id?.[0])
+                .filter((id): id is number => id !== undefined);
+            const productsData = products.map((p) => mapOdooProductLocal(p));
 
-    const salesLast30Days = calculateSalesLast30Days(posOrderLines, allProductIds);
-    const lastSaleDates = calculateLastSaleDate(posOrderLines, allProductIds);
+            const purchaseOrderLines = await getPurchaseOrderLines();
+            const posOrderLines = await getPOSOrderLines(allProductIds);
+            const stockQuants = await getStockQuantsForProducts(
+                allProductIds,
+                shopLocationIds,
+            );
 
-    // 3. Stock par product variant × shop (via shop name)
-    const stockByProduct = new Map<number, Record<string, number>>();
-    allProductIds.forEach((pid) => stockByProduct.set(pid, {}));
+            const salesLast30Days = calculateSalesLast30Days(
+                posOrderLines,
+                allProductIds,
+            );
+            const lastSaleDates = calculateLastSaleDate(
+                posOrderLines,
+                allProductIds,
+            );
 
-    stockQuants.records.forEach((quant) => {
-        const productId = quant.product_id[0];
-        const locationId = quant.location_id[0];
-        const shopName = locationConfig.byOdooId.get(locationId);
-        if (!shopName) return;
+            const stockByProduct = new Map<number, Record<string, number>>();
+            allProductIds.forEach((pid) => stockByProduct.set(pid, {}));
 
-        const bucket = stockByProduct.get(productId) ?? {};
-        bucket[shopName] = (bucket[shopName] ?? 0) + quant.quantity;
-        stockByProduct.set(productId, bucket);
-    });
+            stockQuants.records.forEach((quant) => {
+                const productId = quant.product_id[0];
+                const locationId = quant.location_id[0];
+                const shopName = locationConfig.byOdooId.get(locationId);
+                if (!shopName) return;
+                const bucket = stockByProduct.get(productId) ?? {};
+                bucket[shopName] = (bucket[shopName] ?? 0) + quant.quantity;
+                stockByProduct.set(productId, bucket);
+            });
 
-    // 4. Group by hs_code
-    const groupedData: StockBeautyModel[] = [];
-    const groupedMap = new Map<string, Product[]>();
-    const brandsSet = new Set<string>();
-    const colorsSet = new Set<string>();
-    const categoriesSet = new Set<string>();
-    const suppliersSet = new Set<string>();
+            const groupedData: StockBeautyModel[] = [];
+            const groupedMap = new Map<string, Product[]>();
+            const brandsSet = new Set<string>();
+            const colorsSet = new Set<string>();
+            const categoriesSet = new Set<string>();
+            const suppliersSet = new Set<string>();
 
-    productsData.forEach((product) => {
-        const key = product.hs_code || "UNKNOWN";
-        if (!groupedMap.has(key)) groupedMap.set(key, []);
-        groupedMap.get(key)!.push(product);
-        brandsSet.add(extractBrandFromProduct(product));
-        colorsSet.add(extractColorFromProduct(product));
-        categoriesSet.add(categoryMap.get(product.id) || "Non classé");
-    });
+            productsData.forEach((product) => {
+                const key = product.hs_code || "UNKNOWN";
+                if (!groupedMap.has(key)) groupedMap.set(key, []);
+                groupedMap.get(key)!.push(product);
+                brandsSet.add(extractBrandFromProduct(product));
+                colorsSet.add(extractColorFromProduct(product));
+                categoriesSet.add(categoryMap.get(product.id) || "Non classé");
+            });
 
-    groupedMap.forEach((productsGroup, hs_code) => {
-        const firstProduct = productsGroup[0];
-        const cleanName = firstProduct.name.split("[").shift()?.trim();
-        const brand = extractBrandFromProduct(firstProduct);
-        const color = extractColorFromProduct(firstProduct);
-        const name = `${cleanName} - ${hs_code} - (${firstProduct.listPrice}$)`;
-        const category = categoryMap.get(firstProduct.id) || "Non classé";
+            groupedMap.forEach((productsGroup, hs_code) => {
+                const firstProduct = productsGroup[0];
+                const cleanName = firstProduct.name.split("[")[0].trim();
+                const brand = extractBrandFromProduct(firstProduct);
+                const color = extractColorFromProduct(firstProduct);
+                const name = `${cleanName} - ${hs_code} - (${firstProduct.listPrice}$)`;
+                const category = categoryMap.get(firstProduct.id) || "Non classé";
 
-        // Supplier
-        const relatedLines = purchaseOrderLines.filter(
-            (line: PurchaseOrderLine) =>
-                line.product_id &&
-                productsGroup.some((p) => p.productVariantId === line.product_id[0]),
-        );
-        let supplierName = "Non défini";
-        const lineWithSupplier = relatedLines.find(
-            (l: any) => l.partner_id && Array.isArray(l.partner_id),
-        );
-        if (lineWithSupplier) supplierName = lineWithSupplier.partner_id[1];
-        suppliersSet.add(supplierName);
+                const relatedLines = purchaseOrderLines.filter(
+                    (line: PurchaseOrderLine) =>
+                        line.product_id &&
+                        productsGroup.some(
+                            (p) => p.productVariantId === line.product_id[0],
+                        ),
+                );
+                let supplierName = "Non défini";
+                const lineWithSupplier = relatedLines.find(
+                    (l: any) => l.partner_id && Array.isArray(l.partner_id),
+                );
+                if (lineWithSupplier)
+                    supplierName = lineWithSupplier.partner_id[1];
+                suppliersSet.add(supplierName);
 
-        // Achats
-        const product_qty = relatedLines.reduce(
-            (sum: number, line: PurchaseOrderLine) => sum + (line.product_qty || 0),
-            0,
-        );
-        const qty_received = relatedLines.reduce(
-            (sum: number, line: PurchaseOrderLine) => sum + (line.qty_received || 0),
-            0,
-        );
-        const not_received = product_qty - qty_received;
+                const product_qty = relatedLines.reduce(
+                    (sum: number, line: PurchaseOrderLine) =>
+                        sum + (line.product_qty || 0),
+                    0,
+                );
+                const qty_received = relatedLines.reduce(
+                    (sum: number, line: PurchaseOrderLine) =>
+                        sum + (line.qty_received || 0),
+                    0,
+                );
+                const not_received = product_qty - qty_received;
 
-        // Ventes
-        const relatedPosLines = posOrderLines.filter(
-            (line) =>
-                line.product_id &&
-                productsGroup.some((p) => p.productVariantId === line.product_id[0]),
-        );
-        const qty_sold = relatedPosLines.reduce(
-            (sum, line) => sum + (line.qty || 0),
-            0,
-        );
+                const relatedPosLines = posOrderLines.filter(
+                    (line) =>
+                        line.product_id &&
+                        productsGroup.some(
+                            (p) => p.productVariantId === line.product_id[0],
+                        ),
+                );
+                const qty_sold = relatedPosLines.reduce(
+                    (sum, line) => sum + (line.qty || 0),
+                    0,
+                );
 
-        // Stock agrégé + individual products
-        const groupStockByShop: Record<string, number> = {};
-        const individualProducts: IndividualProductModel[] = productsGroup.map(
-            (product) => {
-                const productStock = stockByProduct.get(product.productVariantId!) ?? {};
+                const groupStockByShop: Record<string, number> = {};
+                const individualProducts: IndividualProductModel[] =
+                    productsGroup.map((product) => {
+                        const productStock =
+                            stockByProduct.get(product.productVariantId!) ?? {};
 
-                Object.keys(productStock).forEach((shop) => {
-                    groupStockByShop[shop] =
-                        (groupStockByShop[shop] ?? 0) + productStock[shop];
-                });
+                        Object.keys(productStock).forEach((shop) => {
+                            groupStockByShop[shop] =
+                                (groupStockByShop[shop] ?? 0) +
+                                productStock[shop];
+                        });
 
-                const total_stock = Object.values(productStock).reduce(
+                        const total_stock = Object.values(productStock).reduce(
+                            (sum, v) => sum + v,
+                            0,
+                        );
+
+                        return {
+                            id: product.id,
+                            name: product.name,
+                            productVariantId: product.productVariantId!,
+                            listPrice: product.listPrice,
+                            brand: extractBrandFromProduct(product),
+                            color: extractColorFromProduct(product),
+                            category: categoryMap.get(product.id) || "Non classé",
+                            stockByShop: productStock,
+                            total_stock,
+                            sales_last_30_days:
+                                salesLast30Days.get(product.productVariantId!) ||
+                                0,
+                            last_sale_date: lastSaleDates
+                                .get(product.productVariantId!)
+                                ?.toISOString(),
+                            parent_hs_code: hs_code,
+                        };
+                    });
+
+                const total_stock = Object.values(groupStockByShop).reduce(
                     (sum, v) => sum + v,
                     0,
                 );
 
-                return {
-                    id: product.id,
-                    name: product.name,
-                    productVariantId: product.productVariantId!,
-                    listPrice: product.listPrice,
-                    brand: extractBrandFromProduct(product),
-                    color: extractColorFromProduct(product),
-                    category: categoryMap.get(product.id) || "Non classé",
-                    stockByShop: productStock,
+                const sales30Days = productsGroup.reduce(
+                    (total, product) =>
+                        total + (salesLast30Days.get(product.productVariantId!) || 0),
+                    0,
+                );
+
+                // ✅ fix TS: for...of au lieu de forEach
+                let lastSaleDate: Date | null = null;
+                for (const p of productsGroup) {
+                    const d = lastSaleDates.get(p.productVariantId!);
+                    if (d && (!lastSaleDate || d > lastSaleDate)) {
+                        lastSaleDate = d;
+                    }
+                }
+
+                const replenishmentMetrics = calculateReplenishmentMetrics(
                     total_stock,
-                    sales_last_30_days: salesLast30Days.get(product.productVariantId!) || 0,
-                    last_sale_date: lastSaleDates.get(product.productVariantId!)?.toISOString(),
-                    parent_hs_code: hs_code,
-                };
-            },
-        );
+                    sales30Days,
+                );
 
-        const total_stock = Object.values(groupStockByShop).reduce(
-            (sum, v) => sum + v,
-            0,
-        );
+                groupedData.push({
+                    hs_code,
+                    name,
+                    brand,
+                    color,
+                    supplier: supplierName,
+                    category,
+                    product_qty,
+                    qty_received,
+                    not_received,
+                    qty_sold,
+                    qty_available: total_stock,
+                    stockByShop: groupStockByShop,
+                    total_stock,
+                    sales_last_30_days: sales30Days,
+                    daily_sales_rate: replenishmentMetrics.dailySalesRate,
+                    days_until_out_of_stock:
+                        replenishmentMetrics.daysUntilOutOfStock,
+                    estimated_out_of_stock_date:
+                        replenishmentMetrics.estimatedOutOfStockDate?.toISOString(),
+                    recommended_reorder_date:
+                        replenishmentMetrics.recommendedReorderDate?.toISOString(),
+                    last_sale_date: lastSaleDate?.toISOString(),
+                    individualProducts,
+                });
+            });
 
-        const sales30Days = productsGroup.reduce(
-            (total, product) => total + (salesLast30Days.get(product.productVariantId!) || 0),
-            0,
-        );
+            const data: StockBeautyData = {
+                data: groupedData,
+                brands: Array.from(brandsSet).sort(),
+                colors: Array.from(colorsSet).sort(),
+                categories: Array.from(categoriesSet).sort(),
+                suppliers: Array.from(suppliersSet).filter(Boolean).sort(),
+                shops: locationConfig.names,
+            };
 
-        let lastSaleDate: Date | null = null;
-        for (const p of productsGroup) {
-            const d = lastSaleDates.get(p.productVariantId!);
-            if (d && (!lastSaleDate || d > lastSaleDate)) {
-                lastSaleDate = d;
-            }
+            cachedStockData = { data, timestamp: Date.now() };
+            return data;
+        } finally {
+            inflightPromise = null;
         }
+    })();
 
-        const replenishmentMetrics = calculateReplenishmentMetrics(total_stock, sales30Days);
-
-        groupedData.push({
-            hs_code,
-            name,
-            brand,
-            color,
-            supplier: supplierName,
-            category,
-            product_qty,
-            qty_received,
-            not_received,
-            qty_sold,
-            qty_available: total_stock,
-            stockByShop: groupStockByShop,
-            total_stock,
-            sales_last_30_days: sales30Days,
-            daily_sales_rate: replenishmentMetrics.dailySalesRate,
-            days_until_out_of_stock: replenishmentMetrics.daysUntilOutOfStock,
-            estimated_out_of_stock_date:
-                replenishmentMetrics.estimatedOutOfStockDate?.toISOString(),
-            recommended_reorder_date:
-                replenishmentMetrics.recommendedReorderDate?.toISOString(),
-            last_sale_date: lastSaleDate?.toISOString(),
-            individualProducts,
-        });
-    });
-
-    return {
-        data: groupedData,
-        brands: Array.from(brandsSet).sort(),
-        colors: Array.from(colorsSet).sort(),
-        categories: Array.from(categoriesSet).sort(),
-        suppliers: Array.from(suppliersSet).filter(Boolean).sort(),
-        shops: locationConfig.names,
-    };
+    return inflightPromise;
 }
 
 // Local product mapper (évite import circulaire si besoin)
