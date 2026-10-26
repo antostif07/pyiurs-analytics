@@ -11,12 +11,12 @@ interface CompactFiltersProps {
   brands: string[];
   colors: string[];
   categories: string[];
-  suppliers: string[]; // ✅ NOUVEAU
+  suppliers: string[];
   selectedBrand?: string;
   selectedColor?: string;
   selectedStock?: string;
   selectedCategory?: string;
-  selectedSupplier?: string; // ✅ NOUVEAU
+  selectedSupplier?: string;
   stockLevels: {
     outOfStock: number;
     critical: number;

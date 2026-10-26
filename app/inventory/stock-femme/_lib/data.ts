@@ -8,7 +8,7 @@ import type {
     ControlStockFemmeModel,
     StockFemmeData,
 } from "./types";
-import { getShopLocations, type ShopLocationsConfig } from "./locations";
+import { getShopLocations, type ShopLocationsConfig } from "../../_lib/locations";
 import { StockQuant } from "@/app/types/stock";
 import { PurchaseOrder, PurchaseOrderLine } from "@/app/types/purchase";
 import { OdooProductTemplate } from "@/app/types/product_template";
