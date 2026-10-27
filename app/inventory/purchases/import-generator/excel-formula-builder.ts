@@ -1,5 +1,5 @@
 import { ProductLine, getWeekNumber } from "./import-types";
-import { OdooPurchaseOrderOption } from "../_components/purchase-order-selector";
+import { OdooPurchaseOrderOption } from "../_lib/_components/purchase-order-selector";
 
 export interface ExcelCell {
     v: string | number;

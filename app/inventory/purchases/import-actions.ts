@@ -2,12 +2,14 @@
 'use server';
 
 import { odooClient } from "@/lib/odoo/odoo-json2-client";
-import { OdooPurchaseOrderOption } from "./_components/purchase-order-selector";
+import { OdooPurchaseOrderOption } from "./_lib/_components/purchase-order-selector";
 
 export interface OdooOption {
     id: number;
     name: string;
 }
+
+const PARTNER_PREFIXES = ["P.FEM", "P.KID", "P.BTY"] as const;
 
 /**
  * Récupère les Bons de Commande d'Odoo dont le nom contient "LOG"
@@ -71,7 +73,16 @@ export async function getOdooPurchaseOrdersForImport(): Promise<OdooPurchaseOrde
             partner_ref: string | boolean;
             partner_id: [number, string] | boolean;
         }>("purchase.order", {
-            domain: [["company_id.name", "ilike", "PB - BC"]],
+            domain: [
+                ["company_id.name", "ilike", "PB - BC"],
+                // OR entre les 3 prefixes → (n-1) pipes
+                ...Array(PARTNER_PREFIXES.length - 1).fill("|"),
+                ...PARTNER_PREFIXES.map((prefix) => [
+                    "partner_id.name",
+                    "=like",
+                    `${prefix}%`,
+                ]),
+            ],
             fields: ["id", "name", "partner_ref", "partner_id"],
             order: "date_order desc",
             limit: 100,

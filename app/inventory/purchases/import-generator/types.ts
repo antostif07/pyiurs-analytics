@@ -1,4 +1,4 @@
-import { OdooPurchaseOrderOption } from "../_components/purchase-order-selector";
+import { OdooPurchaseOrderOption } from "../_lib/_components/purchase-order-selector";
 import { OdooOption } from "../import-actions";
 
 export interface ProductLine {

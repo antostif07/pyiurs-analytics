@@ -1,7 +1,7 @@
 import * as XLSX from "xlsx";
 import { ProductLine } from "./import-types";
 import { buildCalculatedRow } from "./excel-formula-builder";
-import { OdooPurchaseOrderOption } from "../_components/purchase-order-selector";
+import { OdooPurchaseOrderOption } from "../_lib/_components/purchase-order-selector";
 
 interface ExportExcelParams {
     selectedPo: OdooPurchaseOrderOption;

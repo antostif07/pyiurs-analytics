@@ -142,3 +142,21 @@ export function canAccessStockSegment(role: unknown): role is StockSegmentRole {
         (STOCK_SEGMENT_ROLES as readonly string[]).includes(role)
     );
 }
+
+// ─── Purchases ───────────────────────────────────────────────
+export const PURCHASES_ROLES = [
+    "admin",
+    "manager",
+    "inventory_manager",
+    "inventory-manager",
+    "financier",
+] as const satisfies readonly InventoryRole[];
+
+export type PurchasesRole = (typeof PURCHASES_ROLES)[number];
+
+export function canAccessPurchases(role: unknown): role is PurchasesRole {
+    return (
+        typeof role === "string" &&
+        (PURCHASES_ROLES as readonly string[]).includes(role)
+    );
+}
