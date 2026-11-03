@@ -1,3 +1,4 @@
+// app/inventory/audits/_lib/audits-actions.ts
 'use server';
 
 import { createClient } from "@/lib/supabase/server";
@@ -47,9 +48,6 @@ type AuditItemDraft = {
 /* ──────────────────────────────────────────────────────────────────── */
 /* HELPERS                                                              */
 /* ──────────────────────────────────────────────────────────────────── */
-/* ──────────────────────────────────────────────────────────────────── */
-/* TYPE GUARDS / NORMALISATION JSONB                                    */
-/* ──────────────────────────────────────────────────────────────────── */
 
 /** Narrow un `Json` en `number[]` */
 function normalizeNumberArray(value: unknown): number[] {
@@ -87,6 +85,49 @@ async function resolvePosCategoryNames(ids: number[]): Promise<Map<number, strin
         console.error("[RESOLVE_POS_CATEG_ERROR]", err);
     }
     return map;
+}
+
+/**
+ * Charge les emplacements actifs configurés pour une liste de shops.
+ * Retourne un tableau d'IDs Odoo (dédupliqué).
+ *
+ * ⚠️ Source de vérité = table `shop_locations` (Supabase).
+ * C'est ce qui garantit que l'audit ne prend QUE les emplacements
+ * configurés et non toutes les locations internes de la company.
+ */
+async function getConfiguredLocationIds(
+    supabase: SupabaseClient,
+    shopIds: string[],
+): Promise<{ locationIds: number[]; error?: string }> {
+    if (shopIds.length === 0) {
+        return { locationIds: [] };
+    }
+
+    const { data, error } = await supabase
+        .from("shop_locations")
+        .select("odoo_location_id")
+        .in("shop_id", shopIds)
+        .eq("is_active", true);
+
+    if (error) {
+        return {
+            locationIds: [],
+            error: `Impossible de charger les emplacements : ${error.message}`,
+        };
+    }
+
+    const locationIds = Array.from(
+        new Set(
+            (data ?? [])
+                .map((l) => l.odoo_location_id)
+                .filter(
+                    (id): id is number =>
+                        typeof id === "number" && id > 0,
+                ),
+        ),
+    );
+
+    return { locationIds };
 }
 
 /**
@@ -203,7 +244,7 @@ export async function createAuditSessionAction(
     departments: string[],
     notes?: string,
     auditDate?: string,
-    purchaseOrderIds?: number[],   // ⬅️ NOUVEAU
+    purchaseOrderIds?: number[],
 ) {
     try {
         const supabase = await createClient();
@@ -250,6 +291,24 @@ export async function createAuditSessionAction(
             };
         }
 
+        /* ─── Emplacements configurés (source de vérité Supabase) ─── */
+        const { locationIds: odooLocationIds, error: locError } =
+            await getConfiguredLocationIds(supabase, cleanShopIds);
+
+        if (locError) {
+            return { success: false, error: locError };
+        }
+
+        if (odooLocationIds.length === 0) {
+            return {
+                success: false,
+                error:
+                    "Aucun emplacement actif configuré pour les boutiques " +
+                    "sélectionnées. Configurez-les dans `shop_locations` " +
+                    "avant de lancer un audit.",
+            };
+        }
+
         /* ─── Métadonnées audit ─── */
         const departmentLabel =
             departments.length > 0 ? departments.join(", ") : "Tous";
@@ -276,12 +335,13 @@ export async function createAuditSessionAction(
 
         /* ─── Appels Odoo séquentiels (jamais Promise.all sur Odoo JSON-RPC) ─── */
 
-        // A. Quants positifs de la société cible
+        // A. Quants positifs — UNIQUEMENT sur les emplacements configurés
         const positiveQuants = await odooClient.searchRead<OdooQuant>(
             "stock.quant",
             {
                 domain: [
                     ["company_id", "in", odooCompanyIds],
+                    ["location_id", "in", odooLocationIds],   // ← LE FIX
                     ["location_id.usage", "=", "internal"],
                     ["quantity", ">", 0],
                 ],
@@ -290,11 +350,15 @@ export async function createAuditSessionAction(
             },
         );
 
-        // B. Quants négatifs (toutes compagnies du groupe)
+        // B. Quants négatifs (sold_locations) — scopés aux emplacements
+        //    configurés pour rester cohérent avec l'audit boutique.
+        //    ⚠️ Si tu veux garder le cross-boutique (toutes locations
+        //    internes du groupe), retire la ligne `location_id in …`.
         const negativeQuants = await odooClient.searchRead<OdooQuant>(
             "stock.quant",
             {
                 domain: [
+                    ["location_id", "in", odooLocationIds],   // ← LE FIX
                     ["location_id.usage", "=", "internal"],
                     ["quantity", "<", 0],
                 ],
@@ -319,7 +383,7 @@ export async function createAuditSessionAction(
            On l'ignore + log l'anomalie. Aucun fallback fictif ("Stock Principal").
            ═══════════════════════════════════════════════════════════════ */
 
-        /* ─── Quants positifs (company ciblée) ─── */
+        /* ─── Quants positifs (emplacements configurés) ─── */
         (positiveQuants || []).forEach((q) => {
             const pid = Array.isArray(q.product_id) ? q.product_id[0] : null;
             const locId = Array.isArray(q.location_id)
@@ -358,7 +422,7 @@ export async function createAuditSessionAction(
                 .push({ locationName: locName.trim(), quantity: qty });
         });
 
-        /* ─── Quants négatifs (toutes companies) ─── */
+        /* ─── Quants négatifs (sold_locations scopés) ─── */
         (negativeQuants || []).forEach((q) => {
             const pid = Array.isArray(q.product_id) ? q.product_id[0] : null;
             const locId = Array.isArray(q.location_id)
@@ -458,7 +522,9 @@ export async function createAuditSessionAction(
                 success: true,
                 auditId,
                 reference,
-                warning: "Aucun stock Odoo trouvé pour cette société.",
+                warning:
+                    "Aucun stock trouvé dans les emplacements configurés " +
+                    "pour ces boutiques.",
             };
         }
 
@@ -727,6 +793,23 @@ export async function syncAuditStockSnapshotAction(auditId: string) {
             };
         }
 
+        /* ─── 1bis. Emplacements configurés du shop de l'audit ─── */
+        const { locationIds: odooLocationIds, error: locError } =
+            await getConfiguredLocationIds(supabase, [audit.shop_id]);
+
+        if (locError) {
+            return { success: false, error: locError };
+        }
+
+        if (odooLocationIds.length === 0) {
+            return {
+                success: false,
+                error:
+                    "Aucun emplacement actif configuré pour cette boutique. " +
+                    "Impossible de synchroniser le snapshot.",
+            };
+        }
+
         /* ─── 2. Récupération des items actuels du snapshot ─── */
         const { data: existingItems, error: fetchItemsError } = await supabase
             .from("stock_audit_items")
@@ -745,11 +828,12 @@ export async function syncAuditStockSnapshotAction(auditId: string) {
             };
         }
 
-        /* ─── 3. Récupération des quants négatifs (toutes compagnies) ─── */
+        /* ─── 3. Récupération des quants négatifs (scopés aux emplacements) ─── */
         const negativeQuants = await odooClient.searchRead<OdooQuant>(
             "stock.quant",
             {
                 domain: [
+                    ["location_id", "in", odooLocationIds],   // ← LE FIX
                     ["location_id.usage", "=", "internal"],
                     ["quantity", "<", 0],
                 ],
@@ -1171,7 +1255,7 @@ export async function importExcelBarcodesAction(auditId: string, barcodes: strin
         const toScanBarcodes: string[] = [];
         const alreadyScannedBarcodes: string[] = [];
         const missingBarcodes: string[] = [];
-        const handledSet = new Set<string>();   // ← fix B6
+        const handledSet = new Set<string>();
 
         cleanBarcodes.forEach((code) => {
             const existing = existingItemMap.get(code);
@@ -1305,7 +1389,7 @@ export async function importExcelBarcodesAction(auditId: string, barcodes: strin
                         odoo_create_date:
                             typeof p.create_date === "string" ? p.create_date : null,
                         sold_locations: toJson([]),
-                        found_locations: toJson(foundLocationsMap.get(p.id) ?? []),                // ← cast unique
+                        found_locations: toJson(foundLocationsMap.get(p.id) ?? []),
                         theoretical_qty: 0,
                         counted_qty: 1,
                         unit_cost: resolveUnitCost(p),
