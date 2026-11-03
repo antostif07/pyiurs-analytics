@@ -70,8 +70,10 @@ function extractAllowedShopIds(assignedShops: unknown): string[] {
 /**
  * Résout les noms des catégories POS Odoo depuis un set d'IDs.
  * Cache local par appel. Retourne une map { id → name }.
+ *
+ * ⚠️ EXPORTÉ : utilisé par rfid-actions.ts
  */
-async function resolvePosCategoryNames(ids: number[]): Promise<Map<number, string>> {
+export async function resolvePosCategoryNames(ids: number[]): Promise<Map<number, string>> {
     const map = new Map<number, string>();
     if (ids.length === 0) return map;
 
@@ -172,8 +174,12 @@ async function recalcAuditTotalsFull(supabase: SupabaseClient, auditId: string) 
         .eq("id", auditId);
 }
 
-/** Delta atomique via RPC Postgres (fix race condition B4) */
-async function incrementAuditTotalsAtomic(
+/**
+ * Delta atomique via RPC Postgres (fix race condition B4).
+ *
+ * ⚠️ EXPORTÉ : utilisé par rfid-actions.ts
+ */
+export async function incrementAuditTotalsAtomic(
     supabase: SupabaseClient,
     auditId: string,
     delta: { scanned: number; qty: number; value: number }
@@ -341,7 +347,7 @@ export async function createAuditSessionAction(
             {
                 domain: [
                     ["company_id", "in", odooCompanyIds],
-                    ["location_id", "in", odooLocationIds],   // ← LE FIX
+                    ["location_id", "in", odooLocationIds],
                     ["location_id.usage", "=", "internal"],
                     ["quantity", ">", 0],
                 ],
@@ -350,15 +356,11 @@ export async function createAuditSessionAction(
             },
         );
 
-        // B. Quants négatifs (sold_locations) — scopés aux emplacements
-        //    configurés pour rester cohérent avec l'audit boutique.
-        //    ⚠️ Si tu veux garder le cross-boutique (toutes locations
-        //    internes du groupe), retire la ligne `location_id in …`.
+        // B. Quants négatifs (sold_locations) — cross-boutique
         const negativeQuants = await odooClient.searchRead<OdooQuant>(
             "stock.quant",
             {
                 domain: [
-                    ["location_id", "in", odooLocationIds],   // ← LE FIX
                     ["location_id.usage", "=", "internal"],
                     ["quantity", "<", 0],
                 ],
@@ -422,7 +424,7 @@ export async function createAuditSessionAction(
                 .push({ locationName: locName.trim(), quantity: qty });
         });
 
-        /* ─── Quants négatifs (sold_locations scopés) ─── */
+        /* ─── Quants négatifs (sold_locations cross-boutique) ─── */
         (negativeQuants || []).forEach((q) => {
             const pid = Array.isArray(q.product_id) ? q.product_id[0] : null;
             const locId = Array.isArray(q.location_id)
@@ -793,23 +795,6 @@ export async function syncAuditStockSnapshotAction(auditId: string) {
             };
         }
 
-        /* ─── 1bis. Emplacements configurés du shop de l'audit ─── */
-        const { locationIds: odooLocationIds, error: locError } =
-            await getConfiguredLocationIds(supabase, [audit.shop_id]);
-
-        if (locError) {
-            return { success: false, error: locError };
-        }
-
-        if (odooLocationIds.length === 0) {
-            return {
-                success: false,
-                error:
-                    "Aucun emplacement actif configuré pour cette boutique. " +
-                    "Impossible de synchroniser le snapshot.",
-            };
-        }
-
         /* ─── 2. Récupération des items actuels du snapshot ─── */
         const { data: existingItems, error: fetchItemsError } = await supabase
             .from("stock_audit_items")
@@ -828,12 +813,11 @@ export async function syncAuditStockSnapshotAction(auditId: string) {
             };
         }
 
-        /* ─── 3. Récupération des quants négatifs (scopés aux emplacements) ─── */
+        /* ─── 3. Récupération des quants négatifs (cross-boutique) ─── */
         const negativeQuants = await odooClient.searchRead<OdooQuant>(
             "stock.quant",
             {
                 domain: [
-                    ["location_id", "in", odooLocationIds],   // ← LE FIX
                     ["location_id.usage", "=", "internal"],
                     ["quantity", "<", 0],
                 ],

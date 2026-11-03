@@ -29,6 +29,9 @@ import { useAuditScanner } from "../_lib/hooks/useAuditScanner";
 import { useAuditImport } from "../_lib/hooks/useAuditImport";
 import { useAuditExport } from "../_lib/hooks/useAuditExport";
 import { computeAuditStats } from "../_lib/helpers";
+import { RfidBatchResponse } from "../_lib/hooks/use-record-rfid-batch";
+import { RfidScanZone } from "../_components/RfidScanZone";
+import { ScanModeToggle } from "./_components/ScanModeToggle";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Mapping statut → badge
@@ -70,6 +73,7 @@ export function AuditScannerClient({ audit, initialItems }: Props) {
     } = useAuditItems(initialItems);
 
     const [filteredItems, setFilteredItems] = useState<StockAuditItem[]>(items);
+    const [scanMode, setScanMode] = useState<"barcode" | "rfid">("barcode");
 
     useEffect(() => {
         setFilteredItems(items);
@@ -108,6 +112,29 @@ export function AuditScannerClient({ audit, initialItems }: Props) {
             });
         },
         [setItems],
+    );
+
+    const handleRfidSuccess = useCallback(
+        (data: RfidBatchResponse) => {
+            // Update optimiste des items existants
+            if (data.affectedProductIds && data.affectedProductIds.length > 0) {
+                const now = new Date().toISOString();
+                const pidSet = new Set(data.affectedProductIds);
+                setItems((prev) =>
+                    prev.map((i) =>
+                        pidSet.has(i.odoo_product_id)
+                            ? { ...i, counted_qty: 1, scanned_at: now }
+                            : i,
+                    ),
+                );
+            }
+
+            // Refresh en arrière-plan (inattendus + totaux serveur)
+            if (data.unexpectedAdded > 0 || data.affectedProductIds?.length) {
+                router.refresh();
+            }
+        },
+        [setItems, router],
     );
 
     /* ─── Hooks ─── */
@@ -295,6 +322,10 @@ export function AuditScannerClient({ audit, initialItems }: Props) {
 
                 {/* ══════════════ SCANNER ══════════════ */}
                 {!isReadOnly && (
+                    <ScanModeToggle mode={scanMode} onChange={setScanMode} />
+                )}
+
+                {!isReadOnly && scanMode === "barcode" && (
                     <LaserScanZone
                         inputRef={inputRef}
                         barcodeInput={barcodeInput}
@@ -303,6 +334,14 @@ export function AuditScannerClient({ audit, initialItems }: Props) {
                         soundEnabled={soundEnabled}
                         setSoundEnabled={setSoundEnabled}
                         onSubmit={handleScanSubmit}
+                    />
+                )}
+
+                {!isReadOnly && scanMode === "rfid" && (
+                    <RfidScanZone
+                        auditId={audit.id}
+                        isReadOnly={isReadOnly}
+                        onSuccess={handleRfidSuccess}
                     />
                 )}
 
