@@ -348,7 +348,7 @@ export async function createAuditSessionAction(
                 domain: [
                     ["company_id", "in", odooCompanyIds],
                     ["location_id", "in", odooLocationIds],
-                    ["location_id.usage", "=", "internal"],
+                    // ["location_id.usage", "=", "internal"],
                     ["quantity", ">", 0],
                 ],
                 fields: ["product_id", "location_id", "quantity"],
