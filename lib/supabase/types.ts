@@ -43,7 +43,8 @@ export const ATTENDANCE_LABELS: Record<AttendanceStatus, string> = {
   "conge_circonstanciel": "Congé Circonstanciel",
   "conge_non_circonstanciel": "Congé non Circonstanciel",
   "suspension": "Suspension",
-  "sick": "Maladie / Sick"
+  "sick": "Maladie / Sick",
+  "tele_travail": "TeleTravail",
 };
 
 // Payroll
