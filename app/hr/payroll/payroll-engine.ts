@@ -1,13 +1,13 @@
 import { AttendanceRow, BonusRow, DebtRow, EmployeeRow } from "@/lib/supabase/types";
 
-export const PAYROLL_BASIS = 26; // Base légale de 26 jours ouvrables
-export const WORK_HOURS = 8;     // 8 heures par jour
+export const PAYROLL_BASIS = 26;
+export const WORK_HOURS = 8;
 
 export interface PenaltyDayDetail {
   date: string;
   status: string;
   checkIn?: string | null;
-  penaltyType: "late" | "absence" | "sick" | "leave";
+  penaltyType: "late" | "absence" | "sick" | "leave" | "tele_travail";
   amountDeducted: number;
   transportDeducted: boolean;
   reason: string;
@@ -15,9 +15,9 @@ export interface PenaltyDayDetail {
 
 export interface PayrollRowCalculation {
   baseSalary: number;
-  salaryDeductions: number;   // Total général des retenues
-  absenceDeductions: number;  // ✅ Séparé : Déductions absences, maladies, congés
-  lateDeductions: number;     // ✅ Séparé : Retenues retards > 9h
+  salaryDeductions: number;
+  absenceDeductions: number;
+  lateDeductions: number;
   transportAllowance: number;
   transportPenaltyDays: number;
   transportEligibleDays: number;
@@ -26,7 +26,7 @@ export interface PayrollRowCalculation {
   totalDebtRemaining: number;
   netBeforeDebt: number;
   workedDaysCount: number;
-  penaltyBreakdown: PenaltyDayDetail[]; // ✅ Détail chronologique de chaque jour
+  penaltyBreakdown: PenaltyDayDetail[];
 }
 
 export function calculatePayrollRow(
@@ -73,7 +73,7 @@ export function calculatePayrollRow(
     };
   }
 
-  // 2. CAS AVEC POINTAGES ENREGISTRÉS
+  // 2. CAS AVEC POINTAGES
   let absenceDeductions = 0;
   let lateDeductions = 0;
   let transportPenaltyDays = 0;
@@ -85,7 +85,6 @@ export function calculatePayrollRow(
   attendances.forEach((log) => {
     if (!log.date) return;
 
-    // Exclure les dimanches
     const logDate = new Date(log.date);
     if (logDate.getUTCDay() === 0 || logDate.getDay() === 0) return;
 
@@ -93,14 +92,48 @@ export function calculatePayrollRow(
     if (processedDates.has(dateKey)) return;
     processedDates.add(dateKey);
 
-    const status = log.validated_status || log.status;
+    // ✅ Priorité au statut validé, sinon fallback sur le statut brut
+    const isAutoDetected = log.validated_status == null;
+    const status = log.validated_status ?? log.status;
 
-    // A. Présence normale
-    if (status === "present" && !log.check_in) {
+    // A. Présence normale ou Télétravail
+    if (status === "present" || status === "tele_travail") {
       workedDaysCount += 1;
+
+      if (status === "tele_travail") {
+        // Salaire 100% maintenu, mais pas de transport
+        transportPenaltyDays += 1;
+        penaltyBreakdown.push({
+          date: dateKey,
+          status: "tele_travail",
+          amountDeducted: 0,
+          transportDeducted: true,
+          penaltyType: "tele_travail",
+          reason: "Télétravail (salaire maintenu, transport non dû)",
+        });
+      } else if (isAutoDetected && log.check_in) {
+        // ✅ Détection auto du retard UNIQUEMENT si le manager n'a pas validé
+        //    (sinon sa décision "present" prime → aucune pénalité)
+        const hour = parseInt(String(log.check_in).split(":")[0], 10);
+        if (hour >= 9) {
+          const hoursPenalty = hour - 8;
+          const penaltyAmount = Number((hoursPenalty * hourlyRate).toFixed(2));
+          lateDeductions += penaltyAmount;
+
+          penaltyBreakdown.push({
+            date: dateKey,
+            status: "late",
+            checkIn: String(log.check_in).substring(0, 5),
+            penaltyType: "late",
+            amountDeducted: penaltyAmount,
+            transportDeducted: false,
+            reason: `Arrivée à ${String(log.check_in).substring(0, 5)} (${hoursPenalty}h de pénalité, non validée manager)`,
+          });
+        }
+      }
     }
-    // B. Retards
-    else if (status === "late" || (status === "present" && log.check_in)) {
+    // B. Retard validé
+    else if (status === "late") {
       workedDaysCount += 1;
       if (log.check_in) {
         const hour = parseInt(String(log.check_in).split(":")[0], 10);
@@ -116,12 +149,12 @@ export function calculatePayrollRow(
             penaltyType: "late",
             amountDeducted: penaltyAmount,
             transportDeducted: false,
-            reason: `Arrivée à ${String(log.check_in).substring(0, 5)} (${hoursPenalty}h de pénalité)`,
+            reason: `Arrivée à ${String(log.check_in).substring(0, 5)} (${hoursPenalty}h de pénalité, validée manager)`,
           });
         }
       }
     }
-    // C. Congé non circonstanciel (Payé 70% -> Déduction 30%)
+    // C. Congé non circonstanciel
     else if (status === "conge_non_circonstanciel") {
       const penaltyAmount = Number((dailyRate * 0.30).toFixed(2));
       absenceDeductions += penaltyAmount;
@@ -136,7 +169,7 @@ export function calculatePayrollRow(
         reason: "Congé non circonstanciel (30% déduit)",
       });
     }
-    // D. Maladie (Payé 30% -> Déduction 70%)
+    // D. Maladie
     else if (status === "sick") {
       const penaltyAmount = Number((dailyRate * 0.70).toFixed(2));
       absenceDeductions += penaltyAmount;
@@ -151,7 +184,7 @@ export function calculatePayrollRow(
         reason: "Arrêt maladie (70% déduit)",
       });
     }
-    // E. Congé circonstanciel (Payé 100% -> Déduction salaire 0$, transport déduit)
+    // E. Congé circonstanciel
     else if (status === "conge_circonstanciel") {
       transportPenaltyDays += 1;
       penaltyBreakdown.push({
@@ -163,7 +196,7 @@ export function calculatePayrollRow(
         reason: "Congé circonstanciel (Salaire maintenu, transport déduit)",
       });
     }
-    // F. Absence injustifiée / Suspension (Déduction 100%)
+    // F. Absence / Suspension
     else if (status === "absent" || status === "suspension") {
       const penaltyAmount = Number(dailyRate.toFixed(2));
       absenceDeductions += penaltyAmount;
