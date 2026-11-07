@@ -28,6 +28,8 @@ const STOCK_CACHE_TTL_MS = 5 * 60 * 1000;
 // ✅ Seuls les POs dont le fournisseur commence par ces préfixes sont pris en compte
 const ALLOWED_SUPPLIER_PREFIXES = ["P.BTY"] as const;
 
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+
 let cachedStockData: { data: StockBeautyData; timestamp: number } | null = null;
 let inflightPromise: Promise<StockBeautyData> | null = null;
 
@@ -58,7 +60,7 @@ const extractSupplierName = (partnerId: unknown): string =>
 
 const isAllowedSupplier = (partnerId: unknown): boolean => {
     if (!Array.isArray(partnerId) || typeof partnerId[1] !== "string") return false;
-    const name = partnerId[1] as string;
+    const name = (partnerId[1] as string).toUpperCase();
     return ALLOWED_SUPPLIER_PREFIXES.some((prefix) => name.startsWith(prefix));
 };
 
@@ -160,6 +162,82 @@ async function getPurchaseOrderLines(): Promise<any[]> {
     return (res as any[]).filter((line) => isAllowedSupplier(line.partner_id));
 }
 
+/**
+ * Récupère la date de référence de chaque PO (pour l'attribution temporelle des ventes).
+ * On privilégie effective_date (réception réelle) → date_approve → date_order.
+ */
+async function getPurchaseOrdersReferenceDates(
+    poIds: number[],
+): Promise<Map<number, Date>> {
+    const map = new Map<number, Date>();
+    if (poIds.length === 0) return map;
+
+    try {
+        const BATCH_SIZE = 500;
+        const batches: number[][] = [];
+        for (let i = 0; i < poIds.length; i += BATCH_SIZE) {
+            batches.push(poIds.slice(i, i + BATCH_SIZE));
+        }
+
+        const results = await processBatchesSequentially(
+            batches,
+            async (batch) => {
+                return await safeSearchRead("purchase.order", {
+                    domain: [["id", "in", batch]],
+                    fields: [
+                        "id",
+                        "date_order",
+                        "date_approve",
+                        "effective_date",
+                    ],
+                });
+            },
+        );
+
+        results.flat().forEach((po: any) => {
+            const refDate =
+                po.effective_date || po.date_approve || po.date_order;
+            if (po.id && refDate) {
+                map.set(po.id, new Date(refDate));
+            }
+        });
+    } catch (error) {
+        // Si effective_date n'existe pas dans cette instance Odoo, on retombe
+        // sur date_approve / date_order uniquement.
+        console.warn(
+            "⚠️ purchase.order reference dates (fallback sans effective_date):",
+            error,
+        );
+        try {
+            const BATCH_SIZE = 500;
+            const batches: number[][] = [];
+            for (let i = 0; i < poIds.length; i += BATCH_SIZE) {
+                batches.push(poIds.slice(i, i + BATCH_SIZE));
+            }
+            const results = await processBatchesSequentially(
+                batches,
+                async (batch) => {
+                    return await safeSearchRead("purchase.order", {
+                        domain: [["id", "in", batch]],
+                        fields: ["id", "date_order", "date_approve"],
+                    });
+                },
+            );
+            results.flat().forEach((po: any) => {
+                const refDate = po.date_approve || po.date_order;
+                if (po.id && refDate) map.set(po.id, new Date(refDate));
+            });
+        } catch (error2) {
+            console.error(
+                "❌ purchase.order reference dates fetch error:",
+                error2,
+            );
+        }
+    }
+
+    return map;
+}
+
 async function getPOSOrderLines(productIds: number[]): Promise<POSOrderLine[]> {
     if (productIds.length === 0) return [];
     try {
@@ -218,6 +296,49 @@ export async function fetchAndProcessStockData(): Promise<StockBeautyData> {
                 shopLocationIds,
             );
 
+            // ✅ 1) Récupérer les dates de référence des POs autorisés
+            const uniquePoIds = new Set<number>();
+            purchaseOrderLines.forEach((line: any) => {
+                const id = extractOrderId(line.order_id);
+                if (id) uniquePoIds.add(id);
+            });
+            const poReferenceDates = await getPurchaseOrdersReferenceDates(
+                Array.from(uniquePoIds),
+            );
+
+            // ✅ 2) Index des ventes par variante pour attribution par PO
+            const posLinesByProduct = new Map<number, POSOrderLine[]>();
+            posOrderLines.forEach((line) => {
+                const pid = line.product_id?.[0];
+                if (!pid) return;
+                if (!posLinesByProduct.has(pid)) posLinesByProduct.set(pid, []);
+                posLinesByProduct.get(pid)!.push(line);
+            });
+
+            const thirtyDaysAgo = new Date(now - THIRTY_DAYS_MS);
+
+            const computeSalesForProductSince = (
+                productVariantId: number,
+                sinceDate: Date,
+            ): { total: number; last30d: number; lastSaleDate?: Date } => {
+                const lines = posLinesByProduct.get(productVariantId) ?? [];
+                let total = 0;
+                let last30d = 0;
+                let lastSaleDate: Date | undefined;
+                const last30dStart =
+                    sinceDate > thirtyDaysAgo ? sinceDate : thirtyDaysAgo;
+
+                for (const line of lines) {
+                    const d = new Date(line.create_date);
+                    if (d < sinceDate) continue;
+                    const qty = line.qty || 0;
+                    total += qty;
+                    if (d >= last30dStart) last30d += qty;
+                    if (!lastSaleDate || d > lastSaleDate) lastSaleDate = d;
+                }
+                return { total, last30d, lastSaleDate };
+            };
+
             const salesLast30Days = calculateSalesLast30Days(
                 posOrderLines,
                 allProductIds,
@@ -240,7 +361,6 @@ export async function fetchAndProcessStockData(): Promise<StockBeautyData> {
                 stockByProduct.set(productId, bucket);
             });
 
-            // ✅ map id -> name des POs autorisés (uniquement ceux rencontrés dans les lignes filtrées)
             const purchaseOrderMap = new Map<number, string>();
             purchaseOrderLines.forEach((line: any) => {
                 const id = extractOrderId(line.order_id);
@@ -287,21 +407,59 @@ export async function fetchAndProcessStockData(): Promise<StockBeautyData> {
                 if (lineWithSupplier) supplierName = lineWithSupplier.partner_id[1];
                 suppliersSet.add(supplierName);
 
-                // ✅ Détail par PO au niveau du groupe
+                // ✅ Breakdown par PO au niveau groupe + ventes attribuées
                 const purchaseOrderBreakdown: Record<number, PurchaseOrderInfo> = {};
+                const countedVariantsPerPO = new Map<number, Set<number>>();
+                const lastSaleDatesByPO = new Map<number, Date>();
+
                 relatedLines.forEach((line: any) => {
                     const orderId = extractOrderId(line.order_id);
                     if (!orderId) return;
                     if (!purchaseOrderBreakdown[orderId]) {
+                        const refDate = poReferenceDates.get(orderId);
                         purchaseOrderBreakdown[orderId] = {
                             ordered: 0,
                             received: 0,
                             supplier: extractSupplierName(line.partner_id),
+                            referenceDate: refDate?.toISOString(),
+                            qty_sold: 0,
+                            sales_last_30_days: 0,
                         };
+                        countedVariantsPerPO.set(orderId, new Set());
                     }
                     purchaseOrderBreakdown[orderId].ordered += line.product_qty || 0;
-                    purchaseOrderBreakdown[orderId].received += line.qty_received || 0;
+                    purchaseOrderBreakdown[orderId].received +=
+                        line.qty_received || 0;
+
+                    const variantId = line.product_id?.[0] as number | undefined;
+                    const refDate = poReferenceDates.get(orderId);
+                    if (
+                        refDate &&
+                        variantId &&
+                        !countedVariantsPerPO.get(orderId)!.has(variantId)
+                    ) {
+                        countedVariantsPerPO.get(orderId)!.add(variantId);
+                        const sales = computeSalesForProductSince(
+                            variantId,
+                            refDate,
+                        );
+                        purchaseOrderBreakdown[orderId].qty_sold += sales.total;
+                        purchaseOrderBreakdown[orderId].sales_last_30_days +=
+                            sales.last30d;
+                        if (sales.lastSaleDate) {
+                            const existing = lastSaleDatesByPO.get(orderId);
+                            if (!existing || sales.lastSaleDate > existing) {
+                                lastSaleDatesByPO.set(orderId, sales.lastSaleDate);
+                            }
+                        }
+                    }
                 });
+
+                lastSaleDatesByPO.forEach((date, orderId) => {
+                    purchaseOrderBreakdown[orderId].last_sale_date =
+                        date.toISOString();
+                });
+
                 const purchaseOrderIds = Object.keys(purchaseOrderBreakdown).map(Number);
 
                 const product_qty = relatedLines.reduce(
@@ -345,7 +503,7 @@ export async function fetchAndProcessStockData(): Promise<StockBeautyData> {
                             0,
                         );
 
-                        // ✅ Détail par PO au niveau variante
+                        // ✅ Breakdown par PO au niveau variante + ventes attribuées
                         const productLines = relatedLines.filter(
                             (line: any) =>
                                 line.product_id?.[0] === product.productVariantId,
@@ -355,16 +513,38 @@ export async function fetchAndProcessStockData(): Promise<StockBeautyData> {
                             const orderId = extractOrderId(line.order_id);
                             if (!orderId) return;
                             if (!productPOBreakdown[orderId]) {
+                                const refDate = poReferenceDates.get(orderId);
                                 productPOBreakdown[orderId] = {
                                     ordered: 0,
                                     received: 0,
                                     supplier: extractSupplierName(line.partner_id),
+                                    referenceDate: refDate?.toISOString(),
+                                    qty_sold: 0,
+                                    sales_last_30_days: 0,
                                 };
                             }
                             productPOBreakdown[orderId].ordered +=
                                 line.product_qty || 0;
                             productPOBreakdown[orderId].received +=
                                 line.qty_received || 0;
+                        });
+
+                        // Ventes attribuées (une seule fois par PO, pas par ligne)
+                        Object.keys(productPOBreakdown).forEach((k) => {
+                            const orderId = Number(k);
+                            const refDate = poReferenceDates.get(orderId);
+                            if (!refDate) return;
+                            const sales = computeSalesForProductSince(
+                                product.productVariantId!,
+                                refDate,
+                            );
+                            productPOBreakdown[orderId].qty_sold = sales.total;
+                            productPOBreakdown[orderId].sales_last_30_days =
+                                sales.last30d;
+                            if (sales.lastSaleDate) {
+                                productPOBreakdown[orderId].last_sale_date =
+                                    sales.lastSaleDate.toISOString();
+                            }
                         });
 
                         return {
@@ -441,7 +621,6 @@ export async function fetchAndProcessStockData(): Promise<StockBeautyData> {
                 });
             });
 
-            // ✅ Liste des POs autorisés, triés du plus récent au plus ancien
             const purchaseOrders: PurchaseOrderOption[] = Array.from(
                 purchaseOrderMap.entries(),
             )

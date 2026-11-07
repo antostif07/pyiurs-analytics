@@ -8,6 +8,7 @@ import { canAccessStockSegment } from "@/lib/auth/roles";
 import StockBeautyClient from "./stock-beauty-client";
 import { fetchAndProcessStockData } from "./_lib/data";
 import type { FilterState, StockBeautyModel, StockLevels } from "./_lib/types";
+import { calculateReplenishmentMetrics } from "@/app/utils/stockCalculations";
 
 export const dynamic = "force-dynamic";
 
@@ -58,25 +59,43 @@ function applyPurchaseOrderFilter(
             const bd = item.purchaseOrderBreakdown[poId];
             const ordered = bd?.ordered ?? 0;
             const received = bd?.received ?? 0;
+
+            // ✅ Ventes attribuées à ce PO (depuis sa date de référence)
+            const poQtySold = bd?.qty_sold ?? 0;
+            const poSalesLast30Days = bd?.sales_last_30_days ?? 0;
+
+            // ✅ Recalcul des métriques de réappro avec les ventes PO
+            const replenishment = calculateReplenishmentMetrics(
+                item.qty_available, // stock global (non attribuable)
+                poSalesLast30Days,
+            );
+
             return {
                 ...item,
                 supplier: bd?.supplier ?? item.supplier,
                 product_qty: ordered,
                 qty_received: received,
                 not_received: ordered - received,
+
+                qty_sold: poQtySold,
+                sales_last_30_days: poSalesLast30Days,
+                daily_sales_rate: replenishment.dailySalesRate,
+                days_until_out_of_stock: replenishment.daysUntilOutOfStock,
+                estimated_out_of_stock_date:
+                    replenishment.estimatedOutOfStockDate?.toISOString(),
+                recommended_reorder_date:
+                    replenishment.recommendedReorderDate?.toISOString(),
+                // undefined si aucune vente depuis la date de référence du PO
+                last_sale_date: bd?.last_sale_date,
+
                 individualProducts: item.individualProducts
                     .filter((p) => p.purchaseOrderIds.includes(poId))
                     .map((p) => {
                         const pbd = p.purchaseOrderBreakdown[poId];
                         return {
                             ...p,
-                            // (les sous-lignes gardent leur stock global)
-                            // on pourrait aussi exposer ordered/received si besoin
-                            ...(pbd
-                                ? {
-                                    // optionnel : champs additifs si tu veux les afficher
-                                }
-                                : {}),
+                            sales_last_30_days: pbd?.sales_last_30_days ?? 0,
+                            last_sale_date: pbd?.last_sale_date,
                         };
                     }),
             };

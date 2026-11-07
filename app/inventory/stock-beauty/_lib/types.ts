@@ -4,6 +4,14 @@ export interface PurchaseOrderInfo {
     ordered: number;
     received: number;
     supplier: string;
+    /** Date de référence pour l'attribution des ventes (effective_date → date_approve → date_order) */
+    referenceDate?: string;
+    /** Ventes POS survenues depuis referenceDate */
+    qty_sold: number;
+    /** Ventes POS survenues depuis max(referenceDate, J-30) */
+    sales_last_30_days: number;
+    /** Date de la dernière vente depuis referenceDate */
+    last_sale_date?: string;
 }
 
 export interface IndividualProductModel {
