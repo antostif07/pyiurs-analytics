@@ -22,13 +22,18 @@ import {
 } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import type { FilterState, StockLevels } from "../_lib/types";
+import type {
+    FilterState,
+    PurchaseOrderOption,
+    StockLevels,
+} from "../_lib/types";
 
 interface Props {
     brands: string[];
     colors: string[];
     categories: string[];
     suppliers: string[];
+    purchaseOrders: PurchaseOrderOption[];
     stockLevels: StockLevels;
     current: FilterState;
 }
@@ -41,6 +46,7 @@ export default function StockBeautyFilters({
     colors,
     categories,
     suppliers,
+    purchaseOrders,
     stockLevels,
     current,
 }: Props) {
@@ -71,7 +77,12 @@ export default function StockBeautyFilters({
     }, [pathname, router]);
 
     const hasActive =
-        current.brand || current.color || current.category || current.supplier || current.stock;
+        current.brand ||
+        current.color ||
+        current.category ||
+        current.supplier ||
+        current.stock ||
+        current.purchaseOrder;
 
     return (
         <div
@@ -80,6 +91,30 @@ export default function StockBeautyFilters({
                 isPending && "opacity-60",
             )}
         >
+            {/* ✅ Nouveau : filtre PO */}
+            <Select
+                value={current.purchaseOrder ?? "all"}
+                onValueChange={(v) => updateParam("po", v)}
+            >
+                <SelectTrigger className={cn(selectClass, "w-[220px]")}>
+                    <SelectValue placeholder="Bon de commande" />
+                </SelectTrigger>
+                <SelectContent className="max-h-[320px]">
+                    <SelectItem value="all" className="text-xs">
+                        Tous les bons de commande
+                    </SelectItem>
+                    {purchaseOrders.map((po) => (
+                        <SelectItem
+                            key={po.id}
+                            value={String(po.id)}
+                            className="text-xs"
+                        >
+                            {po.name}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+
             <Select
                 value={current.brand ?? "all"}
                 onValueChange={(v) => updateParam("brand", v)}
@@ -128,38 +163,68 @@ export default function StockBeautyFilters({
                     </SheetHeader>
                     <ScrollArea className="h-full py-4">
                         <div className="space-y-4 px-4">
-                            {[
-                                { label: "Catégorie", key: "category", options: categories, current: current.category },
-                                { label: "Gamme", key: "color", options: colors, current: current.color },
-                                { label: "Fournisseur", key: "supplier", options: suppliers, current: current.supplier },
-                            ].map(({ label, key, options, current: c }) => (
-                                <div key={key}>
-                                    <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                                        {label}
-                                    </h4>
-                                    <div className="space-y-1">
-                                        <Button
-                                            variant={!c ? "secondary" : "ghost"}
-                                            size="sm"
-                                            className="w-full justify-start text-xs h-7"
-                                            onClick={() => updateParam(key, "all")}
-                                        >
-                                            Toutes
-                                        </Button>
-                                        {options.map((opt) => (
-                                            <Button
-                                                key={opt}
-                                                variant={c === opt ? "secondary" : "ghost"}
-                                                size="sm"
-                                                className="w-full justify-start text-xs h-7"
-                                                onClick={() => updateParam(key, opt)}
-                                            >
-                                                {opt}
-                                            </Button>
+                            {/* ✅ Catégorie en Select */}
+                            <div className="space-y-1.5">
+                                <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                    Catégorie
+                                </h4>
+                                <Select
+                                    value={current.category ?? "all"}
+                                    onValueChange={(v) => updateParam("category", v)}
+                                >
+                                    <SelectTrigger className={cn(selectClass, "w-full h-9")}>
+                                        <SelectValue placeholder="Toutes catégories" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all" className="text-xs">Toutes catégories</SelectItem>
+                                        {categories.map((c) => (
+                                            <SelectItem key={c} value={c} className="text-xs">{c}</SelectItem>
                                         ))}
-                                    </div>
-                                </div>
-                            ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            {/* ✅ Gamme en Select */}
+                            <div className="space-y-1.5">
+                                <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                    Gamme
+                                </h4>
+                                <Select
+                                    value={current.color ?? "all"}
+                                    onValueChange={(v) => updateParam("color", v)}
+                                >
+                                    <SelectTrigger className={cn(selectClass, "w-full h-9")}>
+                                        <SelectValue placeholder="Toutes gammes" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all" className="text-xs">Toutes gammes</SelectItem>
+                                        {colors.map((c) => (
+                                            <SelectItem key={c} value={c} className="text-xs">{c}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            {/* ✅ Fournisseur en Select */}
+                            <div className="space-y-1.5">
+                                <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                    Fournisseur
+                                </h4>
+                                <Select
+                                    value={current.supplier ?? "all"}
+                                    onValueChange={(v) => updateParam("supplier", v)}
+                                >
+                                    <SelectTrigger className={cn(selectClass, "w-full h-9")}>
+                                        <SelectValue placeholder="Tous fournisseurs" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all" className="text-xs">Tous fournisseurs</SelectItem>
+                                        {suppliers.map((s) => (
+                                            <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
                         </div>
                     </ScrollArea>
                 </SheetContent>

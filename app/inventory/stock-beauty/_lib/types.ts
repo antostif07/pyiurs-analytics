@@ -1,5 +1,11 @@
 // app/inventory/stock-beauty/_lib/types.ts
 
+export interface PurchaseOrderInfo {
+    ordered: number;
+    received: number;
+    supplier: string;
+}
+
 export interface IndividualProductModel {
     id: number;
     name: string;
@@ -13,6 +19,9 @@ export interface IndividualProductModel {
     sales_last_30_days: number;
     last_sale_date?: string;
     parent_hs_code: string;
+
+    purchaseOrderIds: number[];
+    purchaseOrderBreakdown: Record<number, PurchaseOrderInfo>;
 }
 
 export interface StockBeautyModel {
@@ -40,6 +49,9 @@ export interface StockBeautyModel {
     qty_sold: number;
 
     individualProducts: IndividualProductModel[];
+
+    purchaseOrderIds: number[];
+    purchaseOrderBreakdown: Record<number, PurchaseOrderInfo>;
 }
 
 export interface StockLevels {
@@ -55,12 +67,18 @@ export interface FilterState {
     category?: string;
     supplier?: string;
     stock?: string;
+    purchaseOrder?: string;
 }
 
 export interface StockBeautyTotals {
     totalProducts: number;
     totalAvailable: number;
     totalSold: number;
+}
+
+export interface PurchaseOrderOption {
+    id: number;
+    name: string;
 }
 
 export interface StockBeautyData {
@@ -70,4 +88,5 @@ export interface StockBeautyData {
     categories: string[];
     suppliers: string[];
     shops: string[];
+    purchaseOrders: PurchaseOrderOption[];
 }

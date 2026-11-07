@@ -28,6 +28,7 @@ import StockBeautyTable from "./_components/stock-beauty-table";
 import { useExportStockBeauty } from "./_lib/hooks/use-export-stock-beauty";
 import type {
     FilterState,
+    PurchaseOrderOption,
     StockBeautyModel,
     StockBeautyTotals,
     StockLevels,
@@ -40,6 +41,7 @@ interface Props {
     colors: string[];
     categories: string[];
     suppliers: string[];
+    purchaseOrders: PurchaseOrderOption[];
     shops: string[];
     totals: StockBeautyTotals;
     stockLevels: StockLevels;
@@ -52,6 +54,7 @@ export default function StockBeautyClient({
     colors,
     categories,
     suppliers,
+    purchaseOrders,
     shops,
     totals,
     stockLevels,
@@ -112,12 +115,21 @@ export default function StockBeautyClient({
                     colors={colors}
                     categories={categories}
                     suppliers={suppliers}
+                    purchaseOrders={purchaseOrders} // ✅
                     stockLevels={stockLevels}
                     current={filterState}
                 />
             </ReportPageHeader>
 
             <div className="p-4 sm:p-5 space-y-4">
+                {filterState.purchaseOrder && filterState.purchaseOrder !== "all" && (
+                    <div className="flex items-center gap-2 rounded-lg border border-sky-200 dark:border-sky-900/60 bg-sky-50/60 dark:bg-sky-950/20 px-3 py-2 text-[11px] text-sky-800 dark:text-sky-300">
+                        <span className="font-semibold">Filtré sur un bon de commande.</span>
+                        <span className="text-sky-700/80 dark:text-sky-400/80">
+                            Les colonnes Ach./Reçu/Rlq reflètent uniquement ce PO. Le stock affiché reste le stock global.
+                        </span>
+                    </div>
+                )}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                     <CeoKpiCard
                         label="Produits"

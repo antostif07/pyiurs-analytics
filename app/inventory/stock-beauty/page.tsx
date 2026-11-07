@@ -7,11 +7,7 @@ import { canAccessStockSegment } from "@/lib/auth/roles";
 
 import StockBeautyClient from "./stock-beauty-client";
 import { fetchAndProcessStockData } from "./_lib/data";
-import type {
-    FilterState,
-    StockBeautyModel,
-    StockLevels,
-} from "./_lib/types";
+import type { FilterState, StockBeautyModel, StockLevels } from "./_lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +23,7 @@ interface PageProps {
         category?: string;
         supplier?: string;
         stock?: string;
+        po?: string;
     }>;
 }
 
@@ -51,6 +48,41 @@ function applyStockFilter(data: StockBeautyModel[], stock: string): StockBeautyM
     }
 }
 
+function applyPurchaseOrderFilter(
+    data: StockBeautyModel[],
+    poId: number,
+): StockBeautyModel[] {
+    return data
+        .filter((item) => item.purchaseOrderIds.includes(poId))
+        .map((item) => {
+            const bd = item.purchaseOrderBreakdown[poId];
+            const ordered = bd?.ordered ?? 0;
+            const received = bd?.received ?? 0;
+            return {
+                ...item,
+                supplier: bd?.supplier ?? item.supplier,
+                product_qty: ordered,
+                qty_received: received,
+                not_received: ordered - received,
+                individualProducts: item.individualProducts
+                    .filter((p) => p.purchaseOrderIds.includes(poId))
+                    .map((p) => {
+                        const pbd = p.purchaseOrderBreakdown[poId];
+                        return {
+                            ...p,
+                            // (les sous-lignes gardent leur stock global)
+                            // on pourrait aussi exposer ordered/received si besoin
+                            ...(pbd
+                                ? {
+                                    // optionnel : champs additifs si tu veux les afficher
+                                }
+                                : {}),
+                        };
+                    }),
+            };
+        });
+}
+
 export default async function StockBeautyPage({ searchParams }: PageProps) {
     const auth = await getServerAuth();
     if (!auth.profile || !canAccessStockSegment(auth.profile.role)) {
@@ -64,12 +96,23 @@ export default async function StockBeautyPage({ searchParams }: PageProps) {
         category: params.category,
         supplier: params.supplier,
         stock: params.stock,
+        purchaseOrder: params.po,
     };
 
-    const { data, brands, colors, categories, suppliers, shops } =
+    const { data, brands, colors, categories, suppliers, shops, purchaseOrders } =
         await fetchAndProcessStockData();
 
     let filteredData = data;
+
+    // 1) PO filter en premier (change l'agrégation)
+    if (filterState.purchaseOrder && filterState.purchaseOrder !== "all") {
+        const poId = Number(filterState.purchaseOrder);
+        if (!Number.isNaN(poId)) {
+            filteredData = applyPurchaseOrderFilter(filteredData, poId);
+        }
+    }
+
+    // 2) filtres standards
     if (filterState.brand && filterState.brand !== "all") {
         filteredData = filteredData.filter((item) => item.brand === filterState.brand);
     }
@@ -107,6 +150,7 @@ export default async function StockBeautyPage({ searchParams }: PageProps) {
             categories={categories}
             suppliers={suppliers}
             shops={shops}
+            purchaseOrders={purchaseOrders}
             totals={totals}
             stockLevels={stockLevels}
             filterState={filterState}

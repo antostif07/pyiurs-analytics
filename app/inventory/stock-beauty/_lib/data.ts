@@ -6,18 +6,28 @@ import {
 } from "@/lib/utils";
 import type {
     IndividualProductModel,
+    PurchaseOrderInfo,
+    PurchaseOrderOption,
     StockBeautyData,
     StockBeautyModel,
 } from "./types";
 import { OdooProductTemplate, Product } from "@/app/types/product_template";
 import { getShopLocations } from "../../_lib/locations";
-import { calculateLastSaleDate, calculateReplenishmentMetrics, calculateSalesLast30Days } from "@/app/utils/stockCalculations";
+import {
+    calculateLastSaleDate,
+    calculateReplenishmentMetrics,
+    calculateSalesLast30Days,
+} from "@/app/utils/stockCalculations";
 import { PurchaseOrderLine } from "@/app/types/purchase";
 import { POSOrderLine } from "@/app/types/pos";
 import { StockQuant } from "@/app/types/stock";
 import { processBatchesSequentially, safeSearchRead } from "@/lib/odoo/odoo-safe";
 
 const STOCK_CACHE_TTL_MS = 5 * 60 * 1000;
+
+// ✅ Seuls les POs dont le fournisseur commence par ces préfixes sont pris en compte
+const ALLOWED_SUPPLIER_PREFIXES = ["P.BTY"] as const;
+
 let cachedStockData: { data: StockBeautyData; timestamp: number } | null = null;
 let inflightPromise: Promise<StockBeautyData> | null = null;
 
@@ -28,6 +38,28 @@ const extractCategoryName = (categId: unknown): string => {
         return segments[segments.length - 1];
     }
     return "Non classé";
+};
+
+const extractOrderId = (orderId: unknown): number | null => {
+    if (Array.isArray(orderId) && typeof orderId[0] === "number") return orderId[0];
+    if (typeof orderId === "number") return orderId;
+    return null;
+};
+
+const extractOrderName = (orderId: unknown): string | null => {
+    if (Array.isArray(orderId) && typeof orderId[1] === "string") return orderId[1];
+    return null;
+};
+
+const extractSupplierName = (partnerId: unknown): string =>
+    Array.isArray(partnerId) && typeof partnerId[1] === "string"
+        ? partnerId[1]
+        : "Non défini";
+
+const isAllowedSupplier = (partnerId: unknown): boolean => {
+    if (!Array.isArray(partnerId) || typeof partnerId[1] !== "string") return false;
+    const name = partnerId[1] as string;
+    return ALLOWED_SUPPLIER_PREFIXES.some((prefix) => name.startsWith(prefix));
 };
 
 async function getProducts(): Promise<OdooProductTemplate[]> {
@@ -64,7 +96,7 @@ async function getProducts(): Promise<OdooProductTemplate[]> {
         allProducts = allProducts.concat(batch);
         if (batch.length < pageSize) break;
         offset += pageSize;
-        await new Promise((r) => setTimeout(r, 300)); // petit délai entre pages
+        await new Promise((r) => setTimeout(r, 300));
     }
     return allProducts;
 }
@@ -103,7 +135,7 @@ async function getStockQuantsForProducts(
     }
 }
 
-async function getPurchaseOrderLines() {
+async function getPurchaseOrderLines(): Promise<any[]> {
     const res = await safeSearchRead("purchase.order.line", {
         domain: [
             ["partner_id", "not ilike", "pb - bc"],
@@ -111,11 +143,7 @@ async function getPurchaseOrderLines() {
             ["partner_id", "not ilike", "pb - mto"],
             ["partner_id", "not ilike", "pb - lmb"],
             ["partner_id", "not ilike", "pb - ktm"],
-            [
-                "partner_id",
-                "not in",
-                [24099, 23705, 1, 23706, 23707, 23708, 27862],
-            ],
+            ["partner_id", "not in", [24099, 23705, 1, 23706, 23707, 23708, 27862]],
         ],
         fields: [
             "id",
@@ -127,7 +155,9 @@ async function getPurchaseOrderLines() {
             "partner_id",
         ],
     });
-    return res as any[];
+
+    // ✅ Filtre strict : on ne conserve QUE les lignes des fournisseurs autorisés
+    return (res as any[]).filter((line) => isAllowedSupplier(line.partner_id));
 }
 
 async function getPOSOrderLines(productIds: number[]): Promise<POSOrderLine[]> {
@@ -210,6 +240,14 @@ export async function fetchAndProcessStockData(): Promise<StockBeautyData> {
                 stockByProduct.set(productId, bucket);
             });
 
+            // ✅ map id -> name des POs autorisés (uniquement ceux rencontrés dans les lignes filtrées)
+            const purchaseOrderMap = new Map<number, string>();
+            purchaseOrderLines.forEach((line: any) => {
+                const id = extractOrderId(line.order_id);
+                const name = extractOrderName(line.order_id);
+                if (id && name) purchaseOrderMap.set(id, name);
+            });
+
             const groupedData: StockBeautyModel[] = [];
             const groupedMap = new Map<string, Product[]>();
             const brandsSet = new Set<string>();
@@ -241,13 +279,30 @@ export async function fetchAndProcessStockData(): Promise<StockBeautyData> {
                             (p) => p.productVariantId === line.product_id[0],
                         ),
                 );
+
                 let supplierName = "Non défini";
                 const lineWithSupplier = relatedLines.find(
                     (l: any) => l.partner_id && Array.isArray(l.partner_id),
                 );
-                if (lineWithSupplier)
-                    supplierName = lineWithSupplier.partner_id[1];
+                if (lineWithSupplier) supplierName = lineWithSupplier.partner_id[1];
                 suppliersSet.add(supplierName);
+
+                // ✅ Détail par PO au niveau du groupe
+                const purchaseOrderBreakdown: Record<number, PurchaseOrderInfo> = {};
+                relatedLines.forEach((line: any) => {
+                    const orderId = extractOrderId(line.order_id);
+                    if (!orderId) return;
+                    if (!purchaseOrderBreakdown[orderId]) {
+                        purchaseOrderBreakdown[orderId] = {
+                            ordered: 0,
+                            received: 0,
+                            supplier: extractSupplierName(line.partner_id),
+                        };
+                    }
+                    purchaseOrderBreakdown[orderId].ordered += line.product_qty || 0;
+                    purchaseOrderBreakdown[orderId].received += line.qty_received || 0;
+                });
+                const purchaseOrderIds = Object.keys(purchaseOrderBreakdown).map(Number);
 
                 const product_qty = relatedLines.reduce(
                     (sum: number, line: PurchaseOrderLine) =>
@@ -290,6 +345,28 @@ export async function fetchAndProcessStockData(): Promise<StockBeautyData> {
                             0,
                         );
 
+                        // ✅ Détail par PO au niveau variante
+                        const productLines = relatedLines.filter(
+                            (line: any) =>
+                                line.product_id?.[0] === product.productVariantId,
+                        );
+                        const productPOBreakdown: Record<number, PurchaseOrderInfo> = {};
+                        productLines.forEach((line: any) => {
+                            const orderId = extractOrderId(line.order_id);
+                            if (!orderId) return;
+                            if (!productPOBreakdown[orderId]) {
+                                productPOBreakdown[orderId] = {
+                                    ordered: 0,
+                                    received: 0,
+                                    supplier: extractSupplierName(line.partner_id),
+                                };
+                            }
+                            productPOBreakdown[orderId].ordered +=
+                                line.product_qty || 0;
+                            productPOBreakdown[orderId].received +=
+                                line.qty_received || 0;
+                        });
+
                         return {
                             id: product.id,
                             name: product.name,
@@ -301,12 +378,13 @@ export async function fetchAndProcessStockData(): Promise<StockBeautyData> {
                             stockByShop: productStock,
                             total_stock,
                             sales_last_30_days:
-                                salesLast30Days.get(product.productVariantId!) ||
-                                0,
+                                salesLast30Days.get(product.productVariantId!) || 0,
                             last_sale_date: lastSaleDates
                                 .get(product.productVariantId!)
                                 ?.toISOString(),
                             parent_hs_code: hs_code,
+                            purchaseOrderIds: Object.keys(productPOBreakdown).map(Number),
+                            purchaseOrderBreakdown: productPOBreakdown,
                         };
                     });
 
@@ -321,7 +399,6 @@ export async function fetchAndProcessStockData(): Promise<StockBeautyData> {
                     0,
                 );
 
-                // ✅ fix TS: for...of au lieu de forEach
                 let lastSaleDate: Date | null = null;
                 for (const p of productsGroup) {
                     const d = lastSaleDates.get(p.productVariantId!);
@@ -359,8 +436,17 @@ export async function fetchAndProcessStockData(): Promise<StockBeautyData> {
                         replenishmentMetrics.recommendedReorderDate?.toISOString(),
                     last_sale_date: lastSaleDate?.toISOString(),
                     individualProducts,
+                    purchaseOrderIds,
+                    purchaseOrderBreakdown,
                 });
             });
+
+            // ✅ Liste des POs autorisés, triés du plus récent au plus ancien
+            const purchaseOrders: PurchaseOrderOption[] = Array.from(
+                purchaseOrderMap.entries(),
+            )
+                .map(([id, name]) => ({ id, name }))
+                .sort((a, b) => b.id - a.id);
 
             const data: StockBeautyData = {
                 data: groupedData,
@@ -369,6 +455,7 @@ export async function fetchAndProcessStockData(): Promise<StockBeautyData> {
                 categories: Array.from(categoriesSet).sort(),
                 suppliers: Array.from(suppliersSet).filter(Boolean).sort(),
                 shops: locationConfig.names,
+                purchaseOrders,
             };
 
             cachedStockData = { data, timestamp: Date.now() };
