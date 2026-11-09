@@ -43,6 +43,7 @@ type AuditItemDraft = {
     pos_category_names: string[];
     reception_date: string | null;
     list_price: number;
+    rfid_epc: string | null;
 };
 
 /* ──────────────────────────────────────────────────────────────────── */
@@ -461,9 +462,29 @@ export async function createAuditSessionAction(
             }
         });
 
-        const rawProductIds = Array.from(
-            new Set([...productQuantMap.keys(), ...soldLocationsMap.keys()]),
-        );
+        /* ═══════════════════════════════════════════════════════════════
+           FILTRE — Garder les sold_locations UNIQUEMENT pour les produits
+           déjà présents dans les locations du shop (positiveQuants).
+           
+           Un produit "vendu ailleurs" mais absent du shop → exclu du
+           snapshot (il ne devrait pas être compté physiquement ici).
+           ═══════════════════════════════════════════════════════════════ */
+        const filteredSoldLocationsMap = new Map<number, SoldLocation[]>();
+        for (const [pid, soldLocs] of soldLocationsMap) {
+            if (productQuantMap.has(pid)) {
+                filteredSoldLocationsMap.set(pid, soldLocs);
+            }
+        }
+
+        const soldLocationsRemoved = soldLocationsMap.size - filteredSoldLocationsMap.size;
+        if (soldLocationsRemoved > 0) {
+            console.log(
+                `[CREATE_AUDIT] ${soldLocationsRemoved} produit(s) vendu(s) ailleurs exclu(s) du snapshot (absents du shop).`,
+            );
+        }
+
+        // Source de vérité = produits avec stock dans le shop UNIQUEMENT
+        const rawProductIds = Array.from(productQuantMap.keys());
 
         /* ─── Filtre par commandes fournisseurs (si spécifié) ─── */
         let uniqueProductIds = rawProductIds;
@@ -560,6 +581,7 @@ export async function createAuditSessionAction(
                     "x_studio_many2one_field_21bvh",
                     "x_studio_many2one_field_Arl5D",
                     "pos_categ_ids",
+                    "x_studio_rfid",
                 ],
                 limit: uniqueProductIds.length,
             },
@@ -606,7 +628,7 @@ export async function createAuditSessionAction(
             if (!barcodeVal) return;
 
             const quantList = productQuantMap.get(p.id) || [];
-            const soldLocs = soldLocationsMap.get(p.id) || [];
+            const soldLocs = filteredSoldLocationsMap.get(p.id) || []
 
             /* ═══════════════════════════════════════════════════════
                RÈGLE MÉTIER — Un produit DOIT avoir au moins une location.
@@ -615,7 +637,7 @@ export async function createAuditSessionAction(
             if (quantList.length === 0 && soldLocs.length === 0) {
                 skippedNoLocation++;
                 console.warn(
-                    "[CREATE_AUDIT] Produit ignoré — aucune location valide :",
+                    "[CREATE_AUDIT] Produit ignoré — aucune source valide :",
                     JSON.stringify({
                         productId: p.id,
                         barcode: p.barcode,
@@ -652,6 +674,11 @@ export async function createAuditSessionAction(
             );
 
             const receptionDate = receptionDateByProduct.get(p.id) ?? null;
+            const rawRfid = (p.x_studio_rfid || "") as string | false;
+            const rfidEpc =
+                typeof rawRfid === "string" && rawRfid.trim()
+                    ? rawRfid.trim().toUpperCase()
+                    : null;
 
             const existing = barcodeMap.get(barcodeVal);
 
@@ -701,6 +728,10 @@ export async function createAuditSessionAction(
                 ) {
                     existing.reception_date = receptionDate;
                 }
+
+                if (rfidEpc && !existing.rfid_epc) {
+                    existing.rfid_epc = rfidEpc;
+                }
             } else {
                 barcodeMap.set(barcodeVal, {
                     odoo_product_id: p.id,
@@ -725,6 +756,7 @@ export async function createAuditSessionAction(
                     pos_category_names: categNames,
                     reception_date: receptionDate,
                     list_price: resolveListPrice(p),
+                    rfid_epc: rfidEpc,
                 });
             }
         });
@@ -879,6 +911,7 @@ export async function syncAuditStockSnapshotAction(auditId: string) {
                     "x_studio_many2one_field_21bvh",
                     "x_studio_many2one_field_Arl5D",
                     "pos_categ_ids",
+                    "x_studio_rfid"
                 ],
                 limit: productIds.length,
             },
@@ -955,6 +988,12 @@ export async function syncAuditStockSnapshotAction(auditId: string) {
                 (id) => categNameMap.get(id) ?? `#${id}`,
             );
 
+            const rawRfid = (prodInfo?.x_studio_rfid || "") as string | false;
+            const rfidEpc =
+                typeof rawRfid === "string" && rawRfid.trim()
+                    ? rawRfid.trim().toUpperCase()
+                    : null;
+
             return {
                 id: item.id,
                 sold_locations: soldLocs,
@@ -976,6 +1015,7 @@ export async function syncAuditStockSnapshotAction(auditId: string) {
                 pos_category_names: categNames,
                 reception_date: receptionDateByProduct.get(pid) ?? null,
                 list_price: prodInfo ? resolveListPrice(prodInfo) : 0,
+                rfid_epc: rfidEpc,
             };
         });
 

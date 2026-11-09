@@ -31,6 +31,7 @@ import {
     BarChart3,
     MapPin,
     FileSpreadsheet,
+    Radio,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
@@ -225,6 +226,7 @@ export function AuditDataTable({
             const brandStr = ((item as any).brand || "").toLowerCase();
             const colorStr = ((item as any).color || "").toLowerCase();
             const hsCodeStr = ((item as any).hs_code || "").toLowerCase();
+            const rfidStr = ((item as any).rfid_epc || "").toLowerCase();
 
             const matchText =
                 query === "" ||
@@ -232,7 +234,8 @@ export function AuditDataTable({
                 (item.product_name || "").toLowerCase().includes(query) ||
                 brandStr.includes(query) ||
                 colorStr.includes(query) ||
-                hsCodeStr.includes(query);
+                hsCodeStr.includes(query) ||
+                rfidStr.includes(query);
 
             if (!matchText) return false;
 
@@ -334,17 +337,30 @@ export function AuditDataTable({
         () => [
             {
                 accessorKey: "internal_barcode",
-                header: ({ column }) => <ColumnHeader column={column} title="Code-barres / Date" />,
+                header: ({ column }) => <ColumnHeader column={column} title="Code-barres / RFID / Date" />,
                 cell: ({ row }) => {
                     const item = row.original;
                     const odooDate = (item as any).odoo_create_date;
+                    const rfid = (item as any).rfid_epc as string | null | undefined;
+
                     return (
-                        <div className="flex flex-col">
+                        <div className="flex flex-col gap-0.5">
                             <span className="font-mono font-bold text-primary text-xs">
                                 {item.internal_barcode}
                             </span>
+
+                            {rfid && (
+                                <span
+                                    className="text-[9.5px] text-sky-600 dark:text-sky-400 font-mono flex items-center gap-1 truncate max-w-[180px]"
+                                    title={rfid}
+                                >
+                                    <Radio className="w-2.5 h-2.5 shrink-0" />
+                                    {rfid.length > 18 ? `${rfid.slice(0, 18)}…` : rfid}
+                                </span>
+                            )}
+
                             {odooDate && (
-                                <span className="text-[10px] text-muted-foreground font-light font-sans flex items-center gap-1 mt-0.5">
+                                <span className="text-[10px] text-muted-foreground font-light font-sans flex items-center gap-1">
                                     <Calendar className="w-2.5 h-2.5" />
                                     {format(new Date(odooDate), "dd MMM yyyy", { locale: fr })}
                                 </span>

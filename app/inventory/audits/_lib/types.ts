@@ -57,9 +57,10 @@ export interface OdooProduct {
     list_price: number;
     create_date: string | false | null;
     x_studio_segment: string | false | null;
-    x_studio_many2one_field_21bvh: [number, string] | false | null; // Marque Odoo
-    x_studio_many2one_field_Arl5D: [number, string] | false | null; // Couleur Odoo
+    x_studio_many2one_field_21bvh: [number, string] | false | null;
+    x_studio_many2one_field_Arl5D: [number, string] | false | null;
     pos_categ_ids: number[] | false | null;
+    x_studio_rfid?: string | false | null;   // ← AJOUT
 }
 
 export interface OdooPosCategory {
@@ -186,7 +187,8 @@ export type SyncItemPatch = {
     pos_category_ids: number[];
     pos_category_names: string[];
     reception_date: string | null;
-    list_price: number;   // ⬅️ NOUVEAU
+    list_price: number;
+    rfid_epc: string | null;   // ← AJOUT
 };
 
 /** Filtres étendus pour l'audit table */
