@@ -1,7 +1,7 @@
-// app/finance/expenses/_lib/hooks/use-expenses.ts
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import {
     parseExpensesFilters,
@@ -9,24 +9,45 @@ import {
 } from "../filters";
 import type { ExpensesReportData } from "../types";
 
-export function useExpenses() {
+export function useExpenses(options?: {
+    initialData?: ExpensesReportData;
+    initialQueryKeyString?: string;
+    initialFetchedAt?: number;
+}) {
     const searchParams = useSearchParams();
-    const filters = parseExpensesFilters(
-        Object.fromEntries(searchParams.entries()),
+
+    const filters = useMemo(
+        () => parseExpensesFilters(Object.fromEntries(searchParams.entries())),
+        [searchParams],
     );
 
-    return useQuery<ExpensesReportData>({
-        queryKey: ["finance-expenses", filters],
+    const queryString = useMemo(
+        () => serializeExpensesFilters(filters).toString(),
+        [filters],
+    );
+
+    const matchesInitial =
+        options?.initialData !== undefined &&
+        options.initialQueryKeyString === queryString;
+
+    const query = useQuery<ExpensesReportData>({
+        queryKey: ["finance-expenses", queryString],
         queryFn: async ({ signal }) => {
-            const params = serializeExpensesFilters(filters);
-            const res = await fetch(
-                `/api/finance/expenses?${params.toString()}`,
-                { signal },
-            );
-            if (!res.ok) throw new Error("Impossible de récupérer les dépenses");
+            const res = await fetch(`/api/finance/expenses?${queryString}`, {
+                signal,
+            });
+            if (!res.ok) {
+                const body = await res.json().catch(() => ({}));
+                throw new Error(body.error ?? "Impossible de récupérer les dépenses");
+            }
             return res.json();
         },
-        staleTime: 2 * 60 * 1000, // 2 min
+        initialData: matchesInitial ? options?.initialData : undefined,
+        initialDataUpdatedAt: matchesInitial ? options?.initialFetchedAt : undefined,
+        placeholderData: keepPreviousData,
+        staleTime: 2 * 60 * 1000,
         refetchOnWindowFocus: false,
     });
+
+    return { ...query, filters };
 }

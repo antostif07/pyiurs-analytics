@@ -1,7 +1,11 @@
-// app/finance/expenses/_lib/hooks/use-validate-expense.ts
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type {
+    ExpensesReportData,
+    ValidationMutationResult,
+} from "../types";
+import { buildExpensesKpis } from "../kpis";
 
 interface ValidateArgs {
     odooExpenseId: number;
@@ -10,10 +14,47 @@ interface ValidateArgs {
     notes?: string;
 }
 
+function patchValidationInCaches(
+    qc: ReturnType<typeof useQueryClient>,
+    result: ValidationMutationResult,
+) {
+    qc.setQueriesData<ExpensesReportData>(
+        { queryKey: ["finance-expenses"] },
+        (old) => {
+            if (!old) return old;
+            let changed = false;
+            const expenses = old.expenses.map((row) => {
+                if (row.odooExpenseId !== result.odooExpenseId) return row;
+                changed = true;
+                return {
+                    ...row,
+                    isValidated: result.isValidated,
+                    hasValidationPhoto: result.hasValidationPhoto,
+                    hasProofPhoto: result.hasProofPhoto,
+                    validationNotes: result.validationNotes,
+                    validatedAt: result.validatedAt,
+                    validatedBy: result.validatedBy,
+                };
+            });
+            if (!changed) return old;
+            return {
+                ...old,
+                expenses,
+                kpis: buildExpensesKpis(expenses),
+            };
+        },
+    );
+}
+
 export function useValidateExpense() {
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: async ({ odooExpenseId, validationFile, proofFile, notes }: ValidateArgs) => {
+        mutationFn: async ({
+            odooExpenseId,
+            validationFile,
+            proofFile,
+            notes,
+        }: ValidateArgs): Promise<ValidationMutationResult> => {
             const fd = new FormData();
             fd.append("validationFile", validationFile);
             if (proofFile) fd.append("proofFile", proofFile);
@@ -29,8 +70,8 @@ export function useValidateExpense() {
             }
             return res.json();
         },
-        onSuccess: () => {
-            qc.invalidateQueries({ queryKey: ["finance-expenses"] });
+        onSuccess: (data) => {
+            patchValidationInCaches(qc, data);
         },
     });
 }
@@ -39,7 +80,9 @@ export function useUnvalidateExpense() {
     const qc = useQueryClient();
 
     return useMutation({
-        mutationFn: async (odooExpenseId: number) => {
+        mutationFn: async (
+            odooExpenseId: number,
+        ): Promise<ValidationMutationResult> => {
             const res = await fetch(
                 `/api/finance/expenses/${odooExpenseId}/validate`,
                 { method: "DELETE" },
@@ -50,8 +93,8 @@ export function useUnvalidateExpense() {
             }
             return res.json();
         },
-        onSuccess: () => {
-            qc.invalidateQueries({ queryKey: ["finance-expenses"] });
+        onSuccess: (data) => {
+            patchValidationInCaches(qc, data);
         },
     });
 }
