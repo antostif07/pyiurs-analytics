@@ -258,37 +258,35 @@ export async function fetchExpensesReport(
     );
 
     // Exécution parallèle : Sociétés + Catégories Odoo + Dépenses Odoo
-    const [allCompanies, baseCategories, odooExpenses] = await Promise.all([
-        getAllCompanies(),
-        getOdooExpenseCategories(),
-        odooClient.searchRead<{
-            id: number;
-            name: string;
-            date: string;
-            employee_id: [number, string] | false;
-            product_id: [number, string] | false;
-            company_id: [number, string] | false;
-            quantity: number;
-            total_amount: number;
-            currency_id: [number, string] | false;
-            state: string;
-        }>("hr.expense", {
-            domain,
-            fields: [
-                "name",
-                "date",
-                "employee_id",
-                "product_id",
-                "company_id",
-                "quantity",
-                "total_amount",
-                "currency_id",
-                "state",
-            ],
-            limit: 2000,
-            order: "date desc, id desc",
-        }),
-    ]);
+    const allCompanies = await getAllCompanies();
+    const baseCategories = await getOdooExpenseCategories();
+    const odooExpenses = await odooClient.searchRead<{
+        id: number;
+        name: string;
+        date: string;
+        employee_id: [number, string] | false;
+        product_id: [number, string] | false;
+        company_id: [number, string] | false;
+        quantity: number;
+        total_amount: number;
+        currency_id: [number, string] | false;
+        state: string;
+    }>("hr.expense", {
+        domain,
+        fields: [
+            "name",
+            "date",
+            "employee_id",
+            "product_id",
+            "company_id",
+            "quantity",
+            "total_amount",
+            "currency_id",
+            "state",
+        ],
+        limit: 2000,
+        order: "date desc, id desc",
+    });
 
     const visibleCompanies =
         allowedCompanyIds !== null
