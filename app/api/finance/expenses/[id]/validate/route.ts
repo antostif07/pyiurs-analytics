@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, getServerAuth } from "@/lib/supabase/server";
-import { resolveAllowedCompanyIds } from "@/app/finance/expenses/_lib/server/expenses-service";
-import { odooClient } from "@/lib/odoo/odoo-json2-client";
+import {
+    checkExpenseCompanyAccess,
+    resolveAllowedCompanyIds,
+} from "@/app/finance/expenses/_lib/server/expenses-service";
 
 export const dynamic = "force-dynamic";
 
 const BUCKET = "expense-validations";
-const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
+const MAX_SIZE = 5 * 1024 * 1024;
 const ALLOWED_MIME = [
     "image/jpeg",
     "image/png",
@@ -14,29 +16,11 @@ const ALLOWED_MIME = [
     "application/pdf",
 ];
 
-const VALIDATE_ROLES = ["admin", "financier", "controller"];
-const UNVALIDATE_ROLES = ["admin", "financier"];
+// Seuls controller et admin peuvent valider / retirer une validation
+const VALIDATE_ROLES = ["admin", "controller"];
 
 interface RouteParams {
     params: Promise<{ id: string }>;
-}
-
-async function checkCompanyAccess(
-    odooExpenseId: number,
-    allowedCompanies: number[] | null,
-): Promise<boolean> {
-    if (allowedCompanies === null) return true;
-    if (allowedCompanies.length === 0) return false;
-    const rows = await odooClient.searchRead<{
-        id: number;
-        company_id: [number, string] | false;
-    }>("hr.expense", {
-        domain: [["id", "=", odooExpenseId]],
-        fields: ["company_id"],
-        limit: 1,
-    });
-    const compId = Array.isArray(rows[0]?.company_id) ? rows[0].company_id[0] : null;
-    return compId !== null && allowedCompanies.includes(compId);
 }
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
@@ -51,17 +35,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         const auth = await getServerAuth();
         if (!auth.user) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
         if (!auth.profile || !VALIDATE_ROLES.includes(auth.profile.role ?? "")) {
-            return NextResponse.json({ error: "Permissions insuffisantes" }, { status: 403 });
+            return NextResponse.json(
+                { error: "Seuls un controller ou un admin peuvent valider" },
+                { status: 403 },
+            );
         }
 
         const allowedCompanies = await resolveAllowedCompanyIds(auth.profile);
-        if (!(await checkCompanyAccess(odooExpenseId, allowedCompanies))) {
+        if (!(await checkExpenseCompanyAccess(odooExpenseId, allowedCompanies))) {
             return NextResponse.json({ error: "Accès refusé à cette société" }, { status: 403 });
         }
 
         const formData = await request.formData();
         const validationFile = formData.get("validationFile") as File | null;
-        const proofFile = formData.get("proofFile") as File | null;
         const notes = (formData.get("notes") as string | null)?.trim() || null;
 
         if (!validationFile) {
@@ -74,40 +60,27 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             return NextResponse.json({ error: "Autorisation : format non autorisé" }, { status: 400 });
         }
 
-        if (proofFile) {
-            if (proofFile.size > MAX_SIZE) {
-                return NextResponse.json({ error: "Preuve : fichier trop lourd (max 5 Mo)" }, { status: 400 });
-            }
-            if (!ALLOWED_MIME.includes(proofFile.type)) {
-                return NextResponse.json({ error: "Preuve : format non autorisé" }, { status: 400 });
-            }
-        }
-
         const supabase = await createClient();
 
         const { data: previous } = await supabase
             .from("expense_validations")
-            .select("validation_photo_path, proof_photo_path")
+            .select("validation_photo_path")
             .eq("odoo_expense_id", odooExpenseId)
             .maybeSingle();
 
-        // Upload parallèle autorisation + preuve
-        const [validationPath, uploadedProofPath] = await Promise.all([
-            uploadFile(supabase, odooExpenseId, validationFile, "auth"),
-            proofFile ? uploadFile(supabase, odooExpenseId, proofFile, "proof") : Promise.resolve(null),
-        ]);
+        const ext = validationFile.name.split(".").pop()?.toLowerCase() ?? "bin";
+        const safeExt = ext.replace(/[^a-z0-9]/g, "").slice(0, 5) || "bin";
+        const validationPath = `${odooExpenseId}/auth-${Date.now()}.${safeExt}`;
 
-        if (!validationPath || (proofFile && !uploadedProofPath)) {
-            const rollback = [validationPath, uploadedProofPath].filter(
-                (p): p is string => typeof p === "string",
-            );
-            if (rollback.length > 0) {
-                await supabase.storage.from(BUCKET).remove(rollback);
-            }
-            return NextResponse.json({ error: "Échec upload fichier" }, { status: 500 });
+        const buf = await validationFile.arrayBuffer();
+        const { error: uploadErr } = await supabase.storage
+            .from(BUCKET)
+            .upload(validationPath, buf, { contentType: validationFile.type, upsert: false });
+
+        if (uploadErr) {
+            return NextResponse.json({ error: "Échec upload autorisation" }, { status: 500 });
         }
 
-        const proofPath = uploadedProofPath ?? previous?.proof_photo_path ?? null;
         const validatedAt = new Date().toISOString();
 
         const { error: upsertErr } = await supabase
@@ -116,34 +89,21 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
                 {
                     odoo_expense_id: odooExpenseId,
                     validation_photo_path: validationPath,
-                    proof_photo_path: proofPath,
                     notes,
                     validated_at: validatedAt,
                     validated_by: auth.user.id,
+                    updated_at: validatedAt,
                 },
                 { onConflict: "odoo_expense_id" },
             );
 
         if (upsertErr) {
-            const toRemove = [validationPath, uploadedProofPath].filter(
-                (p): p is string => typeof p === "string",
-            );
-            if (toRemove.length > 0) {
-                await supabase.storage.from(BUCKET).remove(toRemove);
-            }
+            await supabase.storage.from(BUCKET).remove([validationPath]);
             return NextResponse.json({ error: "Échec enregistrement" }, { status: 500 });
         }
 
-        // Cleanup anciens fichiers
-        const cleanup: string[] = [];
         if (previous?.validation_photo_path && previous.validation_photo_path !== validationPath) {
-            cleanup.push(previous.validation_photo_path);
-        }
-        if (previous?.proof_photo_path && uploadedProofPath && previous.proof_photo_path !== uploadedProofPath) {
-            cleanup.push(previous.proof_photo_path);
-        }
-        if (cleanup.length > 0) {
-            await supabase.storage.from(BUCKET).remove(cleanup);
+            await supabase.storage.from(BUCKET).remove([previous.validation_photo_path]);
         }
 
         return NextResponse.json({
@@ -151,7 +111,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             odooExpenseId,
             isValidated: true,
             hasValidationPhoto: true,
-            hasProofPhoto: Boolean(proofPath),
             validationNotes: notes,
             validatedAt,
             validatedBy: auth.profile.full_name ?? "—",
@@ -160,24 +119,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         console.error("[EXPENSES_API] POST validate:", error);
         return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
     }
-}
-
-async function uploadFile(
-    supabase: Awaited<ReturnType<typeof createClient>>,
-    odooExpenseId: number,
-    file: File,
-    kind: "auth" | "proof",
-): Promise<string | null> {
-    const ext = file.name.split(".").pop()?.toLowerCase() ?? "bin";
-    const safeExt = ext.replace(/[^a-z0-9]/g, "").slice(0, 5) || "bin";
-    const path = `${odooExpenseId}/${kind}-${Date.now()}.${safeExt}`;
-
-    const buf = await file.arrayBuffer();
-    const { error } = await supabase.storage
-        .from(BUCKET)
-        .upload(path, buf, { contentType: file.type, upsert: false });
-
-    return error ? null : path;
 }
 
 export async function DELETE(_request: NextRequest, { params }: RouteParams) {
@@ -191,12 +132,15 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
 
         const auth = await getServerAuth();
         if (!auth.user) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-        if (!auth.profile || !UNVALIDATE_ROLES.includes(auth.profile.role ?? "")) {
-            return NextResponse.json({ error: "Permissions insuffisantes" }, { status: 403 });
+        if (!auth.profile || !VALIDATE_ROLES.includes(auth.profile.role ?? "")) {
+            return NextResponse.json(
+                { error: "Seuls un controller ou un admin peuvent retirer une validation" },
+                { status: 403 },
+            );
         }
 
         const allowedCompanies = await resolveAllowedCompanyIds(auth.profile);
-        if (!(await checkCompanyAccess(odooExpenseId, allowedCompanies))) {
+        if (!(await checkExpenseCompanyAccess(odooExpenseId, allowedCompanies))) {
             return NextResponse.json({ error: "Accès refusé à cette société" }, { status: 403 });
         }
 
@@ -208,41 +152,48 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
             .eq("odoo_expense_id", odooExpenseId)
             .maybeSingle();
 
-        if (!existing) {
+        if (!existing?.validation_photo_path) {
             return NextResponse.json({
                 success: true,
                 odooExpenseId,
                 isValidated: false,
                 hasValidationPhoto: false,
-                hasProofPhoto: false,
                 validationNotes: null,
                 validatedAt: null,
                 validatedBy: null,
             });
         }
 
-        const { error: delErr } = await supabase
-            .from("expense_validations")
-            .delete()
-            .eq("odoo_expense_id", odooExpenseId);
+        if (existing.proof_photo_path) {
+            // Préserver la preuve du manager !
+            const { error } = await supabase
+                .from("expense_validations")
+                .update({
+                    validation_photo_path: null,
+                    validated_at: null,
+                    validated_by: null,
+                    notes: null,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq("odoo_expense_id", odooExpenseId);
 
-        if (delErr) {
-            return NextResponse.json({ error: "Échec suppression" }, { status: 500 });
+            if (error) return NextResponse.json({ error: "Échec suppression" }, { status: 500 });
+        } else {
+            const { error } = await supabase
+                .from("expense_validations")
+                .delete()
+                .eq("odoo_expense_id", odooExpenseId);
+
+            if (error) return NextResponse.json({ error: "Échec suppression" }, { status: 500 });
         }
 
-        const paths = [existing.validation_photo_path, existing.proof_photo_path].filter(
-            (p): p is string => typeof p === "string",
-        );
-        if (paths.length > 0) {
-            await supabase.storage.from(BUCKET).remove(paths);
-        }
+        await supabase.storage.from(BUCKET).remove([existing.validation_photo_path]);
 
         return NextResponse.json({
             success: true,
             odooExpenseId,
             isValidated: false,
             hasValidationPhoto: false,
-            hasProofPhoto: false,
             validationNotes: null,
             validatedAt: null,
             validatedBy: null,

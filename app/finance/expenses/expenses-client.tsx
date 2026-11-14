@@ -31,6 +31,8 @@ import ExpensesTable from "./_components/expenses-table";
 import ValidateExpenseDialog from "./_components/validate-expense-dialog";
 import { useExpenses } from "./_lib/hooks/use-expenses";
 import {
+    useAttachProof,
+    useDeleteProof,
     useUnvalidateExpense,
     useValidateExpense,
 } from "./_lib/hooks/use-validate-expense";
@@ -40,6 +42,7 @@ import type {
     ExpensesKpis,
     ExpensesReportData,
 } from "./_lib/types";
+import AttachProofDialog from "./_components/attach-proof-dialog";
 
 const FALLBACK_KPIS: ExpensesKpis = {
     totalCount: 0,
@@ -98,12 +101,16 @@ export default function ExpensesClient({
         initialFetchedAt,
     });
 
-    const canValidate = ["admin", "financier", "controller"].includes(userRole);
-    const canUnvalidate = ["admin", "financier"].includes(userRole);
+    const canAttachProof = ["admin", "manager", "controller"].includes(userRole);
+    const canValidate = ["admin", "controller"].includes(userRole);
+    const canUnvalidate = ["admin", "controller"].includes(userRole);
 
+    const attachProofMutation = useAttachProof();
+    const deleteProofMutation = useDeleteProof();
     const validateMutation = useValidateExpense();
     const unvalidateMutation = useUnvalidateExpense();
 
+    const [proofDialogExpense, setProofDialogExpense] = useState<ExpenseRow | null>(null);
     const [dialogExpense, setDialogExpense] = useState<ExpenseRow | null>(null);
     const [unvalidateTarget, setUnvalidateTarget] = useState<ExpenseRow | null>(null);
 
@@ -206,22 +213,43 @@ export default function ExpensesClient({
         }
     };
 
-    const handleSubmitValidation = async (
-        validationFile: File,
-        proofFile?: File,
-        notes?: string,
-    ) => {
+    const handleSubmitProof = async (proofFile: File) => {
+        if (!proofDialogExpense) return;
+        try {
+            await attachProofMutation.mutateAsync({
+                odooExpenseId: proofDialogExpense.odooExpenseId,
+                proofFile,
+            });
+            signedCacheRef.current.delete(`${proofDialogExpense.odooExpenseId}:proof`);
+            toast.success("Preuve enregistrée");
+            setProofDialogExpense(null);
+        } catch (e) {
+            toast.error(e instanceof Error ? e.message : "Échec");
+            throw e;
+        }
+    };
+
+    const handleDeleteProof = async () => {
+        if (!proofDialogExpense) return;
+        try {
+            await deleteProofMutation.mutateAsync(proofDialogExpense.odooExpenseId);
+            signedCacheRef.current.delete(`${proofDialogExpense.odooExpenseId}:proof`);
+            toast.success("Preuve supprimée");
+            setProofDialogExpense(null);
+        } catch (e) {
+            toast.error(e instanceof Error ? e.message : "Échec");
+        }
+    };
+
+    const handleSubmitValidation = async (validationFile: File, notes?: string) => {
         if (!dialogExpense) return;
         try {
             await validateMutation.mutateAsync({
                 odooExpenseId: dialogExpense.odooExpenseId,
                 validationFile,
-                proofFile,
                 notes,
             });
-            // Invalider le cache des photos locales pour cette dépense
             signedCacheRef.current.delete(`${dialogExpense.odooExpenseId}:auth`);
-            signedCacheRef.current.delete(`${dialogExpense.odooExpenseId}:proof`);
             toast.success("Dépense validée");
             setDialogExpense(null);
         } catch (e) {
@@ -339,8 +367,10 @@ export default function ExpensesClient({
                 <ReportSection index={1} title="Liste des dépenses">
                     <ExpensesTable
                         data={expenses}
+                        canAttachProof={canAttachProof}
                         canValidate={canValidate}
                         canUnvalidate={canUnvalidate}
+                        onAttachProof={setProofDialogExpense}
                         onValidate={setDialogExpense}
                         onUnvalidate={setUnvalidateTarget}
                         onViewPhoto={handleViewPhoto}
@@ -355,6 +385,15 @@ export default function ExpensesClient({
                 onOpenChange={(open) => !open && setDialogExpense(null)}
                 onSubmit={handleSubmitValidation}
                 isSubmitting={validateMutation.isPending}
+            />
+
+            <AttachProofDialog
+                expense={proofDialogExpense}
+                open={!!proofDialogExpense}
+                onOpenChange={(open) => !open && setProofDialogExpense(null)}
+                onSubmit={handleSubmitProof}
+                onDeleteProof={handleDeleteProof}
+                isSubmitting={attachProofMutation.isPending || deleteProofMutation.isPending}
             />
 
             {/* Dialog confirmation suppression validation */}

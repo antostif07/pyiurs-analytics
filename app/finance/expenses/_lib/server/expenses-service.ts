@@ -14,6 +14,17 @@ import {
 } from "../types";
 import { buildExpensesKpis } from "../kpis";
 
+interface ValidationJoinedRow {
+    odoo_expense_id: number;
+    validation_photo_path: string | null;
+    proof_photo_path: string | null;
+    notes: string | null;
+    validated_at: string | null;
+    proof_attached_at: string | null;
+    validator: { full_name: string | null } | { full_name: string | null }[] | null;
+    proof_attacher: { full_name: string | null } | { full_name: string | null }[] | null;
+}
+
 export const EMPTY_EXPENSES_PAYLOAD: ExpensesReportData = {
     kpis: { totalCount: 0, validatedCount: 0, pendingCount: 0, byCurrency: [] },
     expenses: [],
@@ -174,15 +185,6 @@ async function getOdooExpenseCategories(): Promise<ExpenseCategory[]> {
 
 // ─── Requête principale ───────────────────────────────────────────────────
 
-interface ValidationJoinedRow {
-    odoo_expense_id: number;
-    validation_photo_path: string;
-    proof_photo_path: string | null;
-    notes: string | null;
-    validated_at: string;
-    validator: { full_name: string | null } | { full_name: string | null }[] | null;
-}
-
 async function fetchValidationsChunked(expenseIds: number[]) {
     const supabase = await createClient();
     const CHUNK_SIZE = 300;
@@ -197,7 +199,7 @@ async function fetchValidationsChunked(expenseIds: number[]) {
             supabase
                 .from("expense_validations")
                 .select(
-                    "odoo_expense_id, validation_photo_path, proof_photo_path, notes, validated_at, validator:profiles!validated_by(full_name)",
+                    "odoo_expense_id, validation_photo_path, proof_photo_path, notes, validated_at, proof_attached_at, validator:profiles!expense_validations_validated_by_fkey(full_name), proof_attacher:profiles!expense_validations_proof_attached_by_fkey(full_name)",
                 )
                 .in("odoo_expense_id", chunk),
         ),
@@ -308,22 +310,34 @@ export async function fetchExpensesReport(
     const validationMap = new Map<
         number,
         {
+            isValidated: boolean;
             hasValidationPhoto: boolean;
             hasProofPhoto: boolean;
             notes: string | null;
-            validatedAt: string;
+            validatedAt: string | null;
             validatedBy: string | null;
+            proofAttachedAt: string | null;
+            proofAttachedBy: string | null;
         }
     >();
 
     for (const v of validations) {
         const validatorObj = Array.isArray(v.validator) ? v.validator[0] : v.validator;
+        const attacherObj = Array.isArray(v.proof_attacher)
+            ? v.proof_attacher[0]
+            : v.proof_attacher;
+        const hasValidationPhoto = Boolean(v.validation_photo_path);
+        const isValidated = hasValidationPhoto && Boolean(v.validated_at);
+
         validationMap.set(v.odoo_expense_id, {
-            hasValidationPhoto: Boolean(v.validation_photo_path),
+            isValidated,
+            hasValidationPhoto,
             hasProofPhoto: Boolean(v.proof_photo_path),
             notes: v.notes ?? null,
-            validatedAt: v.validated_at,
-            validatedBy: validatorObj?.full_name ?? "—",
+            validatedAt: v.validated_at ?? null,
+            validatedBy: isValidated ? (validatorObj?.full_name ?? "—") : null,
+            proofAttachedAt: v.proof_attached_at ?? null,
+            proofAttachedBy: v.proof_photo_path ? (attacherObj?.full_name ?? "—") : null,
         });
     }
 
@@ -346,12 +360,14 @@ export async function fetchExpensesReport(
             totalAmount: total,
             currency: Array.isArray(e.currency_id) ? e.currency_id[1] : "USD",
             state: narrowExpenseState(e.state),
-            isValidated: !!v,
+            isValidated: v?.isValidated ?? false,
             hasValidationPhoto: v?.hasValidationPhoto ?? false,
             hasProofPhoto: v?.hasProofPhoto ?? false,
             validationNotes: v?.notes ?? null,
             validatedAt: v?.validatedAt ?? null,
             validatedBy: v?.validatedBy ?? null,
+            proofAttachedAt: v?.proofAttachedAt ?? null,
+            proofAttachedBy: v?.proofAttachedBy ?? null,
         };
     });
 
@@ -374,4 +390,22 @@ export async function fetchExpensesReport(
         categories,
         companies: visibleCompanies,
     };
+}
+
+export async function checkExpenseCompanyAccess(
+    odooExpenseId: number,
+    allowedCompanies: number[] | null,
+): Promise<boolean> {
+    if (allowedCompanies === null) return true;
+    if (allowedCompanies.length === 0) return false;
+    const rows = await odooClient.searchRead<{
+        id: number;
+        company_id: [number, string] | false;
+    }>("hr.expense", {
+        domain: [["id", "=", odooExpenseId]],
+        fields: ["company_id"],
+        limit: 1,
+    });
+    const compId = Array.isArray(rows[0]?.company_id) ? rows[0].company_id[0] : null;
+    return compId !== null && allowedCompanies.includes(compId);
 }

@@ -30,6 +30,8 @@ export interface ExpenseRow {
     validationNotes: string | null;
     validatedAt: string | null;
     validatedBy: string | null;
+    proofAttachedAt: string | null;
+    proofAttachedBy: string | null;
 }
 
 export interface ExpenseCategory {
@@ -76,8 +78,15 @@ export interface ValidationMutationResult {
     odooExpenseId: number;
     isValidated: boolean;
     hasValidationPhoto: boolean;
-    hasProofPhoto: boolean;
     validationNotes: string | null;
     validatedAt: string | null;
     validatedBy: string | null;
+}
+
+export interface ProofMutationResult {
+    success: true;
+    odooExpenseId: number;
+    hasProofPhoto: boolean;
+    proofAttachedAt: string | null;
+    proofAttachedBy: string | null;
 }

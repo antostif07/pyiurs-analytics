@@ -49,8 +49,10 @@ const fmt = (n: number) =>
 
 interface ExpensesTableProps {
     data: ExpenseRow[];
+    canAttachProof: boolean;
     canValidate: boolean;
     canUnvalidate: boolean;
+    onAttachProof: (expense: ExpenseRow) => void;
     onValidate: (expense: ExpenseRow) => void;
     onUnvalidate: (expense: ExpenseRow) => void;
     onViewPhoto: (expense: ExpenseRow, kind: "auth" | "proof") => void;
@@ -112,6 +114,8 @@ export default function ExpensesTable({
     onValidate,
     onUnvalidate,
     onViewPhoto,
+    onAttachProof,
+    canAttachProof
 }: ExpensesTableProps) {
     const [search, setSearch] = useState("");
     const [validationFilter, setValidationFilter] = useState<
@@ -245,18 +249,46 @@ export default function ExpensesTable({
                 header: "Preuve",
                 cell: (info) => {
                     const row = info.row.original;
-                    if (!row.isValidated || !row.hasProofPhoto) {
-                        return <span className="text-muted-foreground/40">—</span>;
-                    }
+                    const canEditProof = canAttachProof && (!row.isValidated || canValidate);
+
                     return (
-                        <button
-                            type="button"
-                            onClick={() => onViewPhoto(row, "proof")}
-                            className="inline-flex items-center gap-1 text-violet-600 hover:text-violet-700 dark:text-violet-400 text-[10px] font-semibold"
-                        >
-                            <ImageIcon className="w-3 h-3" />
-                            Voir
-                        </button>
+                        <div className="inline-flex items-center justify-center gap-1.5">
+                            {row.hasProofPhoto ? (
+                                <>
+                                    <button
+                                        type="button"
+                                        onClick={() => onViewPhoto(row, "proof")}
+                                        title={row.proofAttachedBy ? `Joint par ${row.proofAttachedBy}` : undefined}
+                                        className="inline-flex items-center gap-1 text-violet-600 hover:text-violet-700 dark:text-violet-400 text-[10px] font-semibold"
+                                    >
+                                        <ImageIcon className="w-3 h-3" />
+                                        Voir
+                                    </button>
+                                    {canEditProof && (
+                                        <button
+                                            type="button"
+                                            onClick={() => onAttachProof(row)}
+                                            title="Modifier / remplacer la preuve"
+                                            className="text-[10px] text-muted-foreground hover:text-foreground underline"
+                                        >
+                                            Maj
+                                        </button>
+                                    )}
+                                </>
+                            ) : canEditProof ? (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => onAttachProof(row)}
+                                    className="h-6 px-2 text-[10px] gap-1 text-violet-600 border-violet-200/70 hover:bg-violet-50 dark:text-violet-400 dark:hover:bg-violet-950/30"
+                                >
+                                    <Upload className="w-3 h-3" />
+                                    Preuve
+                                </Button>
+                            ) : (
+                                <span className="text-muted-foreground/40">—</span>
+                            )}
+                        </div>
                     );
                 },
             },
