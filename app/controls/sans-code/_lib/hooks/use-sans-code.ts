@@ -30,7 +30,7 @@ export function useSansCode(options?: {
     const query = useQuery<SansCodeReportData>({
         queryKey: ["controls-sans-code", queryString],
         queryFn: async ({ signal }) => {
-            const res = await fetch(`/api/controls/sans-cod?${queryString}`, {
+            const res = await fetch(`/api/controls/sans-code?${queryString}`, {
                 signal,
             });
             if (!res.ok) {

@@ -25,7 +25,7 @@ async function SansCodeLoader({ searchParams }: PageProps) {
     const [rawParams, auth] = await Promise.all([searchParams, getServerAuth()]);
 
     if (!auth.user) {
-        redirect("/login?next=/controls/sans-cod");
+        redirect("/login?next=/controls/sans-code");
     }
     if (!auth.profile || !isControlsRole(auth.profile.role)) {
         redirect("/unauthorized?reason=insufficient_permissions");
