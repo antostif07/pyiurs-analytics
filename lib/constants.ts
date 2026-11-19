@@ -16,7 +16,8 @@ import {
   ShoppingBag,
   BarChart3,
   ScanBarcode,
-  Settings
+  Settings,
+  ClipboardCheck
 } from "lucide-react";
 
 export interface Denomination {
@@ -112,6 +113,18 @@ export const MODULES_CONFIG: AppModule[] = [
     color: "bg-gray-500",
     category: "inventory",
     permissions: ["admin", "manager", "inventory-manager"]
+  },
+  {
+    id: "controls",
+    name: "Contrôles",
+    description: "Validation des dépenses, contrôles Redsup, audits de caisse, fidélité et conformité opérationnelle.",
+    href: "/controls",
+    icon: ClipboardCheck,
+    color: "bg-amber-600",
+    category: "operations",
+    permissions: ["admin", "controller", "financier", "manager"],
+    isNew: true,
+    order: 0,
   },
   {
     id: "finance",

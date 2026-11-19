@@ -160,3 +160,26 @@ export function canAccessPurchases(role: unknown): role is PurchasesRole {
         (PURCHASES_ROLES as readonly string[]).includes(role)
     );
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Controls (Contrôles)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const CONTROLS_ROLES = [
+    "admin",
+    "controller",
+    "manager"
+] as const satisfies readonly UserRole[];
+
+export type ControlsRole = (typeof CONTROLS_ROLES)[number];
+
+export function isControlsRole(role: unknown): role is ControlsRole {
+    return (
+        typeof role === "string" &&
+        (CONTROLS_ROLES as readonly string[]).includes(role)
+    );
+}
+
+export const MANAGER_CONTROLS_ALLOWED_PATHS = [
+    "/controls/sans-code",
+] as const;

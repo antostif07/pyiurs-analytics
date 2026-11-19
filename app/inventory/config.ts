@@ -34,13 +34,6 @@ export const INVENTORY_NAV_GROUPS: NavGroup[] = [
                 roles: ["admin", "manager", "inventory_manager", "inventory-manager"],
             },
             {
-                id: "sans-code",
-                label: "Produits Sans-Code / HS",
-                icon: FileText,
-                path: "/inventory/sans-code",
-                roles: ["admin", "manager", "inventory_manager", "inventory-manager"],
-            },
-            {
                 id: "stock-alerts",
                 label: "Alertes de Rupture",
                 icon: AlertTriangle,
