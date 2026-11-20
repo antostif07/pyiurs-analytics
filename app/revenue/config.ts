@@ -5,7 +5,6 @@ import {
   Wallet,
   TrendingUp,
   Building2,
-  ShoppingBag,
   Sparkles,
   Baby,
   Layers,
@@ -19,13 +18,6 @@ import type { UserRole } from "@/lib/constants";
 const FULL: UserRole[] = ["admin", "manager", "financier"];
 /** Accès incluant les vendeurs */
 const WITH_USER: UserRole[] = ["admin", "manager", "financier", "user"];
-/** Item RedSup accessible au controller */
-const REDSUP_ACCESS: UserRole[] = [
-  "admin",
-  "manager",
-  "financier",
-  "controller",
-];
 
 export const NAV_GROUPS: NavGroup[] = [
   {
@@ -52,14 +44,6 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: Target,
         path: "/revenue/budgets",
         roles: FULL,
-      },
-      {
-        id: "invoices-redsup",
-        label: "Factures RedSup",
-        icon: Sparkles,
-        path: "/revenue/invoices-redsup",
-        badge: "Nouveau",
-        roles: REDSUP_ACCESS,
       },
     ],
   },

@@ -1,7 +1,6 @@
-// app/revenue/invoices-redsup/_components/validate-redsup-dialog.tsx
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
     Dialog,
     DialogContent,
@@ -11,40 +10,32 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import {
-    Upload,
-    X,
-    Image as ImageIcon,
-    Loader2,
-    ShieldCheck,
-} from "lucide-react";
+import { Image as ImageIcon, Loader2, ShieldCheck, Trash2, Upload, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { RedsupInvoiceRow } from "../_lib/types";
 
-interface ValidateRedsupDialogProps {
+interface AttachRedsupPhotoDialogProps {
     invoice: RedsupInvoiceRow | null;
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onSubmit: (file: File) => Promise<void>;
+    onDeletePhoto?: () => Promise<void>;
     isSubmitting: boolean;
 }
 
 const MAX_SIZE = 5 * 1024 * 1024;
 const ALLOWED = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
-
 const fmt = (n: number) =>
-    n.toLocaleString("fr-FR", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    });
+    n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-export default function ValidateRedsupDialog({
+export default function AttachRedsupPhotoDialog({
     invoice,
     open,
     onOpenChange,
     onSubmit,
+    onDeletePhoto,
     isSubmitting,
-}: ValidateRedsupDialogProps) {
+}: AttachRedsupPhotoDialogProps) {
     const inputRef = useRef<HTMLInputElement>(null);
     const [file, setFile] = useState<File | null>(null);
     const [preview, setPreview] = useState<string | null>(null);
@@ -57,10 +48,9 @@ export default function ValidateRedsupDialog({
         if (inputRef.current) inputRef.current.value = "";
     };
 
-    const handleClose = (next: boolean) => {
-        if (!next && !isSubmitting) reset();
-        onOpenChange(next);
-    };
+    useEffect(() => {
+        if (!open) reset();
+    }, [open, invoice?.odooOrderId]);
 
     const handleFile = (f: File) => {
         setError(null);
@@ -84,7 +74,7 @@ export default function ValidateRedsupDialog({
 
     const handleSubmit = async () => {
         if (!file) {
-            setError("Sélectionnez un fichier.");
+            setError("Sélectionnez la photo d'autorisation.");
             return;
         }
         try {
@@ -98,20 +88,21 @@ export default function ValidateRedsupDialog({
     if (!invoice) return null;
 
     return (
-        <Dialog open={open} onOpenChange={handleClose}>
+        <Dialog open={open} onOpenChange={(next) => !isSubmitting && onOpenChange(next)}>
             <DialogContent className="max-w-md rounded-xl border-border/60 bg-card p-5 shadow-2xl">
                 <DialogHeader className="space-y-1 border-b border-border/60 pb-3">
-                    <DialogTitle className="text-[15px] font-semibold text-foreground tracking-tight flex items-center gap-2">
-                        <ShieldCheck className="w-4 h-4 text-pink-600" />
-                        Validation de la réduction
+                    <DialogTitle className="text-[15px] font-semibold flex items-center gap-2">
+                        <ShieldCheck className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                        {invoice.hasPhoto
+                            ? "Remplacer la photo d'autorisation"
+                            : "Attacher l'autorisation de remise"}
                     </DialogTitle>
                     <DialogDescription className="text-[11px] text-muted-foreground/80">
-                        {invoice.orderName} · {fmt(invoice.totalRedsupAmount)} $ ·{" "}
-                        {invoice.partnerName}
+                        {invoice.orderName} · {fmt(invoice.totalRedsupAmount)} $ · {invoice.partnerName}
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="space-y-3 py-3">
+                <div className="py-3 space-y-3">
                     <div
                         onDrop={(e) => {
                             e.preventDefault();
@@ -119,24 +110,18 @@ export default function ValidateRedsupDialog({
                             if (f && !isSubmitting) handleFile(f);
                         }}
                         onDragOver={(e) => e.preventDefault()}
-                        onClick={() =>
-                            !isSubmitting && inputRef.current?.click()
-                        }
+                        onClick={() => !isSubmitting && inputRef.current?.click()}
                         className={cn(
                             "rounded-lg border-2 border-dashed p-4 text-center cursor-pointer transition-colors",
                             file
-                                ? "border-pink-300/60 dark:border-pink-800/60 bg-pink-50/30 dark:bg-pink-950/20"
+                                ? "border-sky-300/60 dark:border-sky-800/60 bg-sky-50/30 dark:bg-sky-950/20"
                                 : "border-border/60 hover:border-primary/40 hover:bg-accent/20",
                             isSubmitting && "opacity-50 cursor-not-allowed",
                         )}
                     >
                         {preview ? (
                             <div className="relative inline-block">
-                                <img
-                                    src={preview}
-                                    alt="Aperçu"
-                                    className="max-h-40 rounded-md"
-                                />
+                                <img src={preview} alt="Aperçu" className="max-h-40 rounded-md" />
                                 <button
                                     type="button"
                                     onClick={(e) => {
@@ -150,10 +135,8 @@ export default function ValidateRedsupDialog({
                             </div>
                         ) : file ? (
                             <div className="flex items-center justify-center gap-2 text-[11px]">
-                                <ImageIcon className="w-4 h-4 text-pink-600" />
-                                <span className="font-semibold truncate max-w-[240px]">
-                                    {file.name}
-                                </span>
+                                <ImageIcon className="w-4 h-4 text-sky-600" />
+                                <span className="font-semibold truncate max-w-[240px]">{file.name}</span>
                                 <button
                                     type="button"
                                     onClick={(e) => {
@@ -168,12 +151,11 @@ export default function ValidateRedsupDialog({
                         ) : (
                             <div className="space-y-1">
                                 <Upload className="w-5 h-5 mx-auto text-muted-foreground/60" />
-                                <p className="text-[11px] font-semibold text-foreground">
-                                    Cliquez ou glissez un fichier
+                                <p className="text-[11px] font-semibold">
+                                    Cliquez ou glissez la photo d&apos;autorisation
                                 </p>
-                                <p className="text-[10px] text-muted-foreground/70">
-                                    Preuve d&apos;acceptation de la réduction ·
-                                    max 5 Mo
+                                <p className="text-[10px] text-muted-foreground">
+                                    JPEG, PNG, WebP ou PDF · max 5 Mo
                                 </p>
                             </div>
                         )}
@@ -188,7 +170,6 @@ export default function ValidateRedsupDialog({
                             }}
                         />
                     </div>
-
                     {error && (
                         <p className="text-[10px] text-rose-600 dark:text-rose-400 font-semibold">
                             {error}
@@ -196,29 +177,42 @@ export default function ValidateRedsupDialog({
                     )}
                 </div>
 
-                <DialogFooter className="gap-2">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleClose(false)}
-                        disabled={isSubmitting}
-                        className="h-7 text-[11px]"
-                    >
-                        Annuler
-                    </Button>
-                    <Button
-                        size="sm"
-                        onClick={handleSubmit}
-                        disabled={isSubmitting || !file}
-                        className="h-7 text-[11px] gap-1.5 bg-pink-600 hover:bg-pink-700 text-white"
-                    >
-                        {isSubmitting ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                        ) : (
-                            <Upload className="w-3 h-3" />
+                <DialogFooter className="flex-row items-center justify-between sm:justify-between gap-2">
+                    <div>
+                        {invoice.hasPhoto && !invoice.isValidated && onDeletePhoto && (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={isSubmitting}
+                                onClick={onDeletePhoto}
+                                className="h-7 text-[11px] gap-1 text-rose-600 border-rose-200/60"
+                            >
+                                <Trash2 className="w-3 h-3" />
+                                Supprimer
+                            </Button>
                         )}
-                        Valider
-                    </Button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onOpenChange(false)}
+                            disabled={isSubmitting}
+                            className="h-7 text-[11px]"
+                        >
+                            Annuler
+                        </Button>
+                        <Button
+                            size="sm"
+                            onClick={handleSubmit}
+                            disabled={isSubmitting || !file}
+                            className="h-7 text-[11px] gap-1.5 bg-sky-600 hover:bg-sky-700 text-white"
+                        >
+                            {isSubmitting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                            Enregistrer photo
+                        </Button>
+                    </div>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

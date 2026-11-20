@@ -96,7 +96,7 @@ export const MODULES_CONFIG: AppModule[] = [
   },
   {
     id: "revenue",
-    name: "Revenu",
+    name: "Ventes",
     description: "Analysez les performances de vos ventes, suivez les objectifs et optimisez votre stratégie financière.",
     href: "/revenue",
     icon: TrendingUp,

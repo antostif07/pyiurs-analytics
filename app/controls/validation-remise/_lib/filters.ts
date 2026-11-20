@@ -1,5 +1,3 @@
-// app/revenue/invoices-redsup/_lib/filters.ts
-
 import type { RedsupFilter } from "./types";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -14,7 +12,6 @@ export function getDefaultFilters(): RedsupFilter {
     return {
         from: toIso(firstOfMonth),
         to: toIso(now),
-        state: "all",
     };
 }
 
@@ -24,20 +21,15 @@ const one = (v: string | string[] | undefined): string | undefined =>
 
 export function parseRedsupFilters(raw: Raw): RedsupFilter {
     const defaults = getDefaultFilters();
+    const fromRaw = one(raw.from);
+    const toRaw = one(raw.to);
 
-    const from = one(raw.from);
-    const to = one(raw.to);
-    const stateRaw = one(raw.state);
-
-    const validStates = ["all", "validated", "pending"] as const;
+    const from = fromRaw && ISO_DATE.test(fromRaw) ? fromRaw : defaults.from;
+    const to = toRaw && ISO_DATE.test(toRaw) ? toRaw : defaults.to;
 
     return {
-        from: from && ISO_DATE.test(from) ? from : defaults.from,
-        to: to && ISO_DATE.test(to) ? to : defaults.to,
-        state:
-            stateRaw && (validStates as readonly string[]).includes(stateRaw)
-                ? (stateRaw as RedsupFilter["state"])
-                : "all",
+        from: from <= to ? from : to,
+        to: to >= from ? to : from,
     };
 }
 
@@ -45,6 +37,5 @@ export function serializeRedsupFilters(f: RedsupFilter): URLSearchParams {
     const sp = new URLSearchParams();
     sp.set("from", f.from);
     sp.set("to", f.to);
-    if (f.state !== "all") sp.set("state", f.state);
     return sp;
 }
