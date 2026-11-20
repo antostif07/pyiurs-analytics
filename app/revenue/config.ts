@@ -81,6 +81,13 @@ export const NAV_GROUPS: NavGroup[] = [
         path: "/revenue/performance-polog",
         roles: FULL, // ⬅️ explicite maintenant
       },
+      {
+        id: "beauty-brands",
+        label: "Beauty par Marque",
+        icon: Sparkles,
+        path: "/revenue/beauty-brands",
+        roles: FULL,
+      },
     ],
   },
   {

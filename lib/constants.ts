@@ -203,16 +203,6 @@ export const MODULES_CONFIG: AppModule[] = [
     category: "operations"
   },
   {
-    id: "suivi-ventes-beauty",
-    name: "Suivi des Ventes Beauty",
-    description: "Performance de l'espace maquillage, parfums et soins.",
-    icon: Heart,
-    color: "bg-teal-600",
-    href: "/control-revenue-beauty",
-    permissions: ["admin", "manager", "user"],
-    category: "finance"
-  },
-  {
     id: "suivi-stock-beauty",
     name: "Suivi du Stock Beauty",
     description: "Niveaux de stocks et alertes ruptures sur le segment Beauté.",

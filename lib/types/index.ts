@@ -1,4 +1,3 @@
-import { CloturePageDataType } from "@/app/cloture-vente/cloture-ventes.client";
 import { Denomination } from "../constants";
 import { ClotureDataView, NegativeSaleJustification } from "../cloture-service";
 
@@ -47,17 +46,6 @@ export interface CaisseSecondaireRow {
   sortiesEpargne: number
   soldeCloture: number
   validated: boolean
-}
-
-export interface ClotureVenteCloseProps {
-  denominations: Denomination[]
-  decrementDenomination: (index: number) => void
-  incrementDenomination: (index: number) => void
-  initialData: CloturePageDataType
-  lastClosure: ClotureDataView | null
-  negativeSaleJustifications: NegativeSaleJustification[]
-  existingClosure?: ClotureDataView | null
-  isReadOnly?: boolean
 }
 
 export interface OdooQuant {
