@@ -32,6 +32,7 @@ import type {
     StockPoReportData,
     StockPoRow,
 } from "./_lib/types";
+import ExcelPreviewDialog from "./_components/excel-preview-dialog";
 
 export default function StockPoClient({
     initialData,
@@ -67,6 +68,13 @@ export default function StockPoClient({
         isPdf: boolean;
     }>({ open: false, url: "", title: "", isPdf: false });
 
+    const [excelPreview, setExcelPreview] = useState<{
+        open: boolean;
+        poId: number | null;
+        field: "x_studio_fichier_excel_ca" | "x_studio_facture_fournisseur" | null;
+        fileName: string;
+    }>({ open: false, poId: null, field: null, fileName: "" });
+
     const orders = data?.orders ?? [];
     const kpis = data?.kpis ?? {
         totalOrders: 0,
@@ -87,11 +95,31 @@ export default function StockPoClient({
         field: "x_studio_fichier_excel_ca" | "x_studio_facture_fournisseur",
         meta: StockPoAttachmentMeta,
     ) => {
+        const lower = meta.fileName.toLowerCase();
+        const isExcel =
+            field === "x_studio_fichier_excel_ca" ||
+            lower.endsWith(".xlsx") ||
+            lower.endsWith(".xls") ||
+            lower.endsWith(".csv") ||
+            meta.mimeType.includes("spreadsheet") ||
+            meta.mimeType.includes("excel") ||
+            meta.mimeType.includes("csv");
+
+        if (isExcel) {
+            setExcelPreview({
+                open: true,
+                poId: row.id,
+                field,
+                fileName: meta.fileName,
+            });
+            return;
+        }
+
         setFilePreview({
             open: true,
             url: `/api/controls/stock-po/${row.id}/file?field=${field}`,
-            title: `${row.name} — ${meta.fileName}`,
-            isPdf: !meta.mimeType.startsWith("image/"),
+            title: meta.fileName,
+            isPdf: !meta.mimeType.startsWith("image/") && !/\.(png|jpe?g|webp)$/i.test(lower),
         });
     };
 
@@ -179,6 +207,14 @@ export default function StockPoClient({
                 order={pickingsOrder}
                 open={!!pickingsOrder}
                 onOpenChange={(open) => !open && setPickingsOrder(null)}
+            />
+
+            <ExcelPreviewDialog
+                poId={excelPreview.poId}
+                field={excelPreview.field}
+                fileName={excelPreview.fileName}
+                open={excelPreview.open}
+                onOpenChange={(open) => setExcelPreview((p) => ({ ...p, open }))}
             />
 
             <Dialog

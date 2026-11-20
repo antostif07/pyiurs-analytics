@@ -62,26 +62,38 @@ function FileActionCell({
         return <span className="text-muted-foreground/40">—</span>;
     }
 
-    const isExcelField = field === "x_studio_fichier_excel_ca";
-    const isGenericMime = !meta.mimeType || meta.mimeType === "application/octet-stream";
-    const canPreviewInline =
+    const lower = meta.fileName.toLowerCase();
+    const isExcel =
+        field === "x_studio_fichier_excel_ca" ||
+        lower.endsWith(".xlsx") ||
+        lower.endsWith(".xls") ||
+        lower.endsWith(".csv") ||
+        meta.mimeType.includes("spreadsheet") ||
+        meta.mimeType.includes("excel") ||
+        meta.mimeType.includes("csv");
+
+    const isPdfOrImage =
         meta.mimeType === "application/pdf" ||
         meta.mimeType.startsWith("image/") ||
-        (!isExcelField && isGenericMime);
+        lower.endsWith(".pdf") ||
+        /\.(png|jpe?g|webp)$/i.test(lower) ||
+        meta.mimeType === "application/octet-stream";
 
+    const canPreview = isExcel || isPdfOrImage;
     const downloadUrl = `/api/controls/stock-po/${row.id}/file?field=${field}&download=1`;
-    const fallbackLabel = isExcelField ? "Excel CA" : "Facture";
-    const displayName =
-        meta.fileName && meta.fileName !== field ? meta.fileName : fallbackLabel;
 
     return (
-        <div className="inline-flex items-center justify-center gap-2">
-            {canPreviewInline && (
+        <div className="inline-flex items-center justify-center gap-2 max-w-[210px]">
+            <Icon className={cn("w-3.5 h-3.5 shrink-0", tone)} />
+            <span className="truncate text-[11px] font-medium" title={meta.fileName}>
+                {meta.fileName}
+            </span>
+            {canPreview && (
                 <button
                     type="button"
-                    onClick={() => onPreview(row, field, { ...meta, fileName: displayName })}
-                    title={`Aperçu : ${displayName}`}
-                    className={cn("inline-flex items-center gap-1 text-[10px] font-semibold hover:underline", tone)}
+                    onClick={() => onPreview(row, field, meta)}
+                    title={`Aperçu : ${meta.fileName}`}
+                    className={cn("inline-flex items-center gap-0.5 text-[10px] font-semibold hover:underline shrink-0", tone)}
                 >
                     <Eye className="w-3 h-3" />
                     Voir
@@ -89,11 +101,10 @@ function FileActionCell({
             )}
             <a
                 href={downloadUrl}
-                title={`Télécharger : ${displayName}`}
-                className={cn("inline-flex items-center gap-1 text-[10px] font-semibold hover:underline", tone)}
+                title={`Télécharger : ${meta.fileName}`}
+                className={cn("inline-flex items-center shrink-0 hover:opacity-80", tone)}
             >
-                <Icon className="w-3 h-3" />
-                {!canPreviewInline ? displayName : <Download className="w-3 h-3" />}
+                <Download className="w-3 h-3" />
             </a>
         </div>
     );

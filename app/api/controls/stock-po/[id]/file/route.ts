@@ -38,11 +38,14 @@ export async function GET(
             !forceDownload &&
             (file.mimeType === "application/pdf" || file.mimeType.startsWith("image/"));
 
+        const asciiFallback = file.fileName.replace(/[^\x20-\x7E]/g, "_").replace(/"/g, "");
+        const utf8Encoded = encodeURIComponent(file.fileName);
+
         return new NextResponse(new Uint8Array(file.buffer), {
             status: 200,
             headers: {
                 "Content-Type": file.mimeType,
-                "Content-Disposition": `${isInlineable ? "inline" : "attachment"}; filename="${encodeURIComponent(file.fileName)}"`,
+                "Content-Disposition": `${isInlineable ? "inline" : "attachment"}; filename="${asciiFallback}"; filename*=UTF-8''${utf8Encoded}`,
                 "Content-Length": String(file.buffer.byteLength),
                 "Cache-Control": "private, max-age=300",
             },
