@@ -1,14 +1,20 @@
-// app/controls/config.ts
 import type { NavGroup } from "@/components/new-ui/layout/app-sidebar";
 import type { UserRole } from "@/lib/constants";
 import {
     ClipboardCheck,
     Barcode,
     BadgePercent,
+    PackageCheck,
 } from "lucide-react";
 
 const CONTROLS_ADMIN_CONTROLLER: UserRole[] = ["admin", "controller"];
 const CONTROLS_SALES_SCOPE: UserRole[] = ["admin", "controller", "manager"];
+const CONTROLS_STOCK_PO_SCOPE: UserRole[] = [
+    "admin",
+    "controller",
+    "inventory-manager",
+    "inventory_manager",
+];
 
 export const NAV_GROUPS: NavGroup[] = [
     {
@@ -20,7 +26,7 @@ export const NAV_GROUPS: NavGroup[] = [
                 label: "Vue d'ensemble",
                 icon: ClipboardCheck,
                 path: "/controls",
-                roles: CONTROLS_SALES_SCOPE,
+                roles: CONTROLS_ADMIN_CONTROLLER,
             },
         ],
     },
@@ -41,6 +47,19 @@ export const NAV_GROUPS: NavGroup[] = [
                 icon: BadgePercent,
                 path: "/controls/validation-remise",
                 roles: CONTROLS_SALES_SCOPE,
+            },
+        ],
+    },
+    {
+        id: "stock-controls",
+        title: "Stock",
+        items: [
+            {
+                id: "controls-stock-po",
+                label: "Stock PO",
+                icon: PackageCheck,
+                path: "/controls/stock-po",
+                roles: CONTROLS_STOCK_PO_SCOPE,
             },
         ],
     },

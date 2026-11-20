@@ -168,7 +168,9 @@ export function canAccessPurchases(role: unknown): role is PurchasesRole {
 export const CONTROLS_ROLES = [
     "admin",
     "controller",
-    "manager"
+    "manager",
+    "inventory-manager",
+    "inventory_manager",
 ] as const satisfies readonly UserRole[];
 
 export type ControlsRole = (typeof CONTROLS_ROLES)[number];
@@ -180,16 +182,36 @@ export function isControlsRole(role: unknown): role is ControlsRole {
     );
 }
 
-/**
- * Chemins autorisés pour le rôle controller dans /controls.
- */
 export const CONTROLLER_CONTROLS_ALLOWED_PATHS = [
     "/controls",
     "/controls/sans-cod",
     "/controls/validation-remise",
+    "/controls/stock-po",
 ] as const;
 
 export const MANAGER_CONTROLS_ALLOWED_PATHS = [
-    "/controls/sans-code",
+    "/controls/sans-cod",
     "/controls/validation-remise",
 ] as const;
+
+export const INVENTORY_CONTROLS_ALLOWED_PATHS = [
+    "/controls/stock-po",
+] as const;
+
+export const STOCK_PO_ALLOWED_ROLES = [
+    "admin",
+    "controller",
+    "inventory-manager",
+    "inventory_manager",
+] as const;
+
+export function canAccessStockPo(role: unknown): boolean {
+    return (
+        typeof role === "string" &&
+        (STOCK_PO_ALLOWED_ROLES as readonly string[]).includes(role)
+    );
+}
+
+export function canEditStockPo(role: unknown): boolean {
+    return role === "admin" || role === "controller";
+}

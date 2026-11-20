@@ -7,6 +7,7 @@ import {
     CONTROLLER_CONTROLS_ALLOWED_PATHS,
     MANAGER_CONTROLS_ALLOWED_PATHS,
     isControlsRole,
+    INVENTORY_CONTROLS_ALLOWED_PATHS,
 } from "@/lib/auth/roles";
 import ControlsShell from "./controls-shell";
 
@@ -46,6 +47,18 @@ export default async function ControlsLayout({
     }
 
     const path = await resolveCurrentPath();
+
+    if (role === "inventory-manager" || role === "inventory_manager") {
+        if (path === "/controls" || path === "/controls/") {
+            redirect("/controls/stock-po");
+        }
+        const allowed = INVENTORY_CONTROLS_ALLOWED_PATHS.some((p) =>
+            path.startsWith(p),
+        );
+        if (!allowed) {
+            redirect("/unauthorized?reason=insufficient_permissions");
+        }
+    }
 
     // ─── Scope Manager ────────────────────────────────────────────────────
     if (role === "manager") {
