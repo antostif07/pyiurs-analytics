@@ -180,6 +180,16 @@ export function isControlsRole(role: unknown): role is ControlsRole {
     );
 }
 
+/**
+ * Chemins autorisés pour le rôle controller dans /controls.
+ */
+export const CONTROLLER_CONTROLS_ALLOWED_PATHS = [
+    "/controls",
+    "/controls/sans-cod",
+    "/controls/validation-remise",
+] as const;
+
 export const MANAGER_CONTROLS_ALLOWED_PATHS = [
     "/controls/sans-code",
+    "/controls/validation-remise",
 ] as const;

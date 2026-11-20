@@ -2,7 +2,12 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import type { Metadata } from "next";
 import { getServerAuth } from "@/lib/supabase/server";
-import { isControlsRole } from "@/lib/auth/roles";
+import {
+    CONTROLLER_ROLE,
+    CONTROLLER_CONTROLS_ALLOWED_PATHS,
+    MANAGER_CONTROLS_ALLOWED_PATHS,
+    isControlsRole,
+} from "@/lib/auth/roles";
 import ControlsShell from "./controls-shell";
 
 export const metadata: Metadata = {
@@ -38,6 +43,31 @@ export default async function ControlsLayout({
 
     if (!isControlsRole(role)) {
         redirect("/unauthorized?reason=insufficient_permissions");
+    }
+
+    const path = await resolveCurrentPath();
+
+    // ─── Scope Manager ────────────────────────────────────────────────────
+    if (role === "manager") {
+        if (path === "/controls" || path === "/controls/") {
+            redirect("/controls/sans-cod");
+        }
+        const allowed = MANAGER_CONTROLS_ALLOWED_PATHS.some((p) =>
+            path.startsWith(p),
+        );
+        if (!allowed) {
+            redirect("/unauthorized?reason=insufficient_permissions");
+        }
+    }
+
+    // ─── Scope Controller ─────────────────────────────────────────────────
+    if (role === CONTROLLER_ROLE) {
+        const allowed = CONTROLLER_CONTROLS_ALLOWED_PATHS.some((p) =>
+            path.startsWith(p),
+        );
+        if (!allowed) {
+            redirect("/unauthorized?reason=insufficient_permissions");
+        }
     }
 
     return <ControlsShell role={role}>{children}</ControlsShell>;

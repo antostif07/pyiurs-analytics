@@ -39,6 +39,7 @@ import {
 } from "./_lib/hooks/use-validate-redsup";
 import type { RedsupInvoiceRow, RedsupKpis, RedsupReportData } from "./_lib/types";
 import AttachRedsupPhotoDialog from "./_components/attach-redsup-proof-dialog";
+import ValidateRedsupDialog from "./_components/validate-redsup-dialog";
 
 const FALLBACK_KPIS: RedsupKpis = {
     totalOrders: 0,
@@ -94,6 +95,7 @@ export default function ValidationRemiseClient({
     const deletePhotoMutation = useDeleteRedsupPhoto();
     const validateMutation = useValidateRedsup();
     const unvalidateMutation = useUnvalidateRedsup();
+    const [validateTarget, setValidateTarget] = useState<RedsupInvoiceRow | null>(null);
 
     const [photoDialogTarget, setPhotoDialogTarget] = useState<RedsupInvoiceRow | null>(null);
     const [unvalidateTarget, setUnvalidateTarget] = useState<RedsupInvoiceRow | null>(null);
@@ -200,6 +202,7 @@ export default function ValidationRemiseClient({
         try {
             await validateMutation.mutateAsync(invoice.odooOrderId);
             toast.success(`Remise ${invoice.orderName} validée`);
+            setValidateTarget(null);
             if (mediaModal.open && mediaModal.invoice?.odooOrderId === invoice.odooOrderId) {
                 setMediaModal((prev) => ({ ...prev, open: false }));
             }
@@ -300,7 +303,7 @@ export default function ValidationRemiseClient({
                         canUnvalidate={canUnvalidate}
                         validatingOrderId={validatingOrderId}
                         onAttachPhoto={setPhotoDialogTarget}
-                        onValidate={handleValidateOneClick}
+                        onValidate={setValidateTarget}
                         onUnvalidate={setUnvalidateTarget}
                         onViewDetails={setDetailsTarget}
                         onViewPhoto={handleViewPhoto}
@@ -321,6 +324,19 @@ export default function ValidationRemiseClient({
                 onSubmit={handleSubmitPhoto}
                 onDeletePhoto={handleDeletePhoto}
                 isSubmitting={attachPhotoMutation.isPending || deletePhotoMutation.isPending}
+            />
+
+            <ValidateRedsupDialog
+                invoice={validateTarget}
+                open={!!validateTarget}
+                onOpenChange={(open) => !open && setValidateTarget(null)}
+                onConfirm={async () => {
+                    if (validateTarget) await handleValidateOneClick(validateTarget);
+                }}
+                onViewPhoto={handleViewPhoto}
+                isSubmitting={
+                    !!validateTarget && validatingOrderId === validateTarget.odooOrderId
+                }
             />
 
             {/* Confirmation suppression validation (admin uniquement) */}

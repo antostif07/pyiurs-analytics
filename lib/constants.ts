@@ -303,16 +303,6 @@ export const MODULES_CONFIG: AppModule[] = [
     category: "admin"
   },
   {
-    id: "cash-closures",
-    name: "Clôtures de Caisse",
-    description: "Suivi et validation des fermetures quotidiennes de caisses boutiques.",
-    href: "/cloture-vente",
-    icon: MonitorPlay,
-    color: "bg-green-500",
-    permissions: ["admin", "manager", "financier"],
-    category: "operations"
-  },
-  {
     id: "reports",
     name: "Rapports",
     description: "Rapports d'activité complets : coûts, marges, et bénéfices.",

@@ -7,8 +7,8 @@ import {
     BadgePercent,
 } from "lucide-react";
 
-const FULL_CONTROLS_ACCESS: UserRole[] = ["admin", "controller"];
-const SANS_CODE_ACCESS: UserRole[] = ["admin", "controller", "manager"];
+const CONTROLS_ADMIN_CONTROLLER: UserRole[] = ["admin", "controller"];
+const CONTROLS_SALES_SCOPE: UserRole[] = ["admin", "controller", "manager"];
 
 export const NAV_GROUPS: NavGroup[] = [
     {
@@ -20,7 +20,7 @@ export const NAV_GROUPS: NavGroup[] = [
                 label: "Vue d'ensemble",
                 icon: ClipboardCheck,
                 path: "/controls",
-                roles: FULL_CONTROLS_ACCESS,
+                roles: CONTROLS_SALES_SCOPE,
             },
         ],
     },
@@ -33,14 +33,14 @@ export const NAV_GROUPS: NavGroup[] = [
                 label: "Ventes sans code",
                 icon: Barcode,
                 path: "/controls/sans-code",
-                roles: SANS_CODE_ACCESS,
+                roles: CONTROLS_SALES_SCOPE,
             },
             {
                 id: "controls-discount-validation",
                 label: "Validation de remise",
                 icon: BadgePercent,
                 path: "/controls/validation-remise",
-                roles: FULL_CONTROLS_ACCESS,
+                roles: CONTROLS_SALES_SCOPE,
             },
         ],
     },

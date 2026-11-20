@@ -11,6 +11,8 @@ import {
   Users,
   Store,
   Target,
+  Calculator,
+  History,
 } from "lucide-react";
 import type { UserRole } from "@/lib/constants";
 
@@ -78,6 +80,26 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: TrendingUp,
         path: "/revenue/performance-polog",
         roles: FULL, // ⬅️ explicite maintenant
+      },
+    ],
+  },
+  {
+    id: "cash-closing",
+    title: "Ventes & Clôtures",
+    items: [
+      {
+        id: "cloture-vente",
+        label: "Clôture des Ventes",
+        icon: Calculator,
+        path: "/revenue/cloture-vente",
+        roles: FULL,
+      },
+      {
+        id: "cloture-historique",
+        label: "Historique Clôtures",
+        icon: History,
+        path: "/revenue/cloture-vente/historique",
+        roles: FULL,
       },
     ],
   },
