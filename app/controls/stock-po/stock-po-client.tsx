@@ -91,7 +91,7 @@ export default function StockPoClient({
             open: true,
             url: `/api/controls/stock-po/${row.id}/file?field=${field}`,
             title: `${row.name} — ${meta.fileName}`,
-            isPdf: meta.mimeType === "application/pdf",
+            isPdf: !meta.mimeType.startsWith("image/"),
         });
     };
 

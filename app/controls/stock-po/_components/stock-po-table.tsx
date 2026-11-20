@@ -62,17 +62,25 @@ function FileActionCell({
         return <span className="text-muted-foreground/40">—</span>;
     }
 
+    const isExcelField = field === "x_studio_fichier_excel_ca";
+    const isGenericMime = !meta.mimeType || meta.mimeType === "application/octet-stream";
     const canPreviewInline =
-        meta.mimeType === "application/pdf" || meta.mimeType.startsWith("image/");
+        meta.mimeType === "application/pdf" ||
+        meta.mimeType.startsWith("image/") ||
+        (!isExcelField && isGenericMime);
+
     const downloadUrl = `/api/controls/stock-po/${row.id}/file?field=${field}&download=1`;
+    const fallbackLabel = isExcelField ? "Excel CA" : "Facture";
+    const displayName =
+        meta.fileName && meta.fileName !== field ? meta.fileName : fallbackLabel;
 
     return (
-        <div className="inline-flex items-center justify-center gap-1.5">
+        <div className="inline-flex items-center justify-center gap-2">
             {canPreviewInline && (
                 <button
                     type="button"
-                    onClick={() => onPreview(row, field, meta)}
-                    title={`Aperçu : ${meta.fileName}`}
+                    onClick={() => onPreview(row, field, { ...meta, fileName: displayName })}
+                    title={`Aperçu : ${displayName}`}
                     className={cn("inline-flex items-center gap-1 text-[10px] font-semibold hover:underline", tone)}
                 >
                     <Eye className="w-3 h-3" />
@@ -81,11 +89,11 @@ function FileActionCell({
             )}
             <a
                 href={downloadUrl}
-                title={`Télécharger : ${meta.fileName}`}
+                title={`Télécharger : ${displayName}`}
                 className={cn("inline-flex items-center gap-1 text-[10px] font-semibold hover:underline", tone)}
             >
-                {canPreviewInline ? <Download className="w-3 h-3" /> : <Icon className="w-3 h-3" />}
-                {!canPreviewInline && <span className="max-w-[110px] truncate">{meta.fileName}</span>}
+                <Icon className="w-3 h-3" />
+                {!canPreviewInline ? displayName : <Download className="w-3 h-3" />}
             </a>
         </div>
     );

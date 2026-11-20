@@ -38,11 +38,12 @@ export async function GET(
             !forceDownload &&
             (file.mimeType === "application/pdf" || file.mimeType.startsWith("image/"));
 
-        return new NextResponse(file.buffer, {
+        return new NextResponse(new Uint8Array(file.buffer), {
             status: 200,
             headers: {
                 "Content-Type": file.mimeType,
                 "Content-Disposition": `${isInlineable ? "inline" : "attachment"}; filename="${encodeURIComponent(file.fileName)}"`,
+                "Content-Length": String(file.buffer.byteLength),
                 "Cache-Control": "private, max-age=300",
             },
         });

@@ -276,45 +276,137 @@ export async function fetchStockPoReport(
     return flight;
 }
 
+function detectFileFormat(
+    buf: Buffer,
+    fallbackMime?: string,
+): { mimeType: string; ext: string } {
+    // Magic bytes réels
+    if (buf.length >= 4 && buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46) {
+        return { mimeType: "application/pdf", ext: "pdf" };
+    }
+    if (buf.length >= 4 && buf[0] === 0x50 && buf[1] === 0x4b && buf[2] === 0x03 && buf[3] === 0x04) {
+        return {
+            mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            ext: "xlsx",
+        };
+    }
+    if (buf.length >= 4 && buf[0] === 0xd0 && buf[1] === 0xcf && buf[2] === 0x11 && buf[3] === 0xe0) {
+        return { mimeType: "application/vnd.ms-excel", ext: "xls" };
+    }
+    if (buf.length >= 4 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) {
+        return { mimeType: "image/png", ext: "png" };
+    }
+    if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
+        return { mimeType: "image/jpeg", ext: "jpg" };
+    }
+    if (buf.length >= 12 && buf.toString("ascii", 0, 4) === "RIFF" && buf.toString("ascii", 8, 12) === "WEBP") {
+        return { mimeType: "image/webp", ext: "webp" };
+    }
+
+    if (fallbackMime === "application/pdf") return { mimeType: fallbackMime, ext: "pdf" };
+    if (fallbackMime === "image/png") return { mimeType: fallbackMime, ext: "png" };
+    if (fallbackMime === "image/jpeg") return { mimeType: fallbackMime, ext: "jpg" };
+    if (fallbackMime?.includes("spreadsheetml")) return { mimeType: fallbackMime, ext: "xlsx" };
+    if (fallbackMime?.includes("csv") || fallbackMime?.includes("text/plain")) {
+        return { mimeType: "text/csv; charset=utf-8", ext: "csv" };
+    }
+
+    return { mimeType: fallbackMime || "application/octet-stream", ext: "bin" };
+}
+
 export async function fetchStockPoBinaryFile(poId: number, field: StockPoFileField) {
-    // 1. Priorité ir.attachment
-    const atts = await odooClient.searchRead<{
-        id: number;
-        name: string;
-        mimetype: string | false;
-        datas: string | false;
-    }>("ir.attachment", {
-        domain: [
-            ["res_model", "=", "purchase.order"],
-            ["res_id", "=", poId],
-            ["res_field", "=", field],
-        ],
-        fields: ["name", "mimetype", "datas"],
-        limit: 1,
-    });
+    // 0. Métadonnées légères (sans datas)
+    let poName = `PO-${poId}`;
+    let mimeFromAtt: string | undefined;
+    let rawNameFromAtt: string | undefined;
 
-    if (atts[0]?.datas) {
-        return {
-            fileName: atts[0].name || `${field}-${poId}`,
-            mimeType: typeof atts[0].mimetype === "string" ? atts[0].mimetype : "application/octet-stream",
-            buffer: Buffer.from(atts[0].datas, "base64"),
-        };
+    try {
+        const [poRows, attRows] = await Promise.all([
+            odooClient.searchRead<{ id: number; name: string }>("purchase.order", {
+                domain: [["id", "=", poId]],
+                fields: ["name"],
+                limit: 1,
+            }),
+            odooClient.searchRead<{
+                id: number;
+                name: string;
+                mimetype: string | false;
+            }>("ir.attachment", {
+                domain: [
+                    ["res_model", "=", "purchase.order"],
+                    ["res_id", "=", poId],
+                    ["res_field", "=", field],
+                ],
+                fields: ["name", "mimetype"],
+                limit: 1,
+            }),
+        ]);
+        if (poRows[0]?.name) poName = poRows[0].name;
+        if (attRows[0]) {
+            rawNameFromAtt = attRows[0].name;
+            if (typeof attRows[0].mimetype === "string") mimeFromAtt = attRows[0].mimetype;
+        }
+    } catch {
+        /* continue */
     }
 
-    // 2. Fallback si le champ Studio a été stocké en attachment=False
-    const rows = await odooClient.searchRead<Record<string, unknown>>("purchase.order", {
-        domain: [["id", "=", poId]],
-        fields: [field],
-        limit: 1,
-    });
-    const rawBase64 = rows[0]?.[field];
-    if (typeof rawBase64 === "string" && rawBase64.length > 0) {
-        return {
-            fileName: `${field}-${poId}.bin`,
-            mimeType: "application/octet-stream",
-            buffer: Buffer.from(rawBase64, "base64"),
-        };
+    let base64Payload: string | null = null;
+
+    // 1. Lecture directe du champ Binary sur purchase.order (compatible Odoo 16..20)
+    try {
+        const rows = await odooClient.searchRead<Record<string, unknown>>("purchase.order", {
+            domain: [["id", "=", poId]],
+            fields: [field],
+            limit: 1,
+            context: { bin_size: false },
+        });
+        const val = rows[0]?.[field];
+        if (typeof val === "string" && val.length > 16) {
+            base64Payload = val;
+        }
+    } catch (err) {
+        console.warn(`[STOCK_PO_FILE] purchase.order.${field} read failed:`, err);
     }
 
-    return null;
+    // 2. Fallback ir.attachment (raw sur Odoo 19/20, puis datas sur versions antérieures)
+    if (!base64Payload) {
+        for (const binaryCol of ["raw", "datas"] as const) {
+            try {
+                const atts = await odooClient.searchRead<Record<string, unknown>>("ir.attachment", {
+                    domain: [
+                        ["res_model", "=", "purchase.order"],
+                        ["res_id", "=", poId],
+                        ["res_field", "=", field],
+                    ],
+                    fields: [binaryCol],
+                    limit: 1,
+                });
+                const val = atts[0]?.[binaryCol];
+                if (typeof val === "string" && val.length > 0) {
+                    base64Payload = val;
+                    break;
+                }
+            } catch {
+                // Ce champ n'existe pas dans cette version d'Odoo -> on teste le suivant
+            }
+        }
+    }
+
+    if (!base64Payload) return null;
+
+    // Décodage sécurisé (base64 standard ou raw utf8 si texte)
+    const cleaned = base64Payload.replace(/\s+/g, "");
+    const buffer = Buffer.from(cleaned, "base64");
+    if (buffer.length === 0) return null;
+
+    const { mimeType, ext } = detectFileFormat(buffer, mimeFromAtt);
+    const labelBase =
+        field === "x_studio_fichier_excel_ca" ? `${poName}_Excel_CA` : `${poName}_Facture`;
+    const hasExtension =
+        rawNameFromAtt &&
+        rawNameFromAtt !== field &&
+        /\.[a-z0-9]{2,5}$/i.test(rawNameFromAtt);
+    const fileName = hasExtension ? rawNameFromAtt! : `${labelBase}.${ext}`;
+
+    return { fileName, mimeType, buffer };
 }
