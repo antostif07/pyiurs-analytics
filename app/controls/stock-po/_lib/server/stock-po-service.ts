@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx";
-import { getServerAuth } from "@/lib/supabase/server";
+import { createClient, getServerAuth } from "@/lib/supabase/server";
 import { canAccessStockPo, canEditStockPo } from "@/lib/auth/roles";
 import { odooClient, type OdooDomain } from "@/lib/odoo/odoo-json2-client";
 import type {
@@ -16,6 +16,15 @@ export const STOCK_PO_FILE_FIELDS = [
 ] as const;
 
 export type StockPoFileField = (typeof STOCK_PO_FILE_FIELDS)[number];
+
+export function isStockPoFileField(
+    val: string | null | undefined,
+): val is StockPoFileField {
+    return (
+        typeof val === "string" &&
+        (STOCK_PO_FILE_FIELDS as readonly string[]).includes(val)
+    );
+}
 
 export interface ExcelPreviewSheet {
     name: string;
@@ -37,6 +46,7 @@ export const EMPTY_STOCK_PO_PAYLOAD: StockPoReportData = {
         withInvoiceCount: 0,
         totalPickings: 0,
         donePickings: 0,
+        validatedCount: 0,
     },
     orders: [],
 };
@@ -44,6 +54,15 @@ export const EMPTY_STOCK_PO_PAYLOAD: StockPoReportData = {
 interface FilenameFieldMapping {
     x_studio_fichier_excel_ca: string | null;
     x_studio_facture_fournisseur: string | null;
+}
+
+interface StockPoValidationRow {
+    odoo_po_id: number;
+    validation_file_name: string;
+    validation_mime_type: string;
+    notes: string | null;
+    validated_at: string;
+    validator: { full_name: string | null } | { full_name: string | null }[] | null;
 }
 
 const g = globalThis as unknown as {
@@ -72,6 +91,10 @@ async function withOdooRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
     throw new Error("Odoo retry exhausted");
 }
 
+export function clearStockPoReportCache() {
+    g.__stockPoCache?.clear();
+}
+
 export async function requireStockPoAccess() {
     const auth = await getServerAuth();
     if (!auth.user) return { ok: false as const, status: 401, error: "Non authentifié" };
@@ -87,7 +110,24 @@ export async function requireStockPoAccess() {
     };
 }
 
-// ─── Découverte des champs filename créés par Odoo Studio ─────────────────
+export async function requireStockPoValidateAccess(requireAdminOnly = false) {
+    const auth = await getServerAuth();
+    if (!auth.user) return { ok: false as const, status: 401, error: "Non authentifié" };
+    if (!auth.profile) return { ok: false as const, status: 403, error: "Profil manquant" };
+
+    const role = auth.profile.role ?? "";
+    const allowed = requireAdminOnly ? role === "admin" : canEditStockPo(role);
+    if (!allowed) {
+        return {
+            ok: false as const,
+            status: 403,
+            error: requireAdminOnly
+                ? "Seul un admin peut retirer une validation"
+                : "Seuls un controller ou un admin peuvent valider",
+        };
+    }
+    return { ok: true as const, user: auth.user, profile: auth.profile };
+}
 
 function extractFilenameAttrFromXml(arch: string, binaryField: string): string | null {
     const patterns = [
@@ -143,7 +183,6 @@ async function resolveFilenameFields(): Promise<FilenameFieldMapping> {
         const validCharFieldSet = new Set(studioCharFields.map((f) => f.name));
 
         for (const field of STOCK_PO_FILE_FIELDS) {
-            // 1. Depuis le XML des vues Studio (<field name="..." filename="..."/>)
             for (const v of views) {
                 if (typeof v.arch_db !== "string") continue;
                 const found = extractFilenameAttrFromXml(v.arch_db, field);
@@ -152,7 +191,6 @@ async function resolveFilenameFields(): Promise<FilenameFieldMapping> {
                     break;
                 }
             }
-            // 2. Fallback convention Studio <champ>_filename
             if (!mapping[field] && validCharFieldSet.has(`${field}_filename`)) {
                 mapping[field] = `${field}_filename`;
             }
@@ -225,7 +263,38 @@ function detectFileFormat(
     return { mimeType: fallbackMime || "application/octet-stream", ext: "bin" };
 }
 
-// ─── Liste principale Stock PO ────────────────────────────────────────────
+async function fetchStockPoValidationsChunked(poIds: number[]) {
+    if (poIds.length === 0) return new Map<number, StockPoValidationRow>();
+    const supabase = await createClient();
+    const CHUNK = 300;
+    const chunks: number[][] = [];
+    for (let i = 0; i < poIds.length; i += CHUNK) {
+        chunks.push(poIds.slice(i, i + CHUNK));
+    }
+
+    const resList = await Promise.all(
+        chunks.map((chunk) =>
+            (supabase as any)
+                .from("stock_po_validations")
+                .select(
+                    "odoo_po_id, validation_file_name, validation_mime_type, notes, validated_at, validator:profiles!stock_po_validations_validated_by_fkey(full_name)",
+                )
+                .in("odoo_po_id", chunk),
+        ),
+    );
+
+    const map = new Map<number, StockPoValidationRow>();
+    for (const res of resList) {
+        if (res.error) {
+            console.warn("[STOCK_PO] validations fetch failed:", res.error.message);
+        } else if (Array.isArray(res.data)) {
+            for (const row of res.data as StockPoValidationRow[]) {
+                map.set(row.odoo_po_id, row);
+            }
+        }
+    }
+    return map;
+}
 
 export async function fetchStockPoReport(
     filters: StockPoFilter,
@@ -266,7 +335,7 @@ export async function fetchStockPoReport(
                 );
             }
 
-            const poFields = [
+            const poFields: string[] = [
                 "name",
                 "create_date",
                 "create_uid",
@@ -299,7 +368,7 @@ export async function fetchStockPoReport(
             const poIds = pos.map((p) => Number(p.id));
             const poNames = pos.map((p) => String(p.name ?? "")).filter(Boolean);
 
-            const [attachments, pickingsRaw] = await Promise.all([
+            const [attachments, pickingsRaw, validationMap] = await Promise.all([
                 withOdooRetry(() =>
                     odooClient.searchRead<{
                         id: number;
@@ -345,6 +414,7 @@ export async function fetchStockPoReport(
                         }),
                     )
                     : Promise.resolve([]),
+                fetchStockPoValidationsChunked(poIds),
             ]);
 
             const attByPo = new Map<
@@ -352,8 +422,8 @@ export async function fetchStockPoReport(
                 Partial<Record<StockPoFileField, { id: number; name: string; mimetype: string; fileSize: number }>>
             >();
             for (const att of attachments) {
-                const field = att.res_field as StockPoFileField;
-                if (!STOCK_PO_FILE_FIELDS.includes(field)) continue;
+                if (!isStockPoFileField(att.res_field)) continue;
+                const field = att.res_field;
                 const entry = attByPo.get(att.res_id) ?? {};
                 entry[field] = {
                     id: att.id,
@@ -389,9 +459,10 @@ export async function fetchStockPoReport(
             ): StockPoAttachmentMeta | null => {
                 const att = attByPo.get(poId)?.[field];
                 const fnField = filenameFields[field];
+                const rawStudioName = fnField ? po[fnField] : null;
                 const studioFileName =
-                    fnField && typeof po[fnField] === "string" && po[fnField].trim().length > 0
-                        ? po[fnField].trim()
+                    typeof rawStudioName === "string" && rawStudioName.trim().length > 0
+                        ? rawStudioName.trim()
                         : null;
 
                 if (!att && !studioFileName) return null;
@@ -419,6 +490,7 @@ export async function fetchStockPoReport(
             let withInvoiceCount = 0;
             let totalPickings = 0;
             let donePickings = 0;
+            let validatedCount = 0;
 
             const orders: StockPoRow[] = pos.map((po) => {
                 const poId = Number(po.id);
@@ -427,8 +499,16 @@ export async function fetchStockPoReport(
                 const supplierInvoiceFile = buildFileMeta(po, poId, "x_studio_facture_fournisseur");
                 const pickings = pickingsByOrigin.get(poName) ?? [];
 
+                const v = validationMap.get(poId);
+                const validatorObj = v
+                    ? Array.isArray(v.validator)
+                        ? v.validator[0]
+                        : v.validator
+                    : null;
+
                 if (excelCaFile) withExcelCaCount += 1;
                 if (supplierInvoiceFile) withInvoiceCount += 1;
+                if (v) validatedCount += 1;
                 totalPickings += pickings.length;
                 donePickings += pickings.filter((p) => p.state === "done").length;
 
@@ -444,6 +524,12 @@ export async function fetchStockPoReport(
                     excelCaFile,
                     supplierInvoiceFile,
                     pickings,
+                    isValidated: Boolean(v),
+                    validationFileName: v?.validation_file_name ?? null,
+                    validationMimeType: v?.validation_mime_type ?? null,
+                    validationNotes: v?.notes ?? null,
+                    validatedAt: v?.validated_at ?? null,
+                    validatedBy: v ? (validatorObj?.full_name ?? "—") : null,
                 };
             });
 
@@ -454,6 +540,7 @@ export async function fetchStockPoReport(
                     withInvoiceCount,
                     totalPickings,
                     donePickings,
+                    validatedCount,
                 },
                 orders,
             };
@@ -469,8 +556,6 @@ export async function fetchStockPoReport(
     return flight;
 }
 
-// ─── Lecture du fichier binaire avec nom d'origine exact ──────────────────
-
 export async function fetchStockPoBinaryFile(poId: number, field: StockPoFileField) {
     const filenameFields = await resolveFilenameFields();
     const fnField = filenameFields[field];
@@ -482,7 +567,6 @@ export async function fetchStockPoBinaryFile(poId: number, field: StockPoFileFie
     let originalFileName: string | undefined;
     let mimeFromAtt: string | undefined;
 
-    // 1. Lecture directe sur purchase.order (binaire + vrai nom de fichier)
     try {
         const rows = await odooClient.searchRead<Record<string, unknown>>("purchase.order", {
             domain: [["id", "=", poId]],
@@ -504,7 +588,6 @@ export async function fetchStockPoBinaryFile(poId: number, field: StockPoFileFie
         console.warn(`[STOCK_PO_FILE] purchase.order.${field} read failed:`, err);
     }
 
-    // 2. Métadonnées ir.attachment (et fallback binaire raw/datas si nécessaire)
     try {
         const atts = await odooClient.searchRead<{
             id: number;
@@ -565,8 +648,6 @@ export async function fetchStockPoBinaryFile(poId: number, field: StockPoFileFie
 
     return { fileName, mimeType, buffer };
 }
-
-// ─── Parseur Excel serveur (xlsx / xls / csv) ─────────────────────────────
 
 export async function fetchStockPoExcelPreview(
     poId: number,

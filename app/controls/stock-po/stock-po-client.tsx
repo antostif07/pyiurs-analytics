@@ -4,9 +4,11 @@ import { useState } from "react";
 import { toast } from "sonner";
 import {
     AlertCircle,
+    CheckCircle2,
     ExternalLink,
     FileSpreadsheet,
     FileText,
+    Loader2,
     PackageCheck,
     RefreshCw,
     Truck,
@@ -18,6 +20,8 @@ import CeoKpiCard from "@/app/ceo-report/_components/ceo-kpi-card";
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
@@ -26,24 +30,31 @@ import { Button } from "@/components/ui/button";
 import StockPoFilters from "./_components/stock-po-filters";
 import StockPoTable from "./_components/stock-po-table";
 import PickingsDialog from "./_components/pickings-dialog";
+import ExcelPreviewDialog from "./_components/excel-preview-dialog";
+import ValidateStockPoDialog from "./_components/validate-stock-po-dialog";
 import { useStockPo } from "./_lib/hooks/use-stock-po";
+import {
+    useUnvalidateStockPo,
+    useValidateStockPo,
+} from "./_lib/hooks/use-validate-stock-po";
 import type {
     StockPoAttachmentMeta,
     StockPoReportData,
     StockPoRow,
 } from "./_lib/types";
-import ExcelPreviewDialog from "./_components/excel-preview-dialog";
+
+type PoFileField = "x_studio_fichier_excel_ca" | "x_studio_facture_fournisseur";
 
 export default function StockPoClient({
     initialData,
     initialQueryKeyString,
     initialFetchedAt,
-    canEdit,
+    userRole,
 }: {
     initialData?: StockPoReportData;
     initialQueryKeyString?: string;
     initialFetchedAt?: number;
-    canEdit: boolean;
+    userRole: string;
 }) {
     const {
         data,
@@ -60,20 +71,30 @@ export default function StockPoClient({
         initialFetchedAt,
     });
 
+    const canValidate = userRole === "admin" || userRole === "controller";
+    const canUnvalidate = userRole === "admin";
+
+    const validateMutation = useValidateStockPo();
+    const unvalidateMutation = useUnvalidateStockPo();
+
     const [pickingsOrder, setPickingsOrder] = useState<StockPoRow | null>(null);
-    const [filePreview, setFilePreview] = useState<{
-        open: boolean;
-        url: string;
-        title: string;
-        isPdf: boolean;
-    }>({ open: false, url: "", title: "", isPdf: false });
+    const [validateTarget, setValidateTarget] = useState<StockPoRow | null>(null);
+    const [unvalidateTarget, setUnvalidateTarget] = useState<StockPoRow | null>(null);
 
     const [excelPreview, setExcelPreview] = useState<{
         open: boolean;
         poId: number | null;
-        field: "x_studio_fichier_excel_ca" | "x_studio_facture_fournisseur" | null;
+        field: PoFileField | null;
         fileName: string;
     }>({ open: false, poId: null, field: null, fileName: "" });
+
+    const [filePreview, setFilePreview] = useState<{
+        open: boolean;
+        url: string;
+        downloadUrl: string;
+        title: string;
+        isPdf: boolean;
+    }>({ open: false, url: "", downloadUrl: "", title: "", isPdf: false });
 
     const orders = data?.orders ?? [];
     const kpis = data?.kpis ?? {
@@ -82,6 +103,7 @@ export default function StockPoClient({
         withInvoiceCount: 0,
         totalPickings: 0,
         donePickings: 0,
+        validatedCount: 0,
     };
 
     const handleRefresh = async () => {
@@ -92,7 +114,7 @@ export default function StockPoClient({
 
     const handlePreviewFile = (
         row: StockPoRow,
-        field: "x_studio_fichier_excel_ca" | "x_studio_facture_fournisseur",
+        field: PoFileField,
         meta: StockPoAttachmentMeta,
     ) => {
         const lower = meta.fileName.toLowerCase();
@@ -115,12 +137,54 @@ export default function StockPoClient({
             return;
         }
 
+        const baseUrl = `/api/controls/stock-po/${row.id}/file?field=${field}`;
         setFilePreview({
             open: true,
-            url: `/api/controls/stock-po/${row.id}/file?field=${field}`,
+            url: baseUrl,
+            downloadUrl: `${baseUrl}&download=1`,
             title: meta.fileName,
-            isPdf: !meta.mimeType.startsWith("image/") && !/\.(png|jpe?g|webp)$/i.test(lower),
+            isPdf:
+                !meta.mimeType.startsWith("image/") &&
+                !/\.(png|jpe?g|webp)$/i.test(lower),
         });
+    };
+
+    const handlePreviewValidation = (row: StockPoRow) => {
+        const baseUrl = `/api/controls/stock-po/${row.id}/validation-file`;
+        setFilePreview({
+            open: true,
+            url: baseUrl,
+            downloadUrl: `${baseUrl}?download=1`,
+            title: row.validationFileName || `Validation ${row.name}`,
+            isPdf: row.validationMimeType === "application/pdf",
+        });
+    };
+
+    const handleSubmitValidation = async (file: File, notes?: string) => {
+        if (!validateTarget) return;
+        try {
+            await validateMutation.mutateAsync({
+                odooPoId: validateTarget.id,
+                file,
+                notes,
+            });
+            toast.success(`PO ${validateTarget.name} validé`);
+            setValidateTarget(null);
+        } catch (e) {
+            toast.error(e instanceof Error ? e.message : "Échec de la validation");
+            throw e;
+        }
+    };
+
+    const handleConfirmUnvalidate = async () => {
+        if (!unvalidateTarget) return;
+        try {
+            await unvalidateMutation.mutateAsync(unvalidateTarget.id);
+            toast.success(`Validation de ${unvalidateTarget.name} retirée`);
+            setUnvalidateTarget(null);
+        } catch (e) {
+            toast.error(e instanceof Error ? e.message : "Échec de la suppression");
+        }
     };
 
     return (
@@ -129,8 +193,8 @@ export default function StockPoClient({
                 title="Stock PO"
                 subtitle="Commandes d'achat P.BTY & P.FEM, pièces jointes et réceptions"
                 badge={{
-                    label: canEdit ? "Contrôle Complet" : "Lecture seule",
-                    tone: canEdit ? "emerald" : "neutral",
+                    label: canValidate ? "Contrôle Complet" : "Lecture seule",
+                    tone: canValidate ? "emerald" : "neutral",
                 }}
                 lastUpdatedAt={dataUpdatedAt ? new Date(dataUpdatedAt) : null}
                 isLoading={isFetching}
@@ -148,14 +212,19 @@ export default function StockPoClient({
                                 {error instanceof Error ? error.message : "Erreur de chargement."}
                             </span>
                         </div>
-                        <Button variant="outline" size="sm" onClick={handleRefresh} className="h-7 text-[11px] gap-1.5">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleRefresh}
+                            className="h-7 text-[11px] gap-1.5"
+                        >
                             <RefreshCw className="w-3 h-3" />
                             Réessayer
                         </Button>
                     </div>
                 )}
 
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
                     <CeoKpiCard
                         label="Total PO"
                         value={String(kpis.totalOrders)}
@@ -192,13 +261,27 @@ export default function StockPoClient({
                         iconBg="bg-amber-50 dark:bg-amber-950/40"
                         isLoading={isLoading}
                     />
+                    <CeoKpiCard
+                        label="PO Validés"
+                        value={String(kpis.validatedCount)}
+                        subtitle={`${kpis.totalOrders - kpis.validatedCount} en attente`}
+                        icon={<CheckCircle2 className="w-3.5 h-3.5" />}
+                        iconColor="text-emerald-600 dark:text-emerald-400"
+                        iconBg="bg-emerald-50 dark:bg-emerald-950/40"
+                        isLoading={isLoading}
+                    />
                 </div>
 
                 <ReportSection index={1} title="Bons de commande fournisseurs">
                     <StockPoTable
                         data={orders}
+                        canValidate={canValidate}
+                        canUnvalidate={canUnvalidate}
                         onOpenPickings={setPickingsOrder}
                         onPreviewFile={handlePreviewFile}
+                        onValidate={setValidateTarget}
+                        onUnvalidate={setUnvalidateTarget}
+                        onPreviewValidation={handlePreviewValidation}
                     />
                 </ReportSection>
             </div>
@@ -217,6 +300,56 @@ export default function StockPoClient({
                 onOpenChange={(open) => setExcelPreview((p) => ({ ...p, open }))}
             />
 
+            <ValidateStockPoDialog
+                order={validateTarget}
+                open={!!validateTarget}
+                onOpenChange={(open) => !open && setValidateTarget(null)}
+                onSubmit={handleSubmitValidation}
+                isSubmitting={validateMutation.isPending}
+            />
+
+            {/* Confirmation suppression validation (admin uniquement) */}
+            <Dialog
+                open={!!unvalidateTarget}
+                onOpenChange={(open) =>
+                    !open && !unvalidateMutation.isPending && setUnvalidateTarget(null)
+                }
+            >
+                <DialogContent className="max-w-sm">
+                    <DialogHeader>
+                        <DialogTitle className="text-sm">Retirer la validation ?</DialogTitle>
+                        <DialogDescription className="text-xs">
+                            Le justificatif de validation du PO « {unvalidateTarget?.name} » sera
+                            supprimé définitivement du serveur.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={unvalidateMutation.isPending}
+                            onClick={() => setUnvalidateTarget(null)}
+                            className="h-7 text-[11px]"
+                        >
+                            Annuler
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            size="sm"
+                            disabled={unvalidateMutation.isPending}
+                            onClick={handleConfirmUnvalidate}
+                            className="h-7 text-[11px] gap-1.5"
+                        >
+                            {unvalidateMutation.isPending && (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                            )}
+                            Retirer
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Aperçu PDF / Image */}
             <Dialog
                 open={filePreview.open}
                 onOpenChange={(open) => !open && setFilePreview((p) => ({ ...p, open: false }))}
@@ -227,7 +360,7 @@ export default function StockPoClient({
                             {filePreview.title}
                         </DialogTitle>
                         <a
-                            href={`${filePreview.url}&download=1`}
+                            href={filePreview.downloadUrl}
                             className="inline-flex items-center gap-1 text-[11px] text-sky-600 hover:underline shrink-0"
                         >
                             <ExternalLink className="w-3 h-3" />
