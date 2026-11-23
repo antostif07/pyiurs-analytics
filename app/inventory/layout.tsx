@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import type { Metadata } from "next";
 import { getServerAuth } from "@/lib/supabase/server";
-import { isInventoryRole } from "@/lib/auth/roles";
+import { CONTROLLER_INVENTORY_ALLOWED_PATHS, CONTROLLER_ROLE, isInventoryRole } from "@/lib/auth/roles";
 import InventoryShell from "./inventory-shell";
 
 export const metadata: Metadata = {
@@ -46,6 +46,19 @@ export default async function InventoryLayout({
   const { role } = auth.profile;
   if (!isInventoryRole(role)) {
     redirect("/unauthorized?reason=insufficient_permissions");
+  }
+
+  if (role === CONTROLLER_ROLE) {
+    const path = await resolveCurrentPath();
+    if (path === "/inventory" || path === "/inventory/") {
+      redirect("/inventory/purchases");
+    }
+    const allowed = CONTROLLER_INVENTORY_ALLOWED_PATHS.some((p) =>
+      path.startsWith(p),
+    );
+    if (!allowed) {
+      redirect("/unauthorized?reason=insufficient_permissions");
+    }
   }
 
   return <InventoryShell role={role}>{children}</InventoryShell>;

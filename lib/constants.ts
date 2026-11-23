@@ -112,7 +112,7 @@ export const MODULES_CONFIG: AppModule[] = [
     icon: TrendingUp,
     color: "bg-gray-500",
     category: "inventory",
-    permissions: ["admin", "manager", "inventory-manager"]
+    permissions: ["admin", "manager", "inventory-manager", "inventory_manager", "financier", "controller"],
   },
   {
     id: "controls",

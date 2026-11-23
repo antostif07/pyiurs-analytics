@@ -98,7 +98,7 @@ export const INVENTORY_NAV_GROUPS: NavGroup[] = [
                 label: "Aperçu des Achats",
                 icon: ShoppingBag,
                 path: "/inventory/purchases",
-                roles: ["admin", "manager", "inventory_manager", "inventory-manager", "financier"],
+                roles: ["admin", "controller", "inventory_manager", "inventory-manager", "financier"],
             },
             {
                 id: "purchases-analytics",

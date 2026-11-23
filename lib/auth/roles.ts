@@ -72,7 +72,7 @@ export const INVENTORY_ROLES = [
     "inventory_manager",
     "inventory-manager",
     "financier",
-    "user",
+    "controller",
 ] as const satisfies readonly UserRole[];
 
 export type InventoryRole = (typeof INVENTORY_ROLES)[number];
@@ -83,6 +83,10 @@ export function isInventoryRole(role: unknown): role is InventoryRole {
         (INVENTORY_ROLES as readonly string[]).includes(role)
     );
 }
+
+export const CONTROLLER_INVENTORY_ALLOWED_PATHS = [
+    "/inventory/purchases",
+] as const;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Controller — rôle restreint
@@ -131,7 +135,6 @@ export const STOCK_SEGMENT_ROLES = [
     "manager",
     "inventory_manager",
     "inventory-manager",
-    "user",
 ] as const satisfies readonly InventoryRole[];
 
 export type StockSegmentRole = (typeof STOCK_SEGMENT_ROLES)[number];
@@ -146,7 +149,7 @@ export function canAccessStockSegment(role: unknown): role is StockSegmentRole {
 // ─── Purchases ───────────────────────────────────────────────
 export const PURCHASES_ROLES = [
     "admin",
-    "manager",
+    "controller",
     "inventory_manager",
     "inventory-manager",
     "financier",
