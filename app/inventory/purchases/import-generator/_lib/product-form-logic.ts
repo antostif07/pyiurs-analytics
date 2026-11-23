@@ -1,9 +1,5 @@
-// app/inventory/purchases/import-generator/_lib/product-form-logic.ts
-
 import type { ProductFormState } from "../import-types";
 import type { Departement } from "../_components/global-params-section";
-
-// ─── Type du produit retourné par getLastProductByHsCode ────
 
 export interface MatchedHsCodeProduct {
     nom?: string | null;
@@ -20,8 +16,6 @@ export interface MatchedHsCodeProduct {
     caa?: number | null;
 }
 
-// ─── Pur · computeDescriptionAndName ────────────────────────
-
 export function computeDescriptionAndName(
     departement: Departement,
     codeHs: string,
@@ -30,13 +24,17 @@ export function computeDescriptionAndName(
     famille: string,
     couleur: string,
     taille: string,
+    beautyDescription = "",
 ): { description: string; nom: string } {
     const cleanHs = codeHs.trim();
-    const cleanMarque = marque.trim() ? marque.trim() : "";
 
     if (departement === "Beauty") {
-        const desc = `${cleanMarque} [${cleanHs}]`;
-        return { description: desc, nom: desc };
+        const cleanMarque = marque.trim() || "A remplacer";
+        const cleanDesc = beautyDescription.trim();
+        const nom = cleanDesc
+            ? `${cleanMarque} : ${cleanDesc} [${cleanHs}]`
+            : `${cleanMarque} [${cleanHs}]`;
+        return { description: cleanDesc, nom };
     }
 
     const desc = `${codeRemise} - ${famille.trim()} ${couleur.trim()} - ${cleanHs}`
@@ -62,12 +60,22 @@ export function applyHsCodeMatch(
     let nom: string;
 
     if (departement === "Beauty") {
-        // ✅ Beauty : description = nom Odoo sans la partie [codeHS]
-        // (peut être vide). Nom = description + [codeHS] (ou juste [codeHS]).
-        description = matched.nom ? matched.nom.split("[")[0].trim() : "";
-        nom = description ? `${description} [${cleanHs}]` : `[${cleanHs}]`;
+        const baseBeforeBrackets = matched.nom
+            ? matched.nom.split("[")[0].trim()
+            : "";
+
+        // Formule actuelle conservée pour le nom
+        nom = baseBeforeBrackets
+            ? `${baseBeforeBrackets} [${cleanHs}]`
+            : `[${cleanHs}]`;
+
+        // Description = split sur ':' et prise de la 2e partie
+        const colonIdx = baseBeforeBrackets.indexOf(":");
+        description =
+            colonIdx !== -1
+                ? baseBeforeBrackets.slice(colonIdx + 1).trim()
+                : (matched.description ?? baseBeforeBrackets);
     } else {
-        // Femme / Enfant : inchangé
         description =
             matched.description ??
             `${currentCodeRemise} - ${familleVal} ${couleurVal} - ${cleanHs}`
@@ -94,8 +102,6 @@ export function applyHsCodeMatch(
     };
 }
 
-// ─── Pur · Pas de match → patch 4 champs ────────────────────
-
 export function applyHsCodeNoMatch(
     currentForm: ProductFormState,
     cleanHs: string,
@@ -110,6 +116,7 @@ export function applyHsCodeNoMatch(
         currentForm.famille,
         currentForm.couleur,
         currentForm.taille,
+        currentForm.description,
     );
 
     return {

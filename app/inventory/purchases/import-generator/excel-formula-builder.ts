@@ -36,15 +36,15 @@ export function buildCalculatedRow(
     selectedPo: OdooPurchaseOrderOption,
     dateChargement: string,
     departement: string,
-    rowIndex: number,      // Numéro de ligne Excel (ex: 2)
-    globalCounter: number  // Numéro séquentiel
+    rowIndex: number,
+    globalCounter: number,
 ): CalculatedRowData {
     const formattedDate = dateChargement.replace(/-/g, "");
 
-    // 1. Calculs financiers
-    const calculatedPublicPrice = departement === "Beauty"
-        ? product.prix
-        : Number((product.prix * 1.25).toFixed(2));
+    const calculatedPublicPrice =
+        departement === "Beauty"
+            ? product.prix
+            : Number((product.prix * 1.25).toFixed(2));
 
     const pDollar = Number((product.pu * 1.2).toFixed(2));
     const cout = Number((product.pu * product.caa).toFixed(2));
@@ -58,7 +58,6 @@ export function buildCalculatedRow(
     let nomFormula: string;
     let formattedProductName: string;
 
-    // ✅ RÈGLE SPÉCIFIQUE FEMME / ENFANT
     if (departement === "Femme" || departement === "Enfant") {
         const supplierCode = selectedPo.supplierName.includes("-")
             ? selectedPo.supplierName.split("-")[1].trim()
@@ -73,20 +72,32 @@ export function buildCalculatedRow(
 
         barcode = `${selectedPo.name}${formattedDate.substring(1)}${globalCounter}`;
 
-        // Description = coderemise - famille couleur - hscode
         const familleVal = product.famille || "";
         const couleurVal = product.couleur || "";
-        descValue = `${baseCode} - ${familleVal} ${couleurVal} - ${product.code_hs}`.replace(/\s+/g, " ").trim();
+        descValue = `${baseCode} - ${familleVal} ${couleurVal} - ${product.code_hs}`
+            .replace(/\s+/g, " ")
+            .trim();
 
-        // ✅ FORMULE EXCEL DU NOM : Description (Z) - Taille (L) - [Codebarre (D)]
         nomFormula = `Z${rowIndex}&" - "&L${rowIndex}&" ["&D${rowIndex}&"]"`;
         formattedProductName = `${descValue} - ${product.taille || ""} [${barcode}]`;
     } else {
-        // Mode Beauty
-        const marqueTxt = product.marque && product.marque.trim() ? product.marque.trim() : "A remplacer";
-        descValue = `marque : ${marqueTxt} [${product.code_hs}]`;
+        // Mode Beauty :
+        // - Nouveau code HS : $marque : $description [$hs_code]
+        // - Produit trouvé  : nom conservé (product.nom)
+        const marqueTxt =
+            product.marque && product.marque.trim()
+                ? product.marque.trim()
+                : "A remplacer";
+        const rawDesc = product.description ? product.description.trim() : "";
 
-        // Formule Excel du Nom Beauty = Description (Z) & " [" & Codebarre (D) & "]"
+        if (product.nom && product.nom.trim()) {
+            descValue = product.nom.trim();
+        } else if (rawDesc) {
+            descValue = `${marqueTxt} : ${rawDesc} [${product.code_hs}]`;
+        } else {
+            descValue = `${marqueTxt} [${product.code_hs}]`;
+        }
+
         nomFormula = `Z${rowIndex}&" ["&D${rowIndex}&"]"`;
         formattedProductName = `${descValue} [${barcode}]`;
     }
@@ -99,11 +110,11 @@ export function buildCalculatedRow(
         prixPublicCell: { v: calculatedPublicPrice, t: "n" },
         prixOdooCell: { f: `(R${rowIndex}+10)/1.25`, v: prixOdoo, t: "n" },
         margeCell: { f: `S${rowIndex}-Q${rowIndex}`, v: marge, t: "n" },
-        descriptionCell: { v: descValue, t: "s" }, // Restera tel quel dans la colonne Z
+        descriptionCell: { v: descValue, t: "s" },
         nomCell: {
-            f: nomFormula, // ✅ Formule Excel demandée =Z2&" - "&L2&" ["&D2&"]"
+            f: nomFormula,
             v: formattedProductName,
-            t: "s"
+            t: "s",
         },
         preview: {
             barcode,

@@ -1,7 +1,6 @@
-// app/inventory/purchases/import-generator/purchase-import-generator-client.tsx
 "use client";
 
-import React, { useState, useEffect, useReducer, useCallback } from "react";
+import React, { useState, useReducer, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -12,6 +11,7 @@ import {
     Eraser,
     FileSpreadsheet,
     Loader2,
+    RefreshCw,
     Trash2,
     DownloadCloud,
     Hash,
@@ -25,8 +25,7 @@ import { Button } from "@/components/ui/button";
 import {
     getOdooPurchaseOrdersForImport,
     getOdooLogPurchaseOrders,
-    getOdooProductCategories,
-    getOdooPosCategories,
+    type LogPurchaseOrderOption,
     type OdooOption,
 } from "../import-actions";
 
@@ -43,21 +42,23 @@ import {
     resetSession,
     type PurchaseImportSession,
 } from "./_lib/session-actions";
-import PurchaseOrderSelector, { OdooPurchaseOrderOption } from "../_lib/_components/purchase-order-selector";
-import GlobalParamsSection, { deriveDepartement } from "./_components/global-params-section";
+import PurchaseOrderSelector, {
+    type OdooPurchaseOrderOption,
+} from "../_lib/_components/purchase-order-selector";
+import GlobalParamsSection, {
+    deriveDepartement,
+} from "./_components/global-params-section";
 import { computeDescriptionAndName } from "./_lib/product-form-logic";
 import ProductFormSection from "./_components/product-form-section";
-
-interface LogPurchaseOrderOption extends OdooOption {
-    partner_id?: [number, string];
-}
 
 interface Props {
     initialSession: PurchaseImportSession | null;
     requestedSessionId: string | null;
+    initialPurchaseOrders: OdooPurchaseOrderOption[];
+    initialLogPurchaseOrders: LogPurchaseOrderOption[];
+    initialProductCategories: OdooOption[];
+    initialPosCategories: OdooOption[];
 }
-
-// ─── Helpers ────────────────────────────────────────────────
 
 function calculateCodeRemise(
     po: OdooPurchaseOrderOption | null,
@@ -73,19 +74,23 @@ function calculateCodeRemise(
     return `${supplierPart}${poClean}${yearLastTwo}${weekStr}`;
 }
 
-// ─── Composant principal ────────────────────────────────────
-
 export default function PurchaseImportGeneratorClient({
     initialSession,
     requestedSessionId,
+    initialPurchaseOrders,
+    initialLogPurchaseOrders,
+    initialProductCategories,
+    initialPosCategories,
 }: Props) {
     const router = useRouter();
 
-    const [purchaseOrders, setPurchaseOrders] = useState<OdooPurchaseOrderOption[]>([]);
-    const [loading, setLoading] = useState<boolean>(true);
-    const [logPurchaseOrders, setLogPurchaseOrders] = useState<LogPurchaseOrderOption[]>([]);
-    const [odooProductCategories, setOdooProductCategories] = useState<OdooOption[]>([]);
-    const [odooPosCategories, setOdooPosCategories] = useState<OdooOption[]>([]);
+    const [purchaseOrders, setPurchaseOrders] =
+        useState<OdooPurchaseOrderOption[]>(initialPurchaseOrders);
+    const [logPurchaseOrders, setLogPurchaseOrders] =
+        useState<LogPurchaseOrderOption[]>(initialLogPurchaseOrders);
+    const [odooProductCategories] = useState<OdooOption[]>(initialProductCategories);
+    const [odooPosCategories] = useState<OdooOption[]>(initialPosCategories);
+    const [refreshing, setRefreshing] = useState(false);
 
     const [selectedPoId, setSelectedPoId] = useState<number | null>(
         initialSession?.selected_po_id ?? null,
@@ -120,23 +125,21 @@ export default function PurchaseImportGeneratorClient({
     const currentCodeRemise = calculateCodeRemise(selectedPo, dateChargement);
     const departement = deriveDepartement(selectedPo);
 
-    // ─── Session hooks ───────────────────────────────────────
-    const handleSessionReady = useCallback(
-        (session: PurchaseImportSession) => {
-            setSessionId(session.id);
-            setSessionUpdatedAt(session.updated_at);
-            setPolog(session.polog);
-            setDateChargement(session.date_chargement);
-            setProducts(session.products);
+    const handleSessionReady = useCallback((session: PurchaseImportSession) => {
+        setSessionId(session.id);
+        setSessionUpdatedAt(session.updated_at);
+        setPolog(session.polog);
+        setDateChargement(session.date_chargement);
+        setProducts(session.products);
 
-            const url = new URL(window.location.href);
-            url.searchParams.set("session", session.id);
-            router.replace(url.pathname + "?" + url.searchParams.toString(), {
-                scroll: false,
-            });
-        },
-        [router],
-    );
+        const url = new URL(window.location.href);
+        url.searchParams.set("session", session.id);
+        window.history.replaceState(
+            null,
+            "",
+            url.pathname + "?" + url.searchParams.toString(),
+        );
+    }, []);
 
     const handleConflict = useCallback(
         (fresh: PurchaseImportSession) => {
@@ -174,35 +177,23 @@ export default function PurchaseImportGeneratorClient({
         onConflict: handleConflict,
     });
 
-    // ─── Chargement Odoo ─────────────────────────────────────
-    useEffect(() => {
-        async function loadOdooOrders() {
-            try {
-                setLoading(true);
-                const [poData, logPoData, prodCatData, posCatData] = await Promise.all([
-                    getOdooPurchaseOrdersForImport(),
-                    getOdooLogPurchaseOrders(),
-                    getOdooProductCategories(),
-                    getOdooPosCategories(),
-                ]);
-                const filteredProdCatData = prodCatData.filter(
-                    (cat) => cat.name.split("/").length < 4,
-                );
-                setPurchaseOrders(poData);
-                setLogPurchaseOrders(logPoData as LogPurchaseOrderOption[]);
-                setOdooProductCategories(filteredProdCatData);
-                setOdooPosCategories(posCatData);
-            } catch (err) {
-                console.error("Erreur de chargement Odoo:", err);
-                toast.error("Impossible de récupérer les données Odoo.");
-            } finally {
-                setLoading(false);
-            }
+    const handleRefreshOdoo = async () => {
+        setRefreshing(true);
+        try {
+            const [poData, logData] = await Promise.all([
+                getOdooPurchaseOrdersForImport(true),
+                getOdooLogPurchaseOrders(true),
+            ]);
+            setPurchaseOrders(poData);
+            setLogPurchaseOrders(logData);
+            toast.success("POs Odoo actualisés");
+        } catch {
+            toast.error("Échec actualisation Odoo");
+        } finally {
+            setRefreshing(false);
         }
-        loadOdooOrders();
-    }, []);
+    };
 
-    // ─── Handlers ────────────────────────────────────────────
     const handleSelectPo = useCallback(
         async (po: OdooPurchaseOrderOption | null) => {
             if (!po) {
@@ -238,18 +229,22 @@ export default function PurchaseImportGeneratorClient({
         [selectedPoId, ensureSessionForPo, router],
     );
 
-    const handleFieldChange = (field: keyof ProductFormState, value: any) => {
+    const handleFieldChange = (
+        field: keyof ProductFormState,
+        value: string | number,
+    ) => {
         const updatedForm = { ...form, [field]: value };
         let desc = updatedForm.description;
         let nom = updatedForm.nom;
 
         if (departement === "Beauty") {
-            if (field === "marque" || field === "codeHs") {
-                const marqueTxt = updatedForm.marque.trim()
-                    ? updatedForm.marque.trim()
-                    : "A remplacer";
-                desc = `marque : ${marqueTxt} [${updatedForm.codeHs.trim()}]`;
-                nom = desc;
+            if (field === "marque" || field === "description" || field === "codeHs") {
+                const marqueTxt = updatedForm.marque.trim() || "A remplacer";
+                const descTxt = updatedForm.description.trim();
+                const hsTxt = updatedForm.codeHs.trim();
+                nom = descTxt
+                    ? `${marqueTxt} : ${descTxt} [${hsTxt}]`
+                    : `${marqueTxt} [${hsTxt}]`;
             }
         } else if (departement === "Femme" || departement === "Enfant") {
             if (
@@ -270,7 +265,7 @@ export default function PurchaseImportGeneratorClient({
             fields: {
                 [field]: value,
                 description: desc,
-                nom: nom,
+                nom,
                 codeFournisseur: departement === "Femme" ? updatedForm.marque : "",
             },
         });
@@ -282,11 +277,6 @@ export default function PurchaseImportGeneratorClient({
         },
         [],
     );
-
-    const handleDateChargementChange = (e: React.ChangeEvent<HTMLInputElement>) =>
-        setDateChargement(e.target.value);
-    const handlePologChange = (e: React.ChangeEvent<HTMLSelectElement>) =>
-        setPolog(e.target.value);
 
     const handleFormKeyDown = (e: React.KeyboardEvent<HTMLFormElement>) => {
         if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") {
@@ -306,6 +296,7 @@ export default function PurchaseImportGeneratorClient({
             form.famille,
             form.couleur,
             form.taille,
+            form.description
         );
 
         const newLine: ProductLine = {
@@ -375,20 +366,25 @@ export default function PurchaseImportGeneratorClient({
         }
     };
 
-    // ─── Rendu ───────────────────────────────────────────────
     return (
         <div>
-            {/* ══════════════ HEADER ══════════════ */}
             <ReportPageHeader
                 title="Générateur d'import Excel"
                 subtitle="Créer un fichier d'import Odoo pour les réceptions d'achats"
                 badge={{ label: "Achats", tone: "sky" }}
                 extraActions={
                     <div className="flex flex-wrap items-center gap-2">
-                        <SaveIndicator
-                            status={saveStatus}
-                            lastSavedAt={lastSavedAt}
-                        />
+                        <SaveIndicator status={saveStatus} lastSavedAt={lastSavedAt} />
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={refreshing}
+                            onClick={handleRefreshOdoo}
+                            className="h-7 px-2 text-[11px] gap-1.5 border-border/80 hover:bg-accent/60"
+                        >
+                            <RefreshCw className={`w-3 h-3 ${refreshing ? "animate-spin" : ""}`} />
+                            <span className="hidden sm:inline">Actualiser POs</span>
+                        </Button>
                         {sessionId && (
                             <Button
                                 variant="outline"
@@ -397,9 +393,7 @@ export default function PurchaseImportGeneratorClient({
                                 className="h-7 px-2 text-[11px] gap-1.5 border-border/80 hover:bg-accent/60"
                             >
                                 <Eraser className="w-3 h-3" />
-                                <span className="hidden sm:inline">
-                                    Vider la session
-                                </span>
+                                <span className="hidden sm:inline">Vider la session</span>
                             </Button>
                         )}
                     </div>
@@ -410,48 +404,33 @@ export default function PurchaseImportGeneratorClient({
                     className="inline-flex items-center gap-1.5 h-7 px-2 text-[11px] font-medium rounded-md border border-border/80 bg-background hover:bg-accent/60 text-muted-foreground"
                 >
                     <ArrowLeft size={12} />
-                    <span className="hidden sm:inline">
-                        Retour aux réceptions
-                    </span>
+                    <span className="hidden sm:inline">Retour aux réceptions</span>
                 </Link>
             </ReportPageHeader>
 
-            {/* ══════════════ CONTENU ══════════════ */}
             <div className="p-4 sm:p-5 space-y-4">
-                {/* Bandeaux d'info */}
                 {requestedSessionId && !initialSession && (
                     <div className="rounded-lg border border-amber-200/60 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-[11px] text-amber-700 dark:text-amber-400">
-                        La session demandée est introuvable. Sélectionnez un PO
-                        pour en créer une nouvelle.
+                        La session demandée est introuvable. Sélectionnez un PO pour en créer une nouvelle.
                     </div>
                 )}
 
                 {initialSession && initialSession.products.length > 0 && (
                     <div className="rounded-lg border border-sky-200/60 dark:border-sky-800/60 bg-sky-50 dark:bg-sky-950/30 px-3 py-2 text-[11px] text-sky-700 dark:text-sky-400">
-                        Session existante reprise automatiquement (
-                        {initialSession.products.length} ligne
-                        {initialSession.products.length > 1 ? "s" : ""}). Les
-                        modifications sont partagées avec tous les utilisateurs
-                        autorisés.
+                        Session existante reprise automatiquement ({initialSession.products.length} ligne
+                        {initialSession.products.length > 1 ? "s" : ""}). Les modifications sont partagées avec tous les utilisateurs autorisés.
                     </div>
                 )}
 
                 <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
                     <div className="xl:col-span-7 space-y-4">
-                        {/* Sélection du PO */}
                         <ReportSection index={1} title="Commande d'origine">
                             <div className="rounded-lg border border-border/60 bg-card shadow-2xs p-4">
-                                {loading ? (
-                                    <div className="py-6 text-center text-[11px] font-semibold text-muted-foreground animate-pulse">
-                                        Récupération des données Odoo...
-                                    </div>
-                                ) : (
-                                    <PurchaseOrderSelector
-                                        purchaseOrders={purchaseOrders}
-                                        selectedPoId={selectedPoId}
-                                        onSelectPo={handleSelectPo}
-                                    />
-                                )}
+                                <PurchaseOrderSelector
+                                    purchaseOrders={purchaseOrders}
+                                    selectedPoId={selectedPoId}
+                                    onSelectPo={handleSelectPo}
+                                />
                             </div>
                         </ReportSection>
 
@@ -466,7 +445,6 @@ export default function PurchaseImportGeneratorClient({
                             />
                         )}
 
-                        {/* Formulaire produit */}
                         {selectedPo && (
                             <ProductFormSection
                                 form={form}
@@ -481,35 +459,19 @@ export default function PurchaseImportGeneratorClient({
                             />
                         )}
 
-                        {/* Tableau récapitulatif */}
                         {selectedPo && products.length > 0 && (
-                            <ReportSection
-                                index={4}
-                                title={`Lignes enregistrées · ${products.length}`}
-                            >
+                            <ReportSection index={4} title={`Lignes enregistrées · ${products.length}`}>
                                 <div className="rounded-lg border border-border/60 bg-card shadow-2xs overflow-hidden">
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-left text-[11px]">
                                             <thead className="bg-[#101c30] text-white">
                                                 <tr>
-                                                    <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10px]">
-                                                        Nom
-                                                    </th>
-                                                    <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10px]">
-                                                        Code HS
-                                                    </th>
-                                                    <th className="px-3 py-2 text-right font-bold uppercase tracking-wider text-[10px]">
-                                                        Qté
-                                                    </th>
-                                                    <th className="px-3 py-2 text-right font-bold uppercase tracking-wider text-[10px]">
-                                                        PU
-                                                    </th>
-                                                    <th className="px-3 py-2 text-right font-bold uppercase tracking-wider text-[10px]">
-                                                        Coût calc.
-                                                    </th>
-                                                    <th className="px-3 py-2 text-center font-bold uppercase tracking-wider text-[10px] w-[50px]">
-                                                        —
-                                                    </th>
+                                                    <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10px]">Nom</th>
+                                                    <th className="px-3 py-2 font-bold uppercase tracking-wider text-[10px]">Code HS</th>
+                                                    <th className="px-3 py-2 text-right font-bold uppercase tracking-wider text-[10px]">Qté</th>
+                                                    <th className="px-3 py-2 text-right font-bold uppercase tracking-wider text-[10px]">PU</th>
+                                                    <th className="px-3 py-2 text-right font-bold uppercase tracking-wider text-[10px]">Coût calc.</th>
+                                                    <th className="px-3 py-2 text-center font-bold uppercase tracking-wider text-[10px] w-[50px]">—</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
@@ -518,27 +480,17 @@ export default function PurchaseImportGeneratorClient({
                                                         key={p.id}
                                                         className="hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors"
                                                     >
-                                                        <td className="px-3 py-1.5 font-bold text-slate-800 dark:text-slate-200">
-                                                            {p.nom}
-                                                        </td>
-                                                        <td className="px-3 py-1.5 text-muted-foreground font-mono">
-                                                            {p.code_hs}
-                                                        </td>
-                                                        <td className="px-3 py-1.5 text-right font-mono font-bold text-slate-900 dark:text-white">
-                                                            {p.quantity}
-                                                        </td>
-                                                        <td className="px-3 py-1.5 text-right font-mono tabular-nums text-muted-foreground">
-                                                            ${p.pu}
-                                                        </td>
+                                                        <td className="px-3 py-1.5 font-bold text-slate-800 dark:text-slate-200">{p.nom}</td>
+                                                        <td className="px-3 py-1.5 text-muted-foreground font-mono">{p.code_hs}</td>
+                                                        <td className="px-3 py-1.5 text-right font-mono font-bold text-slate-900 dark:text-white">{p.quantity}</td>
+                                                        <td className="px-3 py-1.5 text-right font-mono tabular-nums text-muted-foreground">${p.pu}</td>
                                                         <td className="px-3 py-1.5 text-right font-mono tabular-nums font-bold text-primary">
                                                             ${(p.pu * p.caa).toFixed(2)}
                                                         </td>
                                                         <td className="px-3 py-1.5 text-center">
                                                             <button
                                                                 type="button"
-                                                                onClick={() =>
-                                                                    handleRemoveProduct(p.id)
-                                                                }
+                                                                onClick={() => handleRemoveProduct(p.id)}
                                                                 className="text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 p-1 rounded-md transition-colors"
                                                             >
                                                                 <Trash2 size={12} />
@@ -553,9 +505,7 @@ export default function PurchaseImportGeneratorClient({
                                     <div className="px-3 py-2 border-t border-border/60 flex justify-end bg-muted/20">
                                         <Button
                                             onClick={handleExport}
-                                            disabled={
-                                                !polog.trim() || !dateChargement
-                                            }
+                                            disabled={!polog.trim() || !dateChargement}
                                             size="sm"
                                             className="h-7 px-3 text-[11px] gap-1.5"
                                         >
@@ -568,7 +518,6 @@ export default function PurchaseImportGeneratorClient({
                         )}
                     </div>
 
-                    {/* Métadonnées Odoo */}
                     <div className="xl:col-span-5 space-y-4">
                         <ReportSection index={5} title="Contrôle Odoo">
                             <div className="rounded-lg border border-border/60 bg-card shadow-2xs p-4">
@@ -579,12 +528,8 @@ export default function PurchaseImportGeneratorClient({
                                                 <Hash size={14} />
                                             </div>
                                             <div className="min-w-0">
-                                                <span className="text-[9px] font-bold text-muted-foreground uppercase block">
-                                                    ID Externe
-                                                </span>
-                                                <span className="font-mono font-bold text-foreground truncate block">
-                                                    {selectedPo.externalId}
-                                                </span>
+                                                <span className="text-[9px] font-bold text-muted-foreground uppercase block">ID Externe</span>
+                                                <span className="font-mono font-bold text-foreground truncate block">{selectedPo.externalId}</span>
                                             </div>
                                         </div>
 
@@ -593,15 +538,9 @@ export default function PurchaseImportGeneratorClient({
                                                 <User size={14} />
                                             </div>
                                             <div className="min-w-0">
-                                                <span className="text-[9px] font-bold text-muted-foreground uppercase block">
-                                                    Fournisseur
-                                                </span>
-                                                <span className="font-bold text-foreground block truncate">
-                                                    {selectedPo.supplierName}
-                                                </span>
-                                                <span className="text-[10px] text-muted-foreground font-mono block mt-0.5">
-                                                    ID : {selectedPo.supplierId}
-                                                </span>
+                                                <span className="text-[9px] font-bold text-muted-foreground uppercase block">Fournisseur</span>
+                                                <span className="font-bold text-foreground block truncate">{selectedPo.supplierName}</span>
+                                                <span className="text-[10px] text-muted-foreground font-mono block mt-0.5">ID : {selectedPo.supplierId}</span>
                                             </div>
                                         </div>
 
@@ -610,19 +549,14 @@ export default function PurchaseImportGeneratorClient({
                                                 <FileSpreadsheet size={14} />
                                             </div>
                                             <div className="min-w-0">
-                                                <span className="text-[9px] font-bold text-muted-foreground uppercase block">
-                                                    Réf Fournisseur
-                                                </span>
-                                                <span className="font-bold text-foreground block truncate">
-                                                    {selectedPo.supplierRef || "N/D"}
-                                                </span>
+                                                <span className="text-[9px] font-bold text-muted-foreground uppercase block">Réf Fournisseur</span>
+                                                <span className="font-bold text-foreground block truncate">{selectedPo.supplierRef || "N/D"}</span>
                                             </div>
                                         </div>
                                     </div>
                                 ) : (
                                     <div className="py-8 text-center text-[11px] text-muted-foreground italic font-light">
-                                        Sélectionnez un bon de commande pour
-                                        visualiser les métadonnées.
+                                        Sélectionnez un bon de commande pour visualiser les métadonnées.
                                     </div>
                                 )}
                             </div>
@@ -633,8 +567,6 @@ export default function PurchaseImportGeneratorClient({
         </div>
     );
 }
-
-// ─── Indicateur de sauvegarde ───────────────────────────────
 
 function SaveIndicator({
     status,
@@ -650,12 +582,7 @@ function SaveIndicator({
         { Icon: typeof Cloud; tone: string; label: string; spin?: boolean }
     > = {
         pending: { Icon: Cloud, tone: "text-muted-foreground", label: "Modifs…" },
-        saving: {
-            Icon: Loader2,
-            tone: "text-sky-500",
-            label: "Sauvegarde…",
-            spin: true,
-        },
+        saving: { Icon: Loader2, tone: "text-sky-500", label: "Sauvegarde…", spin: true },
         saved: { Icon: CheckCircle2, tone: "text-emerald-500", label: "Sauvegardé" },
         error: { Icon: CloudOff, tone: "text-rose-500", label: "Erreur" },
     };

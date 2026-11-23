@@ -1,4 +1,3 @@
-// app/inventory/purchases/import-generator/_components/product-form-section.tsx
 "use client";
 
 import { useCallback } from "react";
@@ -39,7 +38,6 @@ export default function ProductFormSection({
     onFieldChange,
     onFieldsUpdate,
 }: Props) {
-    // ─── Lookup HS code (auto-fill Odoo) ────────────────────
     const { lookup, isLooking, status } = useHsCodeLookup({
         form,
         departement,
@@ -62,7 +60,6 @@ export default function ProductFormSection({
         [lookup, form.codeHs],
     );
 
-    // Mapping statut hook → prop `autoFillSuccess` (bool | null)
     const autoFillSuccess =
         status === "success" ? true : status === "not-found" ? false : null;
 

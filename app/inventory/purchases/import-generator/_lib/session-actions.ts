@@ -1,4 +1,3 @@
-// app/inventory/purchases/import-generator/_lib/session-actions.ts
 "use server";
 
 import { revalidatePath } from "next/cache";
@@ -10,10 +9,6 @@ function toJson<T>(value: T): Json {
     return value as unknown as Json;
 }
 
-/**
- * Mappe un row Supabase (avec colonnes JSONB typées `Json`)
- * vers notre type strict `PurchaseImportSession`.
- */
 function rowToSession(row: Record<string, unknown>): PurchaseImportSession {
     return {
         id: row.id as string,
@@ -29,8 +24,6 @@ function rowToSession(row: Record<string, unknown>): PurchaseImportSession {
         updated_at: row.updated_at as string,
     };
 }
-
-// ─── Types ──────────────────────────────────────────────────
 
 export interface PurchaseImportSession {
     id: string;
@@ -61,16 +54,9 @@ interface SavePayload {
     date_chargement: string;
     departement: string;
     products: ProductLine[];
-    /** updated_at local — détection de conflit */
     knownUpdatedAt?: string;
 }
 
-// ─── Actions ────────────────────────────────────────────────
-
-/**
- * Cherche la session draft existante pour ce PO (peu importe l'utilisateur),
- * ou en crée une nouvelle vierge.
- */
 export async function findOrCreateSession(
     selectedPoId: number,
     selectedPoData: PurchaseImportSession["selected_po_data"],
@@ -80,7 +66,6 @@ export async function findOrCreateSession(
 
     const supabase = await createClient();
 
-    // 1. Cherche la session draft existante pour ce PO
     const { data: existing } = await supabase
         .from("purchase_import_sessions")
         .select("*")
@@ -90,7 +75,6 @@ export async function findOrCreateSession(
 
     if (existing) return { session: rowToSession(existing) };
 
-    // 2. Sinon, crée une session vierge
     const { data: created, error } = await supabase
         .from("purchase_import_sessions")
         .insert({
@@ -104,8 +88,6 @@ export async function findOrCreateSession(
         .single();
 
     if (error) {
-        // Race condition possible : quelqu'un a créé en parallèle
-        // → on retente un SELECT
         const { data: retry } = await supabase
             .from("purchase_import_sessions")
             .select("*")
@@ -120,10 +102,6 @@ export async function findOrCreateSession(
     return { session: rowToSession(created) };
 }
 
-/**
- * Upsert d'une session (auto-save).
- * Retourne `conflict: true` si `knownUpdatedAt` ne correspond plus (autre user a modifié).
- */
 export async function saveSession(payload: SavePayload): Promise<{
     session: PurchaseImportSession | null;
     conflict?: boolean;
@@ -134,7 +112,6 @@ export async function saveSession(payload: SavePayload): Promise<{
 
     const supabase = await createClient();
 
-    // ─── 1. Vérif conflit (optimistic lock simple) ──────────
     if (payload.knownUpdatedAt) {
         const { data: fresh } = await supabase
             .from("purchase_import_sessions")
@@ -151,7 +128,6 @@ export async function saveSession(payload: SavePayload): Promise<{
         }
     }
 
-    // ─── 2. Update ──────────────────────────────────────────
     const { data, error } = await supabase
         .from("purchase_import_sessions")
         .update({
@@ -171,9 +147,6 @@ export async function saveSession(payload: SavePayload): Promise<{
     return { session: rowToSession(data) };
 }
 
-/**
- * Charge une session par ID (deep-link via ?session=).
- */
 export async function loadSessionById(
     sessionId: string,
 ): Promise<{ session: PurchaseImportSession | null; error?: string }> {
@@ -188,12 +161,9 @@ export async function loadSessionById(
         .maybeSingle();
 
     if (error) return { session: null, error: error.message };
-    return { session: data as PurchaseImportSession | null };
+    return { session: data ? rowToSession(data) : null };
 }
 
-/**
- * Marque la session comme exportée (libère le slot draft pour ce PO).
- */
 export async function markSessionExported(
     sessionId: string,
 ): Promise<{ success: boolean; error?: string }> {
@@ -214,9 +184,6 @@ export async function markSessionExported(
     return { success: true };
 }
 
-/**
- * Vide la session courante (garde le PO, reset les champs).
- */
 export async function resetSession(
     sessionId: string,
     selectedPoData: PurchaseImportSession["selected_po_data"],
