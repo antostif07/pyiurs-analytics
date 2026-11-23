@@ -10,6 +10,8 @@ import type {
     StockPoRow,
 } from "../types";
 
+export type StockPoMode = "bty_fem" | "polog";
+
 export const STOCK_PO_FILE_FIELDS = [
     "x_studio_fichier_excel_ca",
     "x_studio_facture_fournisseur",
@@ -95,6 +97,8 @@ export function clearStockPoReportCache() {
     g.__stockPoCache?.clear();
 }
 
+// ─── Auth & Permissions ───────────────────────────────────────────────────
+
 export async function requireStockPoAccess() {
     const auth = await getServerAuth();
     if (!auth.user) return { ok: false as const, status: 401, error: "Non authentifié" };
@@ -128,6 +132,8 @@ export async function requireStockPoValidateAccess(requireAdminOnly = false) {
     }
     return { ok: true as const, user: auth.user, profile: auth.profile };
 }
+
+// ─── Découverte des champs filename Odoo Studio ───────────────────────────
 
 function extractFilenameAttrFromXml(arch: string, binaryField: string): string | null {
     const patterns = [
@@ -263,6 +269,8 @@ function detectFileFormat(
     return { mimeType: fallbackMime || "application/octet-stream", ext: "bin" };
 }
 
+// ─── Validations Supabase (métadonnées locales) ───────────────────────────
+
 async function fetchStockPoValidationsChunked(poIds: number[]) {
     if (poIds.length === 0) return new Map<number, StockPoValidationRow>();
     const supabase = await createClient();
@@ -296,11 +304,15 @@ async function fetchStockPoValidationsChunked(poIds: number[]) {
     return map;
 }
 
+// ─── Liste principale Stock PO & Stock POLOG ──────────────────────────────
+
 export async function fetchStockPoReport(
     filters: StockPoFilter,
-    options?: { forceRefresh?: boolean },
+    options?: { forceRefresh?: boolean; mode?: StockPoMode },
 ): Promise<StockPoReportData> {
-    const cacheKey = `${filters.from}:${filters.to}:${filters.supplierPrefix}`;
+    const mode: StockPoMode = options?.mode ?? "bty_fem";
+    const cacheKey = `${mode}:${filters.from}:${filters.to}:${filters.supplierPrefix}`;
+
     if (!g.__stockPoCache) g.__stockPoCache = new Map();
     if (!g.__stockPoInFlight) g.__stockPoInFlight = new Map();
 
@@ -323,7 +335,9 @@ export async function fetchStockPoReport(
                 ["create_date", "<=", `${filters.to} 23:59:59`],
             ];
 
-            if (filters.supplierPrefix === "P.BTY") {
+            if (mode === "polog") {
+                domain.push(["partner_id.name", "=ilike", "LOG%"]);
+            } else if (filters.supplierPrefix === "P.BTY") {
                 domain.push(["partner_id.name", "=ilike", "P.BTY%"]);
             } else if (filters.supplierPrefix === "P.FEM") {
                 domain.push(["partner_id.name", "=ilike", "P.FEM%"]);
@@ -556,6 +570,8 @@ export async function fetchStockPoReport(
     return flight;
 }
 
+// ─── Lecture du fichier binaire Odoo avec nom d'origine exact ─────────────
+
 export async function fetchStockPoBinaryFile(poId: number, field: StockPoFileField) {
     const filenameFields = await resolveFilenameFields();
     const fnField = filenameFields[field];
@@ -648,6 +664,8 @@ export async function fetchStockPoBinaryFile(poId: number, field: StockPoFileFie
 
     return { fileName, mimeType, buffer };
 }
+
+// ─── Parseur Excel serveur (xlsx / xls / csv) ─────────────────────────────
 
 export async function fetchStockPoExcelPreview(
     poId: number,

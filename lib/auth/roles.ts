@@ -182,22 +182,6 @@ export function isControlsRole(role: unknown): role is ControlsRole {
     );
 }
 
-export const CONTROLLER_CONTROLS_ALLOWED_PATHS = [
-    "/controls",
-    "/controls/sans-cod",
-    "/controls/validation-remise",
-    "/controls/stock-po",
-] as const;
-
-export const MANAGER_CONTROLS_ALLOWED_PATHS = [
-    "/controls/sans-cod",
-    "/controls/validation-remise",
-] as const;
-
-export const INVENTORY_CONTROLS_ALLOWED_PATHS = [
-    "/controls/stock-po",
-] as const;
-
 export const STOCK_PO_ALLOWED_ROLES = [
     "admin",
     "controller",
@@ -214,4 +198,40 @@ export function canAccessStockPo(role: unknown): boolean {
 
 export function canEditStockPo(role: unknown): boolean {
     return role === "admin" || role === "controller";
+}
+
+export const CONTROLLER_CONTROLS_ALLOWED_PATHS = [
+    "/controls",
+    "/controls/sans-cod",
+    "/controls/validation-remise",
+    "/controls/stock-po",
+    "/controls/stock-polog",
+    "/controls/store-transfers",
+] as const;
+
+export const MANAGER_CONTROLS_ALLOWED_PATHS = [
+    "/controls/sans-cod",
+    "/controls/validation-remise",
+    "/controls/store-transfers",
+] as const;
+
+export const INVENTORY_CONTROLS_ALLOWED_PATHS = [
+    "/controls/stock-po",
+    "/controls/stock-polog",
+    "/controls/store-transfers",
+] as const;
+
+export const STORE_TRANSFERS_ALLOWED_ROLES = [
+    "admin",
+    "controller",
+    "manager",
+    "inventory-manager",
+    "inventory_manager",
+] as const;
+
+export function canAccessStoreTransfers(role: unknown): boolean {
+    return (
+        typeof role === "string" &&
+        (STORE_TRANSFERS_ALLOWED_ROLES as readonly string[]).includes(role)
+    );
 }

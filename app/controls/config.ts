@@ -5,6 +5,8 @@ import {
     Barcode,
     BadgePercent,
     PackageCheck,
+    PackageSearch,
+    ArrowLeftRight,
 } from "lucide-react";
 
 const CONTROLS_ADMIN_CONTROLLER: UserRole[] = ["admin", "controller"];
@@ -12,6 +14,13 @@ const CONTROLS_SALES_SCOPE: UserRole[] = ["admin", "controller", "manager"];
 const CONTROLS_STOCK_PO_SCOPE: UserRole[] = [
     "admin",
     "controller",
+    "inventory-manager",
+    "inventory_manager",
+];
+const CONTROLS_TRANSFERS_SCOPE: UserRole[] = [
+    "admin",
+    "controller",
+    "manager",
     "inventory-manager",
     "inventory_manager",
 ];
@@ -60,6 +69,20 @@ export const NAV_GROUPS: NavGroup[] = [
                 icon: PackageCheck,
                 path: "/controls/stock-po",
                 roles: CONTROLS_STOCK_PO_SCOPE,
+            },
+            {
+                id: "controls-stock-polog",
+                label: "Stock POLOG",
+                icon: PackageSearch,
+                path: "/controls/stock-polog",
+                roles: CONTROLS_STOCK_PO_SCOPE,
+            },
+            {
+                id: "controls-store-transfers",
+                label: "Transferts Inter-Boutiques",
+                icon: ArrowLeftRight,
+                path: "/controls/store-transfers",
+                roles: CONTROLS_TRANSFERS_SCOPE,
             },
         ],
     },

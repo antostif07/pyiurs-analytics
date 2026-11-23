@@ -28,7 +28,13 @@ import type { StockPoFilter } from "../_lib/types";
 const selectClass =
     "h-7 text-[11.5px] bg-secondary/60 border-border hover:border-ring/60 focus:border-ring text-foreground/80 rounded-lg";
 
-export default function StockPoFilters({ filters }: { filters: StockPoFilter }) {
+export default function StockPoFilters({
+    filters,
+    hideSupplierFilter = false,
+}: {
+    filters: StockPoFilter;
+    hideSupplierFilter?: boolean;
+}) {
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const [dateOpen, setDateOpen] = useState(false);
@@ -70,7 +76,11 @@ export default function StockPoFilters({ filters }: { filters: StockPoFilter }) 
         <div className="flex flex-wrap items-center gap-1.5">
             <Popover open={dateOpen} onOpenChange={setDateOpen}>
                 <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-7 px-2 text-[11px] gap-1.5 font-normal">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2 text-[11px] gap-1.5 font-normal"
+                    >
                         <CalendarIcon className="w-3 h-3 text-muted-foreground shrink-0" />
                         {format(committedFrom, "dd MMM", { locale: fr })}
                         <span className="text-muted-foreground/50">→</span>
@@ -93,7 +103,10 @@ export default function StockPoFilters({ filters }: { filters: StockPoFilter }) 
                             className="h-6 px-2 text-[10px]"
                             onClick={() => {
                                 const prev = subMonths(now, 1);
-                                applyRange({ from: startOfMonth(prev), to: endOfMonth(prev) });
+                                applyRange({
+                                    from: startOfMonth(prev),
+                                    to: endOfMonth(prev),
+                                });
                             }}
                         >
                             Mois dernier
@@ -103,7 +116,10 @@ export default function StockPoFilters({ filters }: { filters: StockPoFilter }) 
                             size="sm"
                             className="h-6 px-2 text-[10px]"
                             onClick={() =>
-                                applyRange({ from: startOfMonth(subMonths(now, 2)), to: now })
+                                applyRange({
+                                    from: startOfMonth(subMonths(now, 2)),
+                                    to: now,
+                                })
                             }
                         >
                             3 derniers mois
@@ -119,7 +135,12 @@ export default function StockPoFilters({ filters }: { filters: StockPoFilter }) 
                         className="p-3"
                     />
                     <div className="flex items-center justify-end gap-2 border-t border-border/60 p-2">
-                        <Button variant="ghost" size="sm" className="h-7 text-[11px]" onClick={() => setDateOpen(false)}>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-[11px]"
+                            onClick={() => setDateOpen(false)}
+                        >
                             Annuler
                         </Button>
                         <Button
@@ -134,17 +155,28 @@ export default function StockPoFilters({ filters }: { filters: StockPoFilter }) 
                 </PopoverContent>
             </Popover>
 
-            <Select value={filters.supplierPrefix} onValueChange={handleSupplierChange}>
-                <SelectTrigger className={cn(selectClass, "w-[155px]")}>
-                    <Building2 className="w-3 h-3 text-muted-foreground shrink-0" />
-                    <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all" className="text-xs">P.BTY + P.FEM</SelectItem>
-                    <SelectItem value="P.BTY" className="text-xs">P.BTY uniquement</SelectItem>
-                    <SelectItem value="P.FEM" className="text-xs">P.FEM uniquement</SelectItem>
-                </SelectContent>
-            </Select>
+            {!hideSupplierFilter && (
+                <Select
+                    value={filters.supplierPrefix}
+                    onValueChange={handleSupplierChange}
+                >
+                    <SelectTrigger className={cn(selectClass, "w-[155px]")}>
+                        <Building2 className="w-3 h-3 text-muted-foreground shrink-0" />
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all" className="text-xs">
+                            P.BTY + P.FEM
+                        </SelectItem>
+                        <SelectItem value="P.BTY" className="text-xs">
+                            P.BTY uniquement
+                        </SelectItem>
+                        <SelectItem value="P.FEM" className="text-xs">
+                            P.FEM uniquement
+                        </SelectItem>
+                    </SelectContent>
+                </Select>
+            )}
         </div>
     );
 }

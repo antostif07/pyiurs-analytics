@@ -46,16 +46,20 @@ import type {
 type PoFileField = "x_studio_fichier_excel_ca" | "x_studio_facture_fournisseur";
 
 export default function StockPoClient({
+    mode = "bty_fem",
     initialData,
     initialQueryKeyString,
     initialFetchedAt,
     userRole,
 }: {
+    mode?: "bty_fem" | "polog";
     initialData?: StockPoReportData;
     initialQueryKeyString?: string;
     initialFetchedAt?: number;
     userRole: string;
 }) {
+    const isPolog = mode === "polog";
+
     const {
         data,
         filters,
@@ -66,6 +70,7 @@ export default function StockPoClient({
         refetch,
         dataUpdatedAt,
     } = useStockPo({
+        mode,
         initialData,
         initialQueryKeyString,
         initialFetchedAt,
@@ -109,7 +114,7 @@ export default function StockPoClient({
     const handleRefresh = async () => {
         const res = await refetch();
         if (res.isError) toast.error("Échec de l'actualisation");
-        else toast.success("Stock PO actualisés");
+        else toast.success(isPolog ? "Stock POLOG actualisés" : "Stock PO actualisés");
     };
 
     const handlePreviewFile = (
@@ -190,8 +195,12 @@ export default function StockPoClient({
     return (
         <div>
             <ReportPageHeader
-                title="Stock PO"
-                subtitle="Commandes d'achat P.BTY & P.FEM, pièces jointes et réceptions"
+                title={isPolog ? "Stock POLOG" : "Stock PO"}
+                subtitle={
+                    isPolog
+                        ? "Commandes d'achat fournisseurs LOG, pièces jointes et réceptions"
+                        : "Commandes d'achat P.BTY & P.FEM, pièces jointes et réceptions"
+                }
                 badge={{
                     label: canValidate ? "Contrôle Complet" : "Lecture seule",
                     tone: canValidate ? "emerald" : "neutral",
@@ -200,7 +209,7 @@ export default function StockPoClient({
                 isLoading={isFetching}
                 onRefresh={handleRefresh}
             >
-                <StockPoFilters filters={filters} />
+                <StockPoFilters filters={filters} hideSupplierFilter={isPolog} />
             </ReportPageHeader>
 
             <div className="p-4 sm:p-5 space-y-4">
@@ -228,7 +237,7 @@ export default function StockPoClient({
                     <CeoKpiCard
                         label="Total PO"
                         value={String(kpis.totalOrders)}
-                        subtitle="Fournisseurs P.BTY / P.FEM"
+                        subtitle={isPolog ? "Fournisseurs LOG" : "Fournisseurs P.BTY / P.FEM"}
                         icon={<PackageCheck className="w-3.5 h-3.5" />}
                         iconColor="text-sky-600 dark:text-sky-400"
                         iconBg="bg-sky-50 dark:bg-sky-950/40"
