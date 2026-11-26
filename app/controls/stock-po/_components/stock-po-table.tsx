@@ -78,24 +78,6 @@ function FileActionCell({
         return <span className="text-muted-foreground/40">—</span>;
     }
 
-    const lower = meta.fileName.toLowerCase();
-    const isExcel =
-        field === "x_studio_fichier_excel_ca" ||
-        lower.endsWith(".xlsx") ||
-        lower.endsWith(".xls") ||
-        lower.endsWith(".csv") ||
-        meta.mimeType.includes("spreadsheet") ||
-        meta.mimeType.includes("excel") ||
-        meta.mimeType.includes("csv");
-
-    const isPdfOrImage =
-        meta.mimeType === "application/pdf" ||
-        meta.mimeType.startsWith("image/") ||
-        lower.endsWith(".pdf") ||
-        /\.(png|jpe?g|webp)$/i.test(lower) ||
-        meta.mimeType === "application/octet-stream";
-
-    const canPreview = isExcel || isPdfOrImage;
     const downloadUrl = `/api/controls/stock-po/${row.id}/file?field=${field}&download=1`;
 
     return (
@@ -104,20 +86,18 @@ function FileActionCell({
             <span className="truncate text-[11px] font-medium" title={meta.fileName}>
                 {meta.fileName}
             </span>
-            {canPreview && (
-                <button
-                    type="button"
-                    onClick={() => onPreview(row, field, meta)}
-                    title={`Aperçu : ${meta.fileName}`}
-                    className={cn(
-                        "inline-flex items-center gap-0.5 text-[10px] font-semibold hover:underline shrink-0",
-                        tone,
-                    )}
-                >
-                    <Eye className="w-3 h-3" />
-                    Voir
-                </button>
-            )}
+            <button
+                type="button"
+                onClick={() => onPreview(row, field, meta)}
+                title={`Aperçu : ${meta.fileName}`}
+                className={cn(
+                    "inline-flex items-center gap-0.5 text-[10px] font-semibold hover:underline shrink-0",
+                    tone,
+                )}
+            >
+                <Eye className="w-3 h-3" />
+                Voir
+            </button>
             <a
                 href={downloadUrl}
                 title={`Télécharger : ${meta.fileName}`}

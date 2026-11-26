@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import {
     AlertCircle,
     CheckCircle2,
-    ExternalLink,
     FileSpreadsheet,
     FileText,
     Loader2,
@@ -30,7 +29,6 @@ import { Button } from "@/components/ui/button";
 import StockPoFilters from "./_components/stock-po-filters";
 import StockPoTable from "./_components/stock-po-table";
 import PickingsDialog from "./_components/pickings-dialog";
-import ExcelPreviewDialog from "./_components/excel-preview-dialog";
 import ValidateStockPoDialog from "./_components/validate-stock-po-dialog";
 import { useStockPo } from "./_lib/hooks/use-stock-po";
 import {
@@ -42,6 +40,7 @@ import type {
     StockPoReportData,
     StockPoRow,
 } from "./_lib/types";
+import UniversalFilePreviewModal from "../store-transfers/_components/universal-file-preview-modal";
 
 type PoFileField = "x_studio_fichier_excel_ca" | "x_studio_facture_fournisseur";
 
@@ -86,20 +85,13 @@ export default function StockPoClient({
     const [validateTarget, setValidateTarget] = useState<StockPoRow | null>(null);
     const [unvalidateTarget, setUnvalidateTarget] = useState<StockPoRow | null>(null);
 
-    const [excelPreview, setExcelPreview] = useState<{
+    // État unique pour le visualiseur universel plein écran
+    const [universalPreview, setUniversalPreview] = useState<{
         open: boolean;
-        poId: number | null;
-        field: PoFileField | null;
+        url: string | null;
         fileName: string;
-    }>({ open: false, poId: null, field: null, fileName: "" });
-
-    const [filePreview, setFilePreview] = useState<{
-        open: boolean;
-        url: string;
-        downloadUrl: string;
-        title: string;
-        isPdf: boolean;
-    }>({ open: false, url: "", downloadUrl: "", title: "", isPdf: false });
+        mimeType?: string;
+    }>({ open: false, url: null, fileName: "" });
 
     const orders = data?.orders ?? [];
     const kpis = data?.kpis ?? {
@@ -122,46 +114,22 @@ export default function StockPoClient({
         field: PoFileField,
         meta: StockPoAttachmentMeta,
     ) => {
-        const lower = meta.fileName.toLowerCase();
-        const isExcel =
-            field === "x_studio_fichier_excel_ca" ||
-            lower.endsWith(".xlsx") ||
-            lower.endsWith(".xls") ||
-            lower.endsWith(".csv") ||
-            meta.mimeType.includes("spreadsheet") ||
-            meta.mimeType.includes("excel") ||
-            meta.mimeType.includes("csv");
-
-        if (isExcel) {
-            setExcelPreview({
-                open: true,
-                poId: row.id,
-                field,
-                fileName: meta.fileName,
-            });
-            return;
-        }
-
-        const baseUrl = `/api/controls/stock-po/${row.id}/file?field=${field}`;
-        setFilePreview({
+        const url = `/api/controls/stock-po/${row.id}/file?field=${field}`;
+        setUniversalPreview({
             open: true,
-            url: baseUrl,
-            downloadUrl: `${baseUrl}&download=1`,
-            title: meta.fileName,
-            isPdf:
-                !meta.mimeType.startsWith("image/") &&
-                !/\.(png|jpe?g|webp)$/i.test(lower),
+            url,
+            fileName: meta.fileName,
+            mimeType: meta.mimeType,
         });
     };
 
     const handlePreviewValidation = (row: StockPoRow) => {
-        const baseUrl = `/api/controls/stock-po/${row.id}/validation-file`;
-        setFilePreview({
+        const url = `/api/controls/stock-po/${row.id}/validation-file`;
+        setUniversalPreview({
             open: true,
-            url: baseUrl,
-            downloadUrl: `${baseUrl}?download=1`,
-            title: row.validationFileName || `Validation ${row.name}`,
-            isPdf: row.validationMimeType === "application/pdf",
+            url,
+            fileName: row.validationFileName || `Validation ${row.name}`,
+            mimeType: row.validationMimeType ?? undefined,
         });
     };
 
@@ -301,12 +269,13 @@ export default function StockPoClient({
                 onOpenChange={(open) => !open && setPickingsOrder(null)}
             />
 
-            <ExcelPreviewDialog
-                poId={excelPreview.poId}
-                field={excelPreview.field}
-                fileName={excelPreview.fileName}
-                open={excelPreview.open}
-                onOpenChange={(open) => setExcelPreview((p) => ({ ...p, open }))}
+            {/* Le visualiseur universel plein écran */}
+            <UniversalFilePreviewModal
+                open={universalPreview.open}
+                onOpenChange={(open) => setUniversalPreview((p) => ({ ...p, open }))}
+                fileUrl={universalPreview.url}
+                fileName={universalPreview.fileName}
+                mimeType={universalPreview.mimeType}
             />
 
             <ValidateStockPoDialog
@@ -355,40 +324,6 @@ export default function StockPoClient({
                             Retirer
                         </Button>
                     </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            {/* Aperçu PDF / Image */}
-            <Dialog
-                open={filePreview.open}
-                onOpenChange={(open) => !open && setFilePreview((p) => ({ ...p, open: false }))}
-            >
-                <DialogContent className="max-w-3xl p-4">
-                    <DialogHeader className="flex flex-row items-center justify-between pr-6">
-                        <DialogTitle className="text-xs font-semibold truncate">
-                            {filePreview.title}
-                        </DialogTitle>
-                        <a
-                            href={filePreview.downloadUrl}
-                            className="inline-flex items-center gap-1 text-[11px] text-sky-600 hover:underline shrink-0"
-                        >
-                            <ExternalLink className="w-3 h-3" />
-                            Télécharger
-                        </a>
-                    </DialogHeader>
-                    {filePreview.isPdf ? (
-                        <iframe
-                            src={filePreview.url}
-                            title={filePreview.title}
-                            className="w-full h-[70vh] rounded-md border border-border"
-                        />
-                    ) : (
-                        <img
-                            src={filePreview.url}
-                            alt={filePreview.title}
-                            className="w-full max-h-[75vh] object-contain rounded-md"
-                        />
-                    )}
                 </DialogContent>
             </Dialog>
         </div>
