@@ -86,6 +86,7 @@ export function isInventoryRole(role: unknown): role is InventoryRole {
 
 export const CONTROLLER_INVENTORY_ALLOWED_PATHS = [
     "/inventory/purchases",
+    "/inventory/medias",
 ] as const;
 
 // ═══════════════════════════════════════════════════════════════════════════

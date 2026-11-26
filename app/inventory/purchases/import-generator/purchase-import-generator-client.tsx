@@ -485,7 +485,7 @@ export default function PurchaseImportGeneratorClient({
                                                         <td className="px-3 py-1.5 text-right font-mono font-bold text-slate-900 dark:text-white">{p.quantity}</td>
                                                         <td className="px-3 py-1.5 text-right font-mono tabular-nums text-muted-foreground">${p.pu}</td>
                                                         <td className="px-3 py-1.5 text-right font-mono tabular-nums font-bold text-primary">
-                                                            ${(p.pu * p.caa).toFixed(2)}
+                                                            ${(p.pu * 1.2 + p.caa).toFixed(2)}
                                                         </td>
                                                         <td className="px-3 py-1.5 text-center">
                                                             <button

@@ -51,7 +51,7 @@ export default async function InventoryLayout({
   if (role === CONTROLLER_ROLE) {
     const path = await resolveCurrentPath();
     if (path === "/inventory" || path === "/inventory/") {
-      redirect("/inventory/purchases");
+      redirect("/inventory/purchases"); // Ou redirige vers /inventory/medias si tu préfères
     }
     const allowed = CONTROLLER_INVENTORY_ALLOWED_PATHS.some((p) =>
       path.startsWith(p),
@@ -59,7 +59,9 @@ export default async function InventoryLayout({
     if (!allowed) {
       redirect("/unauthorized?reason=insufficient_permissions");
     }
+    return <InventoryShell role={role}>{children}</InventoryShell>;
   }
 
   return <InventoryShell role={role}>{children}</InventoryShell>;
 }
+

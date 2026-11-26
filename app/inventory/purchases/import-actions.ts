@@ -92,6 +92,7 @@ export async function getOdooPurchaseOrdersForImport(
         return g.__impPosCache.data;
     }
     try {
+        // 1. Récupération des Bons de commande validés (state: purchase ou done)
         const orders = await odooClient.searchRead<{
             id: number;
             name: string;
@@ -114,6 +115,8 @@ export async function getOdooPurchaseOrdersForImport(
         if (orders.length === 0) return [];
 
         const orderIds = orders.map((o) => o.id);
+
+        // 2. Résolution des IDs externes depuis ir.model.data
         const externalIds = await odooClient.searchRead<{
             module: string;
             name: string;
@@ -132,6 +135,33 @@ export async function getOdooPurchaseOrdersForImport(
             extIdMap.set(item.res_id, `${item.module}.${item.name}`);
         }
 
+        // 3. Auto-création dans ir.model.data pour les POs qui n'en ont pas encore
+        const missingIds = orderIds.filter((id) => !extIdMap.has(id));
+        if (missingIds.length > 0) {
+            try {
+                await odooClient.create(
+                    "ir.model.data",
+                    missingIds.map((id) => ({
+                        module: "__export__",
+                        name: `purchase_order_${id}`,
+                        model: "purchase.order",
+                        res_id: id,
+                    })),
+                );
+                for (const id of missingIds) {
+                    extIdMap.set(id, `__export__.purchase_order_${id}`);
+                }
+            } catch (err) {
+                console.warn("[IMPORT] Auto-création ir.model.data ignorée :", err);
+                for (const id of missingIds) {
+                    if (!extIdMap.has(id)) {
+                        extIdMap.set(id, `__export__.purchase_order_${id}`);
+                    }
+                }
+            }
+        }
+
+        // 4. Assemblage final
         const result = orders.map((order) => {
             const supplierId = Array.isArray(order.partner_id) ? order.partner_id[0] : 0;
             const supplierName = Array.isArray(order.partner_id)

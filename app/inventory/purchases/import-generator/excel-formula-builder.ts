@@ -47,7 +47,7 @@ export function buildCalculatedRow(
             : Number((product.prix * 1.25).toFixed(2));
 
     const pDollar = Number((product.pu * 1.2).toFixed(2));
-    const cout = Number((product.pu * product.caa).toFixed(2));
+    const cout = Number((pDollar + product.caa).toFixed(2));
     const prixOdoo = Number(((calculatedPublicPrice + 10) / 1.25).toFixed(2));
     const marge = Number((prixOdoo - cout).toFixed(2));
 
@@ -106,7 +106,7 @@ export function buildCalculatedRow(
         puCell: { v: product.pu, t: "n" },
         pDollarCell: { f: `N${rowIndex}*1.2`, v: pDollar, t: "n" },
         caaCell: { v: product.caa, t: "n" },
-        coutCell: { f: `N${rowIndex}*P${rowIndex}`, v: cout, t: "n" },
+        coutCell: { f: `O${rowIndex}+P${rowIndex}`, v: cout, t: "n" },
         prixPublicCell: { v: calculatedPublicPrice, t: "n" },
         prixOdooCell: { f: `(R${rowIndex}+10)/1.25`, v: prixOdoo, t: "n" },
         margeCell: { f: `S${rowIndex}-Q${rowIndex}`, v: marge, t: "n" },

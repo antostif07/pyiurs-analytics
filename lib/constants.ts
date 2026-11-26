@@ -173,16 +173,6 @@ export const MODULES_CONFIG: AppModule[] = [
     order: 1
   },
   {
-    id: "medias",
-    name: "Medias",
-    description: "Gestion des galeries d'images des produits haut de gamme.",
-    icon: PictureInPicture,
-    color: "bg-yellow-500",
-    href: "/medias",
-    category: "marketing",
-    permissions: ["admin", "manager", "user", "inventory-manager"]
-  },
-  {
     id: "base-test-odoo",
     name: "Base Test Odoo",
     description: "Outil de diagnostic de liaison JSON-RPC avec Odoo ERP.",

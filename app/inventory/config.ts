@@ -12,6 +12,7 @@ import {
     ScanLine,
     Layers,
     Sparkles,
+    PictureInPicture,
 } from "lucide-react";
 
 export const INVENTORY_NAV_GROUPS: NavGroup[] = [
@@ -39,6 +40,13 @@ export const INVENTORY_NAV_GROUPS: NavGroup[] = [
                 icon: AlertTriangle,
                 path: "/inventory/alerts",
                 roles: ["admin", "manager", "inventory_manager", "inventory-manager"],
+            },
+            {
+                id: "inventory-medias",
+                label: "Gestion des Médias",
+                icon: PictureInPicture,
+                path: "/inventory/medias",
+                roles: ["admin", "manager", "inventory_manager", "inventory-manager", "controller"],
             },
         ],
     },
