@@ -229,7 +229,7 @@ export const MODULES_CONFIG: AppModule[] = [
     icon: ShieldCheck,
     color: "bg-emerald-700",
     href: "/quality-control",
-    permissions: ["admin", "manager", "user"],
+    permissions: ["admin", "manager", "user", "controller"],
     category: "operations"
   },
   {
