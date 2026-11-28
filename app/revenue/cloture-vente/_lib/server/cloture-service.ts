@@ -521,21 +521,21 @@ export async function fetchDailyClosingReport(
             const segmentTotals = { femme: 0, enfant: 0, beauty: 0, autres: 0, total: 0 };
 
             for (const line of rawLines) {
+
+
                 const orderId = Array.isArray(line.order_id) ? line.order_id[0] : null;
                 const productId = Array.isArray(line.product_id) ? line.product_id[0] : null;
                 if (!orderId || !productId) continue;
 
+
                 const lineAmount =
-                    Number(line.discount ?? 0) === 100
-                        ? 0
-                        : Number(
-                            line.price_subtotal_incl ??
-                            Number(line.price_unit ?? 0) * Number(line.qty ?? 0),
-                        );
+                    Number(line.discount ?? 0) === 100 ? 0 : line.price_unit * line.qty
+                    ;
 
                 const seg = segmentByProductId.get(productId) ?? "autres";
                 segmentTotals[seg] += lineAmount;
                 segmentTotals.total += lineAmount;
+
 
                 const shopId = orderShopById.get(orderId);
                 if (shopId && matrixMap.has(shopId)) {

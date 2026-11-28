@@ -101,6 +101,9 @@ export default function ClotureMatrixAndPayments({
                                     Beauty
                                 </TableHead>
                                 <TableHead className={cn("py-2 px-3 text-[10px] font-semibold text-white uppercase text-right", HEADER_BG)}>
+                                    Autres
+                                </TableHead>
+                                <TableHead className={cn("py-2 px-3 text-[10px] font-semibold text-white uppercase text-right", HEADER_BG)}>
                                     Total
                                 </TableHead>
                             </TableRow>
@@ -127,6 +130,9 @@ export default function ClotureMatrixAndPayments({
                                         <TableCell className="py-2 px-3 text-right font-mono tabular-nums text-muted-foreground">
                                             {fmt(row.beauty)} $
                                         </TableCell>
+                                        <TableCell className="py-2 px-3 text-right font-mono tabular-nums text-muted-foreground">
+                                            {fmt(row.autres)} $
+                                        </TableCell>
                                         <TableCell className="py-2 px-3 text-right font-mono tabular-nums font-semibold">
                                             {fmt(row.total)} $
                                         </TableCell>
@@ -147,6 +153,9 @@ export default function ClotureMatrixAndPayments({
                                 </TableCell>
                                 <TableCell className="py-2 px-3 text-right font-mono tabular-nums font-bold">
                                     {fmt(report.segmentTotals.beauty)} $
+                                </TableCell>
+                                <TableCell className="py-2 px-3 text-right font-mono tabular-nums font-bold">
+                                    {fmt(report.segmentTotals.autres)} $
                                 </TableCell>
                                 <TableCell className="py-2 px-3 text-right font-mono tabular-nums font-bold text-emerald-600 dark:text-emerald-400">
                                     {fmt(report.segmentTotals.total)} $
