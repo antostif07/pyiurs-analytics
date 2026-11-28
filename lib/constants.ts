@@ -341,8 +341,15 @@ export const MODULES_CONFIG: AppModule[] = [
     href: "/hr",
     icon: Clock,
     color: "bg-rose-600",
-    permissions: ["admin", "manager", "user", "financier"],
-    category: "hr"
+    permissions: [
+      "admin",
+      "manager",
+      "user",
+      "financier",
+      "inventory-manager",
+      "inventory_manager",
+    ],
+    category: "hr",
   },
   // ──── Paramètres (admin only) ────
   {

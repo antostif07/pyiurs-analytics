@@ -1,83 +1,52 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { createServerClient } from "@supabase/ssr";
-import { UserRole } from "@/lib/constants";
+import type { Metadata } from "next";
+import { getServerAuth } from "@/lib/supabase/server";
+import { isHrRole } from "@/lib/auth/hr-roles";
 import { HRClientShell } from "./hr-client-shell";
 
-interface HRLayoutProps {
-  children: React.ReactNode;
+export const metadata: Metadata = {
+  title: {
+    default: "Ressources Humaines | Pyiurs",
+    template: "%s | RH",
+  },
+  description: "Gestion des employés, présences, primes, dettes et paie.",
+  robots: { index: false, follow: false },
+};
+
+export const dynamic = "force-dynamic";
+
+async function resolveCurrentPath(): Promise<string> {
+  const h = await headers();
+  return h.get("x-pathname") ?? "/hr";
 }
 
-const HR_ALLOWED_ROLES: UserRole[] = ["admin", "financier"];
+export default async function HRLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const [auth, cookieStore] = await Promise.all([getServerAuth(), cookies()]);
 
-export default async function HRLayout({ children }: HRLayoutProps) {
-  const cookieStore = await cookies();
-  const headersList = await headers();
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          } catch {
-            // Ignoré dans un Server Component (le refresh est géré par proxy.ts)
-          }
-        },
-      },
-    }
-  );
-
-  // 3. Verrou de session
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    // ✅ Redirection dynamique grâce au header posé par proxy.ts
-    const pathname = headersList.get("x-pathname") ?? "/hr";
-    redirect(`/login?redirectTo=${encodeURIComponent(pathname)}`);
+  if (!auth.user) {
+    const next = await resolveCurrentPath();
+    redirect(`/login?next=${encodeURIComponent(next)}`);
   }
 
-  // 4. Récupération du profil avec gestion d'erreur explicite
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("role, full_name, email, avatar_url")
-    .eq("id", user.id)
-    .single();
-
-  if (profileError || !profile) {
-    console.error("[HR Layout] Impossible de charger le profil:", profileError);
-    redirect("/login?error=profile_missing");
+  if (!auth.profile) {
+    redirect("/unauthorized?reason=missing_profile");
   }
 
-  const userRole = (profile.role as UserRole) ?? "user";
-
-  // ✅ 5. Contrôle d'accès basé sur le rôle
-  if (!HR_ALLOWED_ROLES.includes(userRole)) {
-    redirect("/"); // ou une page 403 dédiée
+  const { role } = auth.profile;
+  if (!isHrRole(role)) {
+    redirect("/unauthorized?reason=insufficient_permissions");
   }
 
-  // 6. État de la sidebar (inchangé)
-  const isCollapsed = cookieStore.get("hr_sidebar_collapsed")?.value === "true";
+  const isCollapsed =
+    cookieStore.get("hr_sidebar_collapsed")?.value === "true";
 
   return (
-    <HRClientShell
-      initialCollapsed={isCollapsed}
-      userRole={userRole}
-      userProfile={{
-        fullName: profile.full_name || user.email || "Utilisateur",
-        email: user.email || "",
-        avatarUrl: profile.avatar_url || undefined,
-      }}
-    >
+    <HRClientShell initialCollapsed={isCollapsed} userRole={role}>
       {children}
     </HRClientShell>
   );

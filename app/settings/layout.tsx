@@ -1,9 +1,9 @@
-// app/settings/layout.tsx
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import type { Metadata } from "next";
 import { getServerAuth } from "@/lib/supabase/server";
 import { isSettingsRole } from "@/lib/auth/roles";
+import SettingsShell from "./settings-shell";
 
 export const metadata: Metadata = {
     title: {
@@ -15,7 +15,6 @@ export const metadata: Metadata = {
     robots: { index: false, follow: false },
 };
 
-// Session-dépendant → jamais statique.
 export const dynamic = "force-dynamic";
 
 async function resolveCurrentPath(): Promise<string> {
@@ -42,9 +41,10 @@ export default async function SettingsLayout({
     }
 
     // 3. Admin strict
-    if (!isSettingsRole(auth.profile.role)) {
+    const { role } = auth.profile;
+    if (!isSettingsRole(role)) {
         redirect("/unauthorized?reason=insufficient_permissions");
     }
 
-    return <>{children}</>;
+    return <SettingsShell role={role}>{children}</SettingsShell>;
 }

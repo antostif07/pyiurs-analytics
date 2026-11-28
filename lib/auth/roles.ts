@@ -239,3 +239,4 @@ export function canAccessStoreTransfers(role: unknown): boolean {
         (STORE_TRANSFERS_ALLOWED_ROLES as readonly string[]).includes(role)
     );
 }
+
